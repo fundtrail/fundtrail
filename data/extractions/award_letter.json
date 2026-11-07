@@ -1,0 +1,123 @@
+[
+  {
+    "doc_id": "award_letter",
+    "field": "award_number",
+    "value": "SYN-2400042",
+    "cited_text": "AWARD NOTICE\nAward Number: SYN-2400042\nRecipient: Example State University\nPrincipal Investigator: Dr. Jordan Rivera, Department of Biology\nProject Title: Microbial Community Sequencing in Coastal Wetlands\nAward Type: Standard Grant",
+    "block": 1,
+    "block_end": 2,
+    "kind": "text",
+    "value_normalized": "syn-2400042",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "recipient",
+    "value": "Example State University",
+    "cited_text": "AWARD NOTICE\nAward Number: SYN-2400042\nRecipient: Example State University\nPrincipal Investigator: Dr. Jordan Rivera, Department of Biology\nProject Title: Microbial Community Sequencing in Coastal Wetlands\nAward Type: Standard Grant",
+    "block": 1,
+    "block_end": 2,
+    "kind": "text",
+    "value_normalized": "example state university",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "principal_investigator",
+    "value": "Dr. Jordan Rivera",
+    "cited_text": "AWARD NOTICE\nAward Number: SYN-2400042\nRecipient: Example State University\nPrincipal Investigator: Dr. Jordan Rivera, Department of Biology\nProject Title: Microbial Community Sequencing in Coastal Wetlands\nAward Type: Standard Grant",
+    "block": 1,
+    "block_end": 2,
+    "kind": "text",
+    "value_normalized": "dr. jordan rivera",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "period_start",
+    "value": "September 1, 2022",
+    "cited_text": "Period of Performance. The period of performance for this award is September 1, 2022 through August 31, 2025. Costs must be incurred within the period of performance to be charged to this award.",
+    "block": 3,
+    "block_end": 4,
+    "kind": "date",
+    "value_normalized": "2022-09-01",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "period_end",
+    "value": "August 31, 2025",
+    "cited_text": "Period of Performance. The period of performance for this award is September 1, 2022 through August 31, 2025. Costs must be incurred within the period of performance to be charged to this award.",
+    "block": 3,
+    "block_end": 4,
+    "kind": "date",
+    "value_normalized": "2025-08-31",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "total_direct_costs",
+    "value": "$300,000",
+    "cited_text": "Amount. The total amount awarded is $300,000 in direct costs, allocated according to the approved budget attached to this notice.",
+    "block": 4,
+    "block_end": 5,
+    "kind": "money",
+    "value_normalized": 30000000,
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "psc_budget",
+    "value": "$30,000",
+    "cited_text": "Participant Support Costs. Funds budgeted for participant support costs ($30,000) may not be used for other categories of expense without prior written approval from the cognizant Program Officer, requested through Research.gov.",
+    "block": 5,
+    "block_end": 6,
+    "kind": "money",
+    "value_normalized": 3000000,
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "psc_rebudget_approver",
+    "value": "cognizant Program Officer",
+    "cited_text": "Participant Support Costs. Funds budgeted for participant support costs ($30,000) may not be used for other categories of expense without prior written approval from the cognizant Program Officer, requested through Research.gov.",
+    "block": 5,
+    "block_end": 6,
+    "kind": "text",
+    "value_normalized": "cognizant program officer",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "psc_approval_channel",
+    "value": "Research.gov",
+    "cited_text": "Participant Support Costs. Funds budgeted for participant support costs ($30,000) may not be used for other categories of expense without prior written approval from the cognizant Program Officer, requested through Research.gov.",
+    "block": 5,
+    "block_end": 6,
+    "kind": "text",
+    "value_normalized": "research.gov",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "program_officer_email",
+    "value": "alex.morgan@funder.example",
+    "cited_text": "Program Officer: Dr. Alex Morgan, alex.morgan@funder.example",
+    "block": 6,
+    "block_end": 7,
+    "kind": "text",
+    "value_normalized": "alex.morgan@funder.example",
+    "status": "verified"
+  },
+  {
+    "doc_id": "award_letter",
+    "field": "grants_officer_email",
+    "value": "casey.lin@funder.example",
+    "cited_text": "Grants Officer: Casey Lin, casey.lin@funder.example",
+    "block": 7,
+    "block_end": 8,
+    "kind": "text",
+    "value_normalized": "casey.lin@funder.example",
+    "status": "verified"
+  }
+]
