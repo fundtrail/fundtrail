@@ -291,7 +291,7 @@ The tests in `app/contracts/tests/` check that the fixture validates, that every
 | How reversals and cost transfers show in buckets and at closeout | product |
 | Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
 | An amendment that states only a length, such as "extended 12 months". The term holds a stated end date, so this would need a new field. | contract, if a demo document needs it |
-| The agent's exact actions and prompts | builder (W1) |
+| The agent's exact actions and prompts. Needs design work, as its own task, with or without the eval (see [architecture.md](architecture.md#the-agent)). | builder (W1) |
 | How a file's own date is filled in for files that aren't emails | builder (W3) |
 | Columns or tables for mail held from unknown senders | builder (W4 with W3), through a contract PR |
 | The eval case's arrival schedule: when each file arrives | builder (W3) |

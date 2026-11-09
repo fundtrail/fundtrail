@@ -32,7 +32,7 @@ The eval is an automated test that measures how often FundTrail gets the right a
 
 ## When it runs
 
-- **During development,** after every change to the agent's prompts or logic, to show whether the change helped. It calls Claude live, since there's no response cache.
+- **During development,** after every change to the agent's prompts or logic, to show whether the change helped. It calls Claude live, since there's no response cache. Whether the agent's prompts get tuned against it is up to whoever designs them (W1).
 - **The blind test runs once, at the end** (example process, details later):
   - Alex writes a spec of about 12 expenses with traps.
   - A separate Claude session with no repo access generates the documents.

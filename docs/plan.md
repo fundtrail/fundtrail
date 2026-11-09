@@ -116,3 +116,4 @@ A small correction inside one area doesn't need a decision file. The PR descript
 |---|---|
 | How to demo | product |
 | The demo data | product (Alex and Grant), built by W3 |
+| The agent's exact actions and prompts: a W1 task of its own, which can go to a worker. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1) |

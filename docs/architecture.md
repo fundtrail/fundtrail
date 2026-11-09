@@ -62,7 +62,13 @@ the agent (our code, in backend/app/agent/)
 - **Correcting earlier mistakes.** The agent is told to look for them: every time it matches, when a sum goes over, and once in a review of all the grant's links as closeout nears. Every fix is a suggestion that waits for the accountant. When a new link conflicts with an old one, the agent still writes it and suggests a fix for the old one, and the over sum keeps the charges with the accountant until they decide.
 - **Reading files.** Files go to the model as they are. For text and for PDFs with real text, citations are on, and the API returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents. For photos and scans the API has no citations, so the agent estimates a box around each quote. The agent never types a quote itself.
 - **No database access.** The agent only proposes. The backend checks every write as it happens and returns any problems to the agent. Everything a run wrote is saved together at the end, so a run that fails saves nothing.
-- **Its exact actions and prompts** are decided with W1. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Code enforces only the hard limits below.
+- **Still to design: its exact actions and prompts (W1).** Only the idea above is settled. Whoever builds the agent decides the actions, the prompts and the guidance, and whether to tune them against the eval. The eval can help, but it isn't required. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Starting points from the design discussion, as guidance rather than rules:
+  - Write the links you believe are right. Don't skip or shrink a link to make a sum fit, because code checks the sums.
+  - When matching a new item, check whether it shows that an earlier link was wrong. If it does, suggest a fix and say why.
+  - Don't guess between charges that look alike. Flag it instead.
+  - Write part of a receipt as an amount when a document states that part, or when the numbers leave only one answer.
+
+  Code enforces only the hard limits below.
 
 The model is called through Anthropic's SDK inside LangGraph. The reason is in [decisions/0006](decisions/0006-stack.md).
 
@@ -124,7 +130,7 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 | How often Gmail and Drive are checked, push or polling | builder (W3) |
 | Email body vs. attachments, duplicate files | builder (W3) |
 | The email address format for each grant | builder (W3) |
-| The agent's exact actions, graph nodes, prompts, and how it handles errors | builder (W1) |
+| The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |
 | Whether citations work on a file the agent opens again in the middle of a run. The citation test in `spikes/` can check it. | builder (W1) |
 | How quoted text is located in a PDF for highlighting | builder (W6) |
 | How scheduled release by the clock is implemented, and live arrivals while the clock is in the past | product, then W4 |
