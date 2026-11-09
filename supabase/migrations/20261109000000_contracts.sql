@@ -89,7 +89,7 @@ create table records (
   created_at timestamptz not null default now(), -- real time, to order ties
   check ((author = 'user') = (author_user_id is not null)),
   check (kind <> 'retraction' or replaces_id is not null),
-  check (kind <> 'link' or (charge_id is not null and record_id is not null)),
+  check (kind not in ('link', 'budget_assignment') or (charge_id is not null and record_id is not null)),
   check (kind <> 'judgment' or charge_id is not null),
   check (author = 'user' or kind not in ('confirmation', 'sign_off')),
   check (replaces_id <> id)

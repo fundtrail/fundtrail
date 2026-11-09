@@ -9,6 +9,7 @@ Kinds, by what they hold:
   budget_line, person, approval_rule, other_term
 - facts read from evidence: receipt, approval, note
 - link: ties a fact to the charge it pays for, approves or explains
+- budget_assignment: which budget line a charge belongs to
 - judgment: an answer to one question about one charge
 - written only by the accountant: confirmation, sign_off
 - retraction: replaces a record with nothing
@@ -139,8 +140,9 @@ class RecordKind(StrEnum):
     RECEIPT = "receipt"
     APPROVAL = "approval"
     NOTE = "note"
-    # Links and answers
+    # Links, budget lines and answers
     LINK = "link"
+    BUDGET_ASSIGNMENT = "budget_assignment"
     JUDGMENT = "judgment"
     # Written only by the accountant
     CONFIRMATION = "confirmation"
@@ -270,6 +272,19 @@ class Link(Model):
     reason: str | None = None  # one line on why they match
 
 
+class BudgetAssignment(Model):
+    """Which budget line a charge belongs to. The agent decides it; the accountant can replace it.
+
+    The checks read it for budget room and for whether an approval rule applies.
+    A charge has at most one current assignment.
+    """
+
+    kind: Literal[RecordKind.BUDGET_ASSIGNMENT] = RecordKind.BUDGET_ASSIGNMENT
+    charge_id: str
+    record_id: str  # the budget_line term
+    reason: str | None = None  # one line on why
+
+
 class Question(StrEnum):
     ALLOWABLE = "allowable"  # Is this cost necessary and reasonable, and is it for this project?
     COVERS = "covers"  # Does this approval cover this charge?
@@ -351,6 +366,7 @@ RecordData = Annotated[
     | Approval
     | Note
     | Link
+    | BudgetAssignment
     | Judgment
     | Confirmation
     | SignOff
@@ -381,8 +397,8 @@ def cited_values(model: BaseModel, prefix: str = "") -> Iterator[tuple[str, Cite
 class Record(Model):
     id: str
     workspace_id: str
-    # For a link or a judgment, the grant it was written on. Its charge may be on
-    # another grant in the same workspace.
+    # For now each grant is isolated: a record's charge, and the records it points
+    # to, are on this same grant.
     grant_id: str
     author: Author
     author_user_id: str | None = None  # set exactly when author is "user"
@@ -392,12 +408,12 @@ class Record(Model):
 
     @property
     def charge_id(self) -> str | None:
-        """The charge a link or judgment is about. A real column in the database."""
+        """The charge a link, budget assignment or judgment is about. A real column in the database."""
         return getattr(self.data, "charge_id", None)
 
     @property
     def record_id(self) -> str | None:
-        """The record a link or judgment points to. A real column in the database."""
+        """The record a link, budget assignment or judgment points to. A real column in the database."""
         return getattr(self.data, "record_id", None)
 
     @model_validator(mode="after")
@@ -480,8 +496,9 @@ def check_new_record(new: Record, records: Sequence[Record], charges: Sequence[C
     """
     problems: list[str] = []
     by_id = {r.id: r for r in records}
-    current = {r.id for r in current_records(records)}
-    charge_ids = {c.id for c in charges}
+    current_list = current_records(records)
+    current = {r.id for r in current_list}
+    charges_by_id = {c.id: c for c in charges}
 
     def current_record(record_id: str, what: str) -> Record | None:
         if record_id not in by_id:
@@ -510,10 +527,19 @@ def check_new_record(new: Record, records: Sequence[Record], charges: Sequence[C
             if new.data.kind not in (target.data.kind, RecordKind.RETRACTION):
                 problems.append(f"a {new.data.kind} can't replace a {target.data.kind}")
 
+    # For now each grant is isolated: the charge and the record a record points
+    # to are on its own grant.
+    if new.charge_id is not None:
+        charge = charges_by_id.get(new.charge_id)
+        if charge is None:
+            problems.append(f"charge {new.charge_id} doesn't exist")
+        elif charge.grant_id != new.grant_id:
+            problems.append("for now each grant is isolated, and this charge is on another grant")
+    if new.record_id in by_id and by_id[new.record_id].grant_id != new.grant_id:
+        problems.append("for now each grant is isolated, and the record it points to is on another grant")
+
     data = new.data
     if isinstance(data, Link):
-        if data.charge_id not in charge_ids:
-            problems.append(f"charge {data.charge_id} doesn't exist")
         fact = current_record(data.record_id, "the linked record")
         if fact is not None:
             if fact.data.kind not in FACT_KINDS:
@@ -525,9 +551,16 @@ def check_new_record(new: Record, records: Sequence[Record], charges: Sequence[C
             files = _files_cited(fact)
             if data.part is not None and files and data.part.file_id not in files:
                 problems.append("the link's part has to be in the linked record's own file")
+    elif isinstance(data, BudgetAssignment):
+        line = current_record(data.record_id, "the budget line")
+        if line is not None and line.data.kind != RecordKind.BUDGET_LINE:
+            problems.append(f"a budget assignment points to a budget_line, not a {line.data.kind}")
+        if any(
+            isinstance(r.data, BudgetAssignment) and r.data.charge_id == data.charge_id and r.id != new.replaces_id
+            for r in current_list
+        ):
+            problems.append("this charge already has a budget line; replace that assignment instead")
     elif isinstance(data, Judgment):
-        if data.charge_id not in charge_ids:
-            problems.append(f"charge {data.charge_id} doesn't exist")
         if data.record_id is not None:
             about = current_record(data.record_id, "the record the question is about")
             expected = {Question.COVERS: RecordKind.APPROVAL, Question.UNUSUAL_TERM: RecordKind.OTHER_TERM}

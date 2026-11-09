@@ -22,7 +22,7 @@ from .checks import (
     TriggerKind,
     run_checks,
 )
-from .eval import AnswerKey, ExpectedAnswer, ExpectedBucket, ExpectedLink, ExpectedRecord
+from .eval import AnswerKey, ExpectedAnswer, ExpectedBucket, ExpectedBudgetLine, ExpectedLink, ExpectedRecord
 from .evidence import STORAGE_BUCKET, EvidenceFile, Source
 from .records import (
     FACT_KINDS,
@@ -34,6 +34,7 @@ from .records import (
     Approval,
     ApprovalRule,
     Author,
+    BudgetAssignment,
     BudgetLine,
     CharLocation,
     Citation,
@@ -86,6 +87,7 @@ __all__ = [
     "Approval",
     "ApprovalRule",
     "Author",
+    "BudgetAssignment",
     "BudgetLine",
     "Bucket",
     "CharLocation",
@@ -104,6 +106,7 @@ __all__ = [
     "EvidenceFile",
     "ExpectedAnswer",
     "ExpectedBucket",
+    "ExpectedBudgetLine",
     "ExpectedLink",
     "ExpectedRecord",
     "Grant",

@@ -27,6 +27,11 @@ class ExpectedLink(Model):
     amount_cents: int | None = None  # for a receipt: how much of it this charge uses
 
 
+class ExpectedBudgetLine(Model):
+    line_id: str
+    budget_line: str  # the budget line's name as the award letter writes it
+
+
 class ExpectedAnswer(Model):
     line_id: str
     question: Question
@@ -45,5 +50,6 @@ class AnswerKey(Model):
     award_number: str = Field(pattern=r"^SYN-")
     records: list[ExpectedRecord]
     links: list[ExpectedLink]
+    budget_lines: list[ExpectedBudgetLine]
     answers: list[ExpectedAnswer]
     buckets: list[ExpectedBucket]

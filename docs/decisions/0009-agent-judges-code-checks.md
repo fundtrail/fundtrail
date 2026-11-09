@@ -30,6 +30,7 @@
 ## Consequences
 
 - The contracts add links with amounts and parts, judgments, `other_term`, `note`, agent runs, and a write check that both the backend and the agent use. The split record is gone.
+- The agent's budget-line choice is stored as a `budget_assignment` record. For now each grant is isolated: links, assignments and answers stay within one grant.
 - The agent is no longer a fixed read-then-write pipeline. Where [0006](0006-stack.md) says "the read step", read "the agent's calls to the model". The contracts use "evidence report" and `GET /grants/{grant_id}/report`, which settles the naming note in [0008](0008-evidence-report-for-university-closeout.md).
 - Open questions this decision leaves are listed under "Not decided yet" in [product.md](../product.md#not-decided-yet), [architecture.md](../architecture.md#not-decided-yet) and [contracts.md](../contracts.md#not-decided-yet).
 - Status text still comes from code. The agent's reasoning is shown next to it, labeled as the agent's.

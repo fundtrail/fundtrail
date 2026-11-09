@@ -121,6 +121,16 @@
       "amount_cents": 218000
     }
   ],
+  "budget_lines": [
+    {
+      "line_id": "L-1001",
+      "budget_line": "Materials and Supplies"
+    },
+    {
+      "line_id": "L-1002",
+      "budget_line": "Other Direct Costs"
+    }
+  ],
   "answers": [
     {
       "line_id": "L-1001",

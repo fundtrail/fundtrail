@@ -16,6 +16,7 @@ from app.contracts import (
     TERM_KINDS,
     Author,
     Bucket,
+    BudgetAssignment,
     Charge,
     ChargeStatus,
     ChecksInput,
@@ -153,7 +154,7 @@ def test_answer_key_scores_all_right():
     facts = [
         (r.data.kind, file_of(r), {p: v.value for p, v in cited_values(r.data)})
         for r in agent
-        if not isinstance(r.data, Link | Judgment)
+        if not isinstance(r.data, Link | Judgment | BudgetAssignment)
     ]
     for e in KEY.records:
         match = next(
@@ -170,6 +171,13 @@ def test_answer_key_scores_all_right():
         if isinstance(r.data, Link)
     ]
     assert sorted(links) == sorted((e.file, e.line_id, e.amount_cents) for e in KEY.links)
+
+    budget_lines = [
+        (LINES[r.data.charge_id], by_id[r.data.record_id].data.name.value)  # type: ignore[union-attr]
+        for r in agent
+        if isinstance(r.data, BudgetAssignment)
+    ]
+    assert sorted(budget_lines) == sorted((e.line_id, e.budget_line) for e in KEY.budget_lines)
 
     answers = [(LINES[r.data.charge_id], r.data.question, r.data.answer) for r in agent if isinstance(r.data, Judgment)]
     assert sorted(answers) == sorted((e.line_id, e.question, e.answer) for e in KEY.answers)
@@ -351,6 +359,31 @@ def test_agent_answers_again_without_waiting():
     first = _agent(id="j1", data=answer | {"answer": "unsure"})
     again = _agent(id="j2", data=answer | {"answer": "supports"}, replaces_id="j1")
     assert [r.id for r in current_records([first, again])] == ["j2"]
+
+
+def test_budget_assignment_rules():
+    term = {"value": "Materials", "text": "Materials", "citation": PART | {"passage": "Materials: $40,000"}}
+    money = {"value": 4000000, "text": "$40,000", "citation": PART | {"passage": "Materials: $40,000"}}
+    line = _record(id="bl", data={"kind": "budget_line", "name": term, "amount": money})
+    receipt = _agent(id="rcpt", data=RECEIPT)
+    first = _agent(id="ba1", data={"kind": "budget_assignment", "charge_id": "c1", "record_id": "bl"})
+    assert check_new_record(first, [line, receipt], CHARGES) == []
+
+    second = _agent(id="ba2", data={"kind": "budget_assignment", "charge_id": "c1", "record_id": "bl"})
+    assert check_new_record(second, [line, receipt, first], CHARGES)  # one per charge: replace instead
+    assert check_new_record(second.model_copy(update={"replaces_id": "ba1"}), [line, receipt, first], CHARGES) == []
+
+    wrong = _agent(id="ba3", data={"kind": "budget_assignment", "charge_id": "c1", "record_id": "rcpt"})
+    assert check_new_record(wrong, [line, receipt], CHARGES)  # it points to a budget_line
+
+
+def test_each_grant_is_isolated():
+    receipt = _agent(id="rcpt", data=RECEIPT)
+    elsewhere = [CHARGES[0].model_copy(update={"grant_id": "other"})]
+    link = _agent(id="l1", data=_link())
+    assert any("isolated" in p for p in check_new_record(link, [receipt], elsewhere))
+    other_receipt = receipt.model_copy(update={"grant_id": "other"})
+    assert any("isolated" in p for p in check_new_record(link, [other_receipt], CHARGES))
 
 
 def test_retraction():

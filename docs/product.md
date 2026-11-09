@@ -27,6 +27,7 @@ These limits are for now. The design stays open to grow (see below).
 
 - To add a grant, the accountant drops in the award letter. The agent pulls out the terms as cited records: dates, budget lines, people and their roles, approval rules, and anything else the letter says that those don't hold, such as a principal investigator going on leave. The accountant confirms the terms before any check uses them.
 - Amendments, such as an extension notice, update the terms the same way.
+- For now each grant is isolated: its evidence, links and checks don't reach other grants.
 - For now, only NSF grants, and only direct costs.
 
 ## Buckets
@@ -105,7 +106,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 |---|---|
 | A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
 | A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete** once the accountant confirms the new end date, citing it |
-| One purchase is shared with a second grant and split across both ledgers | The agent links the invoice to both charges, each for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links to both charges. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
+| One purchase is shared with a second grant and split across both ledgers | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
 | A receipt arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
 | A new grant is built from scratch from a seed pack: award letter, ledger file, emails, invoices, a receipt photo | Create the grant, confirm its terms, upload the ledger, add the evidence, watch the statuses fill in |
 
@@ -142,7 +143,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 - more users and roles: workspace members, and a read-only view for professors
 - more funders, with rules organized per funder, starting with NSF
 - more universities, each with its own evidence report template, starting with Berkeley
-- evidence files that belong to the workspace instead of the grant they arrived on
+- grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on
 - indirect costs
 - in-kind cost sharing (third-party contributions that never appear on the ledger)
 - a real-time card feed, like Ramp's, that shows charges before they post
@@ -164,6 +165,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | A charge's bucket between an amendment's arrival and the accountant's confirmation of it, and while a grant's terms aren't confirmed yet | product |
 | How reversals and cost transfers show in buckets and at closeout | product |
 | Whether a later change reopens a sign-off | product |
+| A cost shared by two grants while each grant is isolated: each grant's copy of the invoice shows the other grant's part as money never charged at closeout. How to show that without a false alarm. | product |
 | Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. Only link fixes were discussed. The contracts make every correction the agent writes wait, except a new answer to its own question. | product |
 | How the evidence report shows the agent's answers next to code's reasons | product |
 | Screen layouts, and how emails are displayed | builder |
