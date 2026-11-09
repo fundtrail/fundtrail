@@ -32,6 +32,7 @@ The code is the truth. This file explains it.
 - Timestamps are timezone-aware and stored in UTC. Records carry the workspace clock's "now".
 - Money is an integer number of cents in US dollars. Credits are negative.
 - Contract models reject unknown fields and can't be changed after they're created.
+- For now each grant is isolated: a record's charge and the records it points to are on its own grant, and the agent works on one grant at a time.
 
 ## 1. Records
 
@@ -48,6 +49,7 @@ A record is one thing the agent or the accountant wrote. It's never edited. A co
 | | `approval` | `approver_email`, `approver_name`, `approved_on`, `covers`, `channel` | Agent or accountant |
 | | `note` | `label`, `statement` | Agent or accountant |
 | Links and answers | `link` | See section 2 | Agent or accountant |
+| | `budget_assignment` | `charge_id`, `record_id` (the `budget_line` term), `reason` | Agent or accountant |
 | | `judgment` | See section 3 | Agent or accountant |
 | The accountant only | `confirmation` | `record_ids`, `decision` (`confirmed` or `rejected`) | Accountant |
 | | `sign_off` | `note` | Accountant |
@@ -82,6 +84,8 @@ Code: `needs_confirmation`, `decisions`, `effective_records`, `current_records` 
 - a link points to a receipt, approval or note, has an amount exactly when it points to a receipt, and its part is in the linked record's own file
 - a judgment's question is about the right kind of record
 - a confirmation lists only records that wait for one
+- a budget assignment points to a `budget_line`, and its charge has no other current assignment
+- for now, the charge and the records a record points to are on the record's own grant
 
 ## 2. Links
 
@@ -90,12 +94,14 @@ A link ties a fact to a charge. It's a record of kind `link`, and it's its own c
 | Field | What it holds |
 |---|---|
 | `record_id` | The receipt, approval or note. The database enforces that it exists. |
-| `charge_id` | The charge. The database enforces that it exists. It may be on another grant in the workspace. |
+| `charge_id` | The charge. The database enforces that it exists. For now it's on the link's own grant. |
 | `amount_cents` | For a receipt only: how much of the receipt this charge uses. Negative for a credit. |
 | `part` | A citation: the place in the record's own file that pertains to this charge, highlighted when the user opens it. For a whole receipt, it's the total's citation. The agent always gives one. |
 | `reason` | Optional: one line on why they match |
 
 The meaning comes from the record: a receipt link means "pays for", an approval link "approves", and a note link "explains". A split is one receipt linked to several charges, each link with its amount and part, such as an itemized line. There's no separate split record. When an email gives the basis instead, such as "56 of the 96 samples are for grant 1", the email is read as a `note` and linked to each charge, because a link's part has to be in its own record's file.
+
+**Budget lines.** The agent decides which budget line each charge belongs to and writes a `budget_assignment`: the charge, the `budget_line` term and a one-line reason. A charge has at most one current assignment, so a change replaces it, and the accountant can replace the agent's. The checks read it for budget room and for whether an approval rule applies.
 
 **A waiting fix.** While a fix the agent suggested waits for the accountant, every charge it touches is in Needs a human, showing the suggestion. The old link stays in force until the accountant confirms the fix.
 
@@ -118,7 +124,7 @@ Code checks the clear-cut rules itself. For what it can't settle, it asks a ques
 | Question | When code asks it |
 |---|---|
 | `allowable`: "Is this cost necessary and reasonable, and is it for this project?" | Every charge that has evidence linked |
-| `covers`: "Does this approval cover this charge?" | When an approval rule applies to the charge and an approval is linked. `record_id` is the approval. Whether a rule applies depends on the charge's budget line, which the agent decides; where that's stored is still open. |
+| `covers`: "Does this approval cover this charge?" | When an approval rule applies to the charge and an approval is linked. `record_id` is the approval. Whether a rule applies depends on the charge's `budget_assignment`. |
 | `unusual_term`: "Does this term change anything for this charge?" | Once for each confirmed `other_term` in force on the charge's date. `record_id` is the term. |
 | `flag`: the agent's own question | Whenever the agent sees something no other question covers. The agent's answer is always `unsure`, and the accountant settles it by answering it. |
 
@@ -165,7 +171,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput
 
 A pure function, with no database and no model inside. W2 implements it in `backend/app/checks/`; the contract version is a stub.
 
-- **In:** `ChecksInput` holds `now` and everything in one workspace visible at that time: `charges`, `evidence` and `records`, including replaced, waiting and rejected records. It takes the whole workspace because a charge's links can come from another grant's files.
+- **In:** `ChecksInput` holds `now` and everything in one workspace visible at that time: `charges`, `evidence` and `records`, including replaced, waiting and rejected records. It takes the whole workspace. For now each grant is isolated, so the checks can also run one grant at a time.
 - **Out:** `ChecksOutput` holds:
   - `statuses`: one `ChargeStatus` per charge, with its `bucket`, every `Reason` (`check`, `bucket`, `text` built by code, and the `record_ids` it rests on), `flagged`, and `rechecking`
   - `questions`: every required question without a current answer, as an `OpenQuestion` with `answer_by` (the agent, or the accountant when they answered before)
@@ -197,7 +203,7 @@ Migration: [`20261109000000_contracts.sql`](../supabase/migrations/2026110900000
 
 - Rows match the Pydantic models, with these differences: a record row's `data` is `Record.data` dumped to JSON, and `kind`, `charge_id` and `record_id` are generated from it; a status row's `Trigger` is split into `trigger_kind` and `trigger_id`, and it adds `workspace_id`; `records` and `users` add a real-time `created_at`.
 - `records`, `charges` and `statuses` reject updates. Deletes stay allowed so a workspace reset can clear them.
-- The database also enforces: one charge per ledger line ID in a workspace, `author_user_id` set exactly for `user` records, a retraction replacing something, a link naming both its record and its charge, a judgment naming its charge, only the accountant writing confirmations and sign-offs, and one running agent run per grant.
+- The database also enforces: one charge per ledger line ID in a workspace, `author_user_id` set exactly for `user` records, a retraction replacing something, a link or budget assignment naming both its record and its charge, a judgment naming its charge, only the accountant writing confirmations and sign-offs, and one running agent run per grant.
 - Row level security is on, with no policies. The backend uses the service role key, and the browser never reads the tables directly.
 
 ## 9. API
@@ -258,6 +264,7 @@ Code: [`eval.py`](../backend/app/contracts/eval.py). Example: the golden [`answe
 - `case`, and `award_number`, which must start with `SYN-`
 - `records`: the facts and terms the agent should read. Each has a `kind`, a `file` (the case file it cites) and `fields`, the expected values by field path as strings: dates as `YYYY-MM-DD`, money in cents, text as written, for example `{"total": "124000", "items[0].description": "..."}`.
 - `links`: each has the `file` the linked fact was read from, the charge's `line_id`, and for a receipt the `amount_cents`.
+- `budget_lines`: each has a charge's `line_id` and the `budget_line` name as the award letter writes it.
 - `answers`: each has a `line_id`, a `question`, for `covers` and `unusual_term` the `about_file`, and the expected `answer`.
 - `buckets`: each has a `line_id`, an `at` (a clock time after the arrival it follows) and a `bucket`.
 
@@ -265,6 +272,7 @@ Code: [`eval.py`](../backend/app/contracts/eval.py). Example: the golden [`answe
 
 - **Records:** a match has the same kind, cites the same file, and every listed field equals the record's value, compared as strings ignoring case and extra whitespace. Fields the key leaves out aren't compared.
 - **Links:** a match links a fact from the same file to the same charge, with the same amount.
+- **Budget lines:** a match assigns the same charge to a budget line with the same name.
 - **Answers:** a match answers the same question about the same charge (and the same file, when given).
 - Each expected item matches at most one agent item. An expected item with a match is **right**, one with none is **missing**, and an agent item that matches nothing is **wrong**.
 - **False clears** are counted on their own: an answer of `supports` where the key says `contradicts` or `unsure`, and an expense in Evidence complete where the key says otherwise.
@@ -277,9 +285,9 @@ Files: [`fixtures/golden/`](../backend/app/contracts/fixtures/golden/). Load it 
 |---|---|---|
 | 2023-01-12 | The award letter is uploaded. The agent writes 8 terms, and the accountant confirms them. | `rec-award-*`, `rec-confirm-award` |
 | 2025-11-12 | Invoice INV-1001 is uploaded and waits, unlinked | `rec-receipt-1001` |
-| 2025-11-14 | Ledger line L-1001 arrives: supplies bought Nov 12, 2025. The agent links the invoice for $1,240 and answers Allowable: supports. | `rec-link-1001`, `rec-judge-1001-allowable` |
+| 2025-11-14 | Ledger line L-1001 arrives: supplies bought Nov 12, 2025. The agent links the invoice for $1,240, assigns it to Materials and Supplies, and answers Allowable: supports. | `rec-link-1001`, `rec-budget-1001`, `rec-judge-1001-allowable` |
 | 2026-02-21 | The PI emails the sequencing invoice, and it waits | `rec-receipt-1002` |
-| 2026-02-24 | Ledger line L-1002 arrives: sequencing done Feb 20, 2026, after the end date. The agent links the invoice for $2,180 and answers Allowable: supports. | `rec-link-1002`, `rec-judge-1002-allowable` |
+| 2026-02-24 | Ledger line L-1002 arrives: sequencing done Feb 20, 2026, after the end date. The agent links the invoice for $2,180, assigns it to Other Direct Costs, and answers Allowable: supports. | `rec-link-1002`, `rec-budget-1002`, `rec-judge-1002-allowable` |
 | 2026-04-09 | The extension notice, dated Jan 15, 2026, turns up in Drive. It moves the end date to Jan 31, 2027. | `rec-ext-period` |
 | 2026-04-10 | The accountant confirms the new end date | `rec-confirm-ext` |
 
@@ -296,8 +304,10 @@ The tests in `app/contracts/tests/` check that the fixture validates, that every
 | How reversals and cost transfers show in buckets and at closeout | product |
 | Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
 | Whether the agent's corrections to its own facts (not links) wait for the accountant. The contracts make them wait today. | product |
-| Where the agent's choice of a charge's budget line is stored, for example a link from the `budget_line` term to the charge or a record kind of its own. The checks need it for budget room and for whether an approval rule applies, so W2 can't finish those checks until it's settled. The golden fixture's ledger accounts happen to match its budget line names; don't treat that as the rule. | contract, needs discussing |
-| Whether the agent sees charges on the workspace's other grants when matching. A cost shared across grants needs it, but the agent was described as looking at "anything on the grant". If it does, how runs on two grants avoid linking the same receipt at once, since the lock is one run per grant. | contract, needs discussing |
+| A cost shared by two grants while each grant is isolated: the invoice arrives on both grants as two files, and each grant links its own copy for its part. At closeout each copy then shows the other grant's part as money never charged. How to show that without a false alarm. | product, needs discussing |
+| Letting grants share evidence and links instead of being isolated | later |
+| How code matches an approval rule's `applies_to`, as the award letter words it, to the charge's assigned budget line | builder (W2) |
+| The details behind who decides what, which questions code asks, and when an `other_term` is in force. Agreed for now, to look at in more detail later. | product, later |
 | How trust rule 2 checks values read from photos and scans now that one receipt can pay part of a charge, or several charges. Before links had amounts, such a value had to match its ledger line. | contract, needs discussing |
 | An amendment that states only a length, such as "extended 12 months". The term holds a stated end date, so this would need a new field. | contract, if a demo document needs it |
 | The agent's exact actions and prompts. Needs design work, as its own task, with or without the eval (see [architecture.md](architecture.md#the-agent)). | builder (W1) |

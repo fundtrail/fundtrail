@@ -685,6 +685,19 @@
       }
     },
     {
+      "id": "rec-budget-1001",
+      "workspace_id": "ws-golden",
+      "grant_id": "grant-golden",
+      "author": "agent",
+      "written_at": "2025-11-14T00:05:00Z",
+      "data": {
+        "kind": "budget_assignment",
+        "charge_id": "chg-l-1001",
+        "record_id": "rec-award-budget-supplies",
+        "reason": "Core liners are lab supplies, and the ledger account is Materials and Supplies"
+      }
+    },
+    {
       "id": "rec-judge-1001-allowable",
       "workspace_id": "ws-golden",
       "grant_id": "grant-golden",
@@ -815,6 +828,19 @@
           }
         },
         "reason": "Same vendor, amount and invoice number (SEQ-0207) as the ledger line"
+      }
+    },
+    {
+      "id": "rec-budget-1002",
+      "workspace_id": "ws-golden",
+      "grant_id": "grant-golden",
+      "author": "agent",
+      "written_at": "2026-02-24T00:05:00Z",
+      "data": {
+        "kind": "budget_assignment",
+        "charge_id": "chg-l-1002",
+        "record_id": "rec-award-budget-other",
+        "reason": "Sequencing is a purchased service, and the ledger account is Other Direct Costs"
       }
     },
     {

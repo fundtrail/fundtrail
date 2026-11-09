@@ -16,6 +16,7 @@ The eval is an automated test that measures how often FundTrail gets the right a
 1. **Write the answer key first.** For each synthetic expense, it lists:
    - the facts and terms the agent should read, for example "new end date, from the extension notice"
    - the links it should write, with amounts, for example "invoice 2050 pays $5,000 of this ledger line"
+   - the budget line it should assign each expense
    - its answers to the questions code asks, for example "Allowable: contradicts" for a break-room espresso machine
    - the bucket the expense should be in after each arrival
 
@@ -23,7 +24,7 @@ The eval is an automated test that measures how often FundTrail gets the right a
 2. **Make the documents.** These are award letters, emails, invoices, receipts and the ledger file, all matching the answer key.
 3. **Run FundTrail on them** with the same code as the app: the same file handling, the same agent, the same checks. Documents are read from local folders rather than through the connectors.
 4. **Compare, scored in two separate parts:**
-   - **The agent:** did it write the right records, links and answers? Each one is counted as right, wrong or missing. The link count decides whether first links need confirmation too (trust rule 1 in [architecture.md](architecture.md#trust-rules)).
+   - **The agent:** did it write the right records, links, budget lines and answers? Each one is counted as right, wrong or missing. The link count decides whether first links need confirmation too (trust rule 1 in [architecture.md](architecture.md#trust-rules)).
    - **The checks:** given correct, hand-written records, does code put each expense in the right bucket? This is plain code, so it should always be right, like unit tests.
 5. **Report.**
    - The headline number is **false clears:** expenses marked Evidence complete that shouldn't be. That's the error that matters in an audit. The agent's own false clears are counted separately too: answers of supports where the right answer is contradicts or unsure.
