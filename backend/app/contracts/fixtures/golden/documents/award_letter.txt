@@ -1,0 +1,19 @@
+SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.
+
+AWARD NOTICE
+Award Number: SYN-2300117
+Date: January 10, 2023
+Recipient: Example State University
+Project Title: Sediment Microbiome Survey of Example Bay
+
+Principal Investigator: Dr. Robin Example, robin.example@university.example
+
+Program Officer: Dr. Jesse Sample, jesse.sample@funder.example
+
+Grants Officer: Casey Placeholder, casey.placeholder@funder.example
+
+Period of Performance. The period of performance for this award is February 1, 2023 through January 31, 2026. Costs must be incurred within the period of performance to be charged to this award.
+
+Budget. Materials and Supplies: $40,000. Other Direct Costs: $60,000. Participant Support Costs: $20,000.
+
+Prior Approval. Funds budgeted for Participant Support Costs may not be used for other categories of expense without prior written approval from the Program Officer, requested through Research.gov.

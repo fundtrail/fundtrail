@@ -6,29 +6,33 @@ The eval is an automated test that measures how often FundTrail gets the right a
 
 ```
 1 answer key (written first) ──────────────────────────┐
-2 synthetic documents ─► 3 FundTrail, same pipeline ─► records + buckets
+2 synthetic documents ─► 3 FundTrail, same app code ─► records, links, answers + buckets
                                                         │
                                 4 compare ◄─────────────┘
                                      ▼
-            5 report: false clears, wrong buckets, wrong or missing records
+            5 report: false clears, wrong buckets, wrong or missing records, links and answers
 ```
 
-1. **Write the answer key first.** For each synthetic expense, it lists two things:
-   - the records the agent should write, for example "new end date, from the extension notice" or "this invoice links to that ledger line"
+1. **Write the answer key first.** For each synthetic expense, it lists:
+   - the facts and terms the agent should read, for example "new end date, from the extension notice"
+   - the links it should write, with amounts, for example "invoice 2050 pays $5,000 of this ledger line"
+   - its answers to the questions code asks, for example "Allowable: contradicts" for a break-room espresso machine
    - the bucket the expense should be in after each arrival
+
+   The format is in [contracts.md](contracts.md#11-eval-answer-key).
 2. **Make the documents.** These are award letters, emails, invoices, receipts and the ledger file, all matching the answer key.
-3. **Run FundTrail on them** through the same pipeline as the app: the same file handling, the same agent, the same checks. Documents are read from local folders rather than through the connectors.
+3. **Run FundTrail on them** with the same code as the app: the same file handling, the same agent, the same checks. Documents are read from local folders rather than through the connectors.
 4. **Compare, scored in two separate parts:**
-   - **The agent:** did it write the right records and links? Each one is counted as right, wrong or missing. This is the number that decides whether link confirmation is needed (trust rule 1 in [architecture.md](architecture.md#trust-rules)).
+   - **The agent:** did it write the right records, links and answers? Each one is counted as right, wrong or missing. The link count decides whether first links need confirmation too (trust rule 1 in [architecture.md](architecture.md#trust-rules)).
    - **The checks:** given correct, hand-written records, does code put each expense in the right bucket? This is plain code, so it should always be right, like unit tests.
 5. **Report.**
-   - The headline number is **false clears:** expenses marked Evidence complete that shouldn't be. That's the error that matters in an audit.
+   - The headline number is **false clears:** expenses marked Evidence complete that shouldn't be. That's the error that matters in an audit. The agent's own false clears are counted separately too: answers of supports where the right answer is contradicts or unsure.
    - Results are reported as counts, never percentages.
    - Every miss is listed in the README.
 
 ## When it runs
 
-- **During development,** after every change to the agent's prompts or logic, to show whether the change helped. It calls Claude live, since there's no response cache.
+- **During development,** after every change to the agent's prompts or logic, to show whether the change helped. It runs the agent live, since there's no response cache. Whether the agent's prompts get tuned against it is up to whoever designs them (W1).
 - **The blind test runs once, at the end** (example process, details later):
   - Alex writes a spec of about 12 expenses with traps.
   - A separate Claude session with no repo access generates the documents.
@@ -39,7 +43,5 @@ The eval is an automated test that measures how often FundTrail gets the right a
 
 | Item | Who settles it |
 |---|---|
-| The answer-key format | contract |
-| How the agent's records are compared to the answer key: what counts as a match | contract |
 | The blind test's process and size | product |
 | The scoring script and its output | builder (W3) |

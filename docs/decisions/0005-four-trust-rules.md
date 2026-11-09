@@ -1,6 +1,6 @@
 # 0005. Four simple trust rules
 
-**Date:** 2026-11-07 · **Status:** accepted
+**Date:** 2026-11-07 · **Status:** accepted. Rules 1 and 3 amended by [0009](0009-agent-judges-code-checks.md).
 
 ## Context
 

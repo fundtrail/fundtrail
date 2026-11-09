@@ -1,6 +1,6 @@
 # 0002. The agent writes cited records, and code decides every status
 
-**Date:** 2026-11-06 · **Status:** accepted
+**Date:** 2026-11-06 · **Status:** superseded by [0009](0009-agent-judges-code-checks.md)
 
 ## Context
 

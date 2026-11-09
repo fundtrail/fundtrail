@@ -1,0 +1,158 @@
+{
+  "case": "golden-extension-notice",
+  "award_number": "SYN-2300117",
+  "records": [
+    {
+      "kind": "period_of_performance",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "start": "2023-02-01",
+        "end": "2026-01-31"
+      }
+    },
+    {
+      "kind": "budget_line",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Materials and Supplies",
+        "amount": "4000000"
+      }
+    },
+    {
+      "kind": "budget_line",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Other Direct Costs",
+        "amount": "6000000"
+      }
+    },
+    {
+      "kind": "budget_line",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Participant Support Costs",
+        "amount": "2000000"
+      }
+    },
+    {
+      "kind": "person",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Dr. Robin Example",
+        "email": "robin.example@university.example",
+        "role": "Principal Investigator"
+      }
+    },
+    {
+      "kind": "person",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Dr. Jesse Sample",
+        "email": "jesse.sample@funder.example",
+        "role": "Program Officer"
+      }
+    },
+    {
+      "kind": "person",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "name": "Casey Placeholder",
+        "email": "casey.placeholder@funder.example",
+        "role": "Grants Officer"
+      }
+    },
+    {
+      "kind": "approval_rule",
+      "file": "award_letter.txt",
+      "fields": {
+        "dated": "2023-01-10",
+        "applies_to": "Participant Support Costs",
+        "approver": "Program Officer",
+        "channel": "Research.gov"
+      }
+    },
+    {
+      "kind": "receipt",
+      "file": "invoice_1001.txt",
+      "fields": {
+        "vendor": "Example Lab Supply Co.",
+        "total": "124000",
+        "dated": "2025-11-12",
+        "description": "Sediment core liners, 50 count",
+        "items[0].description": "Sediment core liners, 50 count",
+        "items[0].amount": "124000"
+      }
+    },
+    {
+      "kind": "receipt",
+      "file": "sequencing_invoice.eml",
+      "fields": {
+        "vendor": "Example Sequencing Core",
+        "total": "218000",
+        "dated": "2026-02-20",
+        "description": "Sediment DNA sequencing, run 7, 48 samples"
+      }
+    },
+    {
+      "kind": "period_of_performance",
+      "file": "extension_notice.txt",
+      "fields": {
+        "dated": "2026-01-15",
+        "end": "2027-01-31"
+      }
+    }
+  ],
+  "links": [
+    {
+      "file": "invoice_1001.txt",
+      "line_id": "L-1001",
+      "amount_cents": 124000
+    },
+    {
+      "file": "sequencing_invoice.eml",
+      "line_id": "L-1002",
+      "amount_cents": 218000
+    }
+  ],
+  "answers": [
+    {
+      "line_id": "L-1001",
+      "question": "allowable",
+      "answer": "supports"
+    },
+    {
+      "line_id": "L-1002",
+      "question": "allowable",
+      "answer": "supports"
+    }
+  ],
+  "buckets": [
+    {
+      "line_id": "L-1001",
+      "at": "2025-11-14T12:00:00Z",
+      "bucket": "evidence_complete"
+    },
+    {
+      "line_id": "L-1002",
+      "at": "2026-02-24T12:00:00Z",
+      "bucket": "possible_conflict"
+    },
+    {
+      "line_id": "L-1001",
+      "at": "2026-04-10T17:00:00Z",
+      "bucket": "evidence_complete"
+    },
+    {
+      "line_id": "L-1002",
+      "at": "2026-04-10T17:00:00Z",
+      "bucket": "evidence_complete"
+    }
+  ]
+}

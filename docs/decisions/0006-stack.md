@@ -1,6 +1,6 @@
 # 0006. Stack
 
-**Date:** 2026-11-07 · **Status:** accepted
+**Date:** 2026-11-07 · **Status:** accepted. The agent is no longer a fixed read step: see [0009](0009-agent-judges-code-checks.md).
 
 ## Context
 

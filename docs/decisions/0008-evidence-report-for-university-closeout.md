@@ -1,12 +1,12 @@
 # 0008. The evidence report fits the university's own closeout step
 
-**Date:** 2026-11-08 · **Status:** proposed
+**Date:** 2026-11-08 · **Status:** accepted
 
 ## Context
 
-The docs described a "closeout packet" with an accountant's sign-off, as if that were an existing step. Research against NSF's policy guide, the federal rules and several universities' procedures showed otherwise (sources in [domain.md](../domain.md#sources)):
+The docs described a "closeout packet" with an accountant's sign-off, as if that were an existing step. Research against the National Science Foundation's (NSF's) policy guide, the federal rules and several universities' procedures showed otherwise (sources in [domain.md](../domain.md#sources)):
 
-- NSF never receives charge-level evidence. It gets one final payment amount in ACM$ and two research reports, all due 120 days after the end date.
+- NSF never receives charge-level evidence. It gets one final payment amount in ACM$ (Award Cash Management Service) and two research reports, all due 120 days after the end date.
 - The federal rules do require supporting documentation for every charge, kept for 3 years and handed to auditors on request. Today it's scattered across systems and inboxes, and nobody gathers it in one place.
 - Universities do run a real internal closeout review. At Berkeley, the research administrator files an Award Closeout Certification two months after the end date, with a ledger report and supporting documents, and a supervisor approves it. Stanford, WashU and UC Davis have similar steps with different forms, systems and deadlines.
 - No source describes a per-grant evidence packet. The ledger report Berkeley requires shows only what was spent, not why each charge was allowed.

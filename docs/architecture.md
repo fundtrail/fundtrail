@@ -3,17 +3,18 @@
 ## Overview
 
 ```
-charges: ledger lines per grant ─► code ───────────────────────┐
-                                                               ▼
-evidence: Gmail · Drive · upload ─► AGENT ─► writes ─► RECORDS ─► CHECKS (code) ─► statuses + history
-                                    1 read                     ▲
-                                    2 write                    │
-                                           accountant ─────────┘  confirms terms, enters splits, signs off
+charges: ledger lines per grant ─► code ──────────────────────────────┐
+                                                                      ▼
+evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── questions ─ CHECKS (code) ─► statuses + history
+                                    reads, links, answers ▲                   │
+                                                          │                   ▼
+                     accountant ──────────────────────────┘   confirms terms, approves fixes, answers, signs off
 ```
 
-- **The agent** reads evidence and writes records. It never sets a status.
+- **The agent** is the app's intelligence. It reads evidence, writes cited facts, links them to charges, and answers the questions code asks. It never sets a status.
 - **Records** are the single source of truth. A record is never edited. A correction is a new record that replaces the old one. The accountant writes records too.
-- **Checks** are code. Every time a record changes, code reruns every check and recomputes every status. "What changed" is the difference between before and after.
+- **Checks** are code. They check the clear-cut rules and ask questions about what they can't settle. Every time a record changes, code reruns every check and recomputes every status, with no agent call. "What changed" is the difference between before and after.
+- The decision behind this split is [decisions/0009](decisions/0009-agent-judges-code-checks.md). The contracts are in [contracts.md](contracts.md).
 
 ## Inputs
 
@@ -37,31 +38,53 @@ evidence: Gmail · Drive · upload ─► AGENT ─► writes ─► RECORDS ─
 - Only email from known senders is processed: our accounts, the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
 - Evidence that arrives before its ledger line waits, unlinked, until the line shows up.
 
-### Files go to Claude as they are
+### Files go to the agent as they are
 
-PDFs, scanned PDFs and images are sent unchanged. The only exception is .docx, which Claude doesn't accept, so its text is extracted first.
+PDFs, scanned PDFs and images are sent unchanged. The only exception is .docx, which the model doesn't accept, so its text is extracted first.
 
 ## The agent
 
-The agent is built on LangGraph and works in two steps:
+"The agent" is our code that sends each step to the model and saves what comes back. Anything the model decides or does is the agent's.
 
-1. **Read.** It sends the file to Claude.
-   - For text and for PDFs with real text, citations are on, and the API itself returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents.
-   - For photos and scans, Claude reads the image and estimates a box around each quote. Claude's citations only work on text, so images have no API citation.
-2. **Write.** It writes records that point to those passages. It never types a quote itself, and it never sets a status.
+```
+the agent (our code, in backend/app/agent/)
+  ├─ gives the model (claude-opus-5-5) the task: what arrived, and what to do
+  ├─ loop: the model asks to look at something or to write something,
+  │        our code carries it out and shows the model the result
+  ├─ every write is checked as it happens, and problems go back to the model
+  └─ when the model is done and every required question is answered,
+     the backend saves everything from the run
+```
 
-The read step calls Anthropic's SDK directly, inside a LangGraph node. The reason is in [decisions/0006](decisions/0006-stack.md).
+- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, and once per grant as closeout nears. Runs for one grant go one at a time. In the demo, "arrives" means the clock reaches the item's arrival time.
+- **What it does.** It works in a loop of actions, like a person at a desk. It can look at anything on the grant, with no filtering (whether that includes charges on the workspace's other grants is still open; see [contracts.md](contracts.md#not-decided-yet)): every charge with its links, every source and the facts read from it, the grant's terms, and a charge's history, including fixes the accountant rejected. It can open any file again to quote the exact part it needs. It writes facts, links, suggested fixes, answers to code's questions, and flags for anything no question covers. Reading, matching and answering aren't fixed steps; it does them in whatever order it needs.
+- **Budget lines.** The agent decides which budget line each charge belongs to, because there's a lot of nuance in it. Where that choice is stored isn't decided yet (see [contracts.md](contracts.md#not-decided-yet)).
+- **Matching.** The agent matches in both directions: a new receipt to its charges, and a new charge to the receipts on file. It looks through everything, not a shortlist, so it can also spot an earlier link that looks wrong.
+- **Correcting earlier mistakes.** The agent is told to look for them: every time it matches, when a sum goes over, and once in a review of all the grant's links as closeout nears. Every fix is a suggestion that waits for the accountant. When a new link conflicts with an old one, the agent still writes it and suggests a fix for the old one, and the over sum keeps the charges with the accountant until they decide.
+- **Reading files.** Files go to the model as they are. For text and for PDFs with real text, citations are on, and the API returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents. For photos and scans the API has no citations, so the agent estimates a box around each quote. The agent never types a quote itself.
+- **No database access.** The agent only proposes. The backend checks every write as it happens and returns any problems to the agent. Everything a run wrote is saved together at the end, so a run that fails saves nothing.
+- **Still to design: its exact actions and prompts (W1).** Only the idea above is settled. Whoever builds the agent decides the actions, the prompts and the guidance, and whether to tune them against the eval. The eval can help, but it isn't required. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Starting points from the design discussion, as guidance rather than rules:
+  - Write the links you believe are right. Don't skip or shrink a link to make a sum fit, because code checks the sums.
+  - When matching a new item, check whether it shows that an earlier link was wrong. If it does, suggest a fix and say why.
+  - Don't guess between charges that look alike. Flag it instead.
+  - Write part of a receipt as an amount when a document states that part, or when the numbers leave only one answer.
+
+  Code enforces only the hard limits below.
+
+The model is called through Anthropic's SDK inside LangGraph. The reason is in [decisions/0006](decisions/0006-stack.md).
 
 ## Trust rules
 
 These are deliberately simple:
 
-1. **The model reads and links.** It writes each fact together with its citation: the passage and where it sits. Its links between documents are trusted. The eval measures how often they're wrong, and link confirmation gets added only if that number is bad.
-2. **One automatic check.** Code confirms each value appears in its cited passage. Photos and scans have no passage, so their values must match their ledger line instead: the amount, the date or the vendor. If the check fails, the charge goes to Needs a human. The box drawn on an image only shows where to look.
-3. **Code does all rules and all math.** The model never calculates anything, for example a new end date from "extended 12 months", or a cost split.
-4. **The accountant signs off** on the evidence report before attaching it to the university's closeout step. That's the human check.
+1. **The agent reads, links and answers.** It writes each fact together with its citation, links facts to charges, and answers the questions code asks. Its first links are trusted, and the eval measures how often they're wrong. Any fix it suggests to an existing link waits for the accountant, including a fix to one of the accountant's own links. It never changes the accountant's records on its own, and never their answers.
+2. **Every quote is checked.** Code confirms each value appears in its cited passage, both when the agent writes it and in the checks. Photos and scans have no passage, so their values must match their ledger line instead: the amount, the date or the vendor. How that works when one receipt pays part of a charge, or several charges, is still open (see [contracts.md](contracts.md#not-decided-yet)). If the check fails, the charge goes to Needs a human. The box drawn on an image only shows where to look.
+3. **The agent may do simple math. Code re-checks every number it can:** the link sums, and dates against the period in force. Code does every clear-cut rule.
+4. **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, and sign off on the evidence report before attaching it to the university's closeout step.
 
-Code also decides an approver's role by matching the sender's address against the people named in the award letter. For a forwarded email, the agent extracts the original sender, with a citation. Unknown senders go to Needs a human. The NSF rules the checks apply are in [domain.md](domain.md).
+Hard limits that code enforces: the sums, the quote check, the agent never overruling the accountant, and the agent's fixes waiting for the accountant's approval. Everything else is guidance in the agent's prompts.
+
+Code also decides an approver's role by matching the sender's address against the people named in the award letter. For a forwarded email, the agent extracts the original sender, with a citation. Unknown senders go to Needs a human. The National Science Foundation (NSF) rules the checks apply are in [domain.md](domain.md).
 
 ## The clock
 
@@ -71,7 +94,7 @@ Code also decides an approver's role by matching the sender's address against th
   - **Its arrival date,** such as when an email arrived or when a ledger line was synced or uploaded. The clock uses this one.
 - An item counts once its arrival date is at or before "now." For the demo ledger file, a line's arrival date is its posting date.
 - The clock only moves forward, either to the next arrival or to a date you choose. Resetting a workspace starts it over.
-- Anything the accountant does, and anything that arrives live, is stamped with the clock's date.
+- Anything the accountant or the agent writes, and anything that arrives live, is stamped with the clock's date.
 - Workspaces that users create run on the real date.
 - How the demo uses the clock is decided later. For now we build it as a real app, with no response cache.
 
@@ -84,7 +107,7 @@ Code also decides an approver's role by matching the sender's address against th
 | Backend | Python FastAPI on Railway, always on |
 | Database, sign-in, file storage | Supabase (Postgres, Google sign-in, storage) |
 | Model | Claude `claude-opus-5-5` |
-| Agent | LangGraph, with the read step calling Anthropic's SDK directly |
+| Agent | LangGraph, calling Anthropic's SDK directly |
 | Records | Pydantic models |
 | Connectors | Gmail API, Google Drive API |
 
@@ -104,13 +127,15 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 
 | Item | Who settles it |
 |---|---|
-| How sign-in passes from the frontend to the backend | contract |
-| Background jobs for agent runs: what triggers a run, and retries | builder (W4 with W1) |
+| Retries for failed agent runs, and the job runner | builder (W4 with W1) |
 | How often Gmail and Drive are checked, push or polling | builder (W3) |
 | Email body vs. attachments, duplicate files | builder (W3) |
 | The email address format for each grant | builder (W3) |
-| How a reversal or cost transfer ties back to its original line | contract |
-| Graph nodes, tools, prompts, how the agent finds the charge to link, facts spread across documents, errors | builder (W1) |
+| The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |
+| Whether citations work on a file the agent opens again in the middle of a run. The citation test in `spikes/` can check it. | builder (W1) |
 | How quoted text is located in a PDF for highlighting | builder (W6) |
 | How scheduled release by the clock is implemented, and live arrivals while the clock is in the past | product, then W4 |
-| File layout in storage | builder (W4) |
+| When the clock jumps past several arrivals at once: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item | product, then W4 with W1 |
+| Files that belong to the workspace instead of the grant they arrived on | later |
+| Efficient sorting for matching, once accuracy is solid | builder (W1), later |
+| A regular sweep that re-checks old links, beyond the one review as closeout nears | later |
