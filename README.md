@@ -1,6 +1,6 @@
 # FundTrail
 
-**Automate the Old Way.** Proving that a research grant's spending followed the rules still means piecing together spreadsheets, email chains and receipts by hand at closeout. FundTrail keeps a running evidence file for every grant instead. An agent reads evidence as it arrives and writes records that cite the exact source text. Code rechecks every charge against the grant's rules and sorts each one into evidence complete, possible conflict, missing evidence or needs a human. The closeout packet is ready when the grant ends, and a person makes every final call.
+**Automate the Old Way.** Proving that a research grant's spending followed the rules still means piecing together spreadsheets, email chains and receipts by hand at closeout. FundTrail keeps a running evidence file for every grant instead. An agent reads evidence as it arrives and writes records that cite the exact source text. Code rechecks every charge against the grant's rules and sorts each one into evidence complete, possible conflict, missing evidence or needs a human. When the grant ends, the review is already done and the proof for every charge is ready to attach to the university's closeout. A person makes every final call.
 
 **For contributors and agents:** start with [CLAUDE.md](CLAUDE.md), then [docs/](docs/).
 

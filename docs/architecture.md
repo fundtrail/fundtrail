@@ -59,7 +59,7 @@ These are deliberately simple:
 1. **The model reads and links.** It writes each fact together with its citation: the passage and where it sits. Its links between documents are trusted. The eval measures how often they're wrong, and link confirmation gets added only if that number is bad.
 2. **One automatic check.** Code confirms each value appears in its cited passage. Photos and scans have no passage, so their values must match their ledger line instead: the amount, the date or the vendor. If the check fails, the charge goes to Needs a human. The box drawn on an image only shows where to look.
 3. **Code does all rules and all math.** The model never calculates anything, for example a new end date from "extended 12 months", or a cost split.
-4. **The accountant signs off** on the packet. That's the human check.
+4. **The accountant signs off** on the evidence report before attaching it to the university's closeout step. That's the human check.
 
 Code also decides an approver's role by matching the sender's address against the people named in the award letter. For a forwarded email, the agent extracts the original sender, with a citation. Unknown senders go to Needs a human. The NSF rules the checks apply are in [domain.md](domain.md).
 

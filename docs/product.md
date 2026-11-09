@@ -2,13 +2,15 @@
 
 ## The problem
 
-A university spends a research grant over several years under rules that change along the way: extensions, budget moves, approvals. When the grant ends, the university has to prove that every charge followed the rules. The evidence is scattered across email, shared drives, invoices and the accounting system. Today someone pieces it together by hand at closeout, under a 120-day deadline, after the people who remember the details have moved on.
+A university spends a research grant over several years under rules that change along the way: extensions, budget moves, approvals. When the grant ends, the university has a few months to review every charge, move off any that broke the rules, and certify that the grant is ready to close. Years later, auditors can pick any charge and ask for the proof behind it. That proof is scattered across email, shared drives, invoices and the accounting system. Today someone pieces it together by hand, after the people who remember the details have moved on.
 
 This fits the hackathon theme, "Automate the Old Way": an old financial workflow built on spreadsheets, email chains and receipts, rebuilt with AI.
 
 ## The product
 
-**FundTrail keeps a running evidence file for every grant.** As evidence arrives, FundTrail connects it to the charges and keeps each charge's status current. Problems show up while they can still be fixed, and the closeout packet is ready when the grant ends.
+**FundTrail keeps a running evidence file for every grant.** As evidence arrives, FundTrail connects it to the charges and keeps each charge's status current. Problems show up while they can still be fixed. When the grant ends, the review the university has to do is already done, and the evidence report is ready to attach to the university's own closeout step (see [Closeout](#closeout)).
+
+**FundTrail fits into the university's process. It doesn't replace it.** It sits beside the university's systems, reads the charges and the evidence, and hands the person doing closeout what they need at each step. It files nothing with the university or with NSF.
 
 **How it differs from Ramp.** Ramp's Grant Policy Agent checks a purchase when it's made. FundTrail works with evidence Ramp never sees, such as email, shared drives and amendments signed months later, and it rechecks the whole history every time something changes. We don't pitch receipt matching.
 
@@ -16,7 +18,8 @@ This fits the hackathon theme, "Automate the Old Way": an old financial workflow
 
 These limits are for now. The design stays open to grow (see below).
 
-- The only user is the grant accountant in the university's sponsored programs office, and each workspace has one person. Professors and lab staff only send evidence in.
+- The only user is the person who manages a grant's money and prepares its closeout. These docs call them **the accountant**. At Berkeley, that's the department's research administrator, who prepares the Award Closeout Certification. At other universities, it can be a grant accountant in the sponsored programs office.
+- Each workspace has one person. Professors and lab staff only send evidence in.
 - Users sign in with Google. A workspace holds many grants.
 - A new account starts with a demo workspace already loaded with grants. Users can create more workspaces.
 
@@ -51,9 +54,32 @@ When several checks fail, the charge shows the most serious bucket and lists eve
 
 ## Closeout
 
+What really happens at the end of a grant, and the rules behind it, are in [domain.md](domain.md#closeout).
+
+### Where FundTrail fits: Berkeley as the first example
+
+Every university has its own closeout step, with its own forms and deadlines, but the rules underneath are the same federal and NSF rules. FundTrail's checks follow those shared rules. Only the evidence report's format and labels follow the university. Berkeley is the first template and the demo example.
+
+| Berkeley's step | Today | With FundTrail |
+|---|---|---|
+| **90 days before the end date.** Berkeley sends a Notice of Expiration and asks for a review of every charge. | Reviewed by hand | The review is already done. The accountant works a short list of problem charges. |
+| **Adjustment period**, from the end date until the books close two months later. Problem charges get moved off the grant. Each move needs a written explanation. | Written by hand | FundTrail drafts each explanation from the evidence it holds (optional feature). The accountant edits it and makes the move in Berkeley's own system. |
+| **Award Closeout Certification**, due at the close of the 2nd month. The accountant files a form with a ledger report and supporting documents, and their supervisor approves it. | The ledger report shows totals, not proof | The accountant also attaches FundTrail's evidence report. |
+| **Final financial report**, filed by central accounting by day 90. For NSF, that's one amount entered in ACM$. | Unchanged | Not involved. The amount is cleaner because problem charges are already gone. |
+| **Audit, years later.** Auditors pick charges and ask for the proof. | Dug up from old email and files | Pulled from FundTrail |
+
+### What the user gets
+
 - **Closeout view in the app:** every expense with its bucket, its evidence and its history.
-- **PDF packet per grant,** showing who signed off and when. Example layout, to decide later: a summary table of every expense, then a section for each expense.
-- **What the packet is for on real grants.** NSF doesn't receive an evidence packet. The packet is the accountant's sign-off before the final financial report goes in, and it's the audit file the university keeps afterwards (see [domain.md](domain.md)).
+- **Evidence report: a PDF per grant.** It shows why each charge was allowed. It's attached to the university's closeout step, next to the university's own ledger report, which shows only what was spent. NSF doesn't require it and never receives it. Example layout, to decide later:
+  1. Summary: the award, its dates, the total of all charges (matching the ledger report), and how many charges are in each bucket.
+  2. A table with one row per charge: date, description, amount, bucket and a one-line reason.
+  3. A section per charge: the checks, the evidence quoted from its source, and its status history.
+  4. Sign-off: who prepared it, who reviewed it, and when. At Berkeley this mirrors the preparer and the supervisor who approves the certification.
+- **Drafted explanations (optional).** For each charge that has to move off the grant, a draft that answers the university's questions, such as Berkeley's: why the move is needed, why the wrong fund was charged, and how the expense relates to the project.
+- **Audit export (optional).** The same records, filtered to the charges an auditor picked.
+
+**One-line pitch:** at Berkeley, every grant ends with a Closeout Certification due two months after the end date. FundTrail has the proof for every charge ready to attach, so the review is done before the deadline and any audited charge can be answered right away.
 
 ## Demo data (examples)
 
@@ -81,7 +107,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 - Provenance, with the viewer and highlights
 - Ledger upload, the Gmail connector and uploads
 - Text, email, PDF and photo formats
-- The packet with sign-off
+- The evidence report with sign-off, in Berkeley's terms
 - The eval, with the minimum blind test
 - Hosting
 
@@ -92,13 +118,16 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 - .docx files
 - The Drive connector
 - A bigger blind test
-- Packet styling and a zip of the originals
+- Report styling and a zip of the originals
+- Drafted explanations for charges moved off the grant
+- Audit export for the charges an auditor picks
 - Workspace members
 
 **Designed to grow.** These are out for now, but nothing in the design should block them later:
 
 - more users and roles: workspace members, and a read-only view for professors
 - more funders, with rules organized per funder, starting with NSF
+- more universities, each with its own evidence report template, starting with Berkeley
 - indirect costs
 - in-kind cost sharing (third-party contributions that never appear on the ledger)
 - a real-time card feed, like Ramp's, that shows charges before they post
@@ -111,7 +140,9 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 |---|---|
 | Demo data specifics: grants, people, amounts, dates, documents | product |
 | How to demo: how the clock and the seeded workspace get used in the pitch | product |
-| Packet layout and the sign-off flow | product |
+| The evidence report's name, its layout, and the sign-off flow (preparer and reviewer) | product |
+| Whether checks and reasons use the university's cost criteria as labels, for example Berkeley's | product |
+| How drafted explanations are written: by code from the records, or by the model with citations | product, if the feature is built |
 | The clock controls the user sees | product |
 | What a workspace reset clears, and how the seed is copied on sign-up | product |
 | Which fields count as grant terms, and the screen where the accountant confirms them | product |

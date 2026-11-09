@@ -46,7 +46,7 @@ The split follows one seam. Alex owns everything that turns files into records a
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
 | W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs, deploys | Grant |
 | W5 | App screens: sign-in, workspaces, grants, buckets, charge detail, evidence cards, history, clock controls | Grant |
-| W6 | Viewer with highlights, closeout view, PDF packet | Grant |
+| W6 | Viewer with highlights, closeout view, PDF evidence report | Grant |
 | Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config | both |
 
 ## Phases
