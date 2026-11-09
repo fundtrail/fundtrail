@@ -25,7 +25,7 @@ These limits are for now. The design stays open to grow (see below).
 
 ## Grants
 
-- To add a grant, the accountant drops in the award letter. The agent pulls out the terms as cited records: dates, budget lines, people and their roles, and approval rules. The accountant confirms the terms before any check uses them.
+- To add a grant, the accountant drops in the award letter. The agent pulls out the terms as cited records: dates, budget lines, people and their roles, approval rules, and anything else the letter says that those don't hold, such as a principal investigator going on leave. The accountant confirms the terms before any check uses them.
 - Amendments, such as an extension notice, update the terms the same way.
 - For now, only NSF (National Science Foundation) grants, and only direct costs.
 
@@ -42,6 +42,16 @@ Every charge sits in exactly one bucket.
 
 When several checks fail, the charge shows the most serious bucket and lists every reason. From most to least serious: Possible conflict, Needs a human, Missing evidence.
 
+### How a charge gets its bucket
+
+- **Code checks the clear-cut rules:** dates against the period in force, whether the receipts linked to a charge add up to it, the approver's role and channel, and budget room. When terms change, code reruns instantly.
+- **The agent answers what code can't settle.** Code asks it about each charge: is this cost necessary and reasonable, and is it for this project? Does this approval cover this charge? Does this unusual term change anything? The agent answers supports, contradicts or unsure, with its reasoning and quotes. Contradicts is Possible conflict, and unsure is Needs a human.
+- **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, and approve or reject any fix the agent suggests to an earlier link.
+
+### The problem list
+
+Possible conflict and Needs a human are always on the accountant's problem list. A charge that's only missing some of its evidence stays off the list until 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, because receipts often arrive weeks after a charge posts. From then on, a receipt with money never charged is listed on the grant too.
+
 ## What the user sees
 
 - **Evidence cards.** Each piece of evidence gets a card listing the facts pulled from it. Every fact shows its quoted passage and page number.
@@ -49,8 +59,11 @@ When several checks fail, the charge shows the most serious bucket and lists eve
   - **PDFs with real text, email, .docx:** the highlight is exact.
   - **Photos and scans:** the viewer zooms to a box Claude estimated, and the box is approximate. There's no OCR (optical character recognition).
 - **Status history.** Every status change records what triggered it and links to it. Example: "Apr 2026 · extension notice arrived · Possible conflict → Evidence complete."
-- **People as sources.** Example: "Split entered by the accountant, May 22, 2026."
-- **Status text comes from code.** Every status explanation is built by code from the check and its records. The model writes no status text.
+- **Receipts covering a charge.** Each charge lists the receipts that pay for it, with how much of each it uses, for example "invoice 2050, $5,000 of $10,000". Clicking one opens the receipt with the part for that charge highlighted. Approvals and explaining emails show the same way.
+- **The agent's answers.** Each answer shows the question, the answer, the agent's reasoning and its quotes, labeled as the agent's.
+- **Suggestions waiting.** A fix the agent suggests to an earlier link waits on the charge, with its reason, until the accountant approves or rejects it.
+- **People as sources.** Example: "Link corrected by the accountant, May 22, 2026."
+- **Status text comes from code.** Every status explanation is built by code from the check and its records. The agent's reasoning appears next to it, labeled as the agent's.
 
 ## Closeout
 
@@ -91,7 +104,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 |---|---|
 | A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
 | A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete**, citing the new end date |
-| One purchase is shared with a second grant and split across both ledgers | **Missing evidence** on both until the accountant enters the basis, for example "56 of 96 samples". Then **Evidence complete** on both |
+| One purchase is shared with a second grant and split across both ledgers | The agent links the invoice to both charges, each for its part, from the invoice's itemized lines or an email giving the basis, for example "56 of 96 samples". **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
 | A receipt arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
 | A new grant is built from scratch from a seed pack: award letter, ledger file, emails, invoices, a receipt photo | Create the grant, confirm its terms, upload the ledger, add the evidence, watch the statuses fill in |
 
@@ -138,12 +151,15 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 
 | Item | Who settles it |
 |---|---|
-| Demo data specifics: grants, people, amounts, dates, documents | product |
+| Demo data specifics: grants, people, amounts, dates, documents, including a situation only the agent's judgment catches | product |
 | How to demo: how the clock and the seeded workspace get used in the pitch | product |
 | The evidence report's name, its layout, and the sign-off flow (preparer and reviewer) | product |
 | Whether checks and reasons use the university's cost criteria as labels, for example Berkeley's | product |
 | How drafted explanations are written: by code from the records, or by the model with citations | product, if the feature is built |
 | The clock controls the user sees | product |
 | What a workspace reset clears, and how the seed is copied on sign-up | product |
-| Which fields count as grant terms, and the screen where the accountant confirms them | product |
+| The screen where the accountant confirms terms and reviews the agent's suggestions | product |
+| A charge's bucket between an amendment's arrival and the accountant's confirmation of it, and while a grant's terms aren't confirmed yet | product |
+| How reversals and cost transfers show in buckets and at closeout | product |
+| Whether a later change reopens a sign-off | product |
 | Screen layouts, and how emails are displayed | builder |

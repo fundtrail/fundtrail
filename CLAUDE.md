@@ -1,6 +1,6 @@
 # FundTrail
 
-FundTrail keeps a running evidence file for every research grant. Charges come from the university's ledger. An agent reads the evidence (email, Google Drive files, uploads) and writes records that cite the exact passages. Code reruns every check whenever a record changes and puts each charge in a bucket. When the grant ends, the review the university has to do is already done, and the evidence report is ready to attach to the university's closeout step (Berkeley's Award Closeout Certification is the first example).
+FundTrail keeps a running evidence file for every research grant. Charges come from the university's ledger. An agent reads the evidence (email, Google Drive files, uploads), writes records that cite the exact passages, links them to charges, and answers the questions code can't settle, such as whether a cost is reasonable. Code reruns every check whenever a record changes and puts each charge in a bucket. When the grant ends, the review the university has to do is already done, and the evidence report is ready to attach to the university's closeout step (Berkeley's Award Closeout Certification is the first example).
 
 Built by Alex (azhao8) and Grant (grant-j-kim) for the BBS x Ramp Hackathon, "Build it" track. Theme: "Automate the Old Way". Feature freeze is Mon Nov 9, 9 PM PT, and submission is Tue Nov 10 (see [docs/plan.md](docs/plan.md)).
 
