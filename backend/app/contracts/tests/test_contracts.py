@@ -241,7 +241,9 @@ def test_record_rules():
         dict(author="agent", author_user_id=None, data=uncited),  # the agent always cites
         dict(author="agent", author_user_id=None, data=_link(part=None)),  # the agent's link has a part
         dict(data={"kind": "retraction"}),  # a retraction replaces something
-        dict(  # a flag can only be unsure
+        dict(  # the agent's flag can only be unsure
+            author="agent",
+            author_user_id=None,
             data={
                 "kind": "judgment",
                 "charge_id": "c1",
@@ -249,7 +251,7 @@ def test_record_rules():
                 "text": "?",
                 "answer": "supports",
                 "reasoning": "r",
-            }
+            },
         ),
         dict(  # a covers question names its approval
             data={
@@ -314,11 +316,34 @@ def test_agent_fixes_wait_for_the_accountant():
     assert waiting_records([*written, reject]) == []
 
 
-def test_agent_never_replaces_the_accountants_records():
+def test_agent_only_suggests_fixes_to_the_accountants_links():
     receipt = _agent(id="rcpt", data=RECEIPT)
-    theirs = _record(id="l1", data=_link())
-    mine = _agent(id="l2", data=_link(amount_cents=600), replaces_id="l1")
-    assert "the agent can't replace the accountant's records" in check_new_record(mine, [receipt, theirs], CHARGES)
+    their_link = _record(id="l1", data=_link())
+    their_answer = _record(
+        id="j1",
+        data={
+            "kind": "judgment",
+            "charge_id": "c1",
+            "question": "allowable",
+            "text": "?",
+            "answer": "supports",
+            "reasoning": "r",
+        },
+    )
+    written = [receipt, their_link, their_answer]
+
+    fix = _agent(id="l2", data=_link(amount_cents=600), replaces_id="l1")
+    assert check_new_record(fix, written, CHARGES) == []
+    assert waiting_records([*written, fix]) == [fix]  # it waits for the accountant
+
+    overrule = _agent(id="j2", data=their_answer.data.model_dump() | {"answer": "contradicts"}, replaces_id="j1")
+    assert check_new_record(overrule, written, CHARGES)  # their answers stay theirs
+
+
+def test_accountant_answers_a_flag():
+    flag = {"kind": "judgment", "charge_id": "c1", "question": "flag", "text": "Which invoices?", "reasoning": "r"}
+    _agent(data=flag | {"answer": "unsure"})
+    _record(data=flag | {"answer": "supports"})  # the accountant can settle it
 
 
 def test_agent_answers_again_without_waiting():

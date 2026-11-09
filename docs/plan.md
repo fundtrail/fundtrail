@@ -42,7 +42,7 @@ The split follows one seam. Alex owns everything that turns files into records a
 | # | Workstream | Owner |
 |---|---|---|
 | W1 | Agent: read with citations, write records and links, answer the checks' questions, suggest fixes | Alex |
-| W2 | Checks, NSF rules, link sums, the questions for the agent, buckets, status history and status text | Alex |
+| W2 | Checks, National Science Foundation (NSF) rules, link sums, the questions for the agent, buckets, status history and status text | Alex |
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
 | W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs, deploys | Grant |
 | W5 | App screens: sign-in, workspaces, grants, buckets, charge detail, evidence cards, history, clock controls | Grant |

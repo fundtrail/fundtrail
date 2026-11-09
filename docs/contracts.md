@@ -53,6 +53,8 @@ A record is one thing the agent or the accountant wrote. It's never edited. A co
 | | `sign_off` | `note` | Accountant |
 | Either | `retraction` | `reason`. Replaces a record with nothing. | Agent or accountant |
 
+A record kind earns its place only if a check reads it or the evidence report shows it. Don't add kinds beyond that.
+
 Every term also has `dated`: the date the document gives itself, such as an amendment's date. An amendment isn't a correction. It's a new term, and the checks use `dated` to decide which terms are in force. `other_term` holds anything an award letter or amendment says that no other kind holds, such as a principal investigator (PI) on leave. It's in force from its own date on, and the agent reads any dates inside its statement. A `note` is evidence that explains a charge without billing or approving it, such as a payment notice saying which invoices a payment covered.
 
 ### Cited values
@@ -63,8 +65,8 @@ A citation holds the `file_id`, the `passage` and its `location`. Locations use 
 
 ### What counts
 
-- **Some of the agent's records wait for the accountant.** Its grant terms, and any record that replaces an existing record (a suggested fix, including removing a link with a retraction), count only once a `confirmation` lists them with `confirmed`. The one exception: a judgment replacing the agent's own earlier judgment counts right away. The latest decision on a record wins, and a rejected record never counts.
-- **The agent never replaces the accountant's records.**
+- **Some of the agent's records wait for the accountant.** Its grant terms, and any record that replaces an existing record (a suggested fix, including removing a link with a retraction), count only once a `confirmation` lists them with `confirmed`. The one exception: a judgment replacing the agent's own earlier judgment counts right away. The latest decision on a record wins, and a rejected record never counts. Only link fixes were discussed; applying the same rule to the agent's corrections of its own facts is an open product question (see "Not decided yet").
+- **The agent can suggest a fix to one of the accountant's links,** which waits like any fix. It never replaces any other record of theirs, including their answers.
 - **Several records may replace the same one,** because the agent's suggested fixes wait. The accountant confirms at most one.
 - **Current records** are the records that count, minus those an effective record replaces, minus retractions.
 
@@ -76,7 +78,7 @@ Code: `needs_confirmation`, `decisions`, `effective_records`, `current_records` 
 
 - every quoted value appears in its passage
 - the records and charges a record points to exist, and the records are current
-- the agent isn't replacing the accountant's record, and a replacement is the same kind or a retraction
+- the agent replaces none of the accountant's records except their links, and a replacement is the same kind or a retraction
 - a link points to a receipt, approval or note, has an amount exactly when it points to a receipt, and its part is in the linked record's own file
 - a judgment's question is about the right kind of record
 - a confirmation lists only records that wait for one
@@ -93,7 +95,9 @@ A link ties a fact to a charge. It's a record of kind `link`, and it's its own c
 | `part` | A citation: the place in the record's own file that pertains to this charge, highlighted when the user opens it. For a whole receipt, it's the total's citation. The agent always gives one. |
 | `reason` | Optional: one line on why they match |
 
-The meaning comes from the record: a receipt link means "pays for", an approval link "approves", and a note link "explains". A split is one receipt linked to several charges, each link with its amount and part, such as an itemized line. There's no separate split record.
+The meaning comes from the record: a receipt link means "pays for", an approval link "approves", and a note link "explains". A split is one receipt linked to several charges, each link with its amount and part, such as an itemized line. There's no separate split record. When an email gives the basis instead, such as "56 of the 96 samples are for grant 1", the email is read as a `note` and linked to each charge, because a link's part has to be in its own record's file.
+
+**A waiting fix.** While a fix the agent suggested waits for the accountant, every charge it touches is in Needs a human, showing the suggestion. The old link stays in force until the accountant confirms the fix.
 
 **The two sums.** Code checks them on every change:
 
@@ -114,15 +118,16 @@ Code checks the clear-cut rules itself. For what it can't settle, it asks a ques
 | Question | When code asks it |
 |---|---|
 | `allowable`: "Is this cost necessary and reasonable, and is it for this project?" | Every charge that has evidence linked |
-| `covers`: "Does this approval cover this charge?" | When an approval rule applies and an approval is linked. `record_id` is the approval. |
+| `covers`: "Does this approval cover this charge?" | When an approval rule applies to the charge and an approval is linked. `record_id` is the approval. Whether a rule applies depends on the charge's budget line, which the agent decides; where that's stored is still open. |
 | `unusual_term`: "Does this term change anything for this charge?" | Once for each confirmed `other_term` in force on the charge's date. `record_id` is the term. |
-| `flag`: the agent's own question | Whenever the agent sees something no other question covers. The answer is always `unsure`. |
+| `flag`: the agent's own question | Whenever the agent sees something no other question covers. The agent's answer is always `unsure`, and the accountant settles it by answering it. |
 
 A judgment holds `charge_id`, `question`, `record_id`, `text` (the question as asked), `answer`, `reasoning`, `quotes` (citations) and `rests_on` (the record IDs the answer depends on). The answers map to buckets: `supports` passes, `contradicts` is Possible conflict, and `unsure` is Needs a human. The reasoning is shown in the app and the evidence report, labeled with who wrote it.
 
 - **Safety rule:** the agent can only clear a question code asked. A required question with no current answer is an open question, and it puts the charge in Needs a human.
 - **When the agent answers again:** when something new is linked to the charge, when a record its answer rests on is corrected or retracted, or when a new `other_term` or approval rule covering the charge's date is confirmed. Not when the clock moves or an amount, a budget or a period changes.
-- **The accountant** answers what the agent was unsure about, and can overrule any judgment by writing their own that replaces it. Once the accountant has answered, new evidence sends the question back to the accountant, not the agent.
+- **Out of date.** Code treats an answer as out of date when a link to its charge was written after it, or a record it rests on is no longer current. A new question appears when a new term or rule makes one required. While the agent is answering again, the charge keeps its last answer for the bucket and is marked `rechecking`. With no answer yet, the charge is in Needs a human.
+- **The accountant** answers what the agent was unsure about, and can overrule any judgment by writing their own that replaces it. Once the accountant has answered, an out-of-date answer goes back to the accountant, not the agent, and the charge is in Needs a human until they answer again.
 
 ## 4. Charges
 
@@ -162,16 +167,16 @@ A pure function, with no database and no model inside. W2 implements it in `back
 
 - **In:** `ChecksInput` holds `now` and everything in one workspace visible at that time: `charges`, `evidence` and `records`, including replaced, waiting and rejected records. It takes the whole workspace because a charge's links can come from another grant's files.
 - **Out:** `ChecksOutput` holds:
-  - `statuses`: one `ChargeStatus` per charge, with its `bucket`, every `Reason` (`check`, `bucket`, `text` built by code, and the `record_ids` it rests on), and `flagged`
+  - `statuses`: one `ChargeStatus` per charge, with its `bucket`, every `Reason` (`check`, `bucket`, `text` built by code, and the `record_ids` it rests on), `flagged`, and `rechecking`
   - `questions`: every required question without a current answer, as an `OpenQuestion` with `answer_by` (the agent, or the accountant when they answered before)
   - `grant_notes`: anything about the grant as a whole, such as a receipt with money never charged
-- **The bucket** is the most serious bucket among the reasons, in the order Possible conflict, Needs a human, Missing evidence, Evidence complete. The model rejects anything else.
+- **The bucket** is the most serious bucket among the reasons, in the order Possible conflict, Needs a human, Missing evidence, Evidence complete. `ChargeStatus` rejects anything else.
 - **Flagged** means the charge is on the accountant's problem list. Possible conflict and Needs a human are always flagged. Missing evidence is flagged only from `CLOSEOUT_WINDOW_DAYS` (90) before the grant's end date, when Berkeley sends its first Notice of Expiration. Until then the charge sits in Missing evidence, off the problem list.
-- **Status history:** a `StatusEntry` row is written each time a charge's status changes, with `changed_at` and its `trigger`: a record, a charge, a file, or the clock.
+- **Status history:** a `StatusEntry` row is written each time a charge's status changes, with `changed_at` and its `trigger`: a record, a charge, a file, or the clock. For a change that comes from saving an agent run, the trigger is what started the run, for example "invoice 1001 arrived".
 
 ## 7. Agent runs
 
-A run is one background job, queued each time a charge or an evidence file arrives, and once per grant when the closeout window opens, to review all the grant's links (trigger `clock`). The agent works in a loop of actions: it looks at anything on the grant with no filtering, opens files, and writes records. Every write is checked with `check_new_record` as it happens, and problems go back to the agent. A run can't finish while an open question is waiting for the agent. Everything the run wrote is saved together at the end, so a run that fails saves nothing. Runs for one grant go one at a time, and the database enforces it.
+A run is one background job. It's queued each time a charge or an evidence file arrives, each time one of the accountant's records leaves a question open for the agent (for example confirming an `other_term`, or approving a fix that adds a link), and once per grant when the closeout window opens, to review all the grant's links (trigger `clock`). The agent works in a loop of actions: it looks at anything on the grant with no filtering, opens files, and writes records. Every write is checked with `check_new_record` as it happens, and problems go back to the agent. A run can't finish while an open question is waiting for the agent. Everything the run wrote is saved together at the end, so a run that fails saves nothing. Runs for one grant go one at a time, and the database enforces it.
 
 `AgentRun` holds the `trigger`, the `status` (`queued`, `running`, `done` or `failed`), `clock_now` (the clock's "now" the run works at, which its records carry), real-time `queued_at`, `started_at` and `finished_at`, a short `summary` and any `error`. The exact actions the agent has are decided with its prompts (W1).
 
@@ -183,14 +188,14 @@ Migration: [`20261109000000_contracts.sql`](../supabase/migrations/2026110900000
 |---|---|
 | `users` | One row per Supabase auth user |
 | `workspaces` | The name, the owner and the clock. `clock_now` null means the real date. |
-| `grants` | The funder (NSF only for now), award number and title |
+| `grants` | The funder (National Science Foundation, NSF, only for now), award number and title |
 | `charges` | `Charge` |
 | `evidence_files` | `EvidenceFile` |
 | `records` | The envelope as columns and `data` as JSONB (binary JSON). `kind`, `charge_id` and `record_id` are generated from `data`, and the last two are foreign keys, so the database enforces what links and judgments point to. |
 | `statuses` | Status history, one row per change. The view `current_statuses` gives the latest row per charge. |
 | `agent_runs` | `AgentRun`. The only table updated in place. |
 
-- Rows match the Pydantic models field for field. A record row's `data` is `Record.data` dumped to JSON.
+- Rows match the Pydantic models, with these differences: a record row's `data` is `Record.data` dumped to JSON, and `kind`, `charge_id` and `record_id` are generated from it; a status row's `Trigger` is split into `trigger_kind` and `trigger_id`, and it adds `workspace_id`; `records` and `users` add a real-time `created_at`.
 - `records`, `charges` and `statuses` reject updates. Deletes stay allowed so a workspace reset can clear them.
 - The database also enforces: one charge per ledger line ID in a workspace, `author_user_id` set exactly for `user` records, a retraction replacing something, a link naming both its record and its charge, a judgment naming its charge, only the accountant writing confirmations and sign-offs, and one running agent run per grant.
 - Row level security is on, with no policies. The backend uses the service role key, and the browser never reads the tables directly.
@@ -290,6 +295,10 @@ The tests in `app/contracts/tests/` check that the fixture validates, that every
 | A charge's bucket while its grant's terms aren't confirmed yet | product |
 | How reversals and cost transfers show in buckets and at closeout | product |
 | Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
+| Whether the agent's corrections to its own facts (not links) wait for the accountant. The contracts make them wait today. | product |
+| Where the agent's choice of a charge's budget line is stored, for example a link from the `budget_line` term to the charge or a record kind of its own. The checks need it for budget room and for whether an approval rule applies, so W2 can't finish those checks until it's settled. The golden fixture's ledger accounts happen to match its budget line names; don't treat that as the rule. | contract, needs discussing |
+| Whether the agent sees charges on the workspace's other grants when matching. A cost shared across grants needs it, but the agent was described as looking at "anything on the grant". If it does, how runs on two grants avoid linking the same receipt at once, since the lock is one run per grant. | contract, needs discussing |
+| How trust rule 2 checks values read from photos and scans now that one receipt can pay part of a charge, or several charges. Before links had amounts, such a value had to match its ledger line. | contract, needs discussing |
 | An amendment that states only a length, such as "extended 12 months". The term holds a stated end date, so this would need a new field. | contract, if a demo document needs it |
 | The agent's exact actions and prompts. Needs design work, as its own task, with or without the eval (see [architecture.md](architecture.md#the-agent)). | builder (W1) |
 | How a file's own date is filled in for files that aren't emails | builder (W3) |

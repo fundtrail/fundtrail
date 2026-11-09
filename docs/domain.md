@@ -1,11 +1,11 @@
 # Domain
 
-What the checks need to know about NSF (National Science Foundation) grants. **Verify every rule here against NSF's own pages and eCFR before coding it.** The section numbers below are pointers to check, not settled facts.
+What the checks need to know about NSF (National Science Foundation) grants. **Verify every rule here against NSF's own pages and the Electronic Code of Federal Regulations (eCFR) before coding it.** The section numbers below are pointers to check, not settled facts.
 
 ## The rules
 
-- **Two layers of rules.** NSF's own terms (the award's general conditions, and NSF's proposal and award policies) sit on top of the federal Uniform Guidance, 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200). Both are written into code once and shared by every grant.
-- **The award letter adds grant-specific terms:** the period of performance, the budget and its lines, the people and their roles, and any special approval rules.
+- **Two layers of rules.** NSF's own terms (the award's general conditions, and NSF's proposal and award policies) sit on top of the federal Uniform Guidance, 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200). Both are shared by every grant. The clear-cut rules are written into code once. The ones that take judgment, such as whether a cost is necessary and reasonable, become questions the agent answers (see [architecture.md](architecture.md#trust-rules)).
+- **The award letter adds grant-specific terms:** the period of performance, the budget and its lines, the people and their roles, any special approval rules, and anything else it says that those don't hold, such as a principal investigator going on leave.
 - **Amendments change the terms,** for example an extension notice. A check uses the terms in force, based on each document's own date.
 - For now: NSF only, direct costs only. Rules get organized per funder so more funders can be added later.
 
@@ -14,19 +14,19 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 | Concept | What it means for a check | Pointer to verify |
 |---|---|---|
 | Period of performance | A cost has to be incurred between the start and end dates. An extension moves the end date. | 2 CFR 200.309, 200.308 |
-| Allowable cost | A cost has to be necessary, reasonable, allocable and consistent with the award's terms. | 2 CFR 200.403 |
+| Allowable cost | A cost has to be necessary, reasonable, allocable and consistent with the award's terms. Code can't judge this, so it's the Allowable question the agent answers. | 2 CFR 200.403 |
 | Allocable cost, shared costs | A cost shared across grants has to be split on a documented basis, for example "56 of 96 samples". | 2 CFR 200.405 |
 | Budget lines and rebudgeting | Some moves between budget lines need prior approval from the funder. | 2 CFR 200.308, the award letter |
 | Participant support costs | Costs for participants, such as stipends, travel and registration, not for project staff. Moving these funds to other uses needs prior approval. | 2 CFR 200.1, 200.456 |
 | Prior approval | The approval has to come from the right person, through the right channel, before the cost. | The award letter, NSF policy |
-| Supporting documentation | Every charge has to be backed by source documentation, and the documentation should show the university's review or approval, ideally before the cost. | 2 CFR 200.302(b)(3), NSF PAPPG Chapter VII.A.1 |
+| Supporting documentation | Every charge has to be backed by source documentation, and the documentation should show the university's review or approval, ideally before the cost. | 2 CFR 200.302(b)(3), NSF's Proposal and Award Policies and Procedures Guide (PAPPG) Chapter VII.A.1 |
 | Cost transfer | Moving a charge off a grant needs a written explanation. Berkeley asks why the move is needed, why the wrong fund was charged, and how the expense relates to the project. | University policy, for example Berkeley's cost transfer procedures |
 | Closeout | Reports to NSF and the final payment amount are due 120 days after the end date. Universities set earlier internal deadlines (see [Closeout](#closeout)). | 2 CFR 200.344, NSF PAPPG Chapters VII.D.4 and VIII.E |
 | Record retention | Records, including the supporting documents for every charge, are kept for 3 years. NSF counts from financial closeout. 2 CFR 200.334 counts from the final financial report. Some universities keep them longer, for example Stanford keeps 4 years. | 2 CFR 200.334, NSF PAPPG Chapter VII.E |
 
 ## Approvals
 
-- **Code decides an approver's role** by matching the sender against the people named in the award letter. The model never decides who someone is.
+- **Code decides an approver's role** by matching the sender against the people named in the award letter. The agent never decides who someone is.
 - **Example: the approval channel.** An email approval reaches Needs a human at best, even one from the real Program Officer. Only a Research.gov record reaches Evidence complete. The exact NSF rule gets confirmed before it's coded.
 - **Example: self-approval.** A professor approving their own charge is not a prior approval.
 
@@ -40,8 +40,8 @@ NSF never sees individual charges or the evidence behind them. It gets one numbe
 
 | Item | Where | Who |
 |---|---|---|
-| The final payment amount for the award. NSF doesn't require a separate final financial report. | ACM$, NSF's payment system | The university's central accounting office |
-| Final Annual Project Report. Filing it certifies that the statements are true and that the work is done. | Research.gov | The PI |
+| The final payment amount for the award. NSF doesn't require a separate final financial report. | ACM$ (Award Cash Management Service), NSF's payment system | The university's central accounting office |
+| Final Annual Project Report. Filing it certifies that the statements are true and that the work is done. | Research.gov | The principal investigator (PI) |
 | Project Outcomes Report, a short public summary | Research.gov, posted publicly by NSF | The PI |
 | Final cost share notification, only if the award required cost sharing | Research.gov | The university's authorized official |
 
@@ -106,7 +106,7 @@ The supporting documents for every charge, kept for the retention period and han
 
 | Item | Who settles it |
 |---|---|
-| The exact list of NSF rules to code for the hackathon build | product |
+| The exact list of NSF rules for the hackathon build, and which are coded and which become questions for the agent | product |
 | The exact approval-channel rule, verified against NSF's pages | product |
 | Which universities' closeout steps to support after Berkeley | product |
 | How each rule is coded, and how rules are organized per funder | builder (W2) |

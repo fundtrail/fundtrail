@@ -16,7 +16,8 @@ Kinds, by what they hold:
 Some of the agent's records count only once the accountant confirms them: its
 grant terms, and any record that replaces an existing one (a suggested fix).
 The one exception is a judgment replacing the agent's own earlier judgment.
-See effective_records().
+The agent may suggest fixes to the accountant's links, but never replaces any
+other record of theirs. See effective_records() and check_new_record().
 """
 
 from collections.abc import Iterable, Iterator, Sequence
@@ -306,8 +307,6 @@ class Judgment(Model):
     def _shape(self):
         if self.question in QUESTIONS_ABOUT_A_RECORD and self.record_id is None:
             raise ValueError(f"a {self.question} question names the record it's about")
-        if self.question == Question.FLAG and self.answer != Answer.UNSURE:
-            raise ValueError("a flag's answer is unsure: it can only send a charge to the accountant")
         return self
 
 
@@ -417,6 +416,9 @@ class Record(Model):
                     raise ValueError(f"the agent's value '{path}' needs a citation")
             if isinstance(self.data, Link) and self.data.part is None:
                 raise ValueError("the agent's link needs a part")
+            if isinstance(self.data, Judgment) and self.data.question == Question.FLAG:
+                if self.data.answer != Answer.UNSURE:
+                    raise ValueError("the agent's flag is unsure: it can only send a charge to the accountant")
         return self
 
 
@@ -501,8 +503,10 @@ def check_new_record(new: Record, records: Sequence[Record], charges: Sequence[C
     if new.replaces_id:
         target = current_record(new.replaces_id, "the replaced record")
         if target is not None:
-            if new.author == Author.AGENT and target.author == Author.USER:
-                problems.append("the agent can't replace the accountant's records")
+            # The agent may suggest a fix to the accountant's link (it waits for
+            # them), but never replaces any other record of theirs.
+            if new.author == Author.AGENT and target.author == Author.USER and target.data.kind != RecordKind.LINK:
+                problems.append("the agent can only suggest fixes to the accountant's links, not their other records")
             if new.data.kind not in (target.data.kind, RecordKind.RETRACTION):
                 problems.append(f"a {new.data.kind} can't replace a {target.data.kind}")
 

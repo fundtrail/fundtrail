@@ -12,7 +12,7 @@ Built by Alex (azhao8) and Grant (grant-j-kim) for the BBS x Ramp Hackathon, "Bu
 | What the user sees, and the scope | [docs/product.md](docs/product.md) |
 | How the parts fit, the stack, the clock, the trust rules | [docs/architecture.md](docs/architecture.md) |
 | Records, tables, the API, file formats | [docs/contracts.md](docs/contracts.md) |
-| NSF rules, grant terms, closeout | [docs/domain.md](docs/domain.md) |
+| National Science Foundation (NSF) rules, grant terms, closeout | [docs/domain.md](docs/domain.md) |
 | The eval | [docs/eval.md](docs/eval.md) |
 | Why something is the way it is | [docs/decisions/](docs/decisions/) |
 
@@ -29,8 +29,8 @@ If something crosses areas or changes what the user sees, ask in your issue. Don
 ```
 backend/          FastAPI app (Python, uv)
   app/contracts/  Pydantic record models, golden fixture   shared
-  app/agent/      LangGraph: read and write                W1 Alex
-  app/checks/     rules, buckets, status text              W2 Alex
+  app/agent/      LangGraph: read, link, answer            W1 Alex
+  app/checks/     rules, questions, buckets, status text   W2 Alex
   app/ingest/     ledger, Gmail, Drive, upload             W3 Alex
   app/api/        routes                                   W4 Grant
   app/db/         database access, clock, jobs             W4 Grant

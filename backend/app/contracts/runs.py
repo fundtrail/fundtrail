@@ -1,5 +1,6 @@
-"""Agent runs: one background job each time a charge or a source arrives, and one
-per grant as closeout nears, to review all its links.
+"""Agent runs: one background job each time a charge or a source arrives, each
+time the accountant's write leaves a question open for the agent, and one per
+grant as closeout nears, to review all its links.
 
 The agent works in a loop of actions: it looks at anything on the grant, opens
 files, and writes records. Every write is checked with check_new_record as it
@@ -27,7 +28,9 @@ class AgentRun(Model):
     id: str
     workspace_id: str
     grant_id: str
-    trigger: Trigger  # the charge or file that arrived, or the clock for the closeout review
+    # The charge or file that arrived, the accountant's record that left a question
+    # open for the agent, or the clock for the closeout review.
+    trigger: Trigger
     status: RunStatus
     clock_now: AwareDatetime  # the workspace clock's "now" the run works at; its records carry it
     queued_at: AwareDatetime  # real time, like the timestamps below

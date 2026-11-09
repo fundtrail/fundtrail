@@ -109,6 +109,7 @@ create table statuses (
   bucket text not null
     check (bucket in ('evidence_complete', 'possible_conflict', 'missing_evidence', 'needs_human')),
   flagged boolean not null, -- on the accountant's problem list
+  rechecking boolean not null default false, -- the agent is answering again
   reasons jsonb not null, -- list of Pydantic Reason
   changed_at timestamptz not null, -- the workspace clock's "now"
   trigger_kind text not null check (trigger_kind in ('record', 'charge', 'file', 'clock')),
@@ -121,15 +122,16 @@ create view current_statuses with (security_invoker = true) as
   from statuses
   order by charge_id, changed_at desc, id desc;
 
--- Agent runs: one per charge or file that arrives, and one per grant as closeout
--- nears (trigger "clock"). The only table here that's updated in place, as a
--- run moves from queued to done or failed.
+-- Agent runs: one per charge or file that arrives, one per accountant's record
+-- that leaves a question open for the agent, and one per grant as closeout nears
+-- (trigger "clock"). The only table here that's updated in place, as a run moves
+-- from queued to done or failed.
 create table agent_runs (
   id text primary key default gen_random_uuid()::text,
   workspace_id text not null references workspaces (id) on delete cascade,
   grant_id text not null references grants (id) on delete cascade,
-  trigger_kind text not null check (trigger_kind in ('charge', 'file', 'clock')),
-  trigger_id text, -- the charge or file; null for the clock
+  trigger_kind text not null check (trigger_kind in ('record', 'charge', 'file', 'clock')),
+  trigger_id text, -- the record, charge or file; null for the clock
   status text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed')),
   clock_now timestamptz not null, -- the workspace clock's "now" the run works at
   queued_at timestamptz not null default now(),

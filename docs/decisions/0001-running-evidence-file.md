@@ -1,6 +1,6 @@
 # 0001. A running evidence file per grant
 
-**Date:** 2026-11-06 · **Status:** accepted
+**Date:** 2026-11-06 · **Status:** accepted. "Closeout packet" now means the evidence report: see [0008](0008-evidence-report-for-university-closeout.md).
 
 ## Context
 

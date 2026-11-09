@@ -48,6 +48,9 @@ class ChargeStatus(Model):
     # On the accountant's problem list. Always for Possible conflict and Needs a
     # human. For Missing evidence, only from CLOSEOUT_WINDOW_DAYS before the end date.
     flagged: bool
+    # An answer of the agent's that the bucket uses is out of date, and the agent
+    # is answering again. The bucket keeps using the last answer meanwhile.
+    rechecking: bool = False
 
     @model_validator(mode="after")
     def _consistent(self):
@@ -63,10 +66,14 @@ class ChargeStatus(Model):
 
 
 class OpenQuestion(Model):
-    """A question code requires about a charge that has no current answer.
+    """A question code requires about a charge that has no current, up-to-date answer.
 
-    An agent run can't finish while one is open for the agent. Unanswered, it
-    puts the charge in Needs a human.
+    An answer is out of date when a link to its charge was written after it, or
+    a record it rests on is no longer current. An agent run can't finish while
+    a question is open for the agent. A question with no answer at all, or one
+    the accountant answered that's now out of date, puts the charge in Needs a
+    human. One where only the agent's answer is out of date keeps that answer
+    for the bucket and marks the charge as rechecking.
     """
 
     charge_id: str
