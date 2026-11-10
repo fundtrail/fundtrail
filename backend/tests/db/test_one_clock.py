@@ -42,6 +42,17 @@ _CLOCK_ATTRS: dict[tuple[str, ...], set[str]] = {
 }
 _TIME_FUNCS = {"time", "time_ns", "localtime", "gmtime", "ctime", "asctime"}
 _GETATTR_NAMES = {"now", "today", "utcnow", "time", "time_ns"}
+# A call to an attribute by one of these names counts whatever the object before the dot
+# is: sa.func.now(), func.current_timestamp(), D = datetime; D.now(), a star import.
+_CALLED_NAMES = {
+    "now",
+    "utcnow",
+    "today",
+    "current_timestamp",
+    "current_date",
+    "localtimestamp",
+    "clock_timestamp",
+}
 
 # Machine time, never a grant's time: (file, function) -> (exact count, why).
 ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
@@ -50,7 +61,7 @@ ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
     ("backend/app/db/store.py", "set_run"): (2, "a run's started_at and finished_at, real time"),
     ("backend/app/db/jobs.py", "_RunRetry.get_retry_decision"): (1, "retry backoff"),
     ("backend/app/api/routes.py", "file_content"): (1, "the signed-link expiry"),
-    # Issue 157 (W3) moves the ingest checker onto the grant clock; this stays machine
+    # Ingest dates what it brings by the grant clock (issue 157, done). This one is machine
     # time: Drive's settle check, against Drive's own real modified times.
     ("backend/app/ingest/checker.py", "check_drive"): (1, "Drive's settle check"),
 }
@@ -86,6 +97,7 @@ def python_hits(source: str) -> list[tuple[int, str]]:
         and isinstance(node.value, ast.Constant)
         and isinstance(node.value.value, str)
     }
+    calls = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
     owner: dict[int, str] = {}
 
     def mark(node: ast.AST, scope: str) -> None:
@@ -112,6 +124,7 @@ def python_hits(source: str) -> list[tuple[int, str]]:
             hit = int(
                 node.attr in _CLOCK_ATTRS.get(what, set())
                 or (what == ("time",) and node.attr in _TIME_FUNCS)
+                or (id(node) in calls and node.attr in _CALLED_NAMES)
             )
         elif isinstance(node, ast.Name):
             what = names.get(node.id, ())
@@ -135,11 +148,14 @@ def migration_hits(sql: str) -> list[tuple[int, str, str]]:
     table = ""
     for n, raw in enumerate(sql.splitlines(), start=1):
         line = raw.split("--", 1)[0]
-        created = re.search(r"create table (?:if not exists )?(?:\w+\.)?(\w+)", line, re.I)
-        if created:
-            table = created.group(1)
+        named = re.search(
+            r"(?:create|alter) table (?:only )?(?:if (?:not )?exists )?(?:\w+\.)?(\w+)", line, re.I
+        )
+        if named:
+            table = named.group(1)
         if SQL.search(line):
-            column = line.strip().split()[0] if line.strip() else ""
+            added = re.search(r"add column (?:if not exists )?(\w+)", line, re.I)
+            column = added.group(1) if added else (line.split() or [""])[0]
             out.append((n, table, column))
     return out
 
@@ -212,6 +228,12 @@ PYTHON_DODGES = [
     "from datetime import date as D\nx = D.today()",
     "from datetime import datetime\nf = datetime.now\nf()",
     "from datetime import datetime\ngetattr(datetime, 'now')()",
+    "import sqlalchemy as sa\nx = sa.func.now()",
+    "from sqlalchemy import func\nx = func.current_timestamp()",
+    "from datetime import *\nx = datetime.now()",
+    "from datetime import datetime\nD = datetime\nx = D.now()",
+    "x = __import__('datetime').datetime.now()",
+    "x = type(stamp).now()",
     "import time\nx = time.time()",
     "import time\nx = time.time_ns()",
     "from time import time\nx = time()",
@@ -256,3 +278,6 @@ def test_the_check_catches_every_dodge() -> None:
         (2, "x", "at")
     ]
     assert migration_hits("-- default now()\nselect 1;") == []
+    altered = "create table public.records (\n  id text\n);\nalter table public.statuses\n"
+    altered += "  add column created_at timestamptz default now();"
+    assert migration_hits(altered) == [(5, "statuses", "created_at")]
