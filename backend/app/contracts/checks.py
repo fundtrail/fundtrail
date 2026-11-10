@@ -77,7 +77,10 @@ class Reason(Problem):
 
 
 class ItemSource(StrEnum):
-    DEFAULT = "default"
+    DEFAULT = "default"  # the ledger account group's default
+    # Issue 115: code added it because one of the grant's approval rules applies to
+    # the charge. The entry's rule_id names the rule.
+    RULE = "rule"
     AGENT = "agent"
     USER = "user"
 
@@ -95,13 +98,19 @@ class ChecklistEntry(Model):
     filled: bool
     link_ids: tuple[Id, ...] = ()  # the current links that fill it
     removal_waiting_id: Id | None = None  # the agent's removal of it, waiting for the accountant
+    # For an item an approval rule added (added_by "rule"): the approval_rule term's
+    # record ID, so the screen can say which rule added it.
+    rule_id: Id | None = None
 
     @model_validator(mode="after")
     def _one_item(self):
         if (self.item_record_id is None) == (self.default_item is None):
             raise ValueError("an entry is exactly one added item or one default")
-        if (self.added_by == ItemSource.DEFAULT) != (self.default_item is not None):
-            raise ValueError("default items are added by default, and only they are")
+        code_added = self.added_by in (ItemSource.DEFAULT, ItemSource.RULE)
+        if code_added != (self.default_item is not None):
+            raise ValueError("items code adds aren't stored and have a key, and only they do")
+        if (self.added_by == ItemSource.RULE) != (self.rule_id is not None):
+            raise ValueError("an item an approval rule added names the rule, and only it does")
         return self
 
 
