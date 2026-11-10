@@ -36,12 +36,14 @@ from .adapter import (
 from .citations import (
     CitationProblem,
     image_box,
+    money_sign_agrees,
     parse_date,
     parse_decimal,
     parse_money,
     parse_quantity,
     parse_rate,
     resolve_citation,
+    sign_is_doubtful,
 )
 from .context import REPEAT_LIMIT, RunContext
 from .desk import (
@@ -410,6 +412,15 @@ def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
         citation = resolve_citation(line.text, line.citations, ctx.documents)
     except CitationProblem as error:
         raise WriteProblem(f"{v.field}: {error}") from error
+    passage = citation.get("passage")
+    money = _leaf(v.field) in MONEY_FIELDS
+    if money and passage and not money_sign_agrees(value, passage, line.text):
+        # Code's reading of the money and the quote finder's reading of the page disagree on
+        # the sign (PR 105's review): neither is taken on trust.
+        raise WriteProblem(
+            f"{v.field}: '{line.text}' reads as {value} cents, but the file signs that amount the "
+            "other way. Cite the amount with the sign the file gives it"
+        )
     return {"value": value, "text": line.text, "citation": citation}
 
 
@@ -479,6 +490,12 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     if error or a.kind != "bill":
         return text, error
     new = ctx.staged[-1].record
+    if bill_sign_is_doubtful(new):
+        text += (
+            " The sign of its total can be read either way in the file (a dash with a space "
+            'before the amount). Say what you read the sign from, such as "credit memo", '
+            '"refund" or "amount due", in the reason of each link to this bill.'
+        )
     finder = ctx.inputs.likely_duplicates or likely_duplicates
     state = ctx.state()
     ids = finder(new, state.records, ctx.inputs.files)
@@ -530,8 +547,23 @@ def _check_applies_to(ctx: RunContext, applies_to: str) -> str:
 MAIN_FIELD = {RecordKind.BILL: "total", RecordKind.APPROVAL: "covers", RecordKind.NOTE: "statement"}
 
 
+def bill_sign_is_doubtful(record: Record) -> bool:
+    """Whether a bill's total has a sign that its file lets be read either way."""
+    data = record.data
+    total = getattr(data, "total", None) if record.kind == RecordKind.BILL else None
+    if total is None or total.citation is None or total.citation.passage is None:
+        return False
+    return sign_is_doubtful(total.citation.passage, total.text or "")
+
+
 def t_link(ctx: RunContext, a: LinkIn) -> tuple[str, bool]:
     fact = ctx.state().current_version(a.record_id)
+    if fact is not None and bill_sign_is_doubtful(fact) and not (a.reason or "").strip():
+        raise WriteProblem(
+            f"the sign of bill {fact.id}'s total can be read either way in its file, so the "
+            'link\'s reason has to say what you read the sign from, such as "credit memo", '
+            '"refund" or "amount due"'
+        )
     if a.part is not None:
         part = quote(ctx, a.part)
     else:
