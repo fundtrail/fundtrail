@@ -265,7 +265,9 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 _DOUBT_DASHES = "-\u2013"  # a hyphen or an en dash; the true minus U+2212 is always a minus
 _CURRENCY_SIGNS = "$\u20ac\u00a3\u00a5"
-_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])[A-Z]{3}$")
+# A currency code before the amount, in any case: "USD 612.40", "usd 612.40", and "US" in "US$".
+_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|US)$", re.IGNORECASE)
+_PROSE_PUNCTUATION = ",;"
 
 
 def _amount_starts(passage: str, value_text: str) -> list[int]:
@@ -294,34 +296,38 @@ def _amount_end(passage: str, digit: int) -> int:
 def _doubtful_at(passage: str, digit: int) -> bool:
     """Whether the amount whose digits start at `digit` has a sign that reads either way.
 
-    Steps left from the digits over spaces, tabs, a currency sign and a currency code. Doubtful
-    when it lands on a hyphen or en dash that has a space or tab between it and the amount and
-    itself follows a space or the start of a line ("Hotel - $612.40", "- USD 612.40"), or when
-    the amount sits in brackets inside prose ("the fee ($450.00) was paid").
+    Steps left from the digits over any white space (a space, a tab, a non-breaking or thin
+    space, a line break), a currency sign and a currency code. Doubtful when it lands on a
+    hyphen or en dash that has white space between it and the amount and itself follows white
+    space or the start of the passage ("Hotel - $612.40", "- USD 612.40"), or when the amount
+    sits in brackets inside prose ("the fee ($450.00) was paid", "the fee, ($450.00), was paid").
     """
     k = digit
     spaced = False
     while k > 0:
         ch = passage[k - 1]
-        if ch in " \t":
+        if ch.isspace():
             spaced = True
             k -= 1
         elif ch in _CURRENCY_SIGNS:
             k -= 1
-        elif _CURRENCY_CODE.search(passage, 0, k):
-            k -= 3
+        elif code := _CURRENCY_CODE.search(passage, 0, k):
+            k = code.start()
         else:
             break
     if k > 0 and passage[k - 1] in _DOUBT_DASHES and spaced:
         before = passage[k - 2] if k > 1 else "\n"
-        if before in " \t\n":
+        if before.isspace():
             return True
     if k > 0 and passage[k - 1] == "(":
         end = _amount_end(passage, digit)
         if end < len(passage) and passage[end] == ")":
-            left = passage[: k - 1].rstrip(" \t")
-            right = passage[end + 1 :].lstrip(" \t")
-            in_prose = (left[-1:].isalpha()) or (right[:1].isalpha())
+            left = passage[: k - 1].rstrip()
+            right = passage[end + 1 :].lstrip().lstrip(_PROSE_PUNCTUATION + ".").lstrip()
+            before = left[-1:]
+            in_prose = (
+                before.isalpha() or before in tuple(_PROSE_PUNCTUATION) or right[:1].isalpha()
+            )
             if in_prose:
                 return True
     return False
