@@ -3,7 +3,8 @@
 .ft-tl__controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Tops line up, so a control with a hint under it doesn't push the others down. */
+  align-items: flex-start;
   gap: var(--space-4);
   padding: 0 var(--space-4) var(--space-3);
 }
@@ -115,5 +116,7 @@
 .ft-tl__hinted {
   display: inline-flex;
   flex-direction: column;
+  /* The button keeps its own width instead of stretching to its hint's. */
+  align-items: flex-start;
   gap: 2px;
 }
