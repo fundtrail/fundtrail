@@ -21,9 +21,9 @@ def run_at(now: datetime) -> ChecksOutput:
     return run_checks(
         ChecksInput(
             now=now,
-            charges=[c for c in s.charges if c.arrived_at <= now],
-            files=[f for f in s.files if f.arrived_at <= now],
-            records=[r for r in s.records if r.written_at <= now],
+            charges=tuple(c for c in s.charges if c.arrived_at <= now),
+            files=tuple(f for f in s.files if f.arrived_at <= now),
+            records=tuple(r for r in s.records if r.written_at <= now),
         )
     )
 
@@ -49,7 +49,7 @@ def test_l1002_rests_on_the_award_letter_then_on_the_extension() -> None:
     before = next(c for c in run_at(FEB_24).charges if c.charge_id == "chg-l-1002")
     date = next(r for r in before.reasons if r.check == "period_of_performance")
     assert (date.problem, date.bucket) == ("after_end_date", Bucket.POSSIBLE_CONFLICT)
-    assert date.record_ids == ["rec-period"]
+    assert date.record_ids == ("rec-period",)
     assert date.text == "Dated Feb 20, 2026, after the grant's end date, Jan 31, 2026."
     assert before.flagged
 
@@ -84,16 +84,16 @@ def test_checklists_have_their_one_default_item_filled() -> None:
 @pytest.mark.parametrize("now", [NOV_14, FEB_24, APR_9, APR_10])
 def test_the_grant_has_no_problem_of_its_own(now: datetime) -> None:
     out = run_at(now)
-    assert out.grants == []
-    assert out.notes == []
-    assert out.questions == []
+    assert out.grants == ()
+    assert out.notes == ()
+    assert out.questions == ()
 
 
 def test_the_waiting_extension_is_a_problem_on_its_record_until_confirmed() -> None:
     assert [(r.record_id, r.problems[0].problem) for r in run_at(APR_9).records] == [
         ("rec-period-extension", "waiting")
     ]
-    assert run_at(APR_10).records == []
+    assert run_at(APR_10).records == ()
 
 
 def test_default_items_satisfy_the_write_check_for_every_sample_record() -> None:
@@ -110,4 +110,6 @@ def test_default_items_satisfy_the_write_check_for_every_sample_record() -> None
 def test_default_items_match_the_samples_stand_in() -> None:
     s = load_sample_grant()
     for charge in s.charges:
-        assert default_items(charge, s.records) == s.default_items[charge.ledger_line_id]
+        assert tuple(default_items(charge, s.records)) == tuple(
+            s.default_items[charge.ledger_line_id]
+        )

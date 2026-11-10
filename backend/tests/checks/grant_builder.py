@@ -329,7 +329,13 @@ class Grant:
 
     def assign(self, charge_id: str, line_id: str, when: datetime) -> str:
         return self.agent(
-            {"kind": "budget_assignment", "charge_id": charge_id, "record_id": line_id}, when
+            {
+                "kind": "budget_assignment",
+                "charge_id": charge_id,
+                "record_id": line_id,
+                "reason": "Synthetic.",
+            },
+            when,
         )
 
     def answer(
@@ -387,10 +393,10 @@ class Grant:
         return run_checks(
             ChecksInput(
                 now=now,
-                charges=[c for c in self.charges if c.arrived_at <= now],
-                files=[f for f in self.files if f.arrived_at <= now],
-                records=[r for r in self.records if r.written_at <= now],
-                failed_runs=self.failed_runs,
+                charges=tuple(c for c in self.charges if c.arrived_at <= now),
+                files=tuple(f for f in self.files if f.arrived_at <= now),
+                records=tuple(r for r in self.records if r.written_at <= now),
+                failed_runs=tuple(self.failed_runs),
             )
         )
 

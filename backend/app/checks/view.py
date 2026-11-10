@@ -6,6 +6,7 @@ Built once per run of the checks from rules.RecordState, and read by every check
 """
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -64,8 +65,8 @@ class GrantView:
         self,
         grant_id: str,
         state: RecordState,
-        charges: list[Charge],
-        files: list[EvidenceFile],
+        charges: Sequence[Charge],
+        files: Sequence[EvidenceFile],
     ):
         self.grant_id = grant_id
         self.state = state

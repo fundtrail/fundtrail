@@ -21,6 +21,7 @@ See contracts.md sections 5 and 8.
   away for a missing approval. Accepted reasons don't flag, and snoozing hides.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -75,7 +76,7 @@ class Decisions:
 
     # Accepting.
 
-    def _stood(self, rests_on: list[str], finding: Finding) -> bool:
+    def _stood(self, rests_on: Sequence[str], finding: Finding) -> bool:
         if not all(self.view.state.is_current(r) for r in rests_on):
             return False
         return set(finding.record_ids) <= set(rests_on)

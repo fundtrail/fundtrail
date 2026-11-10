@@ -36,7 +36,7 @@ def _reason(m: Marked) -> Reason:
         check=f.check,
         problem=f.problem,
         text=f.text,
-        record_ids=list(dict.fromkeys(f.record_ids)),
+        record_ids=tuple(dict.fromkeys(f.record_ids)),
         bucket=f.bucket,
         expected_by=f.expected_by,
         accepted_by=m.accepted_by,
@@ -47,7 +47,7 @@ def _reason(m: Marked) -> Reason:
 def _problem(m: Marked) -> Problem:
     f = m.finding
     return Problem(
-        check=f.check, problem=f.problem, text=f.text, record_ids=list(dict.fromkeys(f.record_ids))
+        check=f.check, problem=f.problem, text=f.text, record_ids=tuple(dict.fromkeys(f.record_ids))
     )
 
 
@@ -93,8 +93,8 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
                 grant_id=charge.grant_id,
                 charge_id=charge.id,
                 bucket=most_serious([m.finding.bucket for m in marked]),
-                reasons=[_reason(m) for m in marked],
-                checklist=found.entries,
+                reasons=tuple(_reason(m) for m in marked),
+                checklist=tuple(found.entries),
                 flagged=bool(flagging) and not snoozed,
                 rechecking=found.rechecking,
                 accepted=bool(failing) and all(m.accepted_by is not None for m in failing),
@@ -121,7 +121,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
                     grant_id=g,
                     record_id=key.record_id,
                     file_id=key.file_id,
-                    problems=[_problem(m) for m in marked],
+                    problems=tuple(_problem(m) for m in marked),
                     flagged=bool(open_) and not snoozed,
                     accepted=not open_,
                     snoozed=snoozed,
@@ -136,7 +136,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
             grants.append(
                 GrantStatus(
                     grant_id=g,
-                    problems=[_problem(m) for m in marked],
+                    problems=tuple(_problem(m) for m in marked),
                     flagged=bool(open_) and not snoozed,
                     accepted=not open_,
                     snoozed=snoozed,
@@ -145,5 +145,9 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
         notes += grant_notes(view)
 
     return ChecksOutput(
-        charges=charges, records=records, grants=grants, questions=questions, notes=notes
+        charges=tuple(charges),
+        records=tuple(records),
+        grants=tuple(grants),
+        questions=tuple(questions),
+        notes=tuple(notes),
     )
