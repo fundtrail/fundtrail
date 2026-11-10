@@ -7,6 +7,7 @@ dismiss it. Letting in and dismissing are `mail_action` records. A message that'
 let in arrives at that moment, as evidence files.
 """
 
+from datetime import date
 from enum import StrEnum
 from typing import Literal
 
@@ -40,6 +41,11 @@ class HeldFile(Model):
     media_type: Text
     storage_path: Text  # in the private evidence bucket
     sha256: Text
+    # Ruling 43: the sent date the file's evidence file takes as its document_date when
+    # the message is let in. On a sample grant it's the grant's now when the message
+    # was held (the sample's sent date), never the message's Date header; on any other
+    # grant it's the Date header's date. None when there's none.
+    document_date: date | None = None
 
 
 class HoldReason(StrEnum):
