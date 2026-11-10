@@ -13,6 +13,7 @@ from app.contracts.charges import Charge
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import BudgetCategory, Period, categories_match
 from app.contracts.rules import check_new_record
+from tests.contracts.test_sample_grant import run_trigger
 
 B = BudgetCategory
 
@@ -156,7 +157,12 @@ def test_sample_grant_passes_the_write_check_with_these_defaults() -> None:
         files = [f for f in sample.files if f.arrived_at <= r.written_at]
         assert (
             check_new_record(
-                r, written, charges, files, default_items=lambda c, _records: account_group_items(c)
+                r,
+                written,
+                charges,
+                files,
+                default_items=lambda c, _records: account_group_items(c),
+                trigger=run_trigger(r),
             )
             == []
         ), r.id

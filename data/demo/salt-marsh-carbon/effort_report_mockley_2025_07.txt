@@ -1,0 +1,31 @@
+UNIVERSITY OF EXAMPLE
+CERTIFIED EFFORT REPORT
+
+Employee: Rowan Mockley
+Title: Postdoctoral Scholar
+Department: Earth and Ocean Sciences
+Reporting period: July 1, 2025 to December 31, 2025
+
+Distribution of effort for the reporting period
+
+Fund or award                                           Effort
+Award SYN-2401835, Salt Marsh Carbon Burial at Example Point
+                                                        100 percent
+Total                                                   100 percent
+
+Salary charged to award SYN-2401835 for the reporting period:
+  July 2025              $5,200.00
+  August 2025            $5,200.00
+  September 2025         $5,200.00
+  October 2025           $5,200.00
+  November 2025          $5,200.00
+  December 2025          $5,200.00
+  Total                 $31,200.00
+
+Certification
+I certify that the distribution of effort above is a reasonable estimate of
+the work performed by the employee during the reporting period.
+
+Certified by: Harper Fixture, Principal Investigator
+Email: harper.fixture@university.example
+Date certified: March 12, 2026

@@ -1,0 +1,65 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 1030 >>
+stream
+BT
+/F1 9.5 Tf
+12 TL
+40 752 Td
+(EXAMPLE GENOMICS SUPPLY) Tj T*
+(410 Example Boulevard, Example City, CA 94003) Tj T*
+(billing@genomicssupply.example) Tj T*
+() Tj T*
+(INVOICE) Tj T*
+() Tj T*
+(Invoice number: EGS-20931) Tj T*
+(Invoice date: May 12, 2026) Tj T*
+(Customer PO: PO-26-3381) Tj T*
+() Tj T*
+(Bill to:) Tj T*
+(  University of Example, Department of Earth and Ocean Sciences) Tj T*
+(  Attn: Harper Fixture) Tj T*
+(  100 Example Hall, Example City, CA 94000) Tj T*
+(Project reference: Fixture and Dummy labs, shared order) Tj T*
+() Tj T*
+(Item  Description                                   Qty   Unit price      Amount) Tj T*
+(1     16S library prep kit, 96 reactions              1   $10,000.00  $10,000.00) Tj T*
+() Tj T*
+(Subtotal                                                              $10,000.00) Tj T*
+(Shipping                                                                   $0.00) Tj T*
+(Total due                                                             $10,000.00) Tj T*
+() Tj T*
+(Terms: net 30) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Title (Invoice EGS-20931) /Producer (FundTrail seed generator) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000216 00000 n 
+0000001298 00000 n 
+0000001424 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+startxref
+1509
+%%EOF

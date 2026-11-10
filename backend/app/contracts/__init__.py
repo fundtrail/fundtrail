@@ -8,11 +8,15 @@ Import from the module that holds each contract:
   correction) and the write check, check_new_record
 - charges: charges and the ledger file
 - evidence: evidence files
-- checks: the checks' interface, run_checks, which W2 implements
-- runs: agent runs
+- buckets: the four buckets
+- checks: the checks' interface, run_checks, which W2 implements, and ready_for_closeout
+- corrections: netting a charge with the lines that correct it (decision 0020)
+- signoff: a sign-off's snapshot and what changed since (decision 0022)
+- mail: held mail and the Gmail and Drive checker's progress (decision 0025)
+- runs: agent runs, and which charges a charge-triggered run covers
 - threads: review thread messages
 - workspaces: users, workspaces and grants
-- api: the API bodies that are settled
+- api: the API (application programming interface) bodies, the screens' included
 - eval: the eval answer key
 - fixtures: the sample grant every area tests against
 """

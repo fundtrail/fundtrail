@@ -22,7 +22,7 @@ class Charge(Model):
         date  # when the ledger recorded it; the 60 days for missing evidence count from here
     )
     # When it reached FundTrail; the clock uses this one. For an uploaded ledger
-    # file, 00:00 UTC (Coordinated Universal Time) on the posting date.
+    # file, see LedgerRow.arrival (decision 0023).
     arrived_at: UtcDatetime
     amount_cents: Cents  # negative for a reversal, a transfer out or a credit
     description: str
@@ -57,13 +57,24 @@ class LedgerRow(Model):
     def amount_cents(self) -> int:
         return int(self.amount * 100)
 
-    @property
-    def arrived_at(self) -> datetime:
-        """00:00 UTC on the posting date: when an uploaded line arrives."""
-        return datetime.combine(self.posting_date, time(), tzinfo=UTC)
+    def arrival(self, now: datetime) -> datetime:
+        """When an uploaded line arrives (decision 0023).
 
-    def to_charge(self, *, id: str, workspace_id: str, grant_id: str) -> Charge:
-        """The charge this row becomes: line_id is ledger_line_id, amount is amount_cents."""
+        At 00:00 UTC (Coordinated Universal Time) on its posting date if that's still
+        ahead of the workspace's "now", and otherwise now. In a real workspace that
+        always means now. In the demo workspace it lets the clock release later lines.
+        """
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("the workspace's now is timezone-aware")
+        midnight = datetime.combine(self.posting_date, time(), tzinfo=UTC)
+        return midnight if midnight > now else now.astimezone(UTC)
+
+    def to_charge(self, *, id: str, workspace_id: str, grant_id: str, now: datetime) -> Charge:
+        """The charge this row becomes, uploaded at the workspace's `now`.
+
+        line_id is ledger_line_id, amount is amount_cents, and arrived_at follows
+        `arrival`.
+        """
         return Charge(
             id=id,
             workspace_id=workspace_id,
@@ -71,7 +82,7 @@ class LedgerRow(Model):
             ledger_line_id=self.line_id,
             transaction_date=self.transaction_date,
             posting_date=self.posting_date,
-            arrived_at=self.arrived_at,
+            arrived_at=self.arrival(now),
             amount_cents=self.amount_cents,
             description=self.description,
             account=self.account,

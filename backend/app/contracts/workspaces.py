@@ -25,3 +25,8 @@ class Grant(Model):
     # Empty until the award letter is read. The terms themselves are records.
     award_number: str | None = None
     title: str | None = None
+    # Decision 0025. The short random code after the plus sign in the grant's
+    # address: the app's mailbox name, a plus sign and this code.
+    address_code: str | None = None
+    # The Drive folder the accountant shared and pasted the link of.
+    drive_folder_id: str | None = None

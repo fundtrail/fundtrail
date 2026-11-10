@@ -1,0 +1,23 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-26-1646
+Traveler: Logan Synth, Graduate Student Researcher
+Email: logan.synth@university.example
+Award charged: SYN-2507264
+
+Purpose of trip: Example Ocean Sciences Meeting, workshop results talk
+Destination: Example Riverfront Convention Center, Example River City, LA
+Departure: February 23, 2026
+Return: February 27, 2026
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXN5WB                      $400.00
+  Lodging, Example Riverfront Hotel, 4 nights                    $716.00
+  Taxi, airport to hotel, Example Cab Co.                         $46.50
+  Total reimbursement                                          $1,162.50
+
+Meals are not claimed on this report.
+
+Submitted by traveler: March 3, 2026
+Approved by department: March 4, 2026, Earth and Ocean Sciences business office
