@@ -151,3 +151,45 @@ def test_tokens_are_checked_against_the_projects_jwks_and_a_new_key_is_fetched()
     assert len(fetches) == 2  # fetched again for the new kid
     with pytest.raises(InvalidToken):
         verifier.verify(token(ec.generate_private_key(ec.SECP256R1()), "k3"))
+
+
+def test_email_sign_in_is_refused_unless_turned_on_for_a_local_stack(signer: Signer) -> None:
+    from app.api.auth import DevEmailSignInRefused
+
+    token = signer.token("u-4", "dev@university.example", app_metadata={"provider": "email"})
+    with pytest.raises(InvalidToken):
+        signer.verifier().verify(token)
+    public = signer.key.public_key()
+    local = SupabaseTokenVerifier(
+        "http://127.0.0.1:54321", signing_key=lambda _t: public, allow_email_signin=True
+    )
+    local_token = jwt.encode(
+        {
+            "sub": "u-4",
+            "email": "dev@university.example",
+            "aud": "authenticated",
+            "iss": "http://127.0.0.1:54321/auth/v1",
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
+            "app_metadata": {"provider": "email"},
+        },
+        signer.key,
+        algorithm="ES256",
+    )
+    assert local.verify(local_token).id == "u-4"
+    with pytest.raises(DevEmailSignInRefused):
+        SupabaseTokenVerifier(SUPABASE_URL, allow_email_signin=True)
+    google = signer.token("u-5", "pat@university.example", app_metadata={"provider": "google"})
+    assert signer.verifier().verify(google).id == "u-5"
+
+
+def test_the_server_refuses_to_start_with_tracing_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.agent import TracingTurnedOn
+    from app.api import lifespan
+
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    app = FastAPI(lifespan=lifespan)
+    with pytest.raises(TracingTurnedOn), TestClient(app):
+        pass

@@ -72,6 +72,9 @@ async def inline_worker(database_url: str, concurrency: int) -> AsyncIterator[No
 
 
 def main() -> None:
+    from app.agent import check_no_tracing
+
+    check_no_tracing()  # the worker refuses to start with tracing on (#82)
     settings = Settings.from_env()
     set_platform(platform_from_env(settings))
 

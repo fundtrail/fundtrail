@@ -18,7 +18,13 @@ __all__ = ["lifespan", "router"]
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Set the platform up from the environment, unless a test already put one on app.state,
-    and run the job worker inside the process when WORKER_MODE is "inline"."""
+    and run the job worker inside the process when WORKER_MODE is "inline".
+
+    The server refuses to start with LangSmith or LangChain tracing turned on (#82): the
+    agent would refuse every run, and tracing would send evidence to a third party."""
+    from app.agent import check_no_tracing
+
+    check_no_tracing()
     if getattr(app.state, "platform", None) is not None:
         yield
         return
@@ -33,7 +39,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     assert settings.supabase_url is not None
     app.state.platform = platform
     app.state.verifier = SupabaseTokenVerifier(
-        settings.supabase_url, jwt_secret=settings.supabase_jwt_secret
+        settings.supabase_url,
+        jwt_secret=settings.supabase_jwt_secret,
+        allow_email_signin=settings.dev_email_signin,
     )
     set_platform(platform)
     async with AsyncExitStack() as stack:

@@ -40,6 +40,18 @@ def _user(claims: dict[str, Any]) -> User:
     return User(id=str(sub), email=str(email), name=str(name) if name else None)
 
 
+def is_local(supabase_url: str) -> bool:
+    """Whether the Supabase URL is a local development stack (the Supabase CLI's)."""
+    from urllib.parse import urlparse
+
+    host = (urlparse(supabase_url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
+
+
+class DevEmailSignInRefused(RuntimeError):
+    """FUNDTRAIL_DEV_EMAIL_SIGNIN is set for a Supabase project that isn't local."""
+
+
 def jwks_url(supabase_url: str) -> str:
     return f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
 
@@ -52,12 +64,20 @@ class SupabaseTokenVerifier:
         jwt_secret: str | None = None,
         signing_key: Callable[[str], Any] | None = None,
         jwks_client: jwt.PyJWKClient | None = None,
+        allow_email_signin: bool = False,
     ):
         """`signing_key(token)` returns the key for a token. By default it comes from the
         project's JWKS through `jwks_client` (made here unless a test passes one): the key
         set is cached for five minutes and fetched again on a `kid` it doesn't have."""
         base = supabase_url.rstrip("/")
         self._issuer = f"{base}/auth/v1"
+        # Email sign-in is for local development only: the app signs people in with Google.
+        if allow_email_signin and not is_local(supabase_url):
+            raise DevEmailSignInRefused(
+                "FUNDTRAIL_DEV_EMAIL_SIGNIN is only for a local Supabase stack; "
+                "unset it for this project."
+            )
+        self._allow_email = allow_email_signin
         self._secret = jwt_secret
         if signing_key is None and jwt_secret is None:
             client = jwks_client or jwt.PyJWKClient(
@@ -85,4 +105,7 @@ class SupabaseTokenVerifier:
             )
         except (jwt.PyJWTError, ValueError) as error:
             raise InvalidToken(type(error).__name__) from error
+        provider = (claims.get("app_metadata") or {}).get("provider")
+        if provider == "email" and not self._allow_email:
+            raise InvalidToken("email sign-in is only for local development")
         return _user(claims)

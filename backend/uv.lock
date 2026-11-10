@@ -657,6 +657,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "pypdfium2" },
+    { name = "reportlab" },
 ]
 
 [package.dev-dependencies]
@@ -664,7 +665,6 @@ dev = [
     { name = "httpx" },
     { name = "pyright", extra = ["nodejs"] },
     { name = "pytest" },
-    { name = "reportlab" },
     { name = "ruff" },
 ]
 
@@ -684,6 +684,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "pypdfium2", specifier = ">=5.15.2" },
+    { name = "reportlab", specifier = ">=5.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -691,7 +692,6 @@ dev = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.2.0" },
-    { name = "reportlab", specifier = ">=5.1.0" },
     { name = "ruff", specifier = ">=0.17.4" },
 ]
 
