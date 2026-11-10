@@ -485,7 +485,8 @@ export interface Reason extends Problem {
   dispute_id?: Id | null;
 }
 
-export type ItemSource = "default" | "agent" | "user";
+/** Who added a checklist item. `rule`: code, because one of the grant's approval rules applies (issue 115). */
+export type ItemSource = "default" | "rule" | "agent" | "user";
 
 export interface ChecklistEntry {
   item_record_id?: Id | null;
@@ -498,6 +499,8 @@ export interface ChecklistEntry {
   filled: boolean;
   link_ids?: Id[];
   removal_waiting_id?: Id | null;
+  /** The approval rule that added it; set exactly when added_by is "rule". */
+  rule_id?: Id | null;
 }
 
 export interface ChargeStatus {
@@ -869,10 +872,22 @@ export interface AnswerView {
   rule?: RuleView | null;
 }
 
+/** What accepting one of the agent's waiting records changes, worded by code (issue 114). */
+export interface SuggestionChange {
+  /** What accepting does, in one line. */
+  title: string;
+  /** What's in force now, when it replaces something. */
+  now?: string | null;
+  /** What the agent suggests instead. */
+  suggested?: string | null;
+}
+
 export interface SuggestionView {
   record: FtRecord;
   replaces?: FtRecord | null;
   charge_ids?: Id[];
+  /** What accepting it changes, worded by the server. The platform fills it. */
+  change?: SuggestionChange | null;
 }
 
 export interface StatusThreadEntry {
