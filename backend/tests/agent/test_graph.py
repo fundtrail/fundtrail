@@ -15,7 +15,6 @@ from app.agent.prompts import SYSTEM_PROMPT
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import Record
 from app.contracts.runs import Trigger
-from app.contracts.threads import ThreadMessage
 
 from .fakes import FakeModel, calls, label_message, message, results_of, sample_inputs, text, tool
 
@@ -131,47 +130,9 @@ def test_a_file_run_hands_over_the_file_and_the_award_notice_guidance():
         and "NSF category" in joined
         and "exactly one notice term" in joined
     )
+    assert "none for a labeled field that says there is nothing" in " ".join(joined.split())
     assert "Which of these does this file fill?" in joined and "chg-l-1001" in joined
     assert any(b.get("type") == "document" for b in first)
-
-
-def test_a_thread_runs_gate_covers_only_its_charge():
-    """Answer 3: other open questions are reported, so an ordinary run gets queued."""
-    message_in = ThreadMessage(
-        id="msg-1",
-        workspace_id=SAMPLE.workspace.id,
-        grant_id=SAMPLE.grant.id,
-        charge_id="chg-l-1001",
-        author="user",  # pyright: ignore[reportArgumentType]
-        author_user_id=SAMPLE.user.id,
-        text="Is this invoice the right one?",
-        written_at=datetime.fromisoformat("2026-02-24T12:00:00+00:00"),
-    )
-    db = [r for r in records_until("rec-period-extension") if not r.id.startswith("rec-allowable")]
-    inputs = sample_inputs(
-        now=datetime.fromisoformat("2026-02-24T12:00:00+00:00"),
-        trigger=Trigger(kind="thread_message", id="msg-1"),  # pyright: ignore[reportArgumentType]
-        records=db,
-        thread_messages=[message_in],
-    )
-    model = FakeModel(
-        [
-            lambda r: calls(
-                tool(
-                    "post_message",
-                    charge_id="chg-l-1001",
-                    text="Yes: INV-1001 matches the ledger reference.",
-                ),
-                answer_l1001(),
-                tool("finish", summary="Replied."),
-            )
-        ]
-    )
-    result = run_once(inputs, model)
-    assert isinstance(result, RunSaved)
-    assert [q.charge_id for q in result.other_open_questions] == ["chg-l-1002"]
-    assert [m.text for m in result.messages] == ["Yes: INV-1001 matches the ledger reference."]
-    assert "Is this invoice the right one?" in model.requests[0].messages[0]["content"][-1]["text"]
 
 
 def test_a_refusal_fails_the_run_with_no_other_model():

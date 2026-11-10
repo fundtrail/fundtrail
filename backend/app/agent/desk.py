@@ -145,6 +145,35 @@ def charge_line(ctx: RunContext, c: Charge) -> str:
     return " | ".join(parts)
 
 
+def bill_links(state: RecordState, bill: Record) -> tuple[int, int, int]:
+    """A bill's current links: the cents they carry, how many there are, and how many carry no
+    amount (an amount goes only on a link to an item that carries one)."""
+    links = [
+        r.data for r in state.current() if isinstance(r.data, Link) and r.data.record_id == bill.id
+    ]
+    cents = sum(link.amount_cents for link in links if link.amount_cents is not None)
+    return cents, len(links), sum(link.amount_cents is None for link in links)
+
+
+def bill_line(state: RecordState, bill: Record) -> str:
+    assert isinstance(bill.data, Bill)
+    cents, count, without = bill_links(state, bill)
+    if count == 0:
+        return f"{bill.id} not linked to any charge"
+    total = money(bill.data.total.value)
+    line = f"{bill.id} linked to {count} charge(s) for {money(cents)} of {total}"
+    if without:
+        line += f", {without} link(s) with no amount"
+    return line
+
+
+def money_nobody_charged(state: RecordState, bill: Record) -> int | None:
+    """The part of a bill's total no link carries, or None when a link carries no amount."""
+    assert isinstance(bill.data, Bill)
+    cents, _, without = bill_links(state, bill)
+    return None if without else bill.data.total.value - cents
+
+
 def document_line(ctx: RunContext, f: EvidenceFile) -> str:
     state = ctx.state()
     facts = [
@@ -155,16 +184,7 @@ def document_line(ctx: RunContext, f: EvidenceFile) -> str:
         parts.append(f"from {f.sender}")
     if facts:
         parts.append("facts: " + "; ".join(record_summary(r) for r in facts))
-        for bill in facts:
-            if not isinstance(bill.data, Bill):
-                continue
-            linked = sum(
-                r.data.amount_cents or 0
-                for r in state.current()
-                if isinstance(r.data, Link) and r.data.record_id == bill.id
-            )
-            total = bill.data.total.value
-            parts.append(f"{bill.id} linked {money(linked)}, unlinked {money(total - linked)}")
+        parts += [bill_line(state, bill) for bill in facts if isinstance(bill.data, Bill)]
     else:
         parts.append("no facts read yet")
     return " | ".join(parts)
@@ -346,7 +366,11 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         blocks.append({"type": "text", "text": "\n\n".join(text)})
     elif t.kind == TRIGGER_THREAD:
         message = next((m for m in i.thread_messages if m.id == t.id), None)
-        text = ["What happened: the accountant wrote in a thread. Reply with post_message."]
+        text = [
+            "What happened: the accountant wrote in a thread. Reply with post_message. In a run "
+            "started by a thread message, every record you write waits for the accountant, "
+            "whatever its kind: you reply, and you suggest."
+        ]
         if message is not None:
             subject = [
                 m
@@ -362,8 +386,9 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
             elif message.record_id and message.record_id in state.by_id:
                 text.append(record_in_full(ctx, state.by_id[message.record_id]))
         text.append(
-            "An instruction to change something comes back from you as a suggestion: write "
-            "the record, and it waits for the accountant."
+            "If the accountant asks for a change, write the record: it comes back to them as a "
+            "suggestion to accept. Open questions code asks are handled by an ordinary run, not "
+            "this one."
         )
         blocks.append({"type": "text", "text": "\n".join(text)})
     elif t.kind == TRIGGER_CLOCK:
@@ -374,8 +399,17 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
             for r in state.current()
             if isinstance(r.data, Link) and (not only or r.data.charge_id in only)
         ]
+        current = state.current()
+        bills = [r for r in current if isinstance(r.data, Bill)]
         unlinked = [
-            document_line(ctx, f) for f in i.files if "unlinked $0.00" not in document_line(ctx, f)
+            f"- {record_summary(b)}: {money(left)} nobody charged"
+            for b in bills
+            if (left := money_nobody_charged(state, b))
+        ]
+        unlinked += [
+            f"- {document_line(ctx, f)}"
+            for f in i.files
+            if not any(f.id in files_of(r) for r in current if r.kind in FACT_KINDS | TERM_KINDS)
         ]
         text = [
             "What happened: the closeout window opened. Review every link on the grant, and every "
@@ -385,7 +419,7 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
             *([f"- {record_summary(r)}" for r in links] or ["- none"]),
             "Every missing item:",
             *(missing_items(ctx, only) or ["- none"]),
-            "Documents with money nobody charged, or no facts:",
+            "Bills with money nobody charged, and documents with no facts:",
             *(unlinked or ["- none"]),
         ]
         blocks.append({"type": "text", "text": "\n".join(text)})
@@ -419,7 +453,17 @@ def judgments_about(state: RecordState, charge_ids: Sequence[str]) -> list[Recor
 AWARD_NOTICE_GUIDANCE = (
     "If this is an award notice, an amendment or a program solicitation: read its free-text "
     "conditions as well as its labeled fields, and write each condition as a term "
-    "(an approval_rule when it says who must approve what, otherwise an other_term). Every award "
+    "(an approval_rule when it says who must approve what, otherwise an other_term). Write a "
+    "term for every condition or limit the notice states, and none for a labeled field that says "
+    "there is nothing (zero, none, not applicable), such as a cost share of $0 or an expenditure "
+    "limitation of none: those are empty fields, not conditions. An approval_rule also says what "
+    "it applies to, read from the clause's own words and cited: every charge in its category "
+    '(every_charge, as in "every equipment purchase needs the Program Officer\'s approval"), or '
+    'only money moved out of its category (moved_out, as in "may not be diverted ... to other '
+    "categories of expense without the prior written approval\"). Where the clause doesn't make "
+    "it clear, don't pick one: flag the term. A cost transfer or rebudget that moves participant "
+    "support money is yours to recognize on the charge, like NSF's standing list: add the NSF "
+    "approval item to its checklist (add_checklist_item with nsf_standing_list). Every award "
     "notice gets exactly one notice term: its amendment number, its amendment type, and the "
     "amounts it prints for Amount Obligated by this Amendment (obligated_by_amendment) and Total "
     "Amount Obligated to Date (obligated_to_date), because code checks each notice's running "

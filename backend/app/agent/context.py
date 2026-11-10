@@ -19,6 +19,7 @@ from .adapter import (
     build_record,
     check_write,
     debug_log_path,
+    record_waits,
     run_checks_on,
 )
 from .citations import LabelLine, SentDocument, SentImage
@@ -52,6 +53,7 @@ class RunContext:
     turns: int = 0
     gate_returns: int = 0
     max_tokens_retried: bool = False
+    label_note: str = ""  # labels refused this turn, for the next message to the model
     pending_finish_id: str | None = None
     pending_results: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     next: str = "model"
@@ -87,9 +89,8 @@ class RunContext:
         problems = check_write(record, self.records, i.charges, i.files, i.default_items)
         if problems:
             return None, problems
-        staged = Staged(
-            record=record, waits=RecordState([*self.records, record], i.files).waits(record.id)
-        )
+        state = RecordState([*self.records, record], i.files)
+        staged = Staged(record=record, waits=record_waits(state, record.id, i.trigger))
         self.staged.append(staged)
         self._checks = None
         return staged, []
@@ -163,7 +164,7 @@ def _loggable(value: Any) -> Any:
     if isinstance(value, dict):
         out: dict[str, Any] = {}
         for k, v in value.items():  # pyright: ignore[reportUnknownVariableType]
-            if k == "data" and isinstance(v, str) and len(v) > 200:
+            if k == "data" and isinstance(v, str):  # a file's contents never go in the log
                 out[k] = {"omitted_bytes": len(v), "sha256": _sha(v)}
             else:
                 out[str(k)] = _loggable(v)  # pyright: ignore[reportUnknownArgumentType]

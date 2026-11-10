@@ -39,7 +39,7 @@ from .adapter import (
     agent_questions,
     check_write,
 )
-from .citations import parse_label_lines
+from .citations import LabelLine, parse_label_lines
 from .context import RunContext
 from .desk import first_message
 from .inputs import RunFailed, RunInputs, RunResult, RunSaved
@@ -127,33 +127,37 @@ def build_graph(model: ModelClient) -> Any:
             if ctx.max_tokens_retried:
                 _fail(ctx, "the model hit its output limit twice in one turn", False)
                 return state
-            ctx.max_tokens_retried = (
-                True  # ask again once with a larger limit; the cut turn is dropped
-            )
+            # Ask again once with a larger limit; the cut turn is dropped.
+            ctx.max_tokens_retried = True
             ctx.turns -= 1
             ctx.next = "model"
             return state
+        if message.stop_reason in ("pause_turn", "model_context_window_exceeded"):
+            _fail(ctx, f"the model stopped with {message.stop_reason}, which isn't a finish", False)
+            return state
+        ctx.max_tokens_retried = False  # the larger limit is for one retried turn only
         ctx.messages.append({"role": "assistant", "content": message.content})
         lines = parse_label_lines(message.content)
-        for line in lines:
-            ctx.labels[line.label] = line
+        recorded, refused = record_labels(ctx, lines)
         uses = [b for b in message.content if b.type == "tool_use"]
+        ctx.label_note = label_note(refused)
         if uses:
             ctx.next = "act"
             if lines:
-                ctx.log_event("labels", labels={ln.label: bool(ln.citations) for ln in lines})
+                ctx.log_event("labels", labels={ln.label: bool(ln.citations) for ln in recorded})
             return state
         if lines:
-            cited = [ln.label for ln in lines if ln.citations]
-            uncited = [ln.label for ln in lines if not ln.citations]
+            cited = [ln.label for ln in recorded if ln.citations]
+            uncited = [ln.label for ln in recorded if not ln.citations]
             reply = "Recorded with citations: " + (", ".join(cited) or "none") + "."
             if uncited:
                 reply += (
                     " Came back with no citation: "
                     + ", ".join(uncited)
-                    + ". Write those again citing "
-                    "the file, or leave them out."
+                    + ". Write those again citing the file, or leave them out."
                 )
+            reply += ctx.label_note
+            ctx.label_note = ""
             ctx.log_event("labels", reply=reply)
             ctx.messages.append({"role": "user", "content": reply})
             ctx.next = "model"
@@ -185,7 +189,26 @@ def build_graph(model: ModelClient) -> Any:
             if is_error:
                 result["is_error"] = True
             results.append(result)
-        if finish_id is not None:
+        if finish_id is not None and any(r.get("is_error") for r in results):
+            # A refused write in the finishing turn goes back to the model, not to the gate.
+            results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": finish_id,
+                    "content": "Not finished: a write in this turn was refused. Fix it or leave "
+                    "it out, then call finish again.",
+                    "is_error": True,
+                }
+            )
+            finish_id = None
+            ctx.summary = None
+            note: list[dict[str, Any]] = (
+                [{"type": "text", "text": ctx.label_note.strip()}] if ctx.label_note else []
+            )
+            ctx.label_note = ""
+            ctx.messages.append({"role": "user", "content": [*results, *note]})
+            ctx.next = "model"
+        elif finish_id is not None:
             ctx.pending_finish_id = finish_id
             ctx.pending_results = results
             ctx.next = "gate"
@@ -277,26 +300,45 @@ def build_graph(model: ModelClient) -> Any:
     return graph.compile()
 
 
+def record_labels(ctx: RunContext, lines: list[LabelLine]) -> tuple[list[LabelLine], list[str]]:
+    """Add a turn's label lines to the run's table. A label already used with a citation is
+    refused, not overwritten; one that came back uncited can be written again."""
+    recorded: list[LabelLine] = []
+    refused: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        earlier = ctx.labels.get(line.label)
+        if line.label in seen or (earlier is not None and earlier.citations):
+            refused.append(line.label)
+            continue
+        seen.add(line.label)
+        ctx.labels[line.label] = line
+        recorded.append(line)
+    return recorded, refused
+
+
+def label_note(refused: list[str]) -> str:
+    if not refused:
+        return ""
+    return (
+        " Already used in this run, so not recorded again: "
+        + ", ".join(dict.fromkeys(refused))
+        + ". Write each of those lines under a new label."
+    )
+
+
 def split_questions(ctx: RunContext) -> tuple[list[OpenQuestion], list[OpenQuestion]]:
     """The open questions this run's gate covers, and the rest.
 
     An ordinary run covers every open question waiting for the agent on the grant. A thread run
-    covers only the thread's charge or record (answer 3).
+    replies and suggests, and covers none (the main coordinator's ruling, replacing answer 3):
+    every open question, the thread's own charge included, goes back to the platform, which
+    queues an ordinary run, and the reply isn't held up.
     """
     questions = agent_questions(ctx.checks())
-    i = ctx.inputs
-    if i.trigger.kind != TRIGGER_THREAD:
-        return questions, []
-    message = next((m for m in i.thread_messages if m.id == i.trigger.id), None)
-    if message is None:
-        return questions, []
-    covered = [
-        q
-        for q in questions
-        if (message.charge_id and q.charge_id == message.charge_id)
-        or (message.record_id and q.record_id == message.record_id)
-    ]
-    return covered, [q for q in questions if q not in covered]
+    if ctx.inputs.trigger.kind == TRIGGER_THREAD:
+        return [], questions
+    return questions, []
 
 
 def charges_without_budget_line(ctx: RunContext) -> list[str]:
