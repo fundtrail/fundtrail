@@ -520,11 +520,24 @@ def test_a_typed_parent_line_never_joins_a_cited_notice() -> None:
 
 def test_a_typed_sub_line_with_its_typing_date_still_counts_twice() -> None:
     """Known miss, kept on purpose: with no date to tie it to a notice, a typed sub-line
-    counts on its own, so the parent and it add up. A missed note, never a false one."""
+    counts on its own, so the parent and it add up. A missed or understated overspend,
+    never a false one."""
     g = Grant()
     g.standard_terms()
     stipends = _typed_line(g, "Stipends", 1_500_000, date(2023, 2, 1), at(2023, 2, 1))
     assert _stipend_overspend(g, stipends) == []
+
+
+def test_two_typed_parent_lines_on_the_same_date_both_count() -> None:
+    """#104: each may be a different notice's, so both count; the budget is $35,000."""
+    g = Grant()
+    first = _typed_line(
+        g, "Participant Support Costs", 2_000_000, date(2023, 1, 10), at(2023, 2, 1)
+    )
+    _typed_line(g, "Participant Support Costs", 1_500_000, date(2023, 1, 10), at(2023, 6, 1))
+    g.charge("stip", date(2024, 3, 1), 3_100_000, account=STIPENDS, vendor=None)
+    g.assign("stip", first, at(2024, 3, 1))
+    assert [n.text for n in g.run(at(2024, 3, 2)).notes] == []  # $31,000 of $35,000
 
 
 def test_two_typed_parent_lines_from_two_notices_both_count() -> None:
