@@ -8,7 +8,7 @@ Issue 76, from the main coordinator's provisional calls 38 and 40. A vendor's cr
 
 - The memo is read as a `bill` with a negative total, -45000 cents, which is how contracts.md section 1 records a credit.
 - The agent links it to the charge it credits, L-8101, with the memo's own negative amount, -45000 cents. It never links it to L-8102. A positive reading, or any link to L-8102, is wrong.
-- L-8101's evidence then comes to $750.00, less than the $1,200.00 the ledger charged. The checks' rule for a sum under its target puts L-8101 in Missing evidence once the memo arrives (contracts.md section 2, "The sums": under is Missing evidence; PR 62's `checklist.compare`). When a ledger credit line naming L-8101 posts, the net matches and L-8101 is complete again. This case ends before that.
+- L-8101's evidence then comes to $750.00, less than the $1,200.00 the ledger charged. That puts L-8101 in Missing evidence once the memo arrives, through the checks' per-item path: `evaluate_item` in `backend/app/checks/checklist.py` finds that the bill item "A bill that adds up to the charge" ($1,200.00) has bills linked for only $750.00, so the item is missing ("the bills linked add up to $750.00 of $1,200.00"). The charge-level sum doesn't fire, because the item's amount is still the whole charge. When a ledger credit line naming L-8101 posts, the net matches and L-8101 is complete again. This case ends before that.
 - L-8102 stays Missing evidence after the memo arrives (the check on 2026-03-24). It becomes Evidence complete only when its own invoice, INV-20388, arrives.
 
 **The check's part.** `eval/test_cases.py` reads sign marks as the main coordinator's sign ruling does (call 31):
@@ -18,5 +18,7 @@ Issue 76, from the main coordinator's provisional calls 38 and 40. A vendor's cr
 - **Positive:** a dash right after a digit or a letter ("$400-$500").
 
 A link's amount must have the same sign as its bill's total (call 38, A1), and a bill's links, added with their signs, reach no further than its total. So a key that links the memo to L-8102 for +45000 fails, and `test_link_sign_must_match_its_bill` checks that it does.
+
+Once a credit is on file, an Evidence complete charge's bills on file, added with their signs, must come to exactly the charge. So L-8101 marked complete after the memo fails (`test_credit_on_file_keeps_its_charge_from_complete`). Since the spaced dash is either sign, the text can't hold the key to a negative reading. `test_credit_memo_case_reads_the_memo_as_negative` asserts this case's memo total is -45000, linked to L-8101 only.
 
 Everything here is synthetic.
