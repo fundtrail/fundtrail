@@ -1,6 +1,5 @@
 import type { ApiClient } from "./client";
 import { chargeFake } from "./fixtures/charge";
-import { clockFake } from "./fixtures/clock";
 import { closeoutFake } from "./fixtures/closeout";
 import { evidenceFake } from "./fixtures/evidence";
 import { grantFake, newGrantDetail, sampleSummary } from "./fixtures/grant";
@@ -20,7 +19,6 @@ export function createFakeApiClient(): ApiClient {
   const setup = setupFake();
   return {
     ...grants,
-    ...clockFake(),
     ...chargeFake(),
     ...threadFake(),
     ...evidenceFake(),
