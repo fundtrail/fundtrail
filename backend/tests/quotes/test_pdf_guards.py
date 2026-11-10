@@ -1,0 +1,254 @@
+"""The guards on a match, on small PDFs drawn in memory with reportlab (a dev dependency).
+
+A close match still confirms a value, so it must not be able to hide a wrong number; and a
+value must not be found as the head or tail of a longer number on the page.
+"""
+
+import io
+from typing import NamedTuple
+
+import pytest
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+from app.quotes import find_pdf_quote
+
+
+def _pdf(pages: list[list[str]]) -> bytes:
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter, invariant=True)
+    c.setFont("Helvetica", 10)
+    for lines in pages:
+        y = 700
+        for line in lines:
+            c.drawString(72, y, line)
+            y -= 14
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+class Probe(NamedTuple):
+    name: str
+    pages: list[list[str]]
+    passage: str
+    value: str | None
+    expect: str
+    value_found: bool | None
+    end_page: int = 2
+    pages_hit: tuple[int, ...] = ()
+
+
+TRAVEL = "Travel to the Boston conference cost {} in total for the trip."
+TYPO = "Travel to the Bostn conference cost $1,450.00 in total for the trip."
+SPLIT_1 = ["The cost of the conference travel was"]
+SPLIT_PASSAGE = "The cost of the conference travel was $1,450.00 for the whole trip."
+
+PROBES = [
+    Probe(
+        "close, letter typo only", [[TRAVEL.format("$1,450.00")]], TYPO, "$1,450.00", "close", True
+    ),
+    Probe(
+        "close, digit changed",
+        [[TRAVEL.format("$1,451.00")]],
+        TYPO,
+        "$1,450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, digit dropped", [[TRAVEL.format("$1,45.00")]], TYPO, "$1,450.00", "not_found", False
+    ),
+    Probe(
+        "close, digits swapped",
+        [[TRAVEL.format("$1,540.00")]],
+        TYPO,
+        "$1,450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, digit inserted",
+        [[TRAVEL.format("$1,4500.00")]],
+        TYPO,
+        "$1,450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, a number added after",
+        [[TRAVEL.format("$1,450.00 2")]],
+        TYPO,
+        "$1,450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, a number added before, no value",
+        [["Travel to the Boston conference cost 7 $1,450.00 in total for the trip."]],
+        TYPO,
+        None,
+        "not_found",
+        None,
+    ),
+    Probe(
+        "exact, passage starts mid-number",
+        [["Total due for the order: $12,450.00 was paid on time"]],
+        "450.00 was paid on time",
+        "450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "exact, passage ends mid-number",
+        [["The order total came to $12,450.00 net 30"]],
+        "The order total came to $12,450",
+        "$12,450",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "exact, passage ends on a digit prefix",
+        [["The travel cost for the trip was $450 in total"]],
+        "The travel cost for the trip was $45",
+        "$45",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, passage starts mid-number",
+        [["Total due for the order: $12,450.00 was paid on time"]],
+        "450.00 was pad on time",
+        "450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "close, passage ends mid-number",
+        [["The order total came to $12,450.00 net 30"]],
+        "The order totl came to $12,450",
+        "$12,450",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "exact, value is the tail of a number in the span",
+        [["Total due for the order: $12,450.00 net 30"]],
+        "Total due for the order: $12,450.00 net 30",
+        "450.00",
+        "exact",
+        False,
+    ),
+    Probe(
+        "exact, value is the head of a number in the span",
+        [["Total due for the order: $12,450.00 net 30"]],
+        "Total due for the order: $12,450.00 net 30",
+        "$12,450",
+        "exact",
+        False,
+    ),
+    Probe(
+        "exact, sign on the page the value lacks",
+        [["Adjustment to the order total of -$450.00 posted"]],
+        "Adjustment to the order total of -$450.00 posted",
+        "$450.00",
+        "exact",
+        False,
+    ),
+    Probe(
+        "close, sign on the page the passage lacks",
+        [["Adjustment to the order total of -$450.00 posted"]],
+        "Adjustment to the order totl of $450.00 posted",
+        "$450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "two pages, value on page 2",
+        [SPLIT_1, ["$1,450.00 for the whole trip."]],
+        SPLIT_PASSAGE,
+        "$1,450.00",
+        "exact",
+        True,
+        end_page=3,
+        pages_hit=(1, 2),
+    ),
+    Probe(
+        "two pages, page 2 says another amount",
+        [SPLIT_1, ["$1,451.00 for the whole trip."]],
+        SPLIT_PASSAGE,
+        "$1,450.00",
+        "not_found",
+        False,
+        end_page=3,
+    ),
+    Probe(
+        "two pages, close, page 2 says another amount",
+        [SPLIT_1, ["$1,451.00 for the whole trip."]],
+        "The cost of the conferense travel was $1,450.00 for the whole trip.",
+        "$1,450.00",
+        "not_found",
+        False,
+        end_page=3,
+    ),
+    Probe(
+        "one-page citation doesn't read page 2",
+        [SPLIT_1, ["$1,450.00 for the whole trip."]],
+        SPLIT_PASSAGE,
+        "$1,450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "twice, close, the other one has another amount",
+        [
+            [
+                "Lodging was $300.00 per night for staff.",
+                "filler line",
+                "Lodging was $390.00 per night for staff.",
+            ]
+        ],
+        "Lodgng was $300.00 per night for staff.",
+        "$300.00",
+        "close",
+        True,
+    ),
+    Probe(
+        "twice, edits, the better one has a wrong digit",
+        [
+            [
+                "Lodging was $390.00 per night for the staff.",
+                "filler line",
+                "Ldging ws $300.00 per night for the staff.",
+            ]
+        ],
+        "Lodging was $300.00 per night for the staf.",
+        "$300.00",
+        "close",
+        True,
+    ),
+    Probe(
+        "a space inside a number is a different number",
+        [["Invoice number 12 345 was paid on March 3"]],
+        "Invoice number 12345 was paid on March 3",
+        None,
+        "not_found",
+        None,
+    ),
+]
+
+
+@pytest.mark.parametrize("probe", PROBES, ids=[p.name for p in PROBES])
+def test_guard(probe: Probe) -> None:
+    result = find_pdf_quote(
+        _pdf(probe.pages),
+        probe.passage,
+        start_page_number=1,
+        end_page_number=probe.end_page,
+        value_text=probe.value,
+    )
+    assert (result.match, result.value_found) == (probe.expect, probe.value_found), result
+    if probe.expect != "not_found":
+        assert len(result.occurrences) == 1
+        pages = sorted({rect.page_number for rect in result.rects})
+        assert pages == list(probe.pages_hit or (1,))
