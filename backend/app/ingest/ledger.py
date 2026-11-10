@@ -199,9 +199,14 @@ def _xlsx_rows(content: bytes) -> Iterator[list[Cell]]:
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except (zipfile.BadZipFile, KeyError, OSError, ValueError) as error:
         raise LedgerFileError("The Excel file can't be read.") from error
-    sheet = workbook.worksheets[0]
-    rows = [[_cell(value) for value in row] for row in sheet.iter_rows(values_only=True)]
-    workbook.close()
+    try:
+        sheet = workbook.worksheets[0]
+        # Read-only mode trusts the size the sheet says it has, which can be wrong and would
+        # drop rows or columns. Reset it so every stored cell is read.
+        sheet.reset_dimensions()
+        rows = [[_cell(value) for value in row] for row in sheet.iter_rows(values_only=True)]
+    finally:
+        workbook.close()
     return iter(rows)
 
 

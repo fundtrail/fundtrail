@@ -1,6 +1,8 @@
 """Tests for the ledger file reader, against the sample grant (contracts.md section 15)."""
 
 import io
+import re
+import zipfile
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta, timezone
 
@@ -343,3 +345,51 @@ def test_now_in_another_timezone_is_converted_to_utc():
 def test_now_without_a_timezone_is_refused():
     with pytest.raises(ValueError, match="timezone-aware"):
         _read(SAMPLE_CSV, now=datetime(2025, 11, 14))
+
+
+def _with_dimension(content: bytes, ref: str) -> bytes:
+    """The same workbook, with the first sheet claiming the size `ref`."""
+    source = zipfile.ZipFile(io.BytesIO(content))
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                data, count = re.subn(
+                    rb'<dimension ref="[^"]*"', f'<dimension ref="{ref}"'.encode(), data
+                )
+                assert count == 1
+            target.writestr(item, data)
+    return buffer.getvalue()
+
+
+def test_excel_sheet_that_understates_its_size_is_read_in_full():
+    header = HEADER.split(",")
+    content = _xlsx(
+        [
+            header,
+            [
+                "L-1001",
+                "2025-11-12",
+                "2025-11-14",
+                1240,
+                "Sediment core liners",
+                "55016 Lab Instruments and Supplies",
+                "Example Lab Supply Co.",
+                "INV-1001",
+            ],
+            [
+                "L-1002",
+                "2026-02-20",
+                "2026-02-24",
+                2180,
+                "Sediment DNA sequencing run 7",
+                "59009 Recharge-Other Expenses",
+                "Example Sequencing Core",
+                "SEQ-0207",
+            ],
+        ]
+    )
+    result = _read(_with_dimension(content, "A1:B2"))
+    assert result.rejected == []
+    assert result.charges == EXPECTED_SAMPLE
