@@ -24,8 +24,8 @@ from app.contracts.records import Record, SignOff
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 from app.db import actions, store
-from app.db.clock import ClockError, ClockState, clock_state, move_clock
-from app.db.pool import transaction, workspace_now
+from app.db.clock import ClockError, ClockState, clock_state, grant_now, move_clock
+from app.db.pool import transaction
 
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
 from .report import draft_report
@@ -185,7 +185,7 @@ def get_report(grant: GrantDep, user: UserDep, platform: PlatformDep) -> Respons
     """The current draft of the evidence report (decision 0022). A signed report is fetched
     through its sign-off: GET /records/{record_id}/report."""
     with transaction(platform.pool) as conn:
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = grant_now(conn, grant.id)
         pdf = draft_report(platform, conn, grant, now, user.id)
     return _pdf(pdf, grant, "-draft")
 

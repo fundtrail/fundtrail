@@ -37,7 +37,8 @@ from .mail_factory import (
     with_from_lines,
 )
 
-WORKSPACE_NOW = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+# Grant g1's "now". Most tests use one grant; the grant-clock tests below add g2's.
+G1_NOW = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
 ROUTE = GrantRoute(
     workspace_id="w1",
     grant_id="g1",
@@ -79,8 +80,8 @@ def stored_hold(pending: PendingHold) -> HeldMail:
     return to_held_mail(pending, held_id="h1", files=files)
 
 
-def now(_workspace_id: str) -> datetime:
-    return WORKSPACE_NOW
+def now(_grant_id: str) -> datetime:
+    return G1_NOW
 
 
 def write_mail(folder: Path, name: str, msg) -> None:
@@ -116,7 +117,7 @@ def test_first_check_takes_everything_sent_to_the_address_since_it_was_made(
 
     sink = check(source, state)
     assert [f.name for f in sink.stored] == ["Before the first check.eml"]
-    assert sink.stored[0].arrived_at == WORKSPACE_NOW
+    assert sink.stored[0].arrived_at == G1_NOW
 
     # From then on the saved position is used, and nothing arrives twice.
     write_mail(folder, "003-new", email(subject="Later"))
@@ -137,7 +138,7 @@ def test_known_sender_arrives_at_workspace_now(mailbox) -> None:
     )
     sink = check(source, state)
     assert [f.name for f in sink.stored][1:] == ["invoice_1001.pdf"]
-    assert all(f.arrived_at == WORKSPACE_NOW and f.grant_id == "g1" for f in sink.stored)
+    assert all(f.arrived_at == G1_NOW and f.grant_id == "g1" for f in sink.stored)
     # The same message seen again doesn't arrive twice.
     state.mail_cursor = "000"
     assert check(source, state).stored == []
@@ -190,7 +191,7 @@ def test_unknown_sender_is_held_and_arrives_when_let_in(mailbox) -> None:
     sink = check(source, state)
     assert sink.stored == []
     (held,) = sink.held
-    assert held.sender == STRANGER and held.held_at == WORKSPACE_NOW
+    assert held.sender == STRANGER and held.held_at == G1_NOW
     assert held.reason == "unknown_sender"
     assert all(f.arrived_at is None for f in held.files)
     contract = stored_hold(held)
@@ -225,7 +226,7 @@ def test_drive_new_modified_settling_and_exports(tmp_path: Path) -> None:
     export = by_name["Budget justification.pdf"]
     assert export.exported_from == GOOGLE_DOC and export.media_type == "application/pdf"
     assert by_name["quote.pdf"].exported_from is None
-    assert all(f.arrived_at == WORKSPACE_NOW and f.source == "drive" for f in sink.stored)
+    assert all(f.arrived_at == G1_NOW and f.source == "drive" for f in sink.stored)
 
     # Nothing changed: nothing new.
     check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
@@ -405,7 +406,7 @@ def test_google_files_that_cant_be_exported_are_skipped_once(tmp_path: Path) -> 
     assert all(
         s.source == "drive"
         and s.source_ref == "grant-g1"
-        and s.skipped_at == WORKSPACE_NOW
+        and s.skipped_at == G1_NOW
         and s.grant_id == "g1"
         for s in sink.skipped
     )
@@ -428,7 +429,7 @@ def test_a_too_large_attachment_is_reported_when_the_mail_arrives(mailbox, monke
     assert [(s.name, s.reason, s.source, s.source_ref) for s in sink.skipped] == [
         ("invoice_1001.pdf", "too_large", "gmail", "001")
     ]
-    assert sink.skipped[0].skipped_at == WORKSPACE_NOW
+    assert sink.skipped[0].skipped_at == G1_NOW
 
 
 @pytest.mark.parametrize("auth", ["pass", "fail"])  # a stranger, and an unverified known sender
@@ -442,9 +443,9 @@ def test_held_mail_never_reports_a_skipped_file_until_let_in(mailbox, monkeypatc
     (held,) = sink.held
     contract = stored_hold(held)
     assert [(s.name, s.source_ref, s.skipped_at) for s in contract.skipped] == [
-        ("invoice_1001.pdf", "001", WORKSPACE_NOW)
+        ("invoice_1001.pdf", "001", G1_NOW)
     ]
-    later = WORKSPACE_NOW + timedelta(days=1)
+    later = G1_NOW + timedelta(days=1)
     assert [(s.name, s.skipped_at) for s in let_in_skips(contract, later)] == [
         ("invoice_1001.pdf", later)
     ]
@@ -534,3 +535,59 @@ def test_mail_that_arrives_before_its_grants_route_is_known_isnt_lost(mailbox) -
     sink = check(source, state, routes=(ROUTE, ROUTE_2))  # g2's first read finds it
     assert [(f.grant_id, f.name) for f in sink.stored] == [("g2", "Early.eml")]
     assert check(source, state, routes=(ROUTE, ROUTE_2)).stored == []
+
+
+# One clock per grant
+
+
+G2_NOW = datetime(2026, 9, 15, 17, 30, tzinfo=UTC)
+
+
+def grant_now(grant_id: str) -> datetime:
+    """Two grants in the same workspace whose clocks stand at different times."""
+    return {"g1": G1_NOW, "g2": G2_NOW}[grant_id]
+
+
+def test_mail_takes_each_grants_own_now_and_keeps_its_original(tmp_path: Path) -> None:
+    folder = tmp_path / "mail"
+    folder.mkdir()
+    to_g1 = email(subject="For one")
+    to_g2 = email(to="fundtrail-demo+g2tag234@mail.example", subject="For two")
+    held = email(to="fundtrail-demo+g2tag234@mail.example", sender=STRANGER)
+    write_mail(folder, "001", to_g1)
+    write_mail(folder, "002", to_g2)
+    write_mail(folder, "003", held)
+    g2 = GrantRoute("w1", "g2", "g2tag234", known_senders=frozenset({PI}))
+    sink = MemorySink()
+    check_mail(
+        DiskMailbox(folder),
+        mailbox=MAILBOX,
+        routes=[ROUTE, g2],
+        state=CheckState(),
+        now=grant_now,
+        sink=sink,
+    )
+    by_name = {f.name: f for f in sink.stored}
+    assert by_name["For one.eml"].arrived_at == G1_NOW
+    assert by_name["For two.eml"].arrived_at == G2_NOW
+    # The stored original is the message as it arrived, whatever the grant's clock says.
+    assert by_name["For one.eml"].data == to_g1.as_bytes()
+    assert by_name["For two.eml"].data == to_g2.as_bytes()
+    (on_hold,) = sink.held
+    assert on_hold.grant_id == "g2" and on_hold.held_at == G2_NOW
+
+
+def test_drive_files_and_skips_take_each_grants_own_now(tmp_path: Path) -> None:
+    touch(tmp_path / "grant-g1" / "quote.pdf", b"%PDF one", OLD)
+    touch(tmp_path / "grant-g2" / "quote.pdf", b"%PDF two", OLD)
+    touch(tmp_path / "grant-g2" / "Survey.gform", b"", OLD)
+    g2 = GrantRoute("w1", "g2", "g2tag234", drive_folder_id="grant-g2")
+    sink = MemorySink()
+    check_drive(
+        DiskDrive(tmp_path), routes=[ROUTE, g2], state=CheckState(), now=grant_now, sink=sink
+    )
+    assert {(f.grant_id, f.arrived_at, f.data) for f in sink.stored} == {
+        ("g1", G1_NOW, b"%PDF one"),
+        ("g2", G2_NOW, b"%PDF two"),
+    }
+    assert [(s.grant_id, s.skipped_at) for s in sink.skipped] == [("g2", G2_NOW)]
