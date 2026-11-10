@@ -355,9 +355,9 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         ids = list(i.charge_ids) or [t.id or ""]
         charges = [c for c in i.charges if c.id in ids]
         text = [
-            f"What arrived: {len(charges)} charge(s). Match each to the evidence on file, and look "
-            "at each one even when there's nothing to link: flag a $0 line or a rate-math-only "
-            "charge that looks off."
+            f"What arrived: {len(charges)} charge(s). Match each to the evidence on file, and "
+            "look at each one even when there's nothing to link: flag a $0 line, or a charge "
+            "filled only by rate math such as a per diem, that looks off."
         ]
         text += [charge_in_full(ctx, c) for c in charges]
         blocks.append({"type": "text", "text": "\n\n".join(text)})

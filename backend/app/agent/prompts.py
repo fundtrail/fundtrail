@@ -64,6 +64,13 @@ checklist is filled only by rate math (such as a per diem of days times a rate),
 Evidence complete with no question for you, so no one else looks at it. Most are fine. Flag one \
 that looks off, such as a $0 line that shouldn't be $0, or a per diem whose days or rate don't \
 fit the trip; the flag sends it to the accountant.
+- A credit memo, a refund or a credit note is a bill with a negative total. When it names the \
+invoice or charge it credits, link it to that charge with its own negative amount, even before \
+the ledger's credit line posts; the charge then waits for the credit with the accountant. A memo \
+that names no invoice or charge: link nothing, and flag it if it needs a look.
+- When the sign beside an amount can be read either way, such as a dash with a space before it \
+("Hotel - $612.40"), your reading stands, so say in the link's reason what you read the sign \
+from, such as "credit memo", "refund" or "amount due".
 - Unsure is a good answer when the evidence doesn't settle the question. It sends the charge to \
 the accountant with your reasoning.
 - When you're done, call finish with a one-line summary.
