@@ -84,6 +84,10 @@ def to_run_inputs(agent_input: Any) -> RunInputs:
         charge_ids=charge_ids,
         thread_messages=list(agent_input.thread),
         read_through_seq=run.read_through_seq,
+        channel_times_from_grant_now=bool(
+            getattr(agent_input, "channel_times_from_grant_now", False)
+            or getattr(agent_input.grant, "clock_now", None) is not None
+        ),
     )
 
 
