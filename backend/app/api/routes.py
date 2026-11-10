@@ -17,7 +17,14 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 
-from app.contracts.api import FileLink, LedgerUploadResult, WorkspaceCreate, WriteRejected
+from app.contracts.api import (
+    ChargeRow,
+    FileLink,
+    LedgerUploadResult,
+    NewRecordInput,
+    WorkspaceCreate,
+    WriteRejected,
+)
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import BudgetAssignment, Record
 from app.contracts.rules import RecordState
@@ -25,7 +32,7 @@ from app.contracts.workspaces import Grant, Workspace
 from app.db import actions, store
 from app.db.pool import transaction, workspace_now
 
-from .bodies import ChargeRow, NewRecordInput, RunRow
+from .bodies import RunRow
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
 
 
@@ -175,7 +182,7 @@ def list_charges(grant: GrantDep, platform: PlatformDep) -> list[ChargeRow]:
                 charge=c,
                 status=charge_status,  # pyright: ignore[reportArgumentType]
                 budget_line=lines.get(c.id),
-                account_categories=list(platform.checks.account_categories(c.account)),
+                account_categories=tuple(platform.checks.account_categories(c.account)),
             )
         )
     return rows

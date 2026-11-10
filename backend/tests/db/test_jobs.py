@@ -278,9 +278,6 @@ def test_a_failure_that_cant_be_retried_fails_at_once_and_keeps_its_log(
     assert storage.objects[log_path(run)] == (b'{"turns": 3}', "application/json")
 
 
-@pytest.mark.skipif(
-    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
-)
 def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
     platform: Platform,  # noqa: F811
 ) -> None:
@@ -297,7 +294,9 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
             question = OpenQuestion(
                 charge_id=charge.id, question=Question.ALLOWABLE, answer_by=Author.AGENT
             )
-            return AgentResult(records=[_bill(i)], other_open_questions=[question])
+            # Every record the agent writes in a run a thread message started names it.
+            bill = _bill(i).model_copy(update={"thread_message_id": i.run.trigger.id})
+            return AgentResult(records=[bill], other_open_questions=[question])
         return AgentResult()
 
     agent.behave = behave
@@ -338,13 +337,58 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
         queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
     run_worker_until_idle(str(platform.pool.conninfo))
     _, follow_up = seen
-    assert follow_up.run.trigger.kind == TriggerKind.OPEN_QUESTION  # pyright: ignore[reportAttributeAccessIssue]
+    assert follow_up.run.trigger.kind == TriggerKind.OPEN_QUESTION
     assert follow_up.run.trigger.id == charge.id
+    assert follow_up.run.thread_charge_id is None
+    # The thread run's record was saved, and waits for the accountant.
+    from app.contracts.rules import RecordState
+
+    with transaction(platform.pool) as conn:
+        records = store.list_records(conn, grant.id)
+    [bill] = records
+    assert bill.thread_message_id == message.id
+    assert RecordState(records).is_waiting(bill.id)
 
 
-@pytest.mark.skipif(
-    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
-)
+def test_a_thread_runs_record_that_doesnt_name_its_message_is_refused(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The write check takes the run's trigger, so a thread run can't skip the rule."""
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        return AgentResult(records=[_bill(i)])
+
+    agent.behave = behave
+    grant = _grant(platform)
+    with transaction(platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
+        )
+        conn.execute("delete from procrastinate_jobs")
+        user_id = new_auth_user(platform)
+        store.upsert_user(conn, _user(user_id))
+        now = store.list_runs(conn, grant.id)[0].clock_now
+        charge = _charge(platform, grant)
+        message = ThreadMessage(
+            id=str(uuid.uuid4()),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            charge_id=charge.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            text="Can you find the invoice?",
+            written_at=now,
+        )
+        store.insert_messages(conn, [message])
+        queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    thread_run = next(r for r in _runs(platform, grant) if r.thread_charge_id == charge.id)
+    assert thread_run.status == RunStatus.FAILED and "RunConflict" in (thread_run.error or "")
+    assert len(agent.inputs) == REDOS + 1  # the thread run and its redos
+
+
 def test_open_question_follow_ups_name_each_charge_once() -> None:
     from app.contracts.checks import OpenQuestion
     from app.contracts.records import Question

@@ -18,11 +18,11 @@ from app.contracts.api import LedgerUploadResult, RowError
 from app.contracts.evidence import EvidenceFile, Source, storage_path
 from app.contracts.records import TERM_KINDS, Author, Record, RecordData
 from app.contracts.rules import check_new_record
-from app.contracts.runs import AgentRun, Trigger, TriggerKind
+from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
 from app.contracts.workspaces import Grant
 
 from . import store
-from .jobs import agent_questions_open, charge_batches, queue_run
+from .jobs import agent_questions_open, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
 from .pool import transaction, workspace_now
@@ -164,6 +164,10 @@ def add_record(
     is queued with this record as its trigger.
     """
     run: AgentRun | None = None
+    if data.get("kind") == "sign_off":
+        # A sign-off stores the evidence report with it (decision 0022). The report
+        # route and the sign-off come with the screens' pull request (#63).
+        raise WriteRejected(["A sign-off stores the evidence report, which isn't built here yet."])
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
@@ -189,6 +193,7 @@ def add_record(
             store.list_charges(conn, grant.id, now),
             store.list_files(conn, grant.id, now),
             default_items=p.checks.default_items,
+            trigger=None,  # the accountant's write
         )
         if problems:
             raise WriteRejected(problems)

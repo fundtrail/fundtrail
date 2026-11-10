@@ -25,11 +25,10 @@ from procrastinate.jobs import Job
 from procrastinate.retry import BaseRetryStrategy, RetryDecision
 from psycopg.types.json import Jsonb
 
-from app.contracts.charges import Charge
 from app.contracts.checks import OpenQuestion
 from app.contracts.records import Author
 from app.contracts.rules import check_new_record
-from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
+from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind, batch_for
 from app.contracts.workspaces import Grant
 
 from . import store
@@ -52,37 +51,6 @@ THREAD_PRIORITY = 10  # a question in a thread goes ahead of queued runs
 REDOS = 2
 # At most this many follow-up runs after one thread run.
 MAX_FOLLOW_UPS = 10
-
-# A run triggered by a charge covers every charge on its grant that arrived at the same
-# moment, in batches of at most this many, each batch its own run.
-CHARGE_BATCH = 25
-
-
-def charge_batches(charges: Sequence[Charge]) -> list[list[Charge]]:
-    """Charges grouped by arrival moment, each group in ledger line ID order and cut into
-    batches of CHARGE_BATCH. A batch's run is triggered by its first charge."""
-    groups: dict[datetime, list[Charge]] = {}
-    for c in charges:
-        groups.setdefault(c.arrived_at, []).append(c)
-    batches: list[list[Charge]] = []
-    for at in sorted(groups):
-        group = sorted(groups[at], key=lambda c: c.ledger_line_id)
-        batches += [group[i : i + CHARGE_BATCH] for i in range(0, len(group), CHARGE_BATCH)]
-    return batches
-
-
-def batch_for(trigger_charge_id: str, charges: Sequence[Charge]) -> list[Charge]:
-    """The batch a charge-triggered run covers: the trigger's batch among the grant's
-    charges that arrived at the same moment."""
-    by_id = {c.id: c for c in charges}
-    trigger = by_id.get(trigger_charge_id)
-    if trigger is None:
-        return []
-    same = [c for c in charges if c.arrived_at == trigger.arrived_at]
-    for batch in charge_batches(same):
-        if any(c.id == trigger_charge_id for c in batch):
-            return batch
-    return [trigger]
 
 
 def grant_lock(grant_id: str) -> str:
@@ -140,8 +108,15 @@ def _defer(
 
 
 def queue_run(conn: Conn, grant: Grant, trigger: Trigger, clock_now: datetime) -> AgentRun:
-    """Queue an agent run on the grant, in the caller's transaction. Ping it after commit."""
-    run = store.insert_run(conn, grant.workspace_id, grant.id, trigger, clock_now)
+    """Queue an agent run on the grant, in the caller's transaction. Ping it after commit.
+
+    A run a thread message starts names the thread's charge or record."""
+    subject: dict[str, str | None] = {}
+    if trigger.kind == TriggerKind.THREAD_MESSAGE and trigger.id:
+        message = store.get_message(conn, trigger.id)
+        assert message is not None, "a thread run's message is stored first"
+        subject = {"thread_charge_id": message.charge_id, "thread_record_id": message.record_id}
+    run = store.insert_run(conn, grant.workspace_id, grant.id, trigger, clock_now, **subject)
     priority = THREAD_PRIORITY if trigger.kind == TriggerKind.THREAD_MESSAGE else NORMAL_PRIORITY
     _defer(conn, run, attempt=0, priority=priority)
     return run
@@ -223,7 +198,12 @@ def save_run(
         problems += [
             f"{r.id}: {x}"
             for x in check_new_record(
-                r, records, charges, files, default_items=p.checks.default_items
+                r,
+                records,
+                charges,
+                files,
+                default_items=p.checks.default_items,
+                trigger=run.trigger,
             )
         ]
         records.append(r)
@@ -249,13 +229,9 @@ def save_run(
 def follow_up_triggers(open_questions: Sequence[OpenQuestion]) -> list[Trigger]:
     """The triggers of the ordinary runs for the questions a thread run left open: one run per
     charge whose question is open, with trigger kind `open_question` naming that charge, so
-    its history line names the real cause (the main coordinator's ruling). #39 adds the kind,
-    and this pull request merges after it; until the kind exists, no follow-up is queued."""
-    open_question = getattr(TriggerKind, "OPEN_QUESTION", None)
-    if open_question is None:
-        return []
+    its history line names the real cause (the main coordinator's ruling)."""
     charges = list(dict.fromkeys(q.charge_id for q in open_questions))
-    return [Trigger(kind=open_question, id=c) for c in charges]
+    return [Trigger(kind=TriggerKind.OPEN_QUESTION, id=c) for c in charges]
 
 
 def _follow_ups(conn: Conn, run: AgentRun, triggers: Sequence[Trigger]) -> list[AgentRun]:

@@ -28,6 +28,7 @@ from app.contracts.workspaces import Grant, User, Workspace
 type Conn = Connection[dict[str, Any]]
 
 _P13 = "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+_P14 = "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
 
 
 def _clean(row: dict[str, Any], *drop: str) -> dict[str, Any]:
@@ -91,7 +92,7 @@ def workspace_by_id(conn: Conn, workspace_id: str) -> Workspace:
 def create_grant(conn: Conn, workspace_id: str) -> Grant:
     row = conn.execute(
         "insert into public.grants (workspace_id) values (%s)"
-        " returning id, workspace_id, funder, award_number, title",
+        " returning id, workspace_id, funder, award_number, title, address_code, drive_folder_id",
         (workspace_id,),
     ).fetchone()
     assert row is not None
@@ -100,7 +101,8 @@ def create_grant(conn: Conn, workspace_id: str) -> Grant:
 
 def list_grants(conn: Conn, workspace_id: str) -> list[Grant]:
     rows = conn.execute(
-        "select id, workspace_id, funder, award_number, title from public.grants"
+        "select id, workspace_id, funder, award_number, title, address_code, drive_folder_id"
+        " from public.grants"
         " where workspace_id = %s order by id",
         (workspace_id,),
     ).fetchall()
@@ -115,7 +117,8 @@ def get_grant(
     lock=True takes the grant's row lock until the transaction ends. Every write to a
     grant's records takes it, so the write check and the save see the same records.
     """
-    query = """select g.id, g.workspace_id, g.funder, g.award_number, g.title
+    query = """select g.id, g.workspace_id, g.funder, g.award_number, g.title, g.address_code,
+                      g.drive_folder_id
                from public.grants g join public.workspaces w on w.id = g.workspace_id
                where g.id = %s and (%s::uuid is null or w.owner_id = %s::uuid)"""
     if lock:
@@ -179,19 +182,20 @@ def list_charges(conn: Conn, grant_id: str, now: datetime) -> list[Charge]:
 
 _FILE_COLUMNS = (
     "id, workspace_id, grant_id, source, name, media_type, storage_path, sha256, document_date, "
-    "arrived_at, sender, source_ref, parent_id"
+    "arrived_at, sender, source_ref, parent_id, exported_from"
 )
 
 
 _FILE_COLUMNS_F = (
     "f.id, f.workspace_id, f.grant_id, f.source, f.name, f.media_type, f.storage_path, "
-    "f.sha256, f.document_date, f.arrived_at, f.sender, f.source_ref, f.parent_id"
+    "f.sha256, f.document_date, f.arrived_at, f.sender, f.source_ref, f.parent_id, "
+    "f.exported_from"
 )
 
 
 def insert_file(conn: Conn, f: EvidenceFile) -> None:
     conn.execute(
-        f"insert into public.evidence_files ({_FILE_COLUMNS}) values ({_P13})",
+        f"insert into public.evidence_files ({_FILE_COLUMNS}) values ({_P14})",
         (
             f.id,
             f.workspace_id,
@@ -206,6 +210,7 @@ def insert_file(conn: Conn, f: EvidenceFile) -> None:
             f.sender,
             f.source_ref,
             f.parent_id,
+            f.exported_from,
         ),
     )
 
@@ -244,6 +249,7 @@ def _record(row: dict[str, Any]) -> Record:
             "author_user_id": str(row["author_user_id"]) if row["author_user_id"] else None,
             "written_at": row["written_at"],
             "replaces_id": row["replaces_id"],
+            "thread_message_id": row["thread_message_id"],
             "data": row["data"],
         }
     )
@@ -254,7 +260,8 @@ def list_records(conn: Conn, grant_id: str, now: datetime | None = None) -> list
     were stored. A record's date never orders records (the run-order ruling); `now`, when
     given, leaves out records dated after it."""
     rows = conn.execute(
-        """select id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id, data
+        """select id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id,
+                  thread_message_id, data
            from public.records where grant_id = %s and (%s::timestamptz is null or written_at <= %s)
            order by created_at, id""",
         (grant_id, now, now),
@@ -268,8 +275,8 @@ def insert_records(conn: Conn, records: Sequence[Record]) -> None:
         conn.execute(
             """insert into public.records
                  (id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id,
-                  data, created_at)
-               values (%s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())""",
+                  thread_message_id, data, created_at)
+               values (%s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())""",
             (
                 r.id,
                 r.workspace_id,
@@ -278,6 +285,7 @@ def insert_records(conn: Conn, records: Sequence[Record]) -> None:
                 r.author_user_id,
                 r.written_at,
                 r.replaces_id,
+                r.thread_message_id,
                 Jsonb(r.data.model_dump(mode="json")),
             ),
         )
@@ -287,7 +295,7 @@ def insert_records(conn: Conn, records: Sequence[Record]) -> None:
 
 _RUN_COLUMNS = (
     "id, workspace_id, grant_id, trigger_kind, trigger_id, status, clock_now, queued_at, "
-    "started_at, finished_at, summary, error, log_path"
+    "started_at, finished_at, summary, error, log_path, thread_charge_id, thread_record_id"
 )
 
 
@@ -298,13 +306,30 @@ def _run(row: dict[str, Any]) -> AgentRun:
 
 
 def insert_run(
-    conn: Conn, workspace_id: str, grant_id: str, trigger: Trigger, clock_now: datetime
+    conn: Conn,
+    workspace_id: str,
+    grant_id: str,
+    trigger: Trigger,
+    clock_now: datetime,
+    *,
+    thread_charge_id: str | None = None,
+    thread_record_id: str | None = None,
 ) -> AgentRun:
+    """A queued run. A run a thread message starts names the thread's charge or record."""
     row = conn.execute(
         f"""insert into public.agent_runs
-              (workspace_id, grant_id, trigger_kind, trigger_id, clock_now)
-            values (%s, %s, %s, %s, %s) returning {_RUN_COLUMNS}""",
-        (workspace_id, grant_id, trigger.kind.value, trigger.id, clock_now),
+              (workspace_id, grant_id, trigger_kind, trigger_id, clock_now,
+               thread_charge_id, thread_record_id)
+            values (%s, %s, %s, %s, %s, %s, %s) returning {_RUN_COLUMNS}""",
+        (
+            workspace_id,
+            grant_id,
+            trigger.kind.value,
+            trigger.id,
+            clock_now,
+            thread_charge_id,
+            thread_record_id,
+        ),
     ).fetchone()
     assert row is not None
     return _run(row)
@@ -465,6 +490,9 @@ def _status_columns(status: Status) -> dict[str, Any]:
             "reasons": [r.model_dump(mode="json") for r in status.reasons],
             "checklist": [c.model_dump(mode="json") for c in status.checklist],
             "problems": None,
+            "net_cents": status.net_cents,
+            "corrections": list(status.corrections),
+            "reversed": status.reversed,
             "flagged": status.flagged,
             "rechecking": status.rechecking,
             "accepted": status.accepted,
@@ -478,6 +506,9 @@ def _status_columns(status: Status) -> dict[str, Any]:
         "reasons": None,
         "checklist": None,
         "problems": [p.model_dump(mode="json") for p in status.problems],
+        "net_cents": None,
+        "corrections": [],
+        "reversed": False,
         "flagged": status.flagged,
         "rechecking": False,
         "accepted": status.accepted,
@@ -501,6 +532,9 @@ def _status_from_row(row: dict[str, Any]) -> Status:
                 "reasons": row["reasons"],
                 "checklist": row["checklist"],
                 "rechecking": row["rechecking"],
+                "net_cents": row["net_cents"],
+                "corrections": row["corrections"],
+                "reversed": row["reversed"],
             }
         )
     if row["record_id"] or row["file_id"]:
@@ -519,7 +553,7 @@ def current_statuses(conn: Conn, grant_id: str) -> dict[tuple[str, str | None], 
     """The latest status of everything on the grant that has one."""
     rows = conn.execute(
         """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist,
-                  problems, flagged, rechecking, accepted, snoozed
+                  problems, flagged, rechecking, accepted, snoozed, net_cents, corrections, reversed
            from public.current_statuses where grant_id = %s""",
         (grant_id,),
     ).fetchall()
@@ -538,8 +572,8 @@ def insert_status(
         """insert into public.statuses
              (workspace_id, grant_id, charge_id, record_id, file_id, bucket, reasons, checklist,
               problems, flagged, rechecking, accepted, snoozed, changed_at, trigger_kind,
-              trigger_id)
-           values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+              trigger_id, net_cents, corrections, reversed)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (
             workspace_id,
             status.grant_id,
@@ -557,6 +591,9 @@ def insert_status(
             changed_at,
             trigger.kind.value,
             trigger.id,
+            cols["net_cents"],
+            Jsonb(cols["corrections"]),
+            cols["reversed"],
         ),
     )
 
