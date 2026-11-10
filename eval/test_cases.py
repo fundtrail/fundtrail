@@ -119,32 +119,65 @@ def date_renderings(value: date) -> list[str]:
     ]
 
 
-def money_renderings(cents: int) -> list[str]:
-    """The ways a document writes an amount. A credit can carry its minus
-    against the dollar sign, separated by a space ("Credit - $450.00"), or be
-    written in parentheses."""
-    dollars, rest = divmod(abs(cents), 100)
-    plain = [f"${dollars:,}.{rest:02d}"]
-    if rest == 0:
-        plain.append(f"${dollars:,}")
-    if cents >= 0:
-        return plain
-    return [form for p in plain for form in (f"-{p}", f"- {p}", f"({p})")]
+MINUS = "\N{MINUS SIGN}"
+HYPHEN_OR_EN_DASH = "-\N{EN DASH}"
 
 
-# A positive amount mustn't be the tail of a credit: "- $450.00" isn't $450.
-NOT_A_CREDIT = r"(?<!-)(?<!- )(?<!\()"
+def sign_marked(text: str, start: int, end: int) -> str:
+    """How the text marks the sign of the amount at text[start:end], the digits
+    right after a dollar sign. Follows the main coordinator's provisional sign
+    ruling (call 31):
+
+    - "negative": a hyphen or en dash attached to the amount, after a space, a
+      bracket or the start ("-$450.00", "$-450.00"); a true minus, attached or
+      spaced; a trailing minus or CR ("$450.00-", "$450.00 CR").
+    - "either": a hyphen or en dash with a space before the amount ("- $450.00",
+      "Year 2 - $50,000", "$400 - $500"), or brackets ("($450.00)"), which this
+      check can't tell apart from brackets in a sentence.
+    - "positive": no mark, an em dash, or a dash right after a digit or a letter
+      ("$400-$500", "Year 2-$50,000").
+    """
+    after = text[end:]
+    if after.startswith("-") or after.startswith(" cr") and not after[3:4].isalpha():
+        return "negative"
+    i = start - 1
+    if i >= 0 and text[i] in HYPHEN_OR_EN_DASH + MINUS:  # "$-450.00"
+        i -= 1
+        return "negative" if i >= 0 and text[i] == "$" else "positive"
+    if i < 0 or text[i] != "$":
+        return "positive"
+    i -= 1
+    mark = text[i] if i >= 0 else ""
+    before = text[i - 1] if i >= 1 else ""
+    if mark == MINUS or (mark == " " and before == MINUS):
+        return "negative"
+    if mark and mark in HYPHEN_OR_EN_DASH:
+        return "positive" if before.isalnum() else "negative"
+    if mark == " " and before and before in HYPHEN_OR_EN_DASH:
+        return "either"
+    if mark == "(" and after.startswith(")"):
+        return "either"
+    return "positive"
 
 
 def money_written(cents: int, text: str) -> bool:
-    """True when the amount is written in text as a whole amount, so $150
-    doesn't match inside $150,000 or $150.50, and a positive amount doesn't
-    match the digits of a credit."""
-    lead = NOT_A_CREDIT if cents >= 0 else ""
-    return any(
-        re.search(lead + re.escape(normalize(r)) + r"(?![\d,]|\.\d)", text)
-        for r in money_renderings(cents)
-    )
+    """True when the amount is written in text as a whole amount after a dollar
+    sign, so $150 doesn't match inside $150,000 or $150.50, and its sign mark
+    allows the amount's sign: a negative amount needs a mark that's negative or
+    either, and a positive one a mark that's positive or either."""
+    dollars, rest = divmod(abs(cents), 100)
+    forms = [f"{dollars:,}.{rest:02d}"] + ([f"{dollars:,}"] if rest == 0 else [])
+    want = "negative" if cents < 0 else "positive"
+    for form in forms:
+        for m in re.finditer(r"(?<![\d,.])" + re.escape(form) + r"(?![\d,]|\.\d)", text):
+            j = m.start() - 1
+            if j >= 0 and text[j] in HYPHEN_OR_EN_DASH + MINUS:
+                j -= 1
+            if j < 0 or text[j] != "$":
+                continue
+            if sign_marked(text, m.start(), m.end()) in (want, "either"):
+                return True
+    return False
 
 
 def budget_parents(letter_text: str) -> dict[str, str]:
@@ -289,8 +322,9 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
 
 
 def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, datetime],
-              problems: list[str]) -> None:
-    key = load_json(case / "answer_key.json", problems)
+              problems: list[str], key: dict | None = None) -> None:
+    if key is None:
+        key = load_json(case / "answer_key.json", problems)
     if key is None:
         return
     if set(key) != KEY_FIELDS:
@@ -377,11 +411,17 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         elif not is_bill and "amount_cents" in link:
             problems.append(f"{where}: only a link to a bill carries amount_cents")
         elif is_bill:
+            # Call 38, A1: a link's amount has the same sign as its bill's total.
+            total = bill_totals.get(name)
+            if total is not None and amount * total < 0:
+                problems.append(f"{where}: links {amount} cents of {name}, whose total is {total}")
             used_by_bill[name] = used_by_bill.get(name, 0) + amount
             if line_id in lines and abs(amount) > abs(cents_of(lines[line_id])):
                 problems.append(f"{where}: links more than the charge's amount")
     for name, used in used_by_bill.items():
-        if name in bill_totals and abs(used) > abs(bill_totals[name]):
+        # Added with their signs, a bill's links reach no further than its total.
+        total = bill_totals.get(name)
+        if total is not None and (abs(used) > abs(total) or used * total < 0):
             problems.append(f"answer_key.json: links to {name} add up to more than its total")
 
     assigned: set[str] = set()
@@ -439,8 +479,16 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         if not confirmed or at <= min(confirmed):
             problems.append(f"{where}: at must come after the accountant confirms the terms")
         # A charge can't be complete before the evidence linked to it is on file.
+        # A credit linked later, with the opposite sign from the charge, only
+        # takes evidence away, so the charge can be complete before it arrives.
         if item["bucket"] == "evidence_complete":
-            for name in sorted(files_by_line.get(item["line_id"], set())):
+            charge = cents_of(lines[item["line_id"]]) if item["line_id"] in lines else 0
+            credits = {
+                link["file"] for link in key["links"]
+                if link["line_id"] == item["line_id"]
+                and isinstance(link.get("amount_cents"), int) and link["amount_cents"] * charge < 0
+            }
+            for name in sorted(files_by_line.get(item["line_id"], set()) - credits):
                 file_at = arrivals.get(f"file:{name}")
                 if file_at is None or at <= file_at:
                     problems.append(f"{where}: evidence_complete must come after {name} arrives")
@@ -578,6 +626,39 @@ def test_there_are_cases() -> None:
 def test_every_case_is_valid() -> None:
     problems = [p for case in case_dirs() for p in check_case(case)]
     assert not problems, "\n".join(problems)
+
+
+def test_sign_marks() -> None:
+    """The sign ruling's examples, read as the check reads them."""
+    cases = [
+        ("Credit - $450.00", 45000, True), ("Credit - $450.00", -45000, True),
+        ("Airfare \N{EN DASH} $450.00", 45000, True),
+        ("Year 2 - $50,000", 5000000, True), ("$400-$500", 50000, True),
+        ("$400-$500", -50000, False), ("Year 2-$50,000", 5000000, True),
+        ("Refund -$450.00", -45000, True), ("Refund -$450.00", 45000, False),
+        ("$-450.00", -45000, True), ("$-450.00", 45000, False),
+        ("\N{MINUS SIGN}$450.00", -45000, True), ("\N{MINUS SIGN} $450.00", 45000, False),
+        ("$450.00-", -45000, True), ("$450.00-", 45000, False),
+        ("$450.00 cr", -45000, True), ("$450.00 cr", 45000, False),
+        ("fee ($450.00) paid", -45000, True), ("fee ($450.00) paid", 45000, True),
+        ("total $450.00", 45000, True), ("total $450.00", -45000, False),
+        ("total \N{EM DASH} $450.00", -45000, False), ("$1,450.00", 45000, False),
+    ]
+    wrong = [(t, c) for t, c, ok in cases if money_written(c, normalize(t)) != ok]
+    assert not wrong, wrong
+
+
+def test_link_sign_must_match_its_bill() -> None:
+    """Linking the credit memo to L-8102 for +45000, the false clear the case
+    exists for, fails the check."""
+    case = CASES_DIR / "credit-memo-spaced-dash"
+    problems: list[str] = []
+    lines = check_ledger(case, problems)
+    arrivals = check_arrivals(case, lines, problems)
+    key = json.loads((case / "answer_key.json").read_text(encoding="utf-8"))
+    key["links"].append({"file": "credit_memo_20417.eml", "line_id": "L-8102", "amount_cents": 45000})
+    check_key(case, lines, arrivals, problems, key)
+    assert any("credit_memo_20417.eml" in p for p in problems), problems
 
 
 if __name__ == "__main__":
