@@ -88,3 +88,41 @@ def photo(name: str, lines: list[str], *, seed: int) -> bytes:
         if path.is_file():
             return path.read_bytes()
     raise SystemExit(f"{name} isn't on disk and Pillow isn't installed: run with uv --with pillow")
+
+
+# A scanned page: white paper, straight, text from the top left. agent_records.py
+# works out a value's box from these numbers.
+SCAN_WIDTH = 1000
+SCAN_MARGIN = 60
+SCAN_TOP = 80
+SCAN_LINE = 34
+
+
+def scanned_page(lines: list[str], *, seed: int) -> bytes:
+    """A JPEG of a page scanned in grey, holding `lines`."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    rng = random.Random(seed)
+    font = _font(24)
+    height = SCAN_TOP + SCAN_LINE * len(lines) + 80
+    page = Image.new("L", (SCAN_WIDTH, height), 244)
+    draw = ImageDraw.Draw(page)
+    for i, text in enumerate(lines):
+        draw.text((SCAN_MARGIN, SCAN_TOP + i * SCAN_LINE), text, font=font, fill=35)
+    for _ in range(400):
+        x, y = rng.randint(0, SCAN_WIDTH - 1), rng.randint(0, height - 1)
+        draw.point((x, y), fill=rng.randint(200, 235))
+    page = page.filter(ImageFilter.GaussianBlur(0.5))
+    out = io.BytesIO()
+    page.save(out, "JPEG", quality=70, optimize=True)
+    return out.getvalue()
+
+
+def scan(name: str, lines: list[str], *, seed: int) -> bytes:
+    """The scan, drawn fresh when Pillow is installed, else the one already on disk."""
+    if available():
+        return scanned_page(lines, seed=seed)
+    for path in [*(DATA / "samples").glob(f"*/{name}"), *(DATA / "demo").glob(f"*/{name}")]:
+        if path.is_file():
+            return path.read_bytes()
+    raise SystemExit(f"{name} isn't on disk and Pillow isn't installed: run with uv --with pillow")
