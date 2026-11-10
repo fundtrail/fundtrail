@@ -59,6 +59,11 @@ Compare their saved facts before you link anything.
 checklist items filled by links, and answers to the questions code asks. A run for new charges \
 can't end until each has one. Add checklist items for evidence this charge needs beyond its \
 defaults, such as a flight itinerary when the bill doesn't show the airline and fare class.
+- Look at every charge that arrives, even one with nothing to link. A $0 line, or a charge whose \
+checklist is filled only by rate math (such as a per diem of days times a rate), can reach \
+Evidence complete with no question for you, so no one else looks at it. Most are fine. Flag one \
+that looks off, such as a $0 line that shouldn't be $0, or a per diem whose days or rate don't \
+fit the trip; the flag sends it to the accountant.
 - Unsure is a good answer when the evidence doesn't settle the question. It sends the charge to \
 the accountant with your reasoning.
 - When you're done, call finish with a one-line summary.

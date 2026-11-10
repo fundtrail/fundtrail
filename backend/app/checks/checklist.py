@@ -204,11 +204,14 @@ def _ident(spec: ItemSpec) -> str:
 def compare(total: int, target: int) -> int:
     """0 when the amounts agree, 1 when total goes over target, -1 when it's under.
 
-    A credit's target is negative, and going over means more negative.
+    A credit's target is negative, and going over means more negative. A total of
+    the opposite sign is over (call 38): it can't be part of the target.
     """
     if total == target:
         return 0
     if target == 0:
+        return 1
+    if total != 0 and (total > 0) != (target > 0):
         return 1
     sign = 1 if target > 0 else -1
     return 1 if (total - target) * sign > 0 else -1

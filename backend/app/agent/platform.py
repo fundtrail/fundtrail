@@ -24,6 +24,7 @@ from .adapter import TRIGGER_CHARGE, Author, Charge, OpenQuestion, Record, Threa
 from .graph import run_once
 from .inputs import CHARGE_BATCH_SIZE, RunFailed, RunInputs
 from .model import ModelClient
+from .no_tracing import check_no_tracing
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,12 @@ def to_run_inputs(agent_input: Any) -> RunInputs:
 
 
 def run_agent(agent_input: Any, model: ModelClient | None = None) -> AgentResult:
-    """One run, as the platform calls it. Raises AgentRunFailed to fail it."""
+    """One run, as the platform calls it. Raises AgentRunFailed to fail it.
+
+    Raises TracingTurnedOn first, before anything else, when LangSmith tracing is turned on in
+    the environment (issue #82).
+    """
+    check_no_tracing()
     inputs = to_run_inputs(agent_input)
     if inputs.trigger.kind == TRIGGER_CHARGE and not inputs.charge_ids:
         log = {"run_id": inputs.run_id, "outcome": "saved", "events": [{"event": "nothing_to_do"}]}
