@@ -1,6 +1,6 @@
 # 0014. The contracts are a document until the design is settled
 
-**Date:** 2026-11-10 · **Status:** accepted
+**Date:** 2026-11-10 · **Status:** accepted. Amended by [0019](0019-build-order.md) (the contract code for records, checks and the agent side is written first).
 
 ## Context
 

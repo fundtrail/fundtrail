@@ -37,7 +37,7 @@ The eval is an automated test that measures how often FundTrail gets the right a
 
 Each new behavior gets a case, so the agent's handling of nuance is measured instead of assumed. Agreed so far:
 
-- a quarterly effort report that fills three months of salary lines
+- an effort report for January to June that fills six months of salary lines
 - a trip that's part airfare receipt and part per diem at a rate
 - a charge posted to the wrong ledger account, such as a laptop under Participant Support Stipends
 - a real exception to a default, such as a stipend paid to one guest speaker
