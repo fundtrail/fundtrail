@@ -3,15 +3,10 @@ what's arrived by the clock is visible, and a status row is written only when it
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from app.contracts.checks import Bucket
-from app.contracts.evidence import storage_path
-from app.contracts.fixtures import SampleGrant, load_sample_grant
 from app.contracts.runs import Trigger, TriggerKind
-from app.contracts.workspaces import User
 from app.db import store
 from app.db.platform import Platform
 from app.db.pool import transaction
@@ -21,52 +16,12 @@ from tests.db.platform_fixtures import (  # noqa: F401 - fixtures
     new_auth_user,
     platform,
     platform_database_url,
+    sample_into_db,
 )
 
 
-def _sample_into_db(p: Platform) -> SampleGrant:
-    """The sample grant (contracts.md section 15) stored under fresh IDs."""
-    sample = load_sample_grant()
-    user_id = new_auth_user(p)
-    suffix = uuid.uuid4().hex[:6]
-    ids = {sample.workspace.id, sample.grant.id}
-    ids |= {c.id for c in sample.charges} | {f.id for f in sample.files}
-    ids |= {r.id for r in sample.records}
-    renamed = {i: f"{i}-{suffix}" for i in ids} | {sample.user.id: user_id}
-
-    def walk(value: Any) -> Any:
-        if isinstance(value, dict):
-            out = {k: walk(v) for k, v in value.items()}  # pyright: ignore[reportUnknownVariableType]
-            if "storage_path" in out:
-                out["storage_path"] = storage_path(
-                    out["workspace_id"], out["grant_id"], out["id"], out["name"]
-                )
-            return out
-        if isinstance(value, list):
-            return [walk(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
-        return renamed.get(value, value) if isinstance(value, str) else value
-
-    sample = type(sample).model_validate(walk(sample.model_dump(mode="json")))
-    with transaction(p.pool) as conn:
-        store.upsert_user(conn, User(id=user_id, email="robin.example@university.example"))
-        conn.execute(
-            "insert into public.workspaces (id, owner_id, name, clock_now) values (%s, %s, %s, %s)",
-            (sample.workspace.id, user_id, sample.workspace.name, sample.workspace.clock_now),
-        )
-        conn.execute(
-            "insert into public.grants (id, workspace_id, award_number, title)"
-            " values (%s, %s, %s, %s)",
-            (sample.grant.id, sample.workspace.id, sample.grant.award_number, sample.grant.title),
-        )
-        store.insert_charges(conn, sample.charges)
-        for f in sample.files:
-            store.insert_file(conn, f)
-        store.insert_records(conn, sample.records)
-    return sample
-
-
 def test_the_sample_grant_round_trips_in_the_order_written(platform: Platform) -> None:  # noqa: F811
-    sample = _sample_into_db(platform)
+    sample = sample_into_db(platform)
     grant = sample.grant
     far = datetime(2100, 1, 1, tzinfo=UTC)
     with transaction(platform.pool) as conn:
@@ -80,7 +35,7 @@ def test_the_sample_grant_round_trips_in_the_order_written(platform: Platform) -
 
 
 def test_only_what_has_arrived_by_the_clock_is_visible(platform: Platform) -> None:  # noqa: F811
-    grant = _sample_into_db(platform).grant
+    grant = sample_into_db(platform).grant
     at = datetime(2025, 11, 14, 12, tzinfo=UTC)
     with transaction(platform.pool) as conn:
         assert [c.ledger_line_id for c in store.list_charges(conn, grant.id, at)] == ["L-1001"]
@@ -91,7 +46,7 @@ def test_only_what_has_arrived_by_the_clock_is_visible(platform: Platform) -> No
 
 
 def test_a_status_row_is_written_only_when_the_status_changes(platform: Platform) -> None:  # noqa: F811
-    grant = _sample_into_db(platform).grant
+    grant = sample_into_db(platform).grant
     checks = platform.checks
     assert isinstance(checks, FakeChecks)
     at = datetime(2026, 2, 24, 12, tzinfo=UTC)

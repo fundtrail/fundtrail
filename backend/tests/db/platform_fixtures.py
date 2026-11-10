@@ -28,15 +28,21 @@ from app.contracts.checks import (
     ChargeStatus,
     ChecksInput,
     ChecksOutput,
+    GrantNote,
+    GrantStatus,
     OpenQuestion,
     Problem,
     Reason,
     RecordStatus,
 )
+from app.contracts.evidence import storage_path
+from app.contracts.fixtures import SampleGrant, load_sample_grant
 from app.contracts.records import BudgetCategory, DefaultItem, Question, Record
 from app.contracts.runs import TriggerKind
+from app.contracts.workspaces import User
+from app.db import store
 from app.db.platform import Platform, set_platform
-from app.db.pool import open_pool
+from app.db.pool import open_pool, transaction
 from app.db.ports import AgentInput, AgentResult
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "supabase" / "migrations"
@@ -94,6 +100,10 @@ class FakeChecks:
         self.calls: list[ChecksInput] = []
         self.buckets: dict[str, Bucket] = {}  # by ledger line ID
         self.agent_questions: bool = False
+        self.grant_problems: list[Problem] = []
+        self.record_problems: dict[str, list[Problem]] = {}  # by record ID
+        self.notes: list[str] = []
+        self.reason_records: dict[str, list[str]] = {}  # by ledger line ID
 
     def run_checks(self, checks_input: ChecksInput, /) -> ChecksOutput:
         self.calls.append(checks_input)
@@ -108,7 +118,13 @@ class FakeChecks:
             bucket = self.buckets.get(c.ledger_line_id, Bucket.EVIDENCE_COMPLETE)
             if c.id in failed_charges:
                 bucket = Bucket.NEEDS_HUMAN
-            reason = Reason(check="fake", problem=bucket.value, text="fake reason", bucket=bucket)
+            reason = Reason(
+                check="fake",
+                problem=bucket.value,
+                text="fake reason",
+                bucket=bucket,
+                record_ids=tuple(self.reason_records.get(c.ledger_line_id, [])),
+            )
             charges.append(
                 ChargeStatus(
                     grant_id=c.grant_id,
@@ -129,6 +145,27 @@ class FakeChecks:
             for f in checks_input.files
             if f.id in failed_files
         ]
+        visible = {r.id: r for r in checks_input.records}
+        records += [
+            RecordStatus(
+                grant_id=visible[i].grant_id, record_id=i, problems=tuple(ps), flagged=True
+            )
+            for i, ps in self.record_problems.items()
+            if i in visible
+        ]
+        grant_ids = {c.grant_id for c in checks_input.charges} | {
+            f.grant_id for f in checks_input.files
+        }
+        grants = [
+            GrantStatus(grant_id=g, problems=tuple(self.grant_problems), flagged=True)
+            for g in grant_ids
+            if self.grant_problems
+        ]
+        notes = [
+            GrantNote(grant_id=g, check="budget", text=text)
+            for g in grant_ids
+            for text in self.notes
+        ]
         questions = (
             [
                 OpenQuestion(charge_id=c.id, question=Question.ALLOWABLE, answer_by="agent")  # pyright: ignore[reportArgumentType]
@@ -140,9 +177,9 @@ class FakeChecks:
         return ChecksOutput(
             charges=tuple(charges),
             records=tuple(records),
-            grants=(),
+            grants=tuple(grants),
             questions=tuple(questions),
-            notes=(),
+            notes=tuple(notes),
         )
 
     def default_items(self, charge: Charge, records: Sequence[Record], /) -> Sequence[DefaultItem]:
@@ -240,6 +277,56 @@ def run_worker_until_idle(database_url: str, concurrency: int = 1) -> None:
         if row is None or row[0] == 0:
             return
     raise AssertionError("the worker didn't finish the queued runs")
+
+
+def sample_into_db(
+    p: Platform, user_id: str | None = None, clock_now: datetime | None = None
+) -> SampleGrant:
+    """The sample grant (contracts.md section 15) stored under fresh IDs, owned by `user_id`
+    (a new user by default), with the workspace clock at `clock_now` (the sample's own by
+    default)."""
+    sample = load_sample_grant()
+    user_id = user_id or new_auth_user(p)
+    suffix = uuid.uuid4().hex[:6]
+    ids = {sample.workspace.id, sample.grant.id}
+    ids |= {c.id for c in sample.charges} | {f.id for f in sample.files}
+    ids |= {r.id for r in sample.records}
+    renamed = {i: f"{i}-{suffix}" for i in ids} | {sample.user.id: user_id}
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, dict):
+            out = {k: walk(v) for k, v in value.items()}  # pyright: ignore[reportUnknownVariableType]
+            if "storage_path" in out:
+                out["storage_path"] = storage_path(
+                    out["workspace_id"], out["grant_id"], out["id"], out["name"]
+                )
+            return out
+        if isinstance(value, list):
+            return [walk(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
+        return renamed.get(value, value) if isinstance(value, str) else value
+
+    sample = type(sample).model_validate(walk(sample.model_dump(mode="json")))
+    with transaction(p.pool) as conn:
+        store.upsert_user(conn, User(id=user_id, email="robin.example@university.example"))
+        conn.execute(
+            "insert into public.workspaces (id, owner_id, name, clock_now) values (%s, %s, %s, %s)",
+            (
+                sample.workspace.id,
+                user_id,
+                sample.workspace.name,
+                clock_now or sample.workspace.clock_now,
+            ),
+        )
+        conn.execute(
+            "insert into public.grants (id, workspace_id, award_number, title)"
+            " values (%s, %s, %s, %s)",
+            (sample.grant.id, sample.workspace.id, sample.grant.award_number, sample.grant.title),
+        )
+        store.insert_charges(conn, sample.charges)
+        for f in sample.files:
+            store.insert_file(conn, f)
+        store.insert_records(conn, sample.records)
+    return sample
 
 
 # Users and tokens.

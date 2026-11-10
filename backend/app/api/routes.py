@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.contracts.api import FileLink, LedgerUploadResult, WorkspaceCreate
 from app.contracts.evidence import EvidenceFile
-from app.contracts.records import BudgetAssignment, Record
+from app.contracts.records import BudgetAssignment, Record, SignOff
 from app.contracts.rules import RecordState
 from app.contracts.runs import AgentRun
 from app.contracts.workspaces import Grant, Workspace
@@ -25,6 +25,7 @@ from app.db.pool import transaction, workspace_now
 
 from .bodies import ChargeRow, NewRecordInput
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
+from .views import sign_off_refusals
 
 router = APIRouter()
 
@@ -103,6 +104,10 @@ def list_records(grant: GrantDep, platform: PlatformDep) -> list[Record]:
 def create_record(
     body: NewRecordInput, grant: GrantDep, user: UserDep, platform: PlatformDep
 ) -> Record:
+    if isinstance(body.data, SignOff):
+        problems = sign_off_refusals(platform, grant, body.data)
+        if problems:
+            return _rejected(actions.WriteRejected(problems))  # pyright: ignore[reportReturnType]
     try:
         return actions.add_record(
             platform, grant, user.id, body.data.model_dump(mode="json"), body.replaces_id
