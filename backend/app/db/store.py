@@ -171,7 +171,8 @@ def insert_charges(conn: Conn, charges: Sequence[Charge]) -> None:
 def list_charges(conn: Conn, grant_id: str, now: datetime) -> list[Charge]:
     """The grant's charges that have arrived by now: posting date, then ledger line ID."""
     rows = conn.execute(
-        f"""select {_CHARGE_COLUMNS} from public.charges where grant_id = %s and arrived_at <= %s
+        f"""select {_CHARGE_COLUMNS}, stored_seq from public.charges
+            where grant_id = %s and arrived_at <= %s
             order by posting_date, ledger_line_id""",
         (grant_id, now),
     ).fetchall()
@@ -217,7 +218,7 @@ def insert_file(conn: Conn, f: EvidenceFile) -> None:
 
 def list_files(conn: Conn, grant_id: str, now: datetime) -> list[EvidenceFile]:
     rows = conn.execute(
-        f"""select {_FILE_COLUMNS} from public.evidence_files
+        f"""select {_FILE_COLUMNS}, stored_seq from public.evidence_files
             where grant_id = %s and arrived_at <= %s
             order by arrived_at, id""",
         (grant_id, now),
@@ -228,7 +229,7 @@ def list_files(conn: Conn, grant_id: str, now: datetime) -> list[EvidenceFile]:
 def get_file(conn: Conn, file_id: str, owner_id: str) -> EvidenceFile | None:
     """The file, only if this user owns its workspace."""
     row = conn.execute(
-        f"""select {_FILE_COLUMNS_F}
+        f"""select {_FILE_COLUMNS_F}, f.stored_seq
             from public.evidence_files f join public.workspaces w on w.id = f.workspace_id
             where f.id = %s and w.owner_id = %s::uuid""",
         (file_id, owner_id),
@@ -250,6 +251,8 @@ def _record(row: dict[str, Any]) -> Record:
             "written_at": row["written_at"],
             "replaces_id": row["replaces_id"],
             "thread_message_id": row["thread_message_id"],
+            "stored_seq": row["stored_seq"],
+            "read_through_seq": row["read_through_seq"],
             "data": row["data"],
         }
     )
@@ -261,22 +264,25 @@ def list_records(conn: Conn, grant_id: str, now: datetime | None = None) -> list
     given, leaves out records dated after it."""
     rows = conn.execute(
         """select id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id,
-                  thread_message_id, data
+                  thread_message_id, stored_seq, read_through_seq, data
            from public.records where grant_id = %s and (%s::timestamptz is null or written_at <= %s)
-           order by created_at, id""",
+           order by stored_seq""",
         (grant_id, now, now),
     ).fetchall()
     return [_record(r) for r in rows]
 
 
-def insert_records(conn: Conn, records: Sequence[Record]) -> None:
-    """Insert in order, each with its own real-time created_at, so the written order holds."""
+def insert_records(conn: Conn, records: Sequence[Record]) -> list[Record]:
+    """Insert in order. The database gives each its stored_seq (#70), the one stored order;
+    it's never sent. Returns the records as stored, each with its stored_seq."""
+    stored: list[Record] = []
     for r in records:
-        conn.execute(
+        row = conn.execute(
             """insert into public.records
                  (id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id,
-                  thread_message_id, data, created_at)
-               values (%s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())""",
+                  thread_message_id, read_through_seq, data, created_at)
+               values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())
+               returning stored_seq""",
             (
                 r.id,
                 r.workspace_id,
@@ -286,16 +292,21 @@ def insert_records(conn: Conn, records: Sequence[Record]) -> None:
                 r.written_at,
                 r.replaces_id,
                 r.thread_message_id,
+                r.read_through_seq,
                 Jsonb(r.data.model_dump(mode="json")),
             ),
-        )
+        ).fetchone()
+        assert row is not None
+        stored.append(r.model_copy(update={"stored_seq": row["stored_seq"]}))
+    return stored
 
 
 # Agent runs.
 
 _RUN_COLUMNS = (
     "id, workspace_id, grant_id, trigger_kind, trigger_id, status, clock_now, queued_at, "
-    "started_at, finished_at, summary, error, log_path, thread_charge_id, thread_record_id"
+    "started_at, finished_at, summary, error, log_path, thread_charge_id, thread_record_id, "
+    "read_through_seq"
 )
 
 
@@ -606,4 +617,12 @@ def insert_status(
 def same_status(a: Status, b: Status) -> bool:
     return json.dumps(_status_columns(a), sort_keys=True) == json.dumps(
         _status_columns(b), sort_keys=True
+    )
+
+
+def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:
+    """The last stored point a run read when it started (call 40)."""
+    conn.execute(
+        "update public.agent_runs set read_through_seq = %s where id = %s",
+        (read_through_seq, run_id),
     )

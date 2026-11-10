@@ -26,3 +26,5 @@ class RunRow(Model):
     # A run a thread message started: the thread's charge or record.
     thread_charge_id: Id | None = None
     thread_record_id: Id | None = None
+    # The last stored point the run read when it started (call 40).
+    read_through_seq: int | None = None
