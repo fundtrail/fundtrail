@@ -15,13 +15,21 @@ import { threadFake } from "./fixtures/thread";
  * sample grant, and what one client writes stays in that client.
  */
 export function createFakeApiClient(): ApiClient {
+  const { addGrant, ...grants } = grantFake();
+  const setup = setupFake();
   return {
-    ...grantFake(),
+    ...grants,
     ...clockFake(),
     ...chargeFake(),
     ...threadFake(),
     ...evidenceFake(),
-    ...setupFake(),
+    ...setup,
+    // A grant added in fake mode is then served like any other, with nothing read yet.
+    createGrant: async (workspaceId, awardLetter, fileName) => {
+      const grant = await setup.createGrant(workspaceId, awardLetter, fileName);
+      addGrant(grant);
+      return grant;
+    },
     ...mailFake(),
     ...closeoutFake(),
   };

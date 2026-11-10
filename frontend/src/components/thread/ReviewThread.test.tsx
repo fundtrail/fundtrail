@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, type ChargeStatus, type EvidenceFile, type FtRecord, type Reason, type Thread } from "@/lib/api";
-import { ReviewThread, type ThreadContext } from "./ReviewThread";
+import { decisionsFrom, ReviewThread, type ThreadContext } from "./ReviewThread";
 
 function record(id: string, author: "agent" | "user", data: Record<string, unknown>, extra: Partial<FtRecord> = {}): FtRecord {
   return {
@@ -153,6 +153,25 @@ describe("ReviewThread", () => {
     const decided = { ...thread, entries: [{ kind: "record", record: newAnswer, state: "counts" }, { kind: "record", record: record("r-c2", "user", { kind: "confirmation", record_ids: ["r-new"], decision: "confirmed" }, { written_at: "2026-02-26T10:00:00Z" }), state: "counts" }] } as unknown as Thread;
     renderThread(undefined, undefined, decided);
     expect(within(screen.getByTestId("suggestion")).getByText("Accepted by the accountant, Feb 26, 2026")).toBeInTheDocument();
+  });
+
+  it("lets the later of two decisions at the same clock time win, in the server's order", () => {
+    const at = { written_at: "2026-02-26T10:00:00Z" };
+    const accept = record("r-a", "user", { kind: "confirmation", record_ids: ["r-new"], decision: "confirmed" }, at);
+    const reject = record("r-b", "user", { kind: "confirmation", record_ids: ["r-new"], decision: "rejected" }, at);
+    const entries = (first: FtRecord, second: FtRecord) =>
+      ({
+        entries: [
+          { kind: "record", record: newAnswer, state: "rejected" },
+          { kind: "record", record: first, state: "counts" },
+          { kind: "record", record: second, state: "counts" },
+        ],
+        agent_run: null,
+      }) as unknown as Thread;
+    expect(decisionsFrom(entries(accept, reject), {})["r-new"]).toEqual({ decision: "rejected", at: at.written_at });
+    expect(decisionsFrom(entries(reject, accept), {})["r-new"]).toEqual({ decision: "confirmed", at: at.written_at });
+    // The body's records repeat the thread's confirmations; they don't reorder them.
+    expect(decisionsFrom(entries(accept, reject), { [accept.id]: accept, [reject.id]: reject })["r-new"].decision).toBe("rejected");
   });
 
   it("says Counts for an agent record that took effect without a decision", () => {

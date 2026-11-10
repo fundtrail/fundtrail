@@ -39,19 +39,23 @@ type Decisions = Record<Id, DecisionMade>;
 /**
  * The accountant's latest decision on each record, read from their
  * confirmation records in the thread and in the body's records. The latest
- * decision on a record wins (contracts.md section 1).
+ * decision on a record wins (contracts.md section 1). Two decisions at the
+ * same clock time, which the demo clock makes common, are told apart by the
+ * server's order: the later entry wins. A confirmation only in the body's
+ * records counts after the thread's.
  */
 export function decisionsFrom(thread: Thread, records: Record<Id, FtRecord>): Decisions {
-  const confirmations = [
-    ...thread.entries.flatMap((e) => (e.kind === "record" ? [e.record] : [])),
-    ...Object.values(records),
-  ].filter((r) => r.author === "user" && r.data.kind === "confirmation");
+  const inThread = thread.entries.flatMap((e) => (e.kind === "record" ? [e.record] : []));
+  const seen = new Set(inThread.map((r) => r.id));
+  const confirmations = [...inThread, ...Object.values(records).filter((r) => !seen.has(r.id))].filter(
+    (r) => r.author === "user" && r.data.kind === "confirmation",
+  );
   const out: Decisions = {};
   for (const c of confirmations) {
     const decision = field<Decision>(c, "decision") ?? "confirmed";
     for (const id of field<Id[]>(c, "record_ids") ?? []) {
       const known = out[id];
-      if (!known || known.at < c.written_at) out[id] = { decision, at: c.written_at };
+      if (!known || known.at <= c.written_at) out[id] = { decision, at: c.written_at };
     }
   }
   return out;
