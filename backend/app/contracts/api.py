@@ -1,20 +1,72 @@
-"""API (application programming interface) bodies that docs/contracts.md section 12 settles.
+"""API (application programming interface) bodies: docs/contracts.md section 12, and the
+screen bodies agreed in issue 22.
 
-The endpoint list is in that section.
+W4 writes the routes in backend/app/api/, and the frontend generates its
+TypeScript types from the OpenAPI schema they produce. Errors use FastAPI's
+default {"detail": ...} body.
 
-What the grant, charge and evidence screens get from the server isn't settled
-yet, so their bodies aren't here. W4 writes the routes in backend/app/api/, and
-the frontend generates its TypeScript types from the OpenAPI schema they produce.
-Errors use FastAPI's default {"detail": ...} body.
+The bodies are the contract models and the checks' output as they are. A wrapper
+exists only to put a record next to what code works out about it, such as whether
+it counts or whether a value is confirmed: the server works those out with the
+contract functions, and the screens never do. Every body carries its citations,
+so the viewer needs no separate highlight endpoint.
 """
+
+from datetime import date
+from enum import StrEnum
+from typing import Annotated, Literal
 
 from pydantic import Field
 
-from .base import Id, Model, Text, UtcDatetime
+from .base import Cents, Id, Model, Text, UtcDatetime
+from .buckets import Bucket
 from .charges import Charge
-from .checks import Bucket, ChargeStatus
-from .records import RecordData
+from .checks import (
+    ChargeStatus,
+    GrantNote,
+    OpenQuestion,
+    Problem,
+    RecordStatus,
+    StatusEntry,
+)
+from .evidence import EvidenceFile
+from .mail import HeldMail
+from .records import (
+    AcceptedReason,
+    Approval,
+    ApprovalRule,
+    Bill,
+    BudgetAssignment,
+    BudgetCategory,
+    BudgetLine,
+    ChecklistItem,
+    ChecklistRemoval,
+    CitedDate,
+    Confirmation,
+    Correction,
+    Dispute,
+    Duplicate,
+    Judgment,
+    Link,
+    MailDecision,
+    Note,
+    Notice,
+    OtherTerm,
+    PeriodOfPerformance,
+    Person,
+    Rate,
+    Record,
+    RecordKind,
+    Remainder,
+    Retraction,
+    Snooze,
+)
+from .runs import AgentRun
+from .signoff import SignOffStateName, SnapshotChange
+from .threads import ThreadMessage
 from .workspaces import Grant
+
+# Workspaces and the clock.
 
 
 class WorkspaceCreate(Model):
@@ -23,12 +75,28 @@ class WorkspaceCreate(Model):
     name: Text
 
 
+class ArrivalSource(StrEnum):
+    LEDGER = "ledger"
+    GMAIL = "gmail"
+    DRIVE = "drive"
+    UPLOAD = "upload"
+
+
+class NextArrival(Model):
+    """The next item waiting for the clock: when, where from and its name. Not its contents."""
+
+    at: UtcDatetime
+    source: ArrivalSource
+    name: Text  # the file name, or the ledger line ID
+
+
 class Clock(Model):
     """GET and POST /workspaces/{workspace_id}/clock"""
 
     now: UtcDatetime
     simulated: bool  # False when the workspace runs on the real date
     next_arrival_at: UtcDatetime | None = None  # the next charge or file waiting for the clock
+    next_arrival: NextArrival | None = None
 
 
 class ClockMove(Model):
@@ -40,20 +108,344 @@ class ClockMove(Model):
     to: UtcDatetime | None = None
 
 
+# What code works out about a record, in one word or a few fields.
+
+
+class RecordState(StrEnum):
+    """What counts (docs/contracts.md section 1) in one word per record. Not rules.RecordState."""
+
+    COUNTS = "counts"  # current and in effect
+    WAITING = "waiting"  # the agent's record waiting for a confirmation
+    REJECTED = "rejected"
+    REPLACED = "replaced"  # a record that counts replaces it
+    RETRACTED = "retracted"
+
+
+class ValueHow(StrEnum):
+    FOUND = "found"  # its citation was found in its file
+    RECORD_CONFIRMED = "record_confirmed"  # the accountant confirmed the record it's in
+    TYPED = "typed"  # the accountant typed it
+
+
+class ValueState(Model):
+    """Whether one value is confirmed, and how. Code works it out each time; nothing stores it."""
+
+    path: Text  # as records.cited_values names it, for example "total" or "items[0].amount"
+    confirmed: bool
+    how: ValueHow | None = None  # None when it's unconfirmed
+    confirmed_at: UtcDatetime | None = None  # the confirmation's or the typed record's clock time
+
+
+class RecordView(Model):
+    """One row of GET /grants/{grant_id}/records."""
+
+    record: Record
+    state: RecordState
+
+
+# The grant list and the grant page.
+
+
+class CloseoutDate(Model):
+    """The next closeout date that follows from the end date in force."""
+
+    date: date
+    label: Text  # for example "Notice of Expiration", worded by the server
+
+
 class GrantSummary(Model):
-    """One row of GET /workspaces/{workspace_id}/grants."""
+    """One row of GET /workspaces/{workspace_id}/grants (issue 22, answer 7)."""
 
     grant: Grant
+    end_date: date | None = None  # the end date in force; None while no period is confirmed
+    charges_ready: int  # ready for closeout: checks.ready_for_closeout
+    charges_total: int
+    on_problem_list: int  # rows on the grant's problem list
+    waiting: int  # the agent's records waiting for the accountant
     bucket_counts: dict[Bucket, int]
-    flagged: int  # how many are on the problem list
-    waiting: int  # how many of the agent's records wait for the accountant
+    next_closeout: CloseoutDate | None = None
+
+
+class TermView(Model):
+    """One term on the grant page (answer 5), with what it replaced."""
+
+    record: Record
+    state: RecordState
+    decision: Record | None = None  # the confirmation that decided it
+    replaces: Record | None = None  # the term it replaced
+    values: tuple[ValueState, ...] = ()
+    status: RecordStatus | None = None  # its own problem, such as the agent's flag
+
+
+class BudgetLineView(Model):
+    """One budget line with what it holds and what's spent against it (answer 8)."""
+
+    line: Record  # the budget_line term in force
+    amount_cents: Cents
+    spent_cents: Cents
+
+
+class BudgetView(Model):
+    """The grant's budget figures, with the grant notes beside them (answers 3 and 8)."""
+
+    lines: tuple[BudgetLineView, ...]
+    # The award's limit: "Total Amount Obligated to Date" on the latest confirmed notice.
+    limit_cents: Cents | None = None
+    spent_cents: Cents  # the sum of the charges on the grant's ledger
+
+
+class ReusableNoteView(Model):
+    """A reusable note, what it excuses, and every charge it covers now."""
+
+    note: Record  # the current accepted_reason with reusable true
+    charge: Charge  # the charge it was written on: its ledger account and vendor
+    amount_limit_cents: Cents  # the largest amount accepted under it
+    covered: tuple[Charge, ...] = ()
+
+
+class SignOffState(Model):
+    """Not signed, signed, or changed since sign-off, with what changed (answer 14, 0022)."""
+
+    state: SignOffStateName
+    sign_off: Record | None = None  # the current sign_off record
+    changes: tuple[SnapshotChange, ...] = ()
+
+
+class GrantDetail(Model):
+    """GET /grants/{grant_id}. Carries no flagged charges: the problem list has its own response."""
+
+    summary: GrantSummary
+    terms: tuple[TermView, ...]
+    budget: BudgetView
+    grant_notes: tuple[GrantNote, ...]
+    reusable_notes: tuple[ReusableNoteView, ...] = ()
+    sign_off: SignOffState
+
+
+# The problem list (answers 1 to 4 and 6). The server sorts the rows.
+
+
+class GrantProblem(Problem):
+    """A problem on the grant itself, as a row: with whether it's flagged, accepted or snoozed."""
+
+    flagged: bool
+    accepted: bool = False
+    snoozed: bool = False
+
+
+class GrantProblemRow(Model):
+    kind: Literal["grant"] = "grant"
+    problem: GrantProblem
+
+
+class TermsWaitingRow(Model):
+    """One row per source document with terms waiting to be confirmed (answer 4)."""
+
+    kind: Literal["terms_waiting"] = "terms_waiting"
+    file: EvidenceFile
+    record_ids: tuple[Id, ...]
+    text: Text  # for example "8 terms waiting to be confirmed", worded by the server
+
+
+class RecordProblemRow(Model):
+    kind: Literal["record"] = "record"
+    status: RecordStatus
+    record: Record | None = None
+    file: EvidenceFile | None = None
+
+
+class ChargeProblemRow(Model):
+    kind: Literal["charge"] = "charge"
+    charge: Charge
+    status: ChargeStatus
+
+
+class HeldMailRow(Model):
+    """Mail held from a sender who isn't known, or couldn't be verified (decision 0025)."""
+
+    kind: Literal["held_mail"] = "held_mail"
+    held: HeldMail
+
+
+ProblemRow = Annotated[
+    GrantProblemRow | TermsWaitingRow | RecordProblemRow | ChargeProblemRow | HeldMailRow,
+    Field(discriminator="kind"),
+]
+
+
+class ProblemList(Model):
+    """GET /grants/{grant_id}/problems"""
+
+    rows: tuple[ProblemRow, ...]
+
+
+def problem_row_key(row: ProblemRow) -> str:
+    """A stable name for a row, for a sign-off's snapshot of the problem list."""
+    match row:
+        case GrantProblemRow():
+            return f"grant:{row.problem.check}:{row.problem.problem}"
+        case TermsWaitingRow():
+            return f"terms_waiting:{row.file.id}"
+        case RecordProblemRow():
+            return f"record:{row.status.record_id or ''}:{row.status.file_id or ''}"
+        case ChargeProblemRow():
+            return f"charge:{row.charge.id}"
+        case HeldMailRow():
+            return f"held_mail:{row.held.id}"
+
+
+# The charges list and the charge page.
 
 
 class ChargeRow(Model):
-    """One row of GET /grants/{grant_id}/charges: each charge with its status."""
+    """One row of GET /grants/{grant_id}/charges (answers 8 and 15)."""
 
     charge: Charge
     status: ChargeStatus | None = None  # None until the checks first run on it
+    # The budget_line term the charge's current budget_assignment points to, after
+    # following corrections. None when no budget line is assigned.
+    budget_line: Record | None = None
+    # The NSF budget categories of the ledger account's group. Empty for an account in no group.
+    account_categories: tuple[BudgetCategory, ...] = ()
+
+
+class HistoryEntry(Model):
+    """One status change, worded by the server (answer 11)."""
+
+    entry: StatusEntry
+    text: Text  # for example "new end date confirmed"
+
+
+class LinkView(Model):
+    """One fact covering a charge, for example "invoice 2050, $5,000 of $10,000"."""
+
+    link: Record  # its part is what gets highlighted
+    record: Record  # the bill, approval or note it points to now, after following corrections
+    values: tuple[ValueState, ...] = ()  # that record's values
+    file: EvidenceFile | None = None  # the record's file; None for a record the accountant typed
+
+
+class RuleSource(Model):
+    label: Text
+    url: Text
+
+
+class RuleView(Model):
+    """A rulebook rule an answer names, looked up from the rulebook file."""
+
+    id: Id  # for example "NSF-AIRFARE-CLASS"
+    title: Text
+    text: Text
+    sources: tuple[RuleSource, ...] = ()
+
+
+class AnswerView(Model):
+    judgment: Record
+    out_of_date: bool  # an open question covers it: rechecking, or back with the accountant
+    rule: RuleView | None = None
+
+
+class SuggestionView(Model):
+    """One of the agent's records waiting for the accountant, with what it would replace."""
+
+    record: Record
+    replaces: Record | None = None
+    charge_ids: tuple[Id, ...] = ()  # the charges it touches
+
+
+class StatusThreadEntry(Model):
+    """Code's check results, at the time the status changed."""
+
+    kind: Literal["status"] = "status"
+    entry: StatusEntry
+
+
+class MessageThreadEntry(Model):
+    kind: Literal["message"] = "message"
+    message: ThreadMessage
+
+
+class RecordThreadEntry(Model):
+    """The agent's suggestion, or the accountant's decision."""
+
+    kind: Literal["record"] = "record"
+    record: Record
+    state: RecordState
+
+
+ThreadEntry = Annotated[
+    StatusThreadEntry | MessageThreadEntry | RecordThreadEntry, Field(discriminator="kind")
+]
+
+
+class Thread(Model):
+    """A charge's or a record's thread, merged in time order by the server (answers 10, 12, 13).
+
+    A record's thread follows the record that replaces it.
+    """
+
+    entries: tuple[ThreadEntry, ...]
+    agent_run: AgentRun | None = None  # a run that will reach this thread, running or queued
+
+
+class NewMessage(Model):
+    """Posting to a thread. The server fills in the author, the time and the subject."""
+
+    text: Text
+
+
+class ChargeDetail(Model):
+    """GET /charges/{charge_id}"""
+
+    charge: Charge
+    status: ChargeStatus | None = None
+    budget_line: Record | None = None
+    account_categories: tuple[BudgetCategory, ...] = ()
+    corrections: tuple[Charge, ...] = ()  # the charges netted into it
+    history: tuple[HistoryEntry, ...] = ()  # oldest first
+    links: tuple[LinkView, ...] = ()
+    answers: tuple[AnswerView, ...] = ()
+    questions: tuple[OpenQuestion, ...] = ()
+    waiting: tuple[SuggestionView, ...] = ()
+    thread: Thread
+    records: dict[Id, Record] = Field(default_factory=dict[Id, Record])
+    files: dict[Id, EvidenceFile] = Field(default_factory=dict[Id, EvidenceFile])
+
+
+# Evidence cards.
+
+
+class FactLink(Model):
+    link: Record
+    charge: Charge
+
+
+class FactView(Model):
+    """One fact or term read from a file, its values' confirmed state and what it pays for."""
+
+    record: Record  # after following corrections
+    state: RecordState
+    values: tuple[ValueState, ...] = ()
+    links: tuple[FactLink, ...] = ()
+    status: RecordStatus | None = None
+
+
+class DuplicateView(Model):
+    mark: Record  # the duplicate record
+    state: RecordState  # waiting, or counts once confirmed
+
+
+class EvidenceCard(Model):
+    """One row of GET /grants/{grant_id}/evidence. `file.exported_from` says it's an export."""
+
+    file: EvidenceFile
+    facts: tuple[FactView, ...] = ()
+    status: RecordStatus | None = None  # the file's own problem
+    duplicate: DuplicateView | None = None  # when the file is the copy in a duplicate mark
+    files: dict[Id, EvidenceFile] = Field(default_factory=dict[Id, EvidenceFile])
+
+
+# Uploads and files.
 
 
 class RowError(Model):
@@ -69,10 +461,88 @@ class LedgerUploadResult(Model):
     rejected: tuple[RowError, ...]
 
 
-class NewRecord(Model):
-    """POST /grants/{grant_id}/records. The server fills in the ID, the author and the time."""
+class FileLink(Model):
+    """GET /evidence/{file_id}/content: a short-lived link to the original."""
 
-    data: RecordData
+    url: Text
+    media_type: str | None = None
+    expires_at: UtcDatetime
+
+
+# The records request (POST /grants/{grant_id}/records). A term the accountant adds
+# may leave out `dated`: the server fills in the workspace's "now". A sign-off sends
+# only its note: the server stores the report and fills in the rest. The stored
+# record still requires them.
+
+
+class PeriodOfPerformanceInput(PeriodOfPerformance):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class BudgetLineInput(BudgetLine):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class PersonInput(Person):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class ApprovalRuleInput(ApprovalRule):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class RateInput(Rate):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class NoticeInput(Notice):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class OtherTermInput(OtherTerm):
+    dated: CitedDate | None = None  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+
+class SignOffInput(Model):
+    kind: Literal[RecordKind.SIGN_OFF] = RecordKind.SIGN_OFF
+    note: str | None = None
+
+
+RecordDataInput = Annotated[
+    PeriodOfPerformanceInput
+    | BudgetLineInput
+    | PersonInput
+    | ApprovalRuleInput
+    | RateInput
+    | NoticeInput
+    | OtherTermInput
+    | Bill
+    | Approval
+    | Note
+    | Link
+    | BudgetAssignment
+    | Judgment
+    | ChecklistItem
+    | ChecklistRemoval
+    | Dispute
+    | Duplicate
+    | Correction
+    | Remainder
+    | Confirmation
+    | AcceptedReason
+    | Snooze
+    | SignOffInput
+    | MailDecision
+    | Retraction,
+    Field(discriminator="kind"),
+]
+
+
+class NewRecordInput(Model):
+    """POST /grants/{grant_id}/records. The server fills in the ID, the author, the time,
+    the `dated` of a term the accountant adds without one, and a sign-off's report."""
+
+    data: RecordDataInput
     replaces_id: Id | None = None
 
 
@@ -80,10 +550,3 @@ class WriteRejected(Model):
     """The 422 body when the write check finds problems."""
 
     detail: tuple[str, ...]
-
-
-class FileLink(Model):
-    """GET /evidence/{file_id}/content: a short-lived link to the original."""
-
-    url: Text
-    expires_at: UtcDatetime

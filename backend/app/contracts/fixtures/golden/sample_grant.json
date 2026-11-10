@@ -623,6 +623,20 @@
             },
             "match": "exact"
           }
+        },
+        "scope": {
+          "value": "moved_out",
+          "text": "may not be diverted by the awardee to other categories of expense",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 422,
+              "end_char_index": 657
+            },
+            "match": "exact"
+          }
         }
       }
     },

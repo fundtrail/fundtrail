@@ -28,7 +28,7 @@ from app.contracts.records import (
 )
 from app.contracts.runs import Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
-from tests.contracts.factory import CHARGE, answer, at, bill, citation, cited, link, user
+from tests.contracts.factory import CHARGE, answer, at, bill, citation, cited, link, sign_off, user
 
 
 def record(**changes: Any) -> Record:
@@ -39,7 +39,7 @@ def record(**changes: Any) -> Record:
         "author": "user",
         "author_user_id": "u",
         "written_at": at(0),
-        "data": {"kind": "sign_off"},
+        "data": sign_off(),
     }
     return Record.model_validate(fields | changes)
 
@@ -54,7 +54,7 @@ def test_models_are_frozen_and_reject_unknown_fields():
     with pytest.raises(ValidationError):
         record(color="blue")
     with pytest.raises(ValidationError):
-        record(data={"kind": "sign_off", "color": "blue"})
+        record(data=sign_off() | {"color": "blue"})
 
 
 def test_money_is_integer_cents():
@@ -88,7 +88,7 @@ def test_record_rules():
         with pytest.raises(ValidationError):
             record(**bad)
     for bad in (
-        {"data": {"kind": "sign_off"}},  # only the accountant signs off
+        {"data": sign_off()},  # only the accountant signs off
         {"data": {"kind": "confirmation", "record_ids": ["x"]}},
         {
             "data": {
@@ -229,9 +229,16 @@ def test_ledger_row_becomes_a_charge():
         description="Credit",
         account="55016 Lab Instruments and Supplies",
     )
-    c = row.to_charge(id="c9", workspace_id="w", grant_id="g")
+    # Decision 0023: uploaded before its posting date, it arrives at that date's midnight.
+    early = datetime(2026, 1, 1, 9, tzinfo=UTC)
+    c = row.to_charge(id="c9", workspace_id="w", grant_id="g", now=early)
     assert c.amount_cents == -124000 and c.ledger_line_id == "L-9"
     assert c.arrived_at == datetime(2026, 1, 4, tzinfo=UTC)
+    # Uploaded on or after its posting date, it arrives now.
+    late = datetime(2026, 2, 1, 9, 30, tzinfo=timezone(timedelta(hours=-8)))
+    assert row.to_charge(id="c9", workspace_id="w", grant_id="g", now=late).arrived_at == late
+    on_the_day = datetime(2026, 1, 4, tzinfo=UTC)
+    assert row.arrival(on_the_day) == on_the_day
     with pytest.raises(ValidationError):
         LedgerRow.model_validate(row.model_dump() | {"amount": Decimal("1.234")})
 
@@ -318,7 +325,7 @@ def test_api_bodies_have_json_schemas():
     assert len(models) >= 9
     for m in models:
         m.model_json_schema()
-    api.NewRecord.model_validate({"data": bill()})
+    api.NewRecordInput.model_validate({"data": bill()})
 
 
 def test_charge_round_trips_through_json():

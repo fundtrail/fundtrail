@@ -38,6 +38,10 @@ class EvidenceFile(Model):
     sender: str | None = None  # the sender's address, for Gmail
     source_ref: str | None = None  # the Gmail message ID or the Drive file ID
     parent_id: str | None = None  # for an attachment, the email it came with
+    # Decision 0025: a Google Doc, Sheet or Slides file is exported to a PDF when
+    # it's read, and the export is what's stored. This is the Google type it was
+    # exported from, so its card can say it's an export. None for any other file.
+    exported_from: str | None = None
 
     @model_validator(mode="after")
     def _path(self):
