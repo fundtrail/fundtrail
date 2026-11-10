@@ -253,8 +253,6 @@ def test_known_senders_and_the_preparer_come_from_members(platform: Platform) ->
             "pat@university.example",
         ]
         now = store.list_runs(conn, grant.id)[0].clock_now
-        conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s", (now, grant.workspace_id)
-        )
+        conn.execute("update public.grants set clock_now = %s where id = %s", (now, grant.id))
         inputs = report_inputs(platform, conn, grant, now, second, None)
     assert inputs.preparer.id == second

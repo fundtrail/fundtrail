@@ -7,13 +7,16 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
+
 from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecksInput, ChecksOutput, Problem
 from app.contracts.fixtures import SampleGrant
 from app.contracts.records import DefaultItem, Record
 from app.contracts.runs import Trigger, TriggerKind
 from app.db import store
-from app.db.jobs import NORMAL_PRIORITY, THREAD_PRIORITY
+from app.db.clock import ClockError, grant_now, move_grant_clock, next_arrival
+from app.db.jobs import NORMAL_PRIORITY, THREAD_PRIORITY, grant_catching_up
 from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult
 from app.db.recheck import recheck_grant
@@ -271,36 +274,57 @@ def test_the_report_route_gives_the_draft(api: Api) -> None:
     assert "SYN-2300117" in response.headers["content-disposition"]
 
 
-# The clock (decision 0023).
+# The grant's clock (decision 0023, issue 165). It moves through the clock module; the
+# sample timeline's routes drive it.
 
 
-def test_a_real_workspace_clock_cant_move(api: Api) -> None:
-    workspace = api.client.post("/workspaces", json={"name": "Lab"}, headers=api.headers).json()
-    clock = _get(api, f"/workspaces/{workspace['id']}/clock")
-    assert clock["simulated"] is False and clock["next_arrival"] is None
-    moved = api.client.post(f"/workspaces/{workspace['id']}/clock", json={}, headers=api.headers)
-    assert moved.status_code == 422 and "real date" in moved.json()["detail"][0]
+def _move(api: Api, sample: SampleGrant, to: datetime | None = None) -> datetime:
+    return move_grant_clock(api.platform, sample.grant.id, to)
 
 
-def test_the_clock_names_the_next_arrival_and_only_moves_forward(api: Api) -> None:
+def _catching_up(api: Api, sample: SampleGrant) -> bool:
+    with transaction(api.platform.pool) as conn:
+        return grant_catching_up(conn, sample.grant.id)
+
+
+def _now(api: Api, sample: SampleGrant) -> datetime:
+    with transaction(api.platform.pool) as conn:
+        return grant_now(conn, sample.grant.id)
+
+
+def test_a_grant_on_the_real_date_cant_move(api: Api) -> None:
+    sample = _sample(api)
+    with transaction(api.platform.pool) as conn:
+        conn.execute("update public.grants set clock_now = null where id = %s", (sample.grant.id,))
+        assert next_arrival(conn, sample.grant.id) is None
+    with pytest.raises(ClockError, match="real date"):
+        _move(api, sample)
+
+
+def test_the_clock_finds_the_next_arrival_and_only_moves_forward(api: Api) -> None:
     sample = _sample(api, datetime(2025, 11, 13, tzinfo=UTC))
-    path = f"/workspaces/{sample.workspace.id}/clock"
-    clock = _get(api, path)
-    assert clock["simulated"] is True and clock["now"] == "2025-11-13T00:00:00Z"
-    assert clock["next_arrival"]["source"] == "ledger" and clock["next_arrival"]["name"] == "L-1001"
-    back = api.client.post(path, json={"to": "2025-01-01T00:00:00Z"}, headers=api.headers)
-    assert back.status_code == 422 and "forward" in back.json()["detail"][0]
-    moved = api.client.post(path, json={}, headers=api.headers).json()
-    assert moved["now"] == "2025-11-14T00:00:00Z"
-    assert moved["next_arrival"]["source"] == "gmail"
-    assert moved["next_arrival"]["name"] == "sequencing_statement.eml"
+    with transaction(api.platform.pool) as conn:
+        arrival = next_arrival(conn, sample.grant.id)
+    assert arrival is not None and (arrival.source, arrival.name) == ("ledger", "L-1001")
+    with pytest.raises(ClockError, match="forward"):
+        _move(api, sample, datetime(2025, 1, 1, tzinfo=UTC))
+    assert _move(api, sample) == datetime(2025, 11, 14, tzinfo=UTC)
+    assert _now(api, sample) == datetime(2025, 11, 14, tzinfo=UTC)
+    # The grant's summary carries its now.
+    [summary] = _get(api, f"/workspaces/{sample.workspace.id}/grants")
+    assert summary["now"] == "2025-11-14T00:00:00Z"
+    with transaction(api.platform.pool) as conn:
+        arrival = next_arrival(conn, sample.grant.id)
+    assert arrival is not None and (arrival.source, arrival.name) == (
+        "gmail",
+        "sequencing_statement.eml",
+    )
 
 
 def test_a_jump_is_replayed_in_arrival_order(api: Api) -> None:
     sample = _sample(api, datetime(2025, 10, 1, tzinfo=UTC))
-    path = f"/workspaces/{sample.workspace.id}/clock"
-    moved = api.client.post(path, json={"to": "2025-11-20T00:00:00Z"}, headers=api.headers).json()
-    assert moved["catching_up"] is True
+    _move(api, sample, datetime(2025, 11, 20, tzinfo=UTC))
+    assert _catching_up(api, sample)
     with transaction(api.platform.pool) as conn:
         runs = sorted(store.list_runs(conn, sample.grant.id), key=lambda r: r.clock_now)
         jobs = conn.execute("select args from procrastinate_jobs order by id").fetchall()
@@ -320,16 +344,12 @@ def test_a_jump_is_replayed_in_arrival_order(api: Api) -> None:
     # The charge's first status is stamped on its arrival, with the charge as its trigger.
     assert history[0].changed_at == datetime(2025, 11, 14, tzinfo=UTC)
     assert history[0].trigger.kind == TriggerKind.CHARGE
-    assert _get(api, path)["catching_up"] is False
+    assert not _catching_up(api, sample)
 
 
 def test_a_thread_question_during_a_catch_up_waits_for_it(api: Api) -> None:
     sample = _sample(api, datetime(2025, 11, 13, tzinfo=UTC))
-    api.client.post(
-        f"/workspaces/{sample.workspace.id}/clock",
-        json={"to": "2025-11-20T00:00:00Z"},
-        headers=api.headers,
-    )
+    _move(api, sample, datetime(2025, 11, 20, tzinfo=UTC))
     api.client.post(
         f"/charges/{_id(sample, 'chg-l-1001')}/thread", json={"text": "?"}, headers=api.headers
     )
@@ -358,9 +378,8 @@ def test_a_move_to_exactly_the_next_arrival_is_a_catch_up_until_its_run_finishes
     agent.behave = behave
     sample = _sample(api, datetime(2025, 11, 13, tzinfo=UTC))
     charge = _id(sample, "chg-l-1001")
-    clock = f"/workspaces/{sample.workspace.id}/clock"
-    moved = api.client.post(clock, json={}, headers=api.headers).json()
-    assert moved["now"] == "2025-11-14T00:00:00Z" and moved["catching_up"] is True
+    assert _move(api, sample) == datetime(2025, 11, 14, tzinfo=UTC)
+    assert _catching_up(api, sample)
 
     def ask() -> int:
         api.client.post(f"/charges/{charge}/thread", json={"text": "?"}, headers=api.headers)
@@ -381,7 +400,7 @@ def test_a_move_to_exactly_the_next_arrival_is_a_catch_up_until_its_run_finishes
         TriggerKind.CHARGE,
         TriggerKind.THREAD_MESSAGE,
     ]
-    assert _get(api, clock)["catching_up"] is False
+    assert not _catching_up(api, sample)
     assert ask() == THREAD_PRIORITY  # the catch-up is done: a question goes first again
 
 
@@ -422,8 +441,8 @@ def test_a_waiting_term_with_a_problem_stays_on_its_documents_row_and_is_counted
     with transaction(api.platform.pool) as conn:
         recheck_grant(conn, checks, sample.grant, APRIL_10, Trigger(kind=TriggerKind.CLOCK))
         conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s",
-            (APRIL_10, sample.workspace.id),
+            "update public.grants set clock_now = %s where id = %s",
+            (APRIL_10, sample.grant.id),
         )
     rows = _get(api, f"/grants/{sample.grant.id}/problems")["rows"]
     assert [(r["kind"], r["record"]["id"]) for r in rows] == [("record", extension)]
@@ -495,12 +514,7 @@ def test_a_jump_records_no_late_flag_the_stepped_clock_wouldnt(api: Api) -> None
         )
 
     agent.behave = behave
-    moved = api.client.post(
-        f"/workspaces/{sample.workspace.id}/clock",
-        json={"to": "2026-05-01T00:00:00Z"},
-        headers=api.headers,
-    )
-    assert moved.status_code == 200, moved.text
+    _move(api, sample, datetime(2026, 5, 1, tzinfo=UTC))
     run_worker_until_idle(str(api.platform.pool.conninfo))
     with transaction(api.platform.pool) as conn:
         history = store.status_history(conn, charge_id=_id(sample, "chg-l-1002"))
@@ -542,14 +556,13 @@ def test_the_closeout_review_is_queued_inside_an_open_window_and_for_a_new_end_d
 ) -> None:
     """Inside the window already: the next move queues it. A new end date gets its own."""
     sample = _sample(api, datetime(2025, 12, 1, tzinfo=UTC))  # window opened Nov 2, 2025
-    path = f"/workspaces/{sample.workspace.id}/clock"
-    api.client.post(path, json={"to": "2025-12-11T00:00:00Z"}, headers=api.headers)
+    _move(api, sample, datetime(2025, 12, 11, tzinfo=UTC))
     with transaction(api.platform.pool) as conn:
         reviews = [r for r in store.list_runs(conn, sample.grant.id) if r.trigger.kind == "clock"]
     assert [r.clock_now.date().isoformat() for r in reviews] == ["2025-12-01"]
     # The extension (end Jan 31, 2027) is confirmed on Apr 10, 2026: its window opens
     # Nov 2, 2026, and a move past it queues a review for the new end date.
-    api.client.post(path, json={"to": "2026-11-05T00:00:00Z"}, headers=api.headers)
+    _move(api, sample, datetime(2026, 11, 5, tzinfo=UTC))
     with transaction(api.platform.pool) as conn:
         reviews = [r for r in store.list_runs(conn, sample.grant.id) if r.trigger.kind == "clock"]
     assert sorted(r.clock_now.date().isoformat() for r in reviews) == ["2025-12-01", "2026-11-02"]
@@ -616,10 +629,8 @@ def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:
         )
 
     agent.behave = behave
-    clock = f"/workspaces/{sample.workspace.id}/clock"
-    for to in ("2026-02-25T00:00:00Z", "2026-06-01T00:00:00Z"):
-        moved = api.client.post(clock, json={"to": to}, headers=api.headers)
-        assert moved.status_code == 200, moved.text
+    for to in (datetime(2026, 2, 25, tzinfo=UTC), datetime(2026, 6, 1, tzinfo=UTC)):
+        _move(api, sample, to)
     run_worker_until_idle(str(api.platform.pool.conninfo))
     with transaction(api.platform.pool) as conn:
         history = store.status_history(conn, charge_id=_id(sample, "chg-l-1002"))
