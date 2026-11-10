@@ -11,6 +11,15 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 
+def _utc(conn: Connection[dict[str, Any]]) -> None:
+    """Every session reads and writes times in UTC, whatever the server's TimeZone, so a
+    datetime read back is UTC and its .date() is the UTC day (status dates, midnights).
+    Set with SET on each new connection rather than a startup option, which a connection
+    pooler may not pass on."""
+    conn.execute("set time zone 'UTC'")
+    conn.commit()
+
+
 def open_pool(
     database_url: str, *, max_size: int = 10
 ) -> ConnectionPool[Connection[dict[str, Any]]]:
@@ -20,6 +29,7 @@ def open_pool(
         max_size=max_size,
         kwargs={"row_factory": dict_row, "autocommit": False},
         connection_class=Connection[dict[str, Any]],
+        configure=_utc,
         open=False,
     )
     pool.open(wait=True)
