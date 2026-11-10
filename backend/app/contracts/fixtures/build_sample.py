@@ -1,4 +1,4 @@
-"""Writes the sample grant's JSON from its documents.
+"""Writes the sample grant's JSON (JavaScript Object Notation) from its documents.
 
 Every citation's characters are counted, not typed.
 
@@ -197,7 +197,7 @@ def records() -> list[dict[str, Any]]:
                 "6. Other                                               $60,000",
                 "Other",
                 "$60,000",
-                "other",
+                "other_direct_costs_other",
             ),
         ),
         record(

@@ -21,7 +21,7 @@ class Workspace(Model):
 class Grant(Model):
     id: Id
     workspace_id: Id
-    funder: Literal["NSF"] = "NSF"  # NSF only for now
+    funder: Literal["NSF"] = "NSF"  # the National Science Foundation (NSF) only for now
     # Empty until the award letter is read. The terms themselves are records.
     award_number: str | None = None
     title: str | None = None

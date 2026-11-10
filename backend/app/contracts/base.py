@@ -1,7 +1,8 @@
 """The base every contract model shares, and the conventions in docs/contracts.md.
 
 - IDs are strings. User IDs are Supabase auth UUIDs written as strings.
-- Timestamps are timezone-aware and stored in UTC. Records carry the workspace clock's "now".
+- Timestamps are timezone-aware and stored in UTC (Coordinated Universal Time).
+  Records carry the workspace clock's "now".
 - Money is an integer number of cents in US dollars. Credits are negative.
 - Dates with no time are calendar dates.
 - Contract models reject unknown fields and can't be changed after they're created.

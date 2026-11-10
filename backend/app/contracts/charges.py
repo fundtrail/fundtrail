@@ -22,7 +22,7 @@ class Charge(Model):
         date  # when the ledger recorded it; the 60 days for missing evidence count from here
     )
     # When it reached FundTrail; the clock uses this one. For an uploaded ledger
-    # file, 00:00 UTC on the posting date.
+    # file, 00:00 UTC (Coordinated Universal Time) on the posting date.
     arrived_at: UtcDatetime
     amount_cents: Cents  # negative for a reversal, a transfer out or a credit
     description: str
@@ -36,7 +36,9 @@ class Charge(Model):
 
 
 class LedgerRow(Model):
-    """One row of a ledger file (CSV or Excel). The header row uses these names, in any order.
+    """One row of a ledger file: CSV (comma-separated values) or Excel.
+
+    The header row uses these names, in any order.
 
     An empty cell is a missing value: pass it as None.
     """

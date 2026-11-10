@@ -1,5 +1,7 @@
 """The checks' interface (docs/contracts.md section 8).
 
+Buckets and checks follow the National Science Foundation (NSF) rules in docs/domain.md.
+
 run_checks is a pure function, with no database and no model inside. W2
 implements it in backend/app/checks/ with the signature declared here; callers
 import it from there. Code checks six clear-cut rules (five about a charge, one,
@@ -7,11 +9,12 @@ the budget, about the grant), and asks the agent questions for what it can't
 settle. It reads only confirmed terms.
 """
 
+from collections.abc import Iterable
 from datetime import date
 from enum import StrEnum
 from typing import Protocol
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from .base import Cents, Id, Model, Text, UtcDatetime
 from .charges import Charge
@@ -43,7 +46,7 @@ SEVERITY = (
 )
 
 
-def most_serious(buckets: list[Bucket]) -> Bucket:
+def most_serious(buckets: Iterable[Bucket]) -> Bucket:
     return min(buckets, key=SEVERITY.index)
 
 
@@ -55,7 +58,7 @@ class Problem(Model):
     # note or a snooze can tell "the same problem", for example "after_end_date".
     problem: Id
     text: Text  # built by code
-    record_ids: list[Id] = Field(default_factory=list[Id])  # the records it rests on
+    record_ids: tuple[Id, ...] = ()  # the records it rests on
 
 
 class Reason(Problem):
@@ -86,7 +89,7 @@ class ChecklistEntry(Model):
     period: Period | None = None
     expected_by: date | None = None
     filled: bool
-    link_ids: list[Id] = Field(default_factory=list[Id])  # the current links that fill it
+    link_ids: tuple[Id, ...] = ()  # the current links that fill it
     removal_waiting_id: Id | None = None  # the agent's removal of it, waiting for the accountant
 
     @model_validator(mode="after")
@@ -102,8 +105,8 @@ class ChargeStatus(Model):
     grant_id: Id
     charge_id: Id
     bucket: Bucket  # the bucket the checks give, whether or not the accountant accepted a reason
-    reasons: list[Reason]  # every reason, passes included
-    checklist: list[ChecklistEntry]
+    reasons: tuple[Reason, ...]  # every reason, passes included
+    checklist: tuple[ChecklistEntry, ...]
     flagged: bool  # on the accountant's problem list
     rechecking: bool = False  # the agent is answering again; the bucket keeps its last answer
     accepted: bool = False  # shows as Accepted; never counted as Evidence complete
@@ -122,7 +125,7 @@ class RecordStatus(Model):
     grant_id: Id
     record_id: Id | None = None
     file_id: Id | None = None
-    problems: list[Problem]
+    problems: tuple[Problem, ...]
     flagged: bool
     accepted: bool = False
     snoozed: bool = False
@@ -138,7 +141,7 @@ class GrantStatus(Model):
     """Problems on the grant itself, such as spending over the award's limit. They're listed."""
 
     grant_id: Id
-    problems: list[Problem]
+    problems: tuple[Problem, ...]
     flagged: bool
     accepted: bool = False
     snoozed: bool = False
@@ -150,7 +153,7 @@ class GrantNote(Model):
     grant_id: Id
     check: Id
     text: Text  # built by code
-    record_ids: list[Id] = Field(default_factory=list[Id])
+    record_ids: tuple[Id, ...] = ()
 
 
 class OpenQuestion(Model):
@@ -182,21 +185,21 @@ class ChecksInput(Model):
     """
 
     now: UtcDatetime
-    charges: list[Charge]
-    files: list[EvidenceFile]
-    records: list[Record]
+    charges: tuple[Charge, ...]
+    files: tuple[EvidenceFile, ...]
+    records: tuple[Record, ...]
     # The agent runs that failed after their last retry. The checks raise a
     # problem on the file or charge that triggered each one, so it reaches the
     # problem list.
-    failed_runs: list[AgentRun] = Field(default_factory=list[AgentRun])
+    failed_runs: tuple[AgentRun, ...] = ()
 
 
 class ChecksOutput(Model):
-    charges: list[ChargeStatus]  # one per charge in the input
-    records: list[RecordStatus]  # each record or file with a problem of its own
-    grants: list[GrantStatus]  # each grant with a problem of its own
-    questions: list[OpenQuestion]  # every required question without a current answer
-    notes: list[GrantNote]
+    charges: tuple[ChargeStatus, ...]  # one per charge in the input
+    records: tuple[RecordStatus, ...]  # each record or file with a problem of its own
+    grants: tuple[GrantStatus, ...]  # each grant with a problem of its own
+    questions: tuple[OpenQuestion, ...]  # every required question without a current answer
+    notes: tuple[GrantNote, ...]
 
 
 class RunChecks(Protocol):

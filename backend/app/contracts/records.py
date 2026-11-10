@@ -30,7 +30,8 @@ from .base import Cents, Id, Model, Text, UtcDatetime
 if TYPE_CHECKING:
     from .charges import Charge
 
-# Citations. Locations use the Anthropic API's own names and counting, so the
+# Citations. Locations use the Anthropic API's (application programming
+# interface's) own names and counting, so the
 # agent copies them over unchanged.
 
 
@@ -49,7 +50,7 @@ class CharLocation(Model):
 
 
 class PageLocation(Model):
-    """A PDF with real text: page numbers from 1, end exclusive."""
+    """A PDF (Portable Document Format file) with real text: page numbers from 1, end exclusive."""
 
     type: Literal["page_location"] = "page_location"
     start_page_number: int = Field(ge=1)
@@ -132,7 +133,7 @@ class Citation(Model):
     # The write check refuses a citation that hasn't been matched.
     match: Match | None = None
     # For a PDF: where the highlight goes, found once when the record is saved.
-    highlight: list[PageBox] | None = None
+    highlight: tuple[PageBox, ...] | None = None
 
     @model_validator(mode="after")
     def _shape(self):
@@ -154,7 +155,11 @@ class Citation(Model):
 class Cited[T](Model):
     """A value read from a document, or typed by the accountant.
 
-    The agent always cites. A value the accountant enters has no citation.
+    The agent always cites, unless it marks the value `uncited`: read from the
+    document, but with no citation to show for it. The mark is valid only with
+    no citation. An uncited value is always unconfirmed, until the accountant
+    confirms the record it's in or types the value. A value the accountant
+    enters has no citation.
     """
 
     value: T
@@ -162,11 +167,14 @@ class Cited[T](Model):
     # It has to appear in the citation's passage (trust rule 2).
     text: str | None = None
     citation: Citation | None = None
+    uncited: bool = False
 
     @model_validator(mode="after")
     def _text_with_citation(self):
         if self.citation is not None and not self.text:
             raise ValueError("a cited value needs the text it was read from")
+        if self.uncited and self.citation is not None:
+            raise ValueError("a value marked uncited has no citation")
         return self
 
 
@@ -289,7 +297,13 @@ class PeriodOfPerformance(_Term):
 
 
 class BudgetCategory(StrEnum):
-    """NSF's standard budget categories. Other Direct Costs contains its six sub-lines."""
+    """The National Science Foundation's (NSF's) standard budget categories.
+
+    Other Direct Costs contains its six sub-lines, each a category of its own.
+    The sub-lines of Participant Support Costs (stipends, travel, subsistence,
+    other) and of Travel (domestic, international) are budget lines of their
+    own, with their amounts, and their category is their parent's.
+    """
 
     SENIOR_PERSONNEL = "senior_personnel"
     OTHER_PERSONNEL = "other_personnel"
@@ -303,7 +317,7 @@ class BudgetCategory(StrEnum):
     CONSULTANT_SERVICES = "consultant_services"
     COMPUTER_SERVICES = "computer_services"
     SUBAWARDS = "subawards"
-    OTHER = "other"
+    OTHER_DIRECT_COSTS_OTHER = "other_direct_costs_other"  # "Other", the sixth sub-line
 
 
 # The category each sub-line sits inside.
@@ -315,7 +329,7 @@ CATEGORY_PARENT: dict[BudgetCategory, BudgetCategory] = {
         BudgetCategory.CONSULTANT_SERVICES,
         BudgetCategory.COMPUTER_SERVICES,
         BudgetCategory.SUBAWARDS,
-        BudgetCategory.OTHER,
+        BudgetCategory.OTHER_DIRECT_COSTS_OTHER,
     )
 }
 
@@ -381,7 +395,9 @@ class Notice(_Term):
 
 
 class OtherTerm(_Term):
-    """Anything an award letter or amendment says that no other kind holds, such as a PI on leave.
+    """Anything an award letter or amendment says that no other kind holds.
+
+    For example a principal investigator (PI) on leave.
 
     It's in force from its own date on, and the agent reads any dates inside its statement.
     """
@@ -417,7 +433,7 @@ class Bill(Model):
     document_number: CitedText | None = (
         None  # the invoice or order number, often on the ledger line too
     )
-    items: list[BillItem] = Field(default_factory=list[BillItem])
+    items: tuple[BillItem, ...] = ()
 
 
 class Approval(Model):
@@ -459,9 +475,8 @@ class Link(Model):
     kind: Literal[RecordKind.LINK] = RecordKind.LINK
     record_id: Id  # the bill, approval or note
     charge_id: Id
-    amount_cents: Cents | None = (
-        None  # only when the item it fills carries an amount; negative for a credit
-    )
+    # Only when the item it fills carries an amount. Negative for a credit.
+    amount_cents: Cents | None = None
     part: Citation | None = None  # the agent always gives one
     item_record_id: Id | None = None
     default_item: Id | None = None
@@ -480,7 +495,7 @@ class BudgetAssignment(Model):
     kind: Literal[RecordKind.BUDGET_ASSIGNMENT] = RecordKind.BUDGET_ASSIGNMENT
     charge_id: Id
     record_id: Id  # the budget_line term
-    reason: str | None = None  # one line on why
+    reason: Text  # one line on why
 
 
 class Question(StrEnum):
@@ -513,8 +528,8 @@ class Judgment(Model):
     answer: Answer
     reasoning: Text
     rule: str | None = None  # the ID of the rulebook rule the answer used
-    quotes: list[Citation] = Field(default_factory=list[Citation])
-    rests_on: list[Id] = Field(default_factory=list[Id])  # the record IDs the answer depends on
+    quotes: tuple[Citation, ...] = ()
+    rests_on: tuple[Id, ...] = ()  # the record IDs the answer depends on
 
     @model_validator(mode="after")
     def _subject(self):
@@ -624,7 +639,7 @@ class Dispute(Model):
     charge_id: Id
     check: Id  # the check's stable ID, for example "period_of_performance"
     reasoning: Text
-    quotes: list[Citation] = Field(min_length=1)
+    quotes: tuple[Citation, ...] = Field(min_length=1)
 
 
 class Duplicate(Model):
@@ -659,7 +674,7 @@ class Confirmation(Model):
     """
 
     kind: Literal[RecordKind.CONFIRMATION] = RecordKind.CONFIRMATION
-    record_ids: list[Id] = Field(min_length=1)
+    record_ids: tuple[Id, ...] = Field(min_length=1)
     decision: Decision = Decision.CONFIRMED
 
 
@@ -697,9 +712,8 @@ class AcceptedReason(_Subject):
     # When accepting a note offered on a similar charge: the accepted reason whose
     # note this reuses. reusable then says whether the note's amount limit rises.
     reuses_id: Id | None = None
-    rests_on: list[Id] = Field(
-        default_factory=list[Id]
-    )  # the records the reason rested on when accepted
+    # The records the reason rested on when accepted.
+    rests_on: tuple[Id, ...] = ()
 
 
 class Snooze(_Subject):
@@ -708,9 +722,8 @@ class Snooze(_Subject):
     kind: Literal[RecordKind.SNOOZE] = RecordKind.SNOOZE
     until: date
     note: Text
-    reasons: list[ReasonRef] = Field(
-        min_length=1
-    )  # the reasons it covered, so a new one brings it back
+    # The reasons it covered, so a new one brings it back.
+    reasons: tuple[ReasonRef, ...] = Field(min_length=1)
 
 
 class SignOff(Model):
@@ -768,7 +781,7 @@ def cited_values(model: BaseModel, prefix: str = "") -> Iterator[tuple[str, Cite
             yield path, value
         elif isinstance(value, BaseModel) and not isinstance(value, Citation):
             yield from cited_values(value, f"{path}.")
-        elif isinstance(value, list):
+        elif isinstance(value, tuple):
             for i, item in enumerate(value):  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
                 if isinstance(item, Cited):
                     yield f"{path}[{i}]", item
@@ -783,7 +796,7 @@ def citations(model: BaseModel) -> Iterator[Citation]:
             yield value
         elif isinstance(value, BaseModel):
             yield from citations(value)
-        elif isinstance(value, list):
+        elif isinstance(value, tuple):
             for item in value:  # pyright: ignore[reportUnknownVariableType]
                 if isinstance(item, Citation):
                     yield item
@@ -829,8 +842,10 @@ class Record(Model):
             if self.data.kind in ACCOUNTANT_KINDS:
                 raise ValueError(f"only the accountant writes a {self.data.kind} record")
             for path, value in cited_values(self.data):
-                if value.citation is None:
-                    raise ValueError(f"the agent's value '{path}' needs a citation")
+                if value.citation is None and not value.uncited:
+                    raise ValueError(
+                        f"the agent's value '{path}' needs a citation, or is marked uncited"
+                    )
             if isinstance(self.data, Link) and self.data.part is None:
                 raise ValueError("the agent's link needs a part")
             data = self.data

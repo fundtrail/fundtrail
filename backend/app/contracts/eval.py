@@ -1,7 +1,7 @@
 """The eval answer key (docs/contracts.md section 14).
 
-One JSON file per case, written before the case's documents. How each part is
-matched and scored is in that section.
+One JSON (JavaScript Object Notation) file per case, written before the case's
+documents. How each part is matched and scored is in that section.
 """
 
 from pydantic import Field
@@ -50,8 +50,8 @@ class ExpectedBucket(Model):
 class AnswerKey(Model):
     case: Text
     award_number: str = Field(pattern=r"^SYN-")
-    records: list[ExpectedRecord]
-    links: list[ExpectedLink]
-    budget_lines: list[ExpectedBudgetLine]
-    answers: list[ExpectedAnswer]
-    buckets: list[ExpectedBucket]
+    records: tuple[ExpectedRecord, ...]
+    links: tuple[ExpectedLink, ...]
+    budget_lines: tuple[ExpectedBudgetLine, ...]
+    answers: tuple[ExpectedAnswer, ...]
+    buckets: tuple[ExpectedBucket, ...]

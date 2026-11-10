@@ -208,9 +208,13 @@ def test_budget_categories():
     assert categories_match(
         BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER_DIRECT_COSTS
     )
-    assert categories_match(BudgetCategory.OTHER_DIRECT_COSTS, BudgetCategory.OTHER)
+    assert categories_match(
+        BudgetCategory.OTHER_DIRECT_COSTS, BudgetCategory.OTHER_DIRECT_COSTS_OTHER
+    )
     assert categories_match(BudgetCategory.TRAVEL, BudgetCategory.TRAVEL)
-    assert not categories_match(BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER)
+    assert not categories_match(
+        BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER_DIRECT_COSTS_OTHER
+    )
     assert not categories_match(
         BudgetCategory.PARTICIPANT_SUPPORT, BudgetCategory.OTHER_DIRECT_COSTS
     )
@@ -246,8 +250,8 @@ def test_a_charges_bucket_is_its_most_serious_reason():
         grant_id="g",
         charge_id="c",
         bucket=Bucket.POSSIBLE_CONFLICT,
-        reasons=reasons,
-        checklist=[],
+        reasons=tuple(reasons),
+        checklist=(),
         flagged=True,
     )
     with pytest.raises(ValidationError):
@@ -255,8 +259,8 @@ def test_a_charges_bucket_is_its_most_serious_reason():
             grant_id="g",
             charge_id="c",
             bucket=Bucket.MISSING_EVIDENCE,
-            reasons=reasons,
-            checklist=[],
+            reasons=tuple(reasons),
+            checklist=(),
             flagged=True,
         )
 
@@ -300,7 +304,9 @@ def test_thread_message_rules():
 
 def test_run_checks_is_declared_for_w2():
     with pytest.raises(NotImplementedError):
-        run_checks(ChecksInput(now=at(0), charges=[CHARGE], files=[], records=[user("b", bill())]))
+        run_checks(
+            ChecksInput(now=at(0), charges=(CHARGE,), files=(), records=(user("b", bill()),))
+        )
 
 
 def test_api_bodies_have_json_schemas():

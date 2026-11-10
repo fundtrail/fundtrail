@@ -32,12 +32,12 @@ class SampleGrant(Model):
     user: User  # the accountant
     workspace: Workspace
     grant: Grant
-    charges: list[Charge]
-    files: list[EvidenceFile]
-    records: list[Record]  # in the order they were written
+    charges: tuple[Charge, ...]
+    files: tuple[EvidenceFile, ...]
+    records: tuple[Record, ...]  # in the order they were written
     # Each charge's default checklist items, by ledger line ID: a stand-in for
     # the checks' table of account groups (W2), as section 15 gives them.
-    default_items: dict[str, list[DefaultItem]]
+    default_items: dict[str, tuple[DefaultItem, ...]]
 
     def document(self, file_id: str) -> str:
         """The text of one of the sample's files."""
@@ -46,7 +46,7 @@ class SampleGrant(Model):
 
     def sample_default_items(self, charge: Charge, records: Sequence[Record]) -> list[DefaultItem]:
         """Matches rules.DefaultItems, for passing to check_new_record."""
-        return self.default_items.get(charge.ledger_line_id, [])
+        return list(self.default_items.get(charge.ledger_line_id, ()))
 
 
 @cache

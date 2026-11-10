@@ -1,4 +1,6 @@
-"""API bodies that docs/contracts.md section 12 settles. The endpoint list is in that section.
+"""API (application programming interface) bodies that docs/contracts.md section 12 settles.
+
+The endpoint list is in that section.
 
 What the grant, charge and evidence screens get from the server isn't settled
 yet, so their bodies aren't here. W4 writes the routes in backend/app/api/, and
@@ -64,7 +66,7 @@ class LedgerUploadResult(Model):
 
     added: int
     already_present: int  # lines whose line ID was already on file
-    rejected: list[RowError]
+    rejected: tuple[RowError, ...]
 
 
 class NewRecord(Model):
@@ -77,7 +79,7 @@ class NewRecord(Model):
 class WriteRejected(Model):
     """The 422 body when the write check finds problems."""
 
-    detail: list[str]
+    detail: tuple[str, ...]
 
 
 class FileLink(Model):

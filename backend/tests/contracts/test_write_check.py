@@ -197,12 +197,24 @@ def test_the_accountant_confirms_at_most_one_replacement():
 
 def test_a_budget_assignment_points_to_a_budget_line_and_is_the_only_one():
     line, b = user("t1", budget_line()), agent("b1", bill())
-    first = agent("a1", {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1"}, 1)
+    first = agent(
+        "a1",
+        {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1", "reason": "Supplies."},
+        1,
+    )
     assert problems(first, [line, b]) == []
-    second = agent("a2", {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1"}, 2)
+    second = agent(
+        "a2",
+        {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1", "reason": "Supplies."},
+        2,
+    )
     assert has(problems(second, [line, b, first]), "already has a current budget assignment")
     assert problems(second.model_copy(update={"replaces_id": "a1"}), [line, b, first]) == []
-    wrong = agent("a3", {"kind": "budget_assignment", "charge_id": "c1", "record_id": "b1"}, 2)
+    wrong = agent(
+        "a3",
+        {"kind": "budget_assignment", "charge_id": "c1", "record_id": "b1", "reason": "Supplies."},
+        2,
+    )
     assert has(problems(wrong, [line, b]), "points to a budget_line")
 
 
