@@ -289,3 +289,29 @@ def test_runs_dont_show_the_debug_log_path(api: Api) -> None:
     grant = _grant(api, _workspace(api)["id"])
     [run] = api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
     assert "log_path" not in run
+
+
+def test_a_notice_that_counts_names_the_grant(api: Api) -> None:
+    """Issue 118: once a notice counts, its award number and title are the grant's."""
+    grant = _grant(api, _workspace(api)["id"])
+    response = _post_record(
+        api,
+        grant["id"],
+        {
+            "kind": "notice",
+            "dated": {"value": "2023-01-10"},
+            "amendment_number": {"value": "000"},
+            "amendment_type": {"value": "New Project"},
+            "award_number": {"value": "SYN-2300117"},
+            "title": {"value": "Sediment Microbiome Survey of Example Bay"},
+        },
+    )
+    assert response.status_code == 201, response.text
+    with api.platform.pool.connection() as conn:
+        row = conn.execute(
+            "select award_number, title from public.grants where id = %s", (grant["id"],)
+        ).fetchone()
+    assert row == {
+        "award_number": "SYN-2300117",
+        "title": "Sediment Microbiome Survey of Example Bay",
+    }

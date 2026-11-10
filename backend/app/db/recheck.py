@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from datetime import datetime
 
 from app.contracts.checks import ChecksInput, ChecksOutput, GrantStatus, RecordStatus
+from app.contracts.rules import RecordState, award_number_and_title
 from app.contracts.runs import Trigger
 from app.contracts.workspaces import Grant
 
@@ -33,15 +34,20 @@ def recheck_grant(
     `charge_triggers` gives a charge its own trigger, such as the charge itself when a
     ledger upload adds it; every other change gets `trigger`.
     """
+    records = store.list_records(conn, grant.id, now)
+    files = store.list_files(conn, grant.id, now)
     output = checks.run_checks(
         ChecksInput(
             now=now,
             charges=tuple(store.list_charges(conn, grant.id, now)),
-            files=tuple(store.list_files(conn, grant.id, now)),
-            records=tuple(store.list_records(conn, grant.id, now)),
+            files=tuple(files),
+            records=tuple(records),
             failed_runs=tuple(store.failed_runs(conn, grant.id)),
         )
     )
+    # The grant's award number and title follow the notices that count (issue 118).
+    number, title = award_number_and_title(RecordState(records, files))
+    store.set_award_number_and_title(conn, grant.id, number, title)
     statuses: list[Status] = [
         *(s for s in output.charges if s.grant_id == grant.id),
         *(s for s in output.records if s.grant_id == grant.id),
