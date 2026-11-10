@@ -73,8 +73,10 @@ def let_in_released(p: Platform, conn: Conn, grant: Grant, now: datetime) -> lis
     for held in grant_held_mail(conn, grant, now):
         if still_held(held, state, known) or _dismissed(held, state):
             continue
+        # Arrived already. has_gmail_message, not has_message: has_message counts the held
+        # row itself, so it would always say yes here.
         if store.has_gmail_message(conn, grant.id, held.source_ref):
-            continue  # it arrived already
+            continue
         parent: str | None = None
         for held_file in held.files:
             file_id = str(uuid.uuid4())

@@ -41,7 +41,7 @@ def _ledger(api: Api, grant_id: str, content: bytes) -> Any:
 
 def test_workspaces_are_created_and_listed(api: Api) -> None:
     workspace = _workspace(api)
-    assert workspace["name"] == "Lab" and workspace["clock_now"] is None
+    assert workspace["name"] == "Lab" and "clock_now" not in workspace
     assert workspace["owner_id"] == api.user_id
     assert api.client.get("/workspaces", headers=api.headers).json() == [workspace]
 

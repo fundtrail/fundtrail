@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
 
-from ..base import Model
+from ..base import Model, UtcDatetime
 from ..charges import Charge
 from ..eval import AnswerKey
 from ..evidence import EvidenceFile
@@ -32,6 +32,10 @@ class SampleGrant(Model):
     user: User  # the accountant
     workspace: Workspace
     grant: Grant
+    # The clock time the sample is written up to: the last record's written_at. A test
+    # that plays the sample on a grant with a stored clock sets the grant's clock to it.
+    # The sample's grant itself is a real grant, so its own clock_now is empty.
+    now: UtcDatetime
     charges: tuple[Charge, ...]
     files: tuple[EvidenceFile, ...]
     records: tuple[Record, ...]  # in the order they were written

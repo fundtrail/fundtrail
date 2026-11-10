@@ -33,8 +33,6 @@ export interface Workspace {
   id: Id;
   name: string;
   owner_id: Id;
-  /** The workspace clock's "now"; null means the real date. */
-  clock_now?: IsoDatetime | null;
 }
 
 export interface Grant {
@@ -697,34 +695,14 @@ export interface SnapshotChange {
 }
 export type SignOffStateName = "not_signed" | "signed" | "changed";
 
-// --- api.py: workspaces and the clock ---
+// --- api.py: workspaces ---
 
 export interface WorkspaceCreate {
   name: string;
 }
 
+/** Where a timeline event comes from. */
 export type ArrivalSource = "ledger" | "gmail" | "drive" | "upload";
-
-/** The next item waiting for the clock: when, where from and its name. Not its contents. */
-export interface NextArrival {
-  at: IsoDatetime;
-  source: ArrivalSource;
-  /** The file name, or the ledger line ID. */
-  name: string;
-}
-
-export interface Clock {
-  now: IsoDatetime;
-  /** False when the workspace runs on the real date. */
-  simulated: boolean;
-  next_arrival_at?: IsoDatetime | null;
-  next_arrival?: NextArrival | null;
-}
-
-/** POST /workspaces/{workspace_id}/clock. No `to` moves to the next arrival. */
-export interface ClockMove {
-  to?: IsoDatetime | null;
-}
 
 // --- api.py: what code works out about a record ---
 
@@ -828,6 +806,8 @@ export interface PlayedEvent {
   scripted_decisions?: FtRecord[];
   /** The result was loaded from the prerun, not worked live. */
   loaded?: boolean;
+  /** An item the user was to deliver, delivered for them by the sample accountant (ruling 52). */
+  delivered_by_sample_accountant?: boolean;
 }
 
 export interface UserDelivery {

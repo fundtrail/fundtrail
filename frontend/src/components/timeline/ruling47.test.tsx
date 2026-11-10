@@ -27,11 +27,74 @@ describe("skipping the human steps (ruling 47)", () => {
     const api = createFakeApiClient();
     await api.startOver(SAMPLE_GRANT_ID, true);
     const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
-    // Both uploads were delivered for the user.
+    // Both uploads were delivered for the user, and say so under Just happened.
     expect(view.now.deliveries).toEqual([]);
+    expect((view.just_happened ?? []).map((p) => [p.event.name, p.delivered_by_sample_accountant])).toEqual([
+      ["award_letter.txt", true],
+      ["invoice_1001.txt", true],
+      ["L-1001", false],
+    ]);
     // The accountant's confirmation of the award terms is listed under the event it follows.
     const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id));
     expect(decisions).toEqual(["rec-confirm-award-terms"]);
+  });
+
+  it("lists the award-terms confirmation after Start over and a skipped Next event (ruling 55)", async () => {
+    const api = createFakeApiClient();
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    const view = await api.moveTimeline(SAMPLE_GRANT_ID, { skip_human_steps: true });
+    const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => [p.event.name, d.id]));
+    // Under the award letter, the latest event this move delivered at or before it, and only once.
+    expect(decisions).toEqual([["award_letter.txt", "rec-confirm-award-terms"]]);
+  });
+
+  it("never lists a decision under an earlier move's delivery, and lists each once", async () => {
+    const api = createFakeApiClient();
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    await api.deliverForMe(SAMPLE_GRANT_ID, "event-file-award-letter");
+    const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
+    expect((view.just_happened ?? []).map((p) => p.event.name)).toEqual(["invoice_1001.txt", "L-1001"]);
+    // Nothing this move happened before the decision, so it goes under the move's first event.
+    const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => [p.event.name, d.id]));
+    expect(decisions).toEqual([["invoice_1001.txt", "rec-confirm-award-terms"]]);
+  });
+
+  it("credits the user only when the flag is false and the item really was delivered", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    const base = await client.getTimeline(SAMPLE_GRANT_ID);
+    const awardLetter = base.now.deliveries![0].event;
+    const invoice = { ...awardLetter, id: "event-file-invoice-1001", name: "invoice_1001.txt" };
+    const receipt = { ...awardLetter, id: "event-receipt", name: "receipt.jpg" };
+    const view: TimelineView = {
+      ...base,
+      // The award letter is still waiting in Now, so its unflagged entry credits nobody.
+      just_happened: [
+        { event: awardLetter, delivered_by_sample_accountant: false },
+        { event: invoice, delivered_by_sample_accountant: true },
+        { event: receipt },
+      ],
+    };
+    vi.spyOn(client, "getTimeline").mockResolvedValue(view);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    const just = await waitFor(() => part("Just happened"));
+    const items = await within(just).findAllByRole("listitem");
+    expect(within(items[0]).queryByText("Delivered by you.")).toBeNull();
+    expect(within(items[1]).getByText("Delivered for you by the sample accountant")).toHaveClass("ft-tl__delivered");
+    // No flag at all: nobody is credited.
+    expect(within(items[2]).queryByText("Delivered by you.")).toBeNull();
+    expect(within(items[2]).queryByText("Delivered for you by the sample accountant")).toBeNull();
+  });
+
+  it("shows the user's own delivery under Just happened, untagged", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    const deliver = await screen.findByRole("button", { name: "Deliver for me" });
+    await waitFor(() => expect(deliver).toBeEnabled());
+    fireEvent.click(deliver);
+    await waitFor(() => expect(within(part("Just happened")).getByText("Delivered by you.")).toBeInTheDocument());
+    expect(within(part("Just happened")).queryByText("Delivered for you by the sample accountant")).toBeNull();
   });
 
   it("sends skip_human_steps from Next event and Go to a date when chosen", async () => {
@@ -43,10 +106,15 @@ describe("skipping the human steps (ruling 47)", () => {
     fireEvent.click(screen.getByLabelText("Skip the human steps"));
     fireEvent.click(next);
     await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { skip_human_steps: true }));
+    // What the sample accountant delivered shows under Just happened, not just gone from Now.
+    await waitFor(() => expect(within(part("Just happened")).getAllByText("Delivered for you by the sample accountant")).toHaveLength(2));
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await waitFor(() => expect(move).toHaveBeenLastCalledWith(SAMPLE_GRANT_ID, { to: "2025-11-15T00:00:00Z", skip_human_steps: true }));
+    // The date field starts empty again.
+    expect((screen.getByLabelText("Go to a date") as HTMLInputElement).value).toBe("");
+
   });
 
   it("marks loaded results, lists the sample accountant's decisions, and says when the grant is off the run-through", async () => {
