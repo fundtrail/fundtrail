@@ -233,11 +233,19 @@ def test_another_users_sample_is_404(api: Api, signer: Any) -> None:
     assert _post(api, f"/grants/{grant_id}/timeline", {}, other).status_code == 404
 
 
-def test_a_second_copy_of_a_sample_in_one_workspace_is_refused(api: Api) -> None:
+def test_two_copies_of_a_sample_in_one_workspace_each_take_their_ledger(api: Api) -> None:
+    """Ruling 56: ledger line IDs are unique per grant, so a second copy plays as the first."""
     workspace_id = _workspace(api)
-    _open(api, "small_live", workspace_id)
-    again = _post(api, f"/workspaces/{workspace_id}/samples", {"choice": "small_live"})
-    assert again.status_code == 422 and "already has this sample" in again.json()["detail"][0]
+    first = _open(api, "small_live", workspace_id)
+    second = _open(api, "small_live", workspace_id)
+    for grant_id in (first, second):
+        _move(api, grant_id, "2026-11-17T00:00:00Z")
+    with transaction(api.platform.pool) as conn:
+        lines = [
+            sorted(c.ledger_line_id for c in store.list_charges(conn, g, store.END_OF_TIME))
+            for g in (first, second)
+        ]
+    assert len(lines[0]) == 7 and lines[0] == lines[1]
 
 
 # The read-live limit (ruling 48, first version).
@@ -322,12 +330,3 @@ def test_one_move_at_a_time_per_user(api: Api) -> None:
         assert _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
         assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, "someone-else"))
     assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
-
-
-def test_two_opens_in_one_workspace_take_turns(api: Api) -> None:
-    from app.db import sample_store
-
-    workspace_id = _workspace(api)
-    with transaction(api.platform.pool) as held:
-        sample_store.lock_workspace(held, workspace_id)
-        assert _blocked(api, lambda conn: sample_store.lock_workspace(conn, workspace_id))

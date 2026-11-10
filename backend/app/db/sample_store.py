@@ -44,11 +44,6 @@ def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     return SampleMove(row["moved_from"], row["moved_to"]) if row else None
 
 
-def lock_workspace(conn: Conn, workspace_id: str) -> None:
-    """Take the workspace's row lock until the transaction ends."""
-    conn.execute("select 1 from public.workspaces where id = %s for update", (workspace_id,))
-
-
 def lock_users_moves(conn: Conn, user_id: str) -> None:
     """Take this user's sample-move lock until the transaction ends: one move of the user's
     sample clocks at a time, so the read-live limit sees every earlier move's runs."""

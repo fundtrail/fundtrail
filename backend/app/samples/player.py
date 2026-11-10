@@ -199,7 +199,7 @@ def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime)
         content,
         workspace_id=grant.workspace_id,
         grant_id=grant.id,
-        existing_line_ids=store.ledger_line_ids(conn, grant.workspace_id),
+        existing_line_ids=store.ledger_line_ids(conn, grant.id),
         now=at,
     )
     if read.rejected:
@@ -236,16 +236,6 @@ def open_sample(p: Platform, workspace_id: str, choice: SampleChoice) -> Grant:
     items = items_for(sample)
     move = plan_start(items, pack.starts_at)
     with transaction(p.pool) as conn:
-        # First version, pending a product answer: ledger line IDs are unique in a
-        # workspace, so a second copy of a sample there couldn't take its ledger in. The
-        # workspace's row lock keeps two opens from both passing the check.
-        sample_store.lock_workspace(conn, workspace_id)
-        if any(
-            g.sample and g.sample.sample == sample for g in store.list_grants(conn, workspace_id)
-        ):
-            raise SampleError(
-                "This workspace already has this sample. Open it in another workspace."
-            )
         grant = store.create_grant(conn, workspace_id)
         store.get_grant(conn, grant.id, lock=True)
         info = GrantSample(sample=sample, choice=choice)
