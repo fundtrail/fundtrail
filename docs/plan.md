@@ -115,6 +115,6 @@ A small correction inside one area doesn't need a decision file. The PR descript
 | Item | Who settles it |
 |---|---|
 | How to demo | product |
-| Issues for the work in decisions 0010 to 0012, the contract PR they need, and which parts are core | both leads |
+| Issues for the work in decisions 0010 to 0012, and the contract PR they need. Review threads are core. | both leads |
 | The demo data | product (Alex and Grant), built by W3 |
 | The agent's exact actions and prompts: a W1 task of its own, which can go to a worker. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1) |

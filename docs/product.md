@@ -193,6 +193,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 - The demo situations
 - Adding a grant from its award letter, including the from-scratch seed pack
 - The agent and the checks
+- Review threads, including asking the agent a question
 - Provenance, with the viewer and highlights
 - Ledger upload, the Gmail connector and uploads
 - Text, email, PDF and photo formats
@@ -242,7 +243,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | A cost shared by two grants while each grant is isolated: each grant's copy of the invoice shows the other grant's part as money never charged at closeout. How to show that without a false alarm. | product |
 | Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. Only link fixes were discussed. The contracts make every correction the agent writes wait, except a new answer to its own question, which [0010](decisions/0010-agent-suggests-accountant-decides.md) narrows. | product |
 | How the evidence report shows the agent's answers next to code's reasons | product |
-| Whether review threads and asking the agent are core or optional, and how they relate to the optional chat | product |
+| How the optional chat relates to review threads | product, if chat is built |
 | The default checklist for each ledger account, starting with Berkeley's account names. The demo ledger's account names have to match it. | product, then W2 |
 | How charges and records are sorted together on the problem list. A simple start: most serious first, then oldest. | product, with the screens |
 | How standing notes and confirmed duplicates are laid out | product, with the screens |
