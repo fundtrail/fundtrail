@@ -20,6 +20,9 @@ class Settings:
     worker_concurrency: int = 2
     # "inline" runs the job worker inside the API process; "off" leaves it to its own process.
     worker_mode: str = "inline"
+    # Local development only: accept tokens from Supabase's email sign-in, so the app runs
+    # on a local stack with no Google credentials. Refused for a project that isn't local.
+    dev_email_signin: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -33,4 +36,5 @@ class Settings:
             supabase_jwt_secret=os.environ.get("SUPABASE_JWT_SECRET") or None,
             worker_concurrency=int(os.environ.get("WORKER_CONCURRENCY", "2")),
             worker_mode=os.environ.get("WORKER_MODE", "inline"),
+            dev_email_signin=os.environ.get("FUNDTRAIL_DEV_EMAIL_SIGNIN", "") == "1",
         )
