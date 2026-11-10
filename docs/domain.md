@@ -24,6 +24,26 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 | Closeout | Reports to NSF and the final payment amount are due 120 days after the end date. Universities set earlier internal deadlines (see [Closeout](#closeout)). | 2 CFR 200.344, NSF PAPPG Chapters VII.D.4 and VIII.E |
 | Record retention | Records, including the supporting documents for every charge, are kept for 3 years. NSF counts from financial closeout. 2 CFR 200.334 counts from the final financial report. Some universities keep them longer, for example Stanford keeps 4 years. | 2 CFR 200.334, NSF PAPPG Chapter VII.E |
 
+## Evidence a charge needs
+
+Verify this section against Berkeley's own documentation requirements before writing the default checklists. It comes from UC Davis's list (see [What the university keeps](#what-the-university-keeps)) and general practice.
+
+- **Bills.** An invoice asks to be paid, and a receipt shows it was paid. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. FundTrail treats invoices, receipts and card slips as one kind of evidence. "Bill" is the working name.
+- **Many charges never have a bill:**
+
+| Kind of charge | Usual evidence |
+|---|---|
+| Salaries and wages | Appointment letter, salary rate, certified effort reports. One effort report often covers several months, and it's signed after the period ends. |
+| Fringe benefits | The benefit rate, applied to the salary |
+| Participant stipends | The participant list and payment records |
+| Travel per diem | The trip's dates and the per diem rate, instead of receipts |
+| Internal recharges, such as a core facility | The facility's usage statement |
+| Subaward payments | The partner institution's invoice |
+| Reversals and cost transfers | The line being corrected and a written explanation |
+
+- **These kinds overlap,** so FundTrail doesn't sort charges into fixed groups. One trip can be part airfare, with a receipt, and part per diem, at a rate. Each charge gets its own evidence checklist instead (see [product.md](product.md#the-evidence-checklist)).
+- **How soon evidence has to be on file.** We found no federal rule that sets a number of days. Universities set their own paperwork deadlines. FundTrail's 60 days is its own choice.
+
 ## Approvals
 
 - **Code decides an approver's role** by matching the sender against the people named in the award letter. The agent never decides who someone is.
@@ -95,6 +115,11 @@ The supporting documents for every charge, kept for the retention period and han
 | Project Outcomes Report | The PI's short public summary of a grant's results, filed in Research.gov at closeout |
 | Evidence report | FundTrail's PDF per grant: the proof behind every charge, attached to the university's closeout step |
 | General ledger | The accounting system's record of every charge to every grant |
+| Ledger account | The expense category the university's accounting system gives each ledger line, such as Materials and Supplies. Names differ between universities. |
+| Bill | FundTrail's working name for any document that bills for a cost: an invoice, a receipt or a card slip |
+| Effort report | A signed statement of how a person's time was split across projects. It backs salary charges. |
+| Per diem | A daily allowance for meals and lodging at a set rate, paid instead of itemized receipts |
+| Fringe benefits | Benefit costs such as health insurance and retirement, usually charged as a rate on salary |
 | Ledger line | One entry in the ledger, with an ID, transaction date, posting date and amount |
 | Transaction date, posting date | When the cost happened, and when the ledger recorded it |
 | Reversal, cost transfer | New ledger lines that undo or move an earlier charge. The ledger never edits a line. |
@@ -109,6 +134,7 @@ The supporting documents for every charge, kept for the retention period and han
 | The exact list of NSF rules for the hackathon build, and which are coded and which become questions for the agent | product |
 | The exact approval-channel rule, verified against NSF's pages | product |
 | Which universities' closeout steps to support after Berkeley | product |
+| The default evidence checklist for each of Berkeley's ledger accounts, verified against Berkeley's documentation requirements | product, then W2 |
 | How each rule is coded, and how rules are organized per funder | builder (W2) |
 
 ## Sources

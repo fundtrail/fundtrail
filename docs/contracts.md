@@ -2,7 +2,7 @@
 
 Contracts are the seams between workstreams. Once one is agreed, each side can build without waiting for the other. The design behind them is in [decisions/0009](decisions/0009-agent-judges-code-checks.md).
 
-**Status:** written as code. Alex and Grant approve changes together.
+**Status:** written as code. Alex and Grant approve changes together. Decisions [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md) and [0012](decisions/0012-checked-quotes-and-highlights.md) change these contracts. Those changes aren't in the code yet. Sections 1 to 12 describe the code as it is today, and [section 13](#13-agreed-changes-not-yet-in-the-code) lists what's coming.
 
 ## Where contracts live
 
@@ -295,20 +295,102 @@ Files: [`fixtures/golden/`](../backend/app/contracts/fixtures/golden/). Load it 
 
 The tests in `app/contracts/tests/` check that the fixture validates, that every passage is copied exactly from its document, that every record passes `check_new_record` when replayed in order, that the link sums balance, that the ledger file matches the charges, and that the answer key scores all right against the fixture's own agent records.
 
+## 13. Agreed changes not yet in the code
+
+Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract PR that both Alex and Grant approve, with the code that uses it. The names and fields here are a starting point, not decisions. Where this section and sections 1 to 12 disagree, this section is the direction and the earlier sections are today's code.
+
+**From 0010: the agent suggests, the accountant decides.**
+
+- **More of the agent's writes wait.** Today only its terms and its replacements wait, and a judgment replacing its own counts right away. After: a new judgment over its own waits when it would clear a problem, such as contradicts turning into supports, or unsure turning into supports with no new evidence. A refreshed answer that says the same thing, and any change toward a concern, still count right away. Removing a checklist item and disputing a check wait too.
+- **The agent can suggest a new answer to the accountant's.** Today it can't replace their judgments at all, but a second judgment written beside theirs counts. After: its suggestion waits, and theirs stays in force.
+- **One link in force for a bill and a charge.** A second link between the same two waits like a fix.
+- **No repeats.** After a rejection, the same suggestion or dispute is refused unless new evidence has arrived: something that arrived after the agent's last answer, or a grant term confirmed after it. Something the agent links later from what was already on file doesn't count.
+- **New records for the accountant's decisions:** accepting a reason with a note (the charge or record, the check and its reason, the note, and whether it's one-off or reusable), and snoozing until a date. Reopening an accepted reason uses the existing retraction. A reusable note's amount limit isn't stored: it's worked out from the acceptances the accountant clicked.
+- **A dispute record** from the agent: the charge, the check, its reasoning and quotes. While it waits, the disputed reason counts as Needs a human.
+- **A flag on a record.** Today a judgment needs a charge. A flag has to be able to point at a record alone.
+- **A thread messages table,** outside the records: what the thread is about (a charge or a record), who wrote it, the text, the time, and the agent run that wrote it. Never edited.
+- **The problem list.** Missing evidence is flagged 60 days past the date an item was expected, or from the closeout window, whichever comes first. Inside the window every missing item is flagged, even one that isn't due yet, and each reason carries the expected date. A missing approval is flagged right away. Records can be flagged too, which replaces most grant notes.
+- **Accepted and snoozed.** Today a Possible conflict or Needs a human charge is always flagged. After: a charge's status also says whether it's accepted or snoozed. Either one takes it off the list while it keeps its bucket. An accepted charge is counted on its own, never as Evidence complete.
+- **Reusable notes.** Code applies a reusable note to a later charge inside its limits. It offers the note on a charge with the same problem and ledger account that fails the vendor or amount limit.
+- **Agent runs.** A message in a thread starts a run, and it goes ahead of queued runs.
+- **The budget line.** Code asks for an approval when either the ledger's account or the agent's assignment says a rule applies. A disagreement between them is Needs a human.
+
+**From 0011: the evidence checklist.**
+
+- **`receipt` is renamed** to cover invoices, receipts and card slips. "Bill" is the working name.
+- **A checklist item record** on a charge: what's needed, who added it (the default, the agent or the accountant), and where they apply, a period, the date it's expected, and an amount rule (adds up, or quantity times rate).
+- **A link names the item it fills.** A link to an item with no amount carries no amount. Today a link has an amount exactly when it points at a receipt.
+- **The per-charge sum** becomes two checks: the bills linked to an item add up to the item's amount, and the amounts on a checklist add up to the charge. When an amount comes from a rate, both the quantity and the rate are cited.
+- **A charge with an empty checklist** is Needs a human.
+- **A document's period.** Code checks that a linked document covers an item's period, so a fact read from the document has to hold that period. Today a `note` holds only a label and a statement.
+- **A grant-wide rate,** such as a fringe benefit rate, is a term the accountant confirms once.
+- **A default checklist for each ledger account,** for Berkeley's accounts first.
+
+**From 0012: checked quotes and highlights.**
+
+- **A citation stores where its highlight goes** and how it was matched: exact, close or not found.
+- **A cited value is confirmed or unconfirmed.** Checks send anything resting on an unconfirmed value to Needs a human.
+- **The write check reads the file,** to confirm the passage is really in it. Today it only checks the value against the passage it was handed.
+- **A box on a photo or scan** is in pixels on the image we sent, scaled back to the original. Today it's an estimate in fractions of the page.
+- **A way for the accountant to confirm a value or type the right one.** Today a confirmation only accepts records that wait for one.
+
+**What the workstreams share.** These follow from the changes above and have to land with them:
+
+- A status for a record, not only for a charge. Today `ChecksOutput` and the `statuses` table hold one status per charge.
+- A run trigger for a message in a thread.
+- Endpoints to post and read thread messages. Today every accountant action is a record write, and messages aren't records.
+- A charge's detail carrying its checklist, its thread, and whether it's accepted or snoozed.
+
+**The eval answer key** grows to cover checklist items, suggestions, disputes, unconfirmed facts and accepted charges.
+
+**How each thing is stored.** Agreed as ideas on 2026-11-09. The exact names and fields are settled in the contract PR.
+
+| Thing | How it's stored |
+|---|---|
+| Default checklist items, and a required approval as an item | Not stored. Code works them out each time from the ledger account and the grant's approval rules, so a fixed default reaches old charges too. The defaults live in the code for now. |
+| Items the agent or accountant adds, and removals | Records on the charge. The agent's removal waits. |
+| Which item a link fills | The link names the item. It carries an amount only when the item does. |
+| Effort reports and other documents with no amount | The existing `note`, with an optional period added |
+| A grant-wide rate | A new kind of grant term, confirmed like the others |
+| Accept with a note | A new record: what it's about, the check and its reason, the note, one-off or reusable |
+| A reusable note applying on its own | Not stored per charge. Code works out which charges it covers. Its amount limit comes from the acceptances the accountant clicked. |
+| Reopening an accepted reason, undoing a duplicate, withdrawing a note | The existing `retraction`. Nothing is deleted. |
+| Snooze | A new record: what it's about, the date, the note |
+| A dispute | A new record from the agent that waits. Accepting it uses the existing `confirmation`. |
+| A duplicate | A record from the agent, "this is a copy of that", that waits. Once confirmed, the copy stays in the evidence list marked as a duplicate, stays out of matching, and can be undone. |
+| The agent's flag on a record or a file | The existing flag, allowed to point at a record or a file instead of a charge |
+| A suggested new answer to the accountant's | The agent's answer replacing theirs is allowed, and waits |
+| Confirmed or unconfirmed | Not stored. A value is confirmed when its citation was found in its file, when the accountant confirmed the record it's in, or when the accountant typed it. So confirming a term confirms its values. Only a value that a check or an answer rests on sends a charge to Needs a human. |
+| Links after a correction | Not rewritten. A link to a replaced record follows it to the record that replaced it, and the checks rerun. |
+| When the 60 days start | A charge's posting date. For a bill nobody charged, the day it arrived. |
+| Thread messages | Their own table, never edited |
+| Status | For records and files as well as charges, plus accepted and snoozed. A reason can carry an expected date. |
+| Old data | No conversion. Nothing real is stored yet. |
+
 ## Not decided yet
 
 | Item | Who settles it |
 |---|---|
+| The names and fields of the new records in section 13: checklist item, accepted reason, snooze, dispute, flag on a record, and the thread messages table | contract |
+| Whether new evidence has to be something the agent's new answer points at, by quoting it or resting on it, or whether anything that arrived since is enough | contract |
+| Whether a question has one answer in force at a time. A charge could still have several flags. | contract |
+| What a snooze and an acceptance record so code can tell a new problem and changed facts apart. Suggested: the reasons a snooze covered, and the records an accepted reason rested on. | contract |
+| Whether "one link in force" is for a bill and a charge, or for a bill, a charge and a checklist item | contract |
+| Whether a copy can still be linked while its duplicate mark waits | contract |
+| Whether a thread can be about a file that has no record | contract |
+| How reasons name "the same problem", so a reusable note can be matched to a later charge | contract |
+| Whether a correction to a record the agent's answer rested on also counts as new evidence. An earlier version of the rule said so, and the agreed wording leaves it out. | product |
+| What each screen gets from the server: a charge page, the grant page, an evidence card and a thread. It depends on the UI flow. | product, then contract |
+| How ledger account names map to default checklists and to budget lines | builder (W2), discussed with Alex before building |
 | A charge's bucket between an amendment's arrival and the accountant's confirmation of its terms | product |
 | A charge's bucket while its grant's terms aren't confirmed yet | product |
-| How reversals and cost transfers show in buckets and at closeout | product |
+| How reversals and cost transfers show in buckets and at closeout, beyond their default checklist | product |
 | Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
 | Whether the agent's corrections to its own facts (not links) wait for the accountant. The contracts make them wait today. | product |
 | A cost shared by two grants while each grant is isolated: the invoice arrives on both grants as two files, and each grant links its own copy for its part. At closeout each copy then shows the other grant's part as money never charged. How to show that without a false alarm. | product, needs discussing |
 | Letting grants share evidence and links instead of being isolated | later |
 | How code matches an approval rule's `applies_to`, as the award letter words it, to the charge's assigned budget line | builder (W2) |
 | The details behind who decides what, which questions code asks, and when an `other_term` is in force. Agreed for now, to look at in more detail later. | product, later |
-| How trust rule 2 checks values read from photos and scans now that one receipt can pay part of a charge, or several charges. Before links had amounts, such a value had to match its ledger line. | contract, needs discussing |
 | An amendment that states only a length, such as "extended 12 months". The term holds a stated end date, so this would need a new field. | contract, if a demo document needs it |
 | The agent's exact actions and prompts. Needs design work, as its own task, with or without the eval (see [architecture.md](architecture.md#the-agent)). | builder (W1) |
 | How a file's own date is filled in for files that aren't emails | builder (W3) |
