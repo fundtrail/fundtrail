@@ -309,14 +309,58 @@ def test_close_guard_reads_a_dash_ending_a_line_as_a_minus() -> None:
 
 
 def test_a_range_broken_across_lines_doesnt_confirm_its_first_number() -> None:
-    """On the safe side: "10-" then "20" may be a trailing minus, so "10" isn't confirmed.
+    """On the safe side (stricter than call 31): "10-" then "20" may be a trailing minus.
 
-    Nor is the range "10-20" itself, which starts with that "10"; "20" is.
+    So "10" alone isn't confirmed. The whole range "10-20" is, since the value runs on through
+    the dash, and so is "20".
     """
     page = clean("Stay of 10-\n20 days for the field work").text
     assert not contains_exactly("10", page)
-    assert not contains_exactly("10-20", page)
+    assert contains_exactly("10-20", page)
     assert contains_exactly("20", page)
+    close = "Stay of 10-\n20 dys for the field work"
+    text = clean(close).text
+    assert close_span_ok("Stay of 10-20 days for the field work", None, text, 0, len(text))
+
+
+@pytest.mark.parametrize(
+    ("page", "value"),
+    [
+        ("Travel dates 2026-\n03-04 to 2026-03-09", "2026-03-04"),
+        ("Travel dates 2026\x0203-04 to 2026-03-09", "2026-03-04"),
+        ("Period 09-\n01-2025 to 08-31-2027", "09-01-2025"),
+        ("Travel dates 2026-\n03-04 to 2026-03-09", "2026"),
+    ],
+)
+def test_a_date_broken_at_its_dash_confirms(page: str, value: str) -> None:
+    """A date has no sign, so a dash ending the line inside it isn't a minus."""
+    assert contains_exactly(value, clean(page).text)
+
+
+@pytest.mark.parametrize(
+    "next_line",
+    ["$300.00 Lodging", "(see note 2)", "* adjusted", "# 14 Lodging", "\u2022 Lodging", "Lodging"],
+)
+def test_a_dash_ending_a_line_after_a_digit_is_a_minus_whatever_follows(next_line: str) -> None:
+    """ "$450.00-" at a line end is a credit whatever starts the next line."""
+    page = clean(f"Travel refund $450.00-\n{next_line}").text
+    assert not contains_exactly("$450.00", page)
+    assert contains_exactly("$450.00-", page)
+
+
+@pytest.mark.parametrize(
+    ("value", "page", "found"),
+    [
+        ("20%", "a share of 10%-20% of the cost", True),
+        ("$450", "item (a)-$450 for lodging", True),
+        ("$450", "Adjustment:-$450 posted", False),
+        ("$450", "Adjustment [-$450] posted", False),
+        ("$450", "Adjustment {-$450} posted", False),
+    ],
+)
+def test_a_dash_after_other_punctuation_is_a_range(value: str, page: str, found: bool) -> None:
+    """Call 31 names a space, line start, opening bracket or currency symbol, plus ":"."""
+    assert contains_exactly(value, clean(page).text) is found
 
 
 @pytest.mark.parametrize(
