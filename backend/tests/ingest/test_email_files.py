@@ -1,11 +1,19 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
+from pydantic import ValidationError
 
 from app.contracts.evidence import Source
+from app.contracts.mail import HeldFile, HeldMail, HoldReason, SkipReason
 from app.ingest import email_files
 from app.ingest.email_files import email_parts, email_to_files, is_small_image, parse_headers
-from app.ingest.incoming import safe_name, to_evidence_file
+from app.ingest.incoming import (
+    FoundSkip,
+    let_in_skips,
+    safe_name,
+    to_evidence_file,
+    to_skipped_file,
+)
 
 from .mail_factory import (
     PDF,
@@ -111,6 +119,37 @@ def test_attachments_over_the_size_limit_are_skipped(monkeypatch) -> None:
         "too_large",
         "m1",
     )
+
+
+def test_a_skipped_file_without_a_time_is_refused() -> None:
+    found = FoundSkip("w1", "g1", "big.pdf", "gmail", "m1", SkipReason.TOO_LARGE)
+    with pytest.raises(ValueError):
+        to_skipped_file(found, None)
+    at = datetime(2026, 3, 4, tzinfo=UTC)
+    assert to_skipped_file(found, at).skipped_at == at
+
+
+def test_let_in_skips_checks_the_time_like_any_contract_timestamp() -> None:
+    held_at = datetime(2026, 3, 4, tzinfo=UTC)
+    skip = to_skipped_file(
+        FoundSkip("w1", "g1", "big.pdf", "gmail", "m1", SkipReason.TOO_LARGE), held_at
+    )
+    held = HeldMail(
+        id="h1",
+        workspace_id="w1",
+        grant_id="g1",
+        reason=HoldReason.UNKNOWN_SENDER,
+        source_ref="m1",
+        held_at=held_at,
+        files=(HeldFile(name="m.eml", media_type="message/rfc822", storage_path="p", sha256="x"),),
+        skipped=(skip,),
+    )
+    with pytest.raises(ValidationError):
+        let_in_skips(held, datetime(2026, 3, 5, 9, 0))  # naive
+    pacific = datetime(2026, 3, 5, 9, 0, tzinfo=timezone(timedelta(hours=-7)))
+    (moved,) = let_in_skips(held, pacific)
+    assert moved.skipped_at == datetime(2026, 3, 5, 16, 0, tzinfo=UTC)
+    assert moved.skipped_at.utcoffset() == timedelta(0)
 
 
 def test_safe_name_is_ascii_and_keeps_the_extension() -> None:
