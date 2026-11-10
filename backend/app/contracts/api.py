@@ -64,7 +64,7 @@ from .records import (
 from .runs import AgentRun
 from .signoff import SignOffStateName, SnapshotChange
 from .threads import ThreadMessage
-from .workspaces import Grant
+from .workspaces import Grant, SampleChoice
 
 # Workspaces and the clock.
 
@@ -83,7 +83,11 @@ class ArrivalSource(StrEnum):
 
 
 class NextArrival(Model):
-    """The next item waiting for the clock: when, where from and its name. Not its contents."""
+    """The next item waiting for the clock: when, where from and its name. Not its contents.
+
+    Deprecated with Clock (issue 165): the timeline replaces it. `ArrivalSource` stays,
+    since a timeline event uses it.
+    """
 
     at: UtcDatetime
     source: ArrivalSource
@@ -91,7 +95,11 @@ class NextArrival(Model):
 
 
 class Clock(Model):
-    """GET and POST /workspaces/{workspace_id}/clock"""
+    """GET and POST /workspaces/{workspace_id}/clock.
+
+    Deprecated (issue 165): a sample grant's timeline replaces the workspace clock
+    (`timeline.TimelineView`). Kept until the platform (W4) removes the clock route.
+    """
 
     now: UtcDatetime
     simulated: bool  # False when the workspace runs on the real date
@@ -103,6 +111,7 @@ class ClockMove(Model):
     """POST /workspaces/{workspace_id}/clock.
 
     Nothing in `to` moves to the next arrival. The clock only moves forward.
+    Deprecated (issue 165): replaced by `timeline.TimelineMove`.
     """
 
     to: UtcDatetime | None = None
@@ -164,6 +173,54 @@ class GrantSummary(Model):
     waiting: int  # the agent's records waiting for the accountant
     bucket_counts: dict[Bucket, int]
     next_closeout: CloseoutDate | None = None
+    # Issue 165: the grant's "now" (its simulated clock on a sample grant, else the
+    # real date), sent with every grant so screens never ask the browser for the date.
+    now: UtcDatetime
+
+
+class SampleOption(Model):
+    """One choice in the Add a grant dropdown's Sample list. GET /samples returns them in order.
+
+    Names and descriptions come from the sample packs (W3).
+    """
+
+    choice: SampleChoice
+    name: Text
+    description: Text
+    needs_confirm: bool  # true for larger_live
+    available: bool
+    unavailable_reason: str | None = None  # why it can't be opened now, for example a stale prerun
+
+
+class SampleCreate(Model):
+    """POST /workspaces/{workspace_id}/samples: opens a sample grant, returning its GrantSummary.
+
+    It returns 201. A refusal is a 409 whose `detail` is a SampleRefusal: the choice
+    needs a confirm and `confirmed` is false, or the larger-live limit refuses it.
+    """
+
+    choice: SampleChoice
+    confirmed: bool = False
+
+
+class SampleRefusalReason(StrEnum):
+    NEEDS_CONFIRM = "needs_confirm"  # the larger live sample needs the user's confirm
+    HISTORY_READING = "history_reading"  # another larger live sample is still reading its history
+
+
+class SampleRefusal(Model):
+    """The 409 `detail` of POST /workspaces/{workspace_id}/samples and of
+    POST /grants/{grant_id}/timeline/start-over (ruling 41).
+
+    The larger-live limit isn't settled yet (it's being re-confirmed): `history_reading`
+    holds its refusal, naming the larger live sample that blocks the request, whatever
+    the rule turns out to be.
+    """
+
+    reason: SampleRefusalReason
+    message: Text  # worded by the server
+    # For history_reading: the larger live sample still reading its history.
+    grant: GrantSummary | None = None
 
 
 class TermView(Model):
@@ -475,12 +532,40 @@ class LedgerUploadResult(Model):
     rejected: tuple[RowError, ...]
 
 
+class TextSegment(Model):
+    """A span of characters kept from the stored file, and where it sits in the reading text."""
+
+    stored_start: int = Field(ge=0)  # where the span starts in the stored file's text
+    reading_start: int = Field(ge=0)  # where it starts in the reading text
+    length: int = Field(ge=1)
+
+
+class ReadingView(Model):
+    """The text the agent reads for an email on a grant with a stored clock (ruling 45).
+
+    A first version. On a sample grant the viewer shows the same text the agent read,
+    with the grant's date in place of the message's own. The segments are the spans
+    kept from the stored file, in order; the gaps between them are headers replaced
+    or dropped. A highlight at stored character positions maps into the reading text
+    through the segment that holds it.
+    """
+
+    text: str
+    segments: tuple[TextSegment, ...]
+
+
 class FileLink(Model):
-    """GET /evidence/{file_id}/content: a short-lived link to the original."""
+    """GET /evidence/{file_id}/content: a short-lived link to the original.
+
+    `url` is always the original, still downloadable. For an email on a grant with a
+    stored clock, `reading` is set too, and the viewer shows `reading.text`, mapping
+    each stored-position highlight through its segments (ruling 45).
+    """
 
     url: Text
     media_type: str | None = None
     expires_at: UtcDatetime
+    reading: ReadingView | None = None
 
 
 # The records request (POST /grants/{grant_id}/records). A term the accountant adds

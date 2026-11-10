@@ -1,0 +1,16 @@
+{
+  "sample": "nitrate-sensors",
+  "award_number": "SYN-2511958",
+  "starts_at": "2026-11-16T17:30:00Z",
+  "last_event_at": "2026-12-07T00:00:00Z",
+  "ledger_lines": 7,
+  "files": 10,
+  "options": [
+    {
+      "choice": "small_live",
+      "name": "Placeholder: a new grant from its award letter",
+      "description": "Placeholder until the docs give the words. A small grant that starts with its award letter and ledger, with a few files for you to bring in.",
+      "placeholder": true
+    }
+  ]
+}
