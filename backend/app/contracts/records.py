@@ -832,6 +832,10 @@ class AcceptedReason(_Subject):
     reuses_id: Id | None = None
     # The records the reason rested on when accepted.
     rests_on: tuple[Id, ...] = ()
+    # Issue 83: for the award limit's over_limit problem, the amount over when it was
+    # accepted, copied from the problem. The problem comes back when the amount over
+    # grows larger, naming both. None for every other reason.
+    amount_cents: Cents | None = Field(default=None, ge=0)
 
 
 class Snooze(_Subject):
