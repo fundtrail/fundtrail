@@ -225,8 +225,8 @@ export function grantFake(): Pick<
     // The fake keeps nothing per workspace to clear; a sample grant starts over from its timeline panel.
     resetWorkspace: (workspaceId) => served(workspaces.find((w) => w.id === workspaceId)),
     createWorkspace: (name) => {
-      // A workspace the user creates runs on the real date (architecture.md, The clock).
-      const workspace: Workspace = { id: fakeId("ws"), name, owner_id: sample.user.id, clock_now: null };
+      // A workspace has no clock of its own; each sample grant has its own (ruling 40).
+      const workspace: Workspace = { id: fakeId("ws"), name, owner_id: sample.user.id };
       workspaces.push(workspace);
       return served(workspace);
     },
