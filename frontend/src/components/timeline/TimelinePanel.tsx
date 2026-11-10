@@ -75,7 +75,23 @@ function decisionWords(record: FtRecord): string {
   return recordKindLabel(data.kind).toLowerCase();
 }
 
-function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] }) {
+/**
+ * Who delivered an item the user was to deliver, as the server says it. The
+ * user is credited only when the flag is explicitly false and the item isn't
+ * still waiting in Now.
+ */
+function DeliveredBy({ played, waiting }: { played: PlayedEvent; waiting: Set<Id> }) {
+  if (played.event.kind !== "user_delivery") return null;
+  if (played.delivered_by_sample_accountant === true) {
+    return <span className="ft-tag ft-tl__delivered">Delivered for you by the sample accountant</span>;
+  }
+  if (played.delivered_by_sample_accountant === false && !waiting.has(played.event.id)) {
+    return <span className="ft-caption">Delivered by you.</span>;
+  }
+  return null;
+}
+
+function JustHappened({ grantId, played, waiting }: { grantId: Id; played: PlayedEvent[]; waiting: Set<Id> }) {
   return (
     <section className="ft-tl__part" aria-labelledby="tl-just">
       <h3 id="tl-just" className="ft-label">
@@ -90,13 +106,8 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
               <EventLine event={p.event} />
               {/* A result loaded from the prerun is marked, so it never passes for live work. */}
               {p.loaded && <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>}
-              {/* An item that was the user's to deliver: tagged when the sample accountant delivered it (ruling 52). */}
-              {p.event.kind === "user_delivery" &&
-                (p.delivered_by_sample_accountant ? (
-                  <span className="ft-tag ft-tl__loaded">Delivered for you by the sample accountant</span>
-                ) : (
-                  <span className="ft-caption">Delivered by you.</span>
-                ))}
+              {/* Who delivered an item the user was to deliver (rulings 44 and 52). */}
+              <DeliveredBy played={p} waiting={waiting} />
               <span>{agentSummary(p)}</span>
               {(p.scripted_decisions ?? []).length > 0 && (
                 <ul className="ft-tl__decisions" aria-label="The sample accountant's decisions">
@@ -389,7 +400,11 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             </p>
           )}
           <div className="ft-tl__parts">
-            <JustHappened grantId={grantId} played={view.just_happened ?? []} />
+            <JustHappened
+              grantId={grantId}
+              played={view.just_happened ?? []}
+              waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
+            />
             <Now grantId={grantId} view={view} busy={busy} act={act} />
             <ComingUp events={view.coming_up ?? []} finished={view.finished} />
           </div>

@@ -34,7 +34,7 @@ function signedIn(id: string): Auth {
 }
 
 function workspace(id: string, name: string): Workspace {
-  return { id, name, owner_id: id, clock_now: null };
+  return { id, name, owner_id: id };
 }
 
 function clientFor(name: string): ApiClient & { listWorkspaces: ReturnType<typeof vi.fn> } {
