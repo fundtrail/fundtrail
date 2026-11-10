@@ -476,8 +476,33 @@ def test_nul_characters_in_a_cell_are_rejected():
 
 def test_unclosed_quote_rejects_the_file():
     content = HEADER + '\nL-1,2025-01-01,2025-01-02,10.00,"Unclosed,55016,,,\n'
-    with pytest.raises(LedgerFileError, match="CSV file can't be read"):
+    with pytest.raises(LedgerFileError, match="CSV file can't be read: near line [0-9]+, a quoted"):
         _read(content)
+
+
+def test_quoting_error_names_its_line_and_fails_the_whole_file():
+    content = "\n".join(
+        [
+            HEADER,
+            "L-1,2025-01-01,2025-01-02,10.00,Good,55016,,,",
+            'L-2,2025-01-01,2025-01-02,10.00,"Quoted"tail,55016,,,',
+            "L-3,2025-01-01,2025-01-02,10.00,Good,55016,,,",
+        ]
+    )
+    with pytest.raises(LedgerFileError) as raised:
+        _read(content)
+    assert str(raised.value) == (
+        "The CSV file can't be read: near line 3, a quoted value isn't closed, or a quotation "
+        "mark is out of place."
+    )
+
+
+def test_a_line_on_file_is_skipped_even_if_its_row_has_a_nul_character():
+    content = HEADER + "\nL-1001,2025-11-12,2025-11-14,1240.00,Bad\x00text,55016,,,\n"
+    result = _read(content, existing=("L-1001",))
+    assert result.skipped_line_ids == ["L-1001"]
+    assert result.rejected == []
+    assert result.charges == []
 
 
 def test_excel_float_leftovers_are_rejected_as_more_than_two_decimals():

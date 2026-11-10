@@ -101,16 +101,17 @@ def read_ledger_file(
         values = {name: _text(cells[i]) if i < len(cells) else None for name, i in columns.items()}
         if all(v is None for v in values.values()):
             continue  # A blank row, such as a trailing line, isn't a ledger line.
+        line_id = values["line_id"]
+        if line_id is not None and line_id in on_file:
+            # Already on file: skipped whatever else the row holds (contracts.md section 13).
+            if line_id not in skipped:
+                skipped.append(line_id)
+            continue
         problems = [
             f"{name} contains a NUL (null) character."
             for name in _TEXT_COLUMNS
             if "\x00" in (values.get(name) or "")
         ]
-        line_id = values["line_id"]
-        if line_id is not None and line_id in on_file and not problems:
-            if line_id not in skipped:
-                skipped.append(line_id)
-            continue
         if line_id is None:
             problems.append("line_id is empty.")
         elif line_id in first_seen_at:
@@ -209,11 +210,18 @@ def _csv_rows(content: bytes) -> Iterator[list[Cell]]:
         raise LedgerFileError(
             "The file isn't an Excel file or a UTF-8 CSV (comma-separated values) file."
         ) from error
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     try:
-        reader = csv.reader(io.StringIO(text, newline=""), strict=True)
         rows: list[list[Cell]] = [list(row) for row in reader]
     except csv.Error as error:
-        raise LedgerFileError(f"The CSV file can't be read: {error}.") from error
+        # Any quoting error fails the whole file: the rows after it can't be trusted.
+        if "field larger than field limit" in str(error):
+            problem = "a cell is too long"
+        else:
+            problem = "a quoted value isn't closed, or a quotation mark is out of place"
+        raise LedgerFileError(
+            f"The CSV file can't be read: near line {reader.line_num}, {problem}."
+        ) from error
     return iter(rows)
 
 
