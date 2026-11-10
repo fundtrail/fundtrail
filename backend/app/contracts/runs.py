@@ -72,6 +72,10 @@ class AgentRun(Model):
     # The run's debug log: one file in private storage. Never shown to the
     # accountant, and removed by a workspace reset.
     log_path: str | None = None
+    # Call 40: the last stored point the run read when it started (the highest
+    # stored_seq it could see). For an agent's answer, only what was stored after its
+    # previous answer and up to this point is new evidence. None until it starts.
+    read_through_seq: int | None = None
     # A run started by a thread message: the thread's subject, exactly one of the
     # two, so a run that fails for good can be placed on its charge or record.
     # Neither is set for any other trigger.
