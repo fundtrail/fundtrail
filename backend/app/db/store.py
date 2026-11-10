@@ -287,7 +287,7 @@ def insert_records(conn: Conn, records: Sequence[Record]) -> None:
 
 _RUN_COLUMNS = (
     "id, workspace_id, grant_id, trigger_kind, trigger_id, status, clock_now, queued_at, "
-    "started_at, finished_at, summary, error"
+    "started_at, finished_at, summary, error, log_path"
 )
 
 
@@ -346,14 +346,16 @@ def set_run(
     finished: bool = False,
     summary: str | None = None,
     error: str | None = None,
+    log_path: str | None = None,
 ) -> None:
     conn.execute(
         """update public.agent_runs set status = %s,
              started_at = case when %s then now() else started_at end,
              finished_at = case when %s then now() else finished_at end,
-             summary = coalesce(%s, summary), error = %s
+             summary = coalesce(%s, summary), error = %s,
+             log_path = coalesce(%s, log_path)
            where id = %s""",
-        (status.value, started, finished, summary, error, run_id),
+        (status.value, started, finished, summary, error, log_path, run_id),
     )
 
 
@@ -450,6 +452,7 @@ def _status_columns(status: Status) -> dict[str, Any]:
             "bucket": status.bucket.value,
             "reasons": [r.model_dump(mode="json") for r in status.reasons],
             "checklist": [c.model_dump(mode="json") for c in status.checklist],
+            "problems": None,
             "flagged": status.flagged,
             "rechecking": status.rechecking,
             "accepted": status.accepted,
@@ -460,8 +463,9 @@ def _status_columns(status: Status) -> dict[str, Any]:
         "record_id": status.record_id if isinstance(status, RecordStatus) else None,
         "file_id": status.file_id if isinstance(status, RecordStatus) else None,
         "bucket": None,
-        "reasons": [p.model_dump(mode="json") for p in status.problems],
+        "reasons": None,
         "checklist": None,
+        "problems": [p.model_dump(mode="json") for p in status.problems],
         "flagged": status.flagged,
         "rechecking": False,
         "accepted": status.accepted,
@@ -483,23 +487,27 @@ def _status_from_row(row: dict[str, Any]) -> Status:
                 "charge_id": row["charge_id"],
                 "bucket": row["bucket"],
                 "reasons": row["reasons"],
-                "checklist": row["checklist"] or [],
+                "checklist": row["checklist"],
                 "rechecking": row["rechecking"],
             }
         )
     if row["record_id"] or row["file_id"]:
         return RecordStatus.model_validate(
             common
-            | {"record_id": row["record_id"], "file_id": row["file_id"], "problems": row["reasons"]}
+            | {
+                "record_id": row["record_id"],
+                "file_id": row["file_id"],
+                "problems": row["problems"],
+            }
         )
-    return GrantStatus.model_validate(common | {"problems": row["reasons"]})
+    return GrantStatus.model_validate(common | {"problems": row["problems"]})
 
 
 def current_statuses(conn: Conn, grant_id: str) -> dict[tuple[str, str | None], Status]:
     """The latest status of everything on the grant that has one."""
     rows = conn.execute(
-        """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist, flagged,
-                  rechecking, accepted, snoozed
+        """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist,
+                  problems, flagged, rechecking, accepted, snoozed
            from public.current_statuses where grant_id = %s""",
         (grant_id,),
     ).fetchall()
@@ -517,8 +525,9 @@ def insert_status(
     conn.execute(
         """insert into public.statuses
              (workspace_id, grant_id, charge_id, record_id, file_id, bucket, reasons, checklist,
-              flagged, rechecking, accepted, snoozed, changed_at, trigger_kind, trigger_id)
-           values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+              problems, flagged, rechecking, accepted, snoozed, changed_at, trigger_kind,
+              trigger_id)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (
             workspace_id,
             status.grant_id,
@@ -526,8 +535,9 @@ def insert_status(
             cols["record_id"],
             cols["file_id"],
             cols["bucket"],
-            Jsonb(cols["reasons"]),
+            Jsonb(cols["reasons"]) if cols["reasons"] is not None else None,
             Jsonb(cols["checklist"]) if cols["checklist"] is not None else None,
+            Jsonb(cols["problems"]) if cols["problems"] is not None else None,
             cols["flagged"],
             cols["rechecking"],
             cols["accepted"],

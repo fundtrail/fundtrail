@@ -36,10 +36,10 @@ def recheck_grant(
     output = checks.run_checks(
         ChecksInput(
             now=now,
-            charges=store.list_charges(conn, grant.id, now),
-            files=store.list_files(conn, grant.id, now),
-            records=store.list_records(conn, grant.id, now),
-            failed_runs=store.failed_runs(conn, grant.id),
+            charges=tuple(store.list_charges(conn, grant.id, now)),
+            files=tuple(store.list_files(conn, grant.id, now)),
+            records=tuple(store.list_records(conn, grant.id, now)),
+            failed_runs=tuple(store.failed_runs(conn, grant.id)),
         )
     )
     statuses: list[Status] = [
@@ -63,7 +63,7 @@ def recheck_grant(
                 grant_id=grant.id,
                 record_id=old.record_id,
                 file_id=old.file_id,
-                problems=[],
+                problems=(),
                 flagged=False,
             )
             store.insert_status(conn, grant.workspace_id, cleared, now, trigger)
@@ -71,7 +71,7 @@ def recheck_grant(
             store.insert_status(
                 conn,
                 grant.workspace_id,
-                GrantStatus(grant_id=grant.id, problems=[], flagged=False),
+                GrantStatus(grant_id=grant.id, problems=(), flagged=False),
                 now,
                 trigger,
             )

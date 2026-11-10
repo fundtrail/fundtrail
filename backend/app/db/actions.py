@@ -150,7 +150,7 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
     return LedgerUploadResult(
         added=len(charges),
         already_present=len(read.skipped_line_ids),
-        rejected=[RowError(row=r.row, message=r.reason) for r in read.rejected],
+        rejected=tuple(RowError(row=r.row, message=r.reason) for r in read.rejected),
     )
 
 

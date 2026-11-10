@@ -114,8 +114,8 @@ class FakeChecks:
                     grant_id=c.grant_id,
                     charge_id=c.id,
                     bucket=bucket,
-                    reasons=[reason],
-                    checklist=[],
+                    reasons=(reason,),
+                    checklist=(),
                     flagged=bucket in (Bucket.NEEDS_HUMAN, Bucket.POSSIBLE_CONFLICT),
                 )
             )
@@ -123,7 +123,7 @@ class FakeChecks:
             RecordStatus(
                 grant_id=f.grant_id,
                 file_id=f.id,
-                problems=[Problem(check="agent_run", problem="failed", text="The agent failed.")],
+                problems=(Problem(check="agent_run", problem="failed", text="The agent failed."),),
                 flagged=True,
             )
             for f in checks_input.files
@@ -138,7 +138,11 @@ class FakeChecks:
             else []
         )
         return ChecksOutput(
-            charges=charges, records=records, grants=[], questions=questions, notes=[]
+            charges=tuple(charges),
+            records=tuple(records),
+            grants=(),
+            questions=tuple(questions),
+            notes=(),
         )
 
     def default_items(self, charge: Charge, records: Sequence[Record], /) -> Sequence[DefaultItem]:
