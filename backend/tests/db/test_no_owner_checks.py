@@ -109,7 +109,7 @@ SQL_FINE = [
     "insert into public.workspaces (owner_id, name) values (%s, %s)",
     "values (new.id, new.owner_id, 'owner')",
     "select id, owner_id, 'owner' from public.workspaces",
-    "select id, name, owner_id, clock_now from public.workspaces where id = %s",
+    "select id, name, owner_id from public.workspaces where id = %s",
     "-- where owner_id = %s\nselect 1",
     "/* where owner_id = %s */ select 1",
 ]

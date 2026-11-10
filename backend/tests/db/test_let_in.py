@@ -35,8 +35,10 @@ def _grant(p: Platform) -> tuple[Grant, str]:
     with transaction(p.pool) as conn:
         store.upsert_user(conn, User(id=user_id, email="pat@university.example"))
         workspace = store.create_workspace(conn, user_id, "Lab")
-        store.set_clock(conn, workspace.id, CLOCK)
-    grant = actions.add_grant(p, workspace.id, actions.Upload("letter.txt", "text/plain", b"NSF"))
+        # A grant on a stored clock, with its award letter arriving at that clock's now.
+        grant = store.create_grant(conn, workspace.id)
+        store.set_grant_clock(conn, grant.id, CLOCK)
+    actions.add_evidence(p, grant, actions.Upload("letter.txt", "text/plain", b"NSF"))
     return grant, user_id
 
 
@@ -230,9 +232,7 @@ def test_on_a_real_date_grant_a_let_in_message_keeps_its_header_date(
 ) -> None:
     grant, user_id = _grant(platform)
     with transaction(platform.pool) as conn:
-        conn.execute(
-            "update public.workspaces set clock_now = null where id = %s", (grant.workspace_id,)
-        )
+        conn.execute("update public.grants set clock_now = null where id = %s", (grant.id,))
     held_id = _hold(platform, grant)
     actions.add_record(
         platform,
