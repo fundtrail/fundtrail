@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
+import { routes } from "@/lib/routes";
 
 /** A grant's name before its award letter has been read. */
 export function grantName(summary: GrantSummary): string {
@@ -32,7 +33,7 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
           {grants.map((g) => (
             <tr key={g.grant.id}>
               <td>
-                <Link className="ft-link ft-strong" href={`/grants/${encodeURIComponent(g.grant.id)}`}>
+                <Link className="ft-link ft-strong" href={routes.grant(g.grant.id)}>
                   {grantName(g)}
                 </Link>
                 {g.grant.award_number && <div className="ft-id">{g.grant.award_number}</div>}

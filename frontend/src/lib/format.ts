@@ -37,7 +37,7 @@ export const CATEGORY_LABELS: Record<BudgetCategory, string> = {
   consultant_services: "Consultant Services",
   computer_services: "Computer Services",
   subawards: "Subawards",
-  other: "Other",
+  other_direct_costs_other: "Other",
 };
 
 /** Plain names for record kinds, for a row that has no file to name it by. */
