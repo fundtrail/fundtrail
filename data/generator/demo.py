@@ -1,9 +1,9 @@
 """The demo workspace's three grants, with the example situations written by hand.
 
-Grant A, salt marsh carbon (SYN-2401835), is near the end of its period when
-the demo opens. Grant B, coastal microbial genomics (SYN-2507264), is in the
-middle of its life. Grant C, river delta sediment (SYN-2309472), passed its end
-date before the demo opens, and its extension notice turns up after it.
+Grant A, salt marsh carbon (SYN-2401835), runs through to closeout. Grant B,
+coastal microbial genomics (SYN-2507264), is in the middle of its life. Grant C,
+river delta sediment (SYN-2309472), passes its end date late in its timeline, and
+its extension notice turns up after that.
 
 The situations from docs/product.md, "Demo data (examples)":
 
@@ -54,7 +54,6 @@ from ordinary import (
 from photo import photo
 from render import eml, extension_notice, forwarded, invoice, long_date, money, pdf
 
-OPENING = at(date(2026, 11, 16), 17, 0)
 HORIZON = at(date(2027, 3, 31), 23, 59)
 
 RTC = (
@@ -620,8 +619,8 @@ def conference_fee(g: Grant) -> None:
     )
     body = (
         "Sam,\n\n"
-        "You asked whether the registration charge on participant support was\n"
-        "approved. Here is my approval from March.\n\n"
+        "For the files on the registration charge on participant support, here\n"
+        "is my approval from March.\n\n"
         "Kendall\n\n"
         + forwarded(
             sender=(KENDALL.name, KENDALL.email),
@@ -645,7 +644,7 @@ def conference_fee(g: Grant) -> None:
         forward_at,
         "gmail",
         sender=KENDALL.email,
-        note="S1. After the demo opens, the PI forwards her own March email saying "
+        note="S1. Months later, the PI forwards her own March email saying "
         '"Approved": the wrong approver, through the wrong channel.',
     )
     g.record(
@@ -961,7 +960,7 @@ def extension(g: Grant) -> None:
         notice,
         arrives,
         "drive",
-        note="S2. After the demo opens, the extension notice, dated 17 days before the old "
+        note="S2. Weeks later, the extension notice, dated 17 days before the old "
         "end date, turns up in the PI's Drive folder.",
     )
     g.confirm(
@@ -1158,4 +1157,4 @@ def shared_costs(a: Grant, b: Grant, c: Grant) -> None:
         g.bucket(ln, at(date(2026, 3, 10), 12), NEEDS_HUMAN)
 
 
-__all__ = ["HORIZON", "OPENING", "build", "long_date"]
+__all__ = ["HORIZON", "build", "long_date"]

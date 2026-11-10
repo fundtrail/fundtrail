@@ -1,0 +1,6 @@
+{
+  "sample": "salt-marsh-carbon",
+  "actions": [
+    {"at": "2024-01-19T18:00:00Z", "action": "confirm_terms", "file": "award_letter.txt", "note": "The user confirms every term read from the award letter."}
+  ]
+}
