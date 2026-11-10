@@ -7,13 +7,25 @@
 // them are headers replaced or dropped. Citations and highlights stay in stored
 // character positions, so each one is carried forward through the segments.
 // Every position here counts code points, as the server does.
+//
+// Known limit (ruling 49, accepted for the first version): the segments say
+// only what was kept, not which part of a gap was replaced and which was
+// dropped. A dropped header that sits next to the replaced Date header shares
+// its gap, so a range inside the dropped header highlights the Date line. The
+// agent's citations never land in dropped headers, because it never reads them.
 
 import type { TextSegment } from "@/lib/api/types";
 import type { CharSpan } from "./placement";
 
-/** Where a gap between kept spans sits in the reading text: the replaced line, if any. */
-function gapInReading(segments: readonly TextSegment[], storedAt: number, readingLength: number): CharSpan {
-  // The last segment that starts at or before the position, and the first after it.
+interface Gap {
+  /** The gap's whole region in the reading text, between the kept spans around it. */
+  region: CharSpan;
+  /** The replaced line inside it, without line breaks; empty when the header was only dropped. */
+  line: CharSpan;
+}
+
+/** The gap holding a stored position that no kept span holds. */
+function gapAt(segments: readonly TextSegment[], storedAt: number, chars: readonly string[]): Gap {
   let before: TextSegment | null = null;
   let after: TextSegment | null = null;
   for (const s of segments) {
@@ -24,46 +36,53 @@ function gapInReading(segments: readonly TextSegment[], storedAt: number, readin
     }
   }
   const start = before ? before.reading_start + before.length : 0;
-  const end = after ? after.reading_start : readingLength;
-  return { start, end: Math.max(start, end) };
+  const end = Math.max(start, after ? after.reading_start : chars.length);
+  let a = start;
+  let b = end;
+  while (a < b && (chars[a] === "\n" || chars[a] === "\r")) a++;
+  while (b > a && (chars[b - 1] === "\n" || chars[b - 1] === "\r")) b--;
+  return { region: { start, end }, line: { start: a, end: b } };
 }
 
-/** Trims line breaks off both ends of a range of `text`, so a replaced line highlights as a line. */
-function trimBreaks(text: readonly string[], span: CharSpan): CharSpan {
-  let { start, end } = span;
-  while (start < end && (text[start] === "\n" || text[start] === "\r")) start++;
-  while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
-  return { start, end };
+/** The kept span holding a stored character, if any. */
+function segmentAt(segments: readonly TextSegment[], storedAt: number): TextSegment | null {
+  return segments.find((s) => s.stored_start <= storedAt && storedAt < s.stored_start + s.length) ?? null;
 }
 
 /**
  * Carries one highlight from stored positions into the reading text.
  *
- * - Inside a kept span, it moves with the span.
- * - Across a gap, it runs from its mapped start to its mapped end, so the
- *   replaced header between them is highlighted too.
- * - Wholly inside a gap (a header that was replaced), it highlights the line
- *   that replaced it. A header that was dropped has no line, so nothing is
- *   highlighted.
+ * Each end is placed on its own:
+ * - an end inside a kept span moves with the span;
+ * - an end inside a gap reaches out to the gap's replaced line, so a range
+ *   that starts or ends in the replaced Date header keeps the Date line;
+ * - an end inside a gap with no replaced line (a dropped header) stops at the
+ *   kept text beside the gap.
+ * A range inside one gap therefore highlights its replaced line, or nothing
+ * when the header was dropped. An empty range highlights nothing.
  */
 export function mapSpanToReading(span: CharSpan, segments: readonly TextSegment[], readingText: string): CharSpan | null {
+  if (span.end <= span.start) return null;
   const sorted = [...segments].sort((a, b) => a.stored_start - b.stored_start);
-  let start: number | null = null;
-  let end: number | null = null;
-  for (const s of sorted) {
-    const from = Math.max(span.start, s.stored_start);
-    const to = Math.min(span.end, s.stored_start + s.length);
-    if (to <= from) continue;
-    const mappedStart = s.reading_start + (from - s.stored_start);
-    const mappedEnd = s.reading_start + (to - s.stored_start);
-    start = start === null ? mappedStart : Math.min(start, mappedStart);
-    end = end === null ? mappedEnd : Math.max(end, mappedEnd);
-  }
-  if (start !== null && end !== null) return { start, end };
-
   const chars = Array.from(readingText); // code points, as the server counts
-  const replaced = trimBreaks(chars, gapInReading(sorted, span.start, chars.length));
-  return replaced.end > replaced.start ? replaced : null;
+
+  let start: number;
+  const first = segmentAt(sorted, span.start);
+  if (first) start = first.reading_start + (span.start - first.stored_start);
+  else {
+    const gap = gapAt(sorted, span.start, chars);
+    start = gap.line.end > gap.line.start ? gap.line.start : gap.region.end;
+  }
+
+  let end: number;
+  const last = segmentAt(sorted, span.end - 1);
+  if (last) end = last.reading_start + (span.end - last.stored_start);
+  else {
+    const gap = gapAt(sorted, span.end - 1, chars);
+    end = gap.line.end > gap.line.start ? gap.line.end : gap.region.start;
+  }
+
+  return end > start ? { start, end } : null;
 }
 
 /** Carries every highlight into the reading text, dropping any that land nowhere. */
