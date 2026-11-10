@@ -10,7 +10,7 @@ The accountant needs one thing from quoting: click a fact and see the right line
 - On photos and scans, the box was the agent's estimate on an image the API may have resized, and nothing checked it.
 - Rule 2 of [0005](0005-four-trust-rules.md) had photo values match their ledger line instead. That stopped working once one bill could pay part of a charge, or several charges.
 
-We looked at how production systems do this instead of inventing our own. Anthropic's Citations API returns the quoted passage itself, with exact characters for plain text and page numbers for PDFs. It can't cite images or scanned PDFs. Anthropic's cookbook highlights a PDF citation by searching the page for the quoted passage. Google's LangExtract tries an exact match and then a close one, and records which worked. Anthropic's coordinates guide describes how to get reliable boxes on images: ask for pixel coordinates on an image you resized yourself. Systems that can't place a highlight return none and send the value to review.
+We looked at how production systems do this instead of inventing our own. Anthropic's Citations API (application programming interface) returns the quoted passage itself, with exact characters for plain text and page numbers for PDFs. It can't cite images or scanned PDFs. Anthropic's cookbook highlights a PDF citation by searching the page for the quoted passage. Google's LangExtract tries an exact match and then a close one, and records which worked. Anthropic's coordinates guide describes how to get reliable boxes on images: ask for pixel coordinates on an image you resized yourself. Systems that can't place a highlight return none and send the value to review.
 
 ## Decision
 

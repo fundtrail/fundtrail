@@ -100,14 +100,15 @@ The rule: what goes with the flow takes effect, and what goes against it waits, 
 | A link for evidence nobody has linked | Fixing an existing link. A bill and a charge have one link in force at a time, so a second link beside it doesn't count until it's accepted. |
 | A flag, on a charge or a record | Withdrawing its own flag, or turning its own contradicts into supports |
 | A new checklist item | Removing a checklist item |
-| A first answer to a question code asks | Disputing one of code's checks |
+| A first answer to a question code asks, a refreshed answer that says the same thing, or a change toward a concern | Disputing one of code's checks |
 | A new answer after its own unsure, once new evidence arrives | The same change with no new evidence |
 
-- **New evidence** means something new was linked to the charge, or a record the answer rested on was corrected or withdrawn, since the agent's last answer. Code checks it, so the agent can't claim it.
-- **A dispute** names the check, the agent's reasoning and a quote. While it waits, the charge moves from Possible conflict to Needs a human. Accepting it works like accept with a note, with the agent's reasoning as the note. Rejecting it puts the charge back.
+- **New evidence** means something that arrived after the agent's last answer, a grant term confirmed after it, or a change to a record the answer rested on. Something the agent links later from what was already on file doesn't count. Code checks it, so the agent can't claim it.
+- **A dispute** names the check, the agent's reasoning and a quote. While it waits, the disputed reason counts as Needs a human, so the charge moves from Possible conflict to Needs a human unless another reason keeps it there. Accepting it works like accept with a note, with the agent's reasoning as the note. Rejecting it puts the charge back.
 - **No repeats.** After the accountant rejects a suggestion or a dispute, or keeps their own answer, the agent can't raise the same one again without new evidence.
 - **An instruction is still a suggestion.** When the accountant tells the agent in a thread to change something, the change comes back as a suggestion with one click, so every change is seen before it happens and leaves the same record.
-- **Accepting a reason** covers the problem as it stood. If the facts under it change, the charge comes back. A standing note covers every charge on the grant with the same problem, ledger account and vendor, past and future. Code does that matching, not the agent, and every other check still runs.
+- **Accepting a reason** covers the problem as it stood. If the facts under it change, the charge comes back, and the accountant can reopen it. An accepted charge shows as Accepted and keeps the bucket the checks gave it. It's never counted as Evidence complete. A snoozed charge keeps its bucket too and is only hidden from the list.
+- **Reusing a note.** A note is one-off or reusable. A reusable note applies on its own only inside its limits: the same check failing for the same reason, the same ledger account and vendor, and an amount no larger than the largest the accountant has accepted under it. A similar charge outside the limits is flagged as usual, with the note offered for one click. Code does the matching, not the agent, and every other check still runs.
 - **Where it's kept.** Thread messages are kept in their own table, outside the evidence file. Suggestions and decisions are records, so they're never edited and the evidence report can show them. The agent's own working steps are kept per run, for debugging.
 
 ## Quotes and highlights

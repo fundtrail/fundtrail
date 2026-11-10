@@ -35,15 +35,20 @@ The eval is an automated test that measures how often FundTrail gets the right a
 
 ## Cases to add
 
-Each new behavior gets a case, so the agent's handling of nuance is measured instead of assumed:
+Each new behavior gets a case, so the agent's handling of nuance is measured instead of assumed. Agreed so far:
 
 - a quarterly effort report that fills three months of salary lines
 - a trip that's part airfare receipt and part per diem at a rate
 - a charge posted to the wrong ledger account, such as a laptop under Participant Support Stipends
 - a real exception to a default, such as a stipend paid to one guest speaker
+
+Suggested, not yet agreed:
+
 - the same invoice arriving as a PDF and as a photo
 - a charge that fails a date check, where an amendment gives the agent grounds to dispute it
 - a quote that can't be found in its file, and a photo where the box has to show the value
+
+A charge the accountant accepted is scored as Accepted. It's never Evidence complete, so it can't be a false clear, and it isn't a pass either.
 
 ## When it runs
 
