@@ -1,0 +1,170 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, ApiProvider, type ApiClient, type EvidenceCard, type FactView, type FtRecord, type NewRecordInput } from "@/lib/api";
+import { createFakeApiClient } from "@/lib/api/fake";
+import { FakeAuthProvider } from "@/lib/auth";
+import { ConfirmValues } from "./ConfirmValues";
+import { EvidenceCardView } from "./EvidenceCardView";
+import { findCitation } from "./findCitation";
+import { confirmationText, parseTyped, valueAt, valueLabel, withValueAt } from "./values";
+
+const GRANT = "grant-sample";
+
+async function sampleCards(): Promise<EvidenceCard[]> {
+  return createFakeApiClient().listEvidence(GRANT);
+}
+
+function card(cards: EvidenceCard[], name: string): EvidenceCard {
+  const c = cards.find((x) => x.file.name === name);
+  if (!c) throw new Error(`no card ${name}`);
+  return c;
+}
+
+describe("values", () => {
+  it("reads and replaces values by the server's paths", () => {
+    const data = { kind: "bill", items: [{ amount: { value: 5 } }] };
+    expect(valueAt(data, "items[0].amount")).toEqual({ value: 5 });
+    const next = withValueAt(data, "items[0].amount", { value: 7 });
+    expect(valueAt(next, "items[0].amount")).toEqual({ value: 7 });
+    expect(valueAt(data, "items[0].amount")).toEqual({ value: 5 });
+    expect(valueLabel("items[0].amount")).toBe("Item 1 amount");
+    expect(valueLabel("approver_email")).toBe("Approver email");
+  });
+
+  it("words each way a value is confirmed", () => {
+    expect(confirmationText({ path: "total", confirmed: true, how: "found" })).toBe("Confirmed on the page");
+    expect(confirmationText({ path: "total", confirmed: true, how: "record_confirmed", confirmed_at: "2026-03-20T17:00:00Z" })).toBe(
+      "Confirmed by the accountant, Mar 20, 2026",
+    );
+    expect(confirmationText({ path: "total", confirmed: true, how: "typed", confirmed_at: "2026-03-21T17:00:00Z" })).toBe(
+      "Confirmed by the accountant, Mar 21, 2026",
+    );
+    expect(confirmationText({ path: "total", confirmed: false })).toBe("Unconfirmed");
+  });
+
+  it("reads typed money as cents", () => {
+    expect(parseTyped("money", "$1,240.00")).toEqual({ value: 124000 });
+    expect(parseTyped("money", "86.4")).toEqual({ value: 8640 });
+    expect(parseTyped("money", "-150")).toEqual({ value: -15000 });
+    expect(parseTyped("money", "abc")).toHaveProperty("error");
+    expect(parseTyped("date", "2026-03-05")).toEqual({ value: "2026-03-05" });
+  });
+});
+
+describe("EvidenceCardView", () => {
+  it("lists each fact's values with quote, page and confirmed state", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "field_station_invoice_FS-2207.pdf")} />);
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total).toHaveTextContent("Total Due: $3,400.00");
+    expect(total).toHaveAttribute("href", "/grants/grant-sample/files/file-syn-field-station-invoice?record=rec-syn-bill-fs-2207&value=total");
+    expect(screen.getAllByText("Confirmed on the page").length).toBeGreaterThan(0);
+    expect(screen.getByText("p. 2", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Unconfirmed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Confirm or correct the unconfirmed value" })).toHaveAttribute(
+      "href",
+      "/grants/grant-sample/files/file-syn-field-station-invoice/confirm?record=rec-syn-bill-fs-2207",
+    );
+  });
+
+  it("says a value the accountant confirmed with the date, instead of 'on the page'", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "budget_justification.docx")} />);
+    expect(screen.getByText("Confirmed by the accountant, Mar 20, 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed on the page")).not.toBeInTheDocument();
+    expect(screen.getByText("Google Drive")).toBeInTheDocument();
+  });
+
+  it("shows the sample bill's link to its charge", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "invoice_1001.txt")} />);
+    const links = screen.getByRole("list", { name: "Charges it pays for" });
+    expect(within(links).getAllByRole("link")[0].getAttribute("href")).toMatch(/^\/grants\/grant-sample\/charges\//);
+  });
+});
+
+describe("findCitation", () => {
+  it("finds a fact's value and a link's part", async () => {
+    const cards = await sampleCards();
+    const spot = findCitation(cards, "rec-syn-bill-boat-receipt", "total");
+    expect(spot?.valueText).toBe("$86.40");
+    expect(spot?.citation.location.type).toBe("image_box");
+    expect(findCitation(cards, "rec-missing", "total")).toBeNull();
+  });
+});
+
+function withApi(client: Partial<ApiClient>, children: ReactNode) {
+  return (
+    <FakeAuthProvider>
+      <ApiProvider client={client as ApiClient}>{children}</ApiProvider>
+    </FakeAuthProvider>
+  );
+}
+
+async function photoFact(): Promise<FactView> {
+  return card(await sampleCards(), "boat_rental_receipt.jpg").facts![0];
+}
+
+function written(record: Partial<FtRecord>): FtRecord {
+  return { id: "rec-new", workspace_id: "ws", grant_id: GRANT, author: "user", written_at: "2026-04-09T18:00:00Z", data: { kind: "confirmation", record_ids: [] }, ...record } as FtRecord;
+}
+
+describe("ConfirmValues", () => {
+  it("lists each value that couldn't be found", async () => {
+    const fact = await photoFact();
+    render(withApi({}, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={() => {}} />));
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("group", { name: "Vendor" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Dated" })).toBeInTheDocument();
+  });
+
+  it("confirms as read with one confirmation of the record", async () => {
+    const fact = await photoFact();
+    const writeRecord = vi.fn<ApiClient["writeRecord"]>(async () => written({}));
+    const onDone = vi.fn();
+    render(withApi({ writeRecord }, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={onDone} />));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(writeRecord).toHaveBeenCalledTimes(1);
+    expect(writeRecord.mock.calls[0][1]).toEqual({ data: { kind: "confirmation", record_ids: [fact.record.id], decision: "confirmed" } });
+  });
+
+  it("writes a typed value with no citation, replacing the record, then confirms the rest", async () => {
+    const fact = await photoFact();
+    const writeRecord = vi.fn<ApiClient["writeRecord"]>(async (_grantId, body: NewRecordInput) => written(body.replaces_id ? { id: "rec-typed" } : {}));
+    const onDone = vi.fn();
+    render(withApi({ writeRecord }, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={onDone} />));
+    const vendor = screen.getByRole("group", { name: "Vendor" });
+    fireEvent.click(within(vendor).getByLabelText("Type the right value"));
+    fireEvent.change(screen.getByLabelText("The right vendor"), { target: { value: "Example Bay Boat Rental" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+
+    const replacement = writeRecord.mock.calls[0][1];
+    expect(replacement.replaces_id).toBe(fact.record.id);
+    expect(valueAt(replacement.data, "vendor")).toEqual({ value: "Example Bay Boat Rental", text: null, citation: null });
+    expect(valueAt(replacement.data, "total")).toEqual(valueAt(fact.record.data, "total"));
+    expect(writeRecord.mock.calls[1][1]).toEqual({ data: { kind: "confirmation", record_ids: ["rec-typed"], decision: "confirmed" } });
+  });
+
+  it("shows the write check's problems as the server words them", async () => {
+    const fact = await photoFact();
+    const writeRecord = vi.fn(async () => {
+      throw new ApiError(422, ["The record isn't waiting for a confirmation."]);
+    });
+    render(withApi({ writeRecord }, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The record isn't waiting for a confirmation.");
+  });
+
+  it("refuses a typed amount it can't read, before writing anything", async () => {
+    const fact = card(await sampleCards(), "field_station_invoice_FS-2207.pdf").facts![0];
+    const writeRecord = vi.fn();
+    render(withApi({ writeRecord }, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={() => {}} />));
+    fireEvent.click(screen.getByLabelText("Type the right value"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Type a value, or choose to confirm it as read.")).toBeInTheDocument();
+    expect(writeRecord).not.toHaveBeenCalled();
+  });
+});
