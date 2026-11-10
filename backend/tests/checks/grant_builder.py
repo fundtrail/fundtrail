@@ -12,6 +12,7 @@ from app.checks.run import run_checks
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus, ChecksInput, ChecksOutput, Reason
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import SkippedFile
 from app.contracts.records import Record
 from app.contracts.runs import AgentRun
 
@@ -59,6 +60,7 @@ class Grant:
         self.files: list[EvidenceFile] = []
         self.charges: list[Charge] = []
         self.failed_runs: list[AgentRun] = []
+        self.skipped_files: list[SkippedFile] = []
         self._n = 0
         self.file("f-letter", at(2023, 1, 12))
 
@@ -421,6 +423,7 @@ class Grant:
                 files=tuple(f for f in self.files if f.arrived_at <= now),
                 records=tuple(r for r in self.records if r.written_at <= now),
                 failed_runs=tuple(self.failed_runs),
+                skipped_files=tuple(self.skipped_files),
             )
         )
 

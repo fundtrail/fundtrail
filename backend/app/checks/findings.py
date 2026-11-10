@@ -19,6 +19,7 @@ class Finding:
     # rule code can't place) stands for it on the problem list, so it doesn't put
     # the charge there as its own row.
     shown_on_term: bool = False
+    dispute_id: str | None = None  # the agent's dispute of it, while it waits
 
     @property
     def failing(self) -> bool:
@@ -46,3 +47,4 @@ BILL = "bill"
 SAME_FILE = "same_file"
 NOTICE = "notice"
 GRANT_TERMS = "grant_terms"
+SKIPPED_FILES = "skipped_files"

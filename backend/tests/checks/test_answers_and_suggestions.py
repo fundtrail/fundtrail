@@ -175,6 +175,7 @@ def test_a_waiting_dispute_turns_the_disputed_reason_into_needs_a_human() -> Non
     reason = next(r for r in status.reasons if r.check == "period_of_performance")
     assert reason.bucket == Bucket.NEEDS_HUMAN
     assert dispute in reason.record_ids
+    assert reason.dispute_id == dispute
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 

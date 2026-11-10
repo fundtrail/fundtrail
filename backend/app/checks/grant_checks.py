@@ -21,12 +21,20 @@ category, named as NSF prints the category.
 from collections import defaultdict
 from collections.abc import Sequence
 
-from app.checks.findings import AGENT_RUN, BUDGET, GRANT_TERMS, NOTICE, Finding
+from app.checks.findings import (
+    AGENT_RUN,
+    BUDGET,
+    GRANT_TERMS,
+    NOTICE,
+    SKIPPED_FILES,
+    Finding,
+)
 from app.checks.ledger_accounts import CATEGORY_NAMES, category_name
 from app.checks.rules_match import name_key
 from app.checks.text import money
 from app.checks.view import GrantView, notice_number
 from app.contracts.checks import Bucket, GrantNote
+from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.records import (
     CATEGORY_PARENT,
     BudgetCategory,
@@ -36,6 +44,11 @@ from app.contracts.records import (
     RecordKind,
 )
 from app.contracts.runs import AgentRun, TriggerKind
+
+_SKIP_WHY = {
+    SkipReason.TOO_LARGE: "too large",
+    SkipReason.NOT_EXPORTABLE: "couldn't be exported to a PDF",
+}
 
 
 def _label(n: int) -> str:
@@ -114,7 +127,11 @@ def _has_term(view: GrantView, kind: RecordKind) -> bool:
     return bool(view.terms[kind]) or any(r.kind == kind for r in view.waiting_terms)
 
 
-def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> list[Finding]:
+def grant_problems(
+    view: GrantView,
+    failed_runs: Sequence[AgentRun] = (),
+    skipped_files: Sequence[SkippedFile] = (),
+) -> list[Finding]:
     out: list[Finding] = []
     # Only when no such term exists at all: a waiting one is its own row on the list.
     if not _has_term(view, RecordKind.PERIOD_OF_PERFORMANCE):
@@ -138,6 +155,18 @@ def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> lis
                     "The agent couldn't finish its review of the grant.",
                 )
             )
+    skipped = [s for s in skipped_files if s.grant_id == view.grant_id]
+    if skipped:
+        out.append(
+            Finding(
+                SKIPPED_FILES,
+                "skipped",
+                Bucket.NEEDS_HUMAN,
+                "These files weren't taken in: "
+                + "; ".join(f"{s.name} ({_SKIP_WHY[s.reason]})" for s in skipped)
+                + ".",
+            )
+        )
     limit = _limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:

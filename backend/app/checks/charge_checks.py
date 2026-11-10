@@ -651,6 +651,7 @@ def evaluate_charge(
                 f.text += " The agent disputes this, waiting for the accountant."
                 f.record_ids.append(r.id)
                 f.flag_now = True
+                f.dispute_id = r.id
 
     questions = [s.open_question(charge.id) for s in answers if s.is_open]
     return ChargeEval(

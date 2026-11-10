@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime
 
 from app.contracts.checks import Bucket, ChecksOutput
+from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 
 from .grant_builder import STIPENDS, Grant, at, problems
@@ -145,6 +146,39 @@ def test_an_accepted_record_problem_leaves_the_list() -> None:
     )
     (status,) = g.run(at(2024, 3, 4)).records
     assert status.accepted and not status.flagged
+    assert status.problems[0].accepted_by is not None
+
+
+def test_skipped_files_are_one_problem_on_the_grant_naming_them() -> None:
+    g = Grant()
+    g.standard_terms()
+    when = at(2024, 3, 1)
+    g.skipped_files = [
+        SkippedFile(
+            workspace_id="w",
+            grant_id="g1",
+            name="scan.pdf",
+            source="gmail",
+            source_ref="m-1",
+            reason=SkipReason.TOO_LARGE,
+            skipped_at=when,
+        ),
+        SkippedFile(
+            workspace_id="w",
+            grant_id="g1",
+            name="Budget sheet",
+            source="drive",
+            source_ref="d-1",
+            reason=SkipReason.NOT_EXPORTABLE,
+            skipped_at=when,
+        ),
+    ]
+    out = g.run(at(2024, 3, 2))
+    assert grant_problems(out) == {"skipped"}
+    assert out.grants[0].problems[0].text == (
+        "These files weren't taken in: scan.pdf (too large); "
+        "Budget sheet (couldn't be exported to a PDF)."
+    )
 
 
 def _failed(
