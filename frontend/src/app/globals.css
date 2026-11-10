@@ -172,14 +172,33 @@ p {
   border: 0;
 }
 
-/* Fake mode, on every page. */
+/* Fake mode, on every page. One line of fixed height, pinned to the top, so
+   the sticky sidebar below it can make room for it exactly. */
+:root {
+  --fake-banner-height: 36px;
+}
 .ft-fake-banner {
-  padding: var(--space-2) var(--space-4);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--fake-banner-height);
+  line-height: calc(var(--fake-banner-height) - 1px);
+  padding: 0 var(--space-4);
+  overflow: hidden;
   border-bottom: 1px dashed var(--rule-strong);
   background: var(--paper-sunken);
   font-size: 13px;
   font-weight: 600;
   text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ft-fake-banner ~ .ft-app {
+  min-height: calc(100vh - var(--fake-banner-height));
+}
+.ft-fake-banner ~ .ft-app .ft-sidebar {
+  top: var(--fake-banner-height);
+  height: calc(100vh - var(--fake-banner-height));
 }
 
 /* --- App shell --- */
@@ -292,7 +311,8 @@ p {
   .ft-app {
     grid-template-columns: 1fr;
   }
-  .ft-sidebar {
+  .ft-sidebar,
+  .ft-fake-banner ~ .ft-app .ft-sidebar {
     position: static;
     height: auto;
     border-right: 0;
