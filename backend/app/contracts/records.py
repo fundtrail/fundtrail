@@ -799,6 +799,12 @@ class Confirmation(Model):
     decision: Decision = Decision.CONFIRMED
 
 
+# The award limit's problem (issue 83): the budget check's over_limit, on the grant.
+# The only reason an accepted reason may carry an amount for.
+OVER_LIMIT_CHECK = "budget"
+OVER_LIMIT_PROBLEM = "over_limit"
+
+
 class ReasonRef(Model):
     """Names one reason: the check's stable ID, and the problem within it that code names."""
 
