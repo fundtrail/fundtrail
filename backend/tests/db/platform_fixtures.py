@@ -45,7 +45,8 @@ SUPABASE_URL = "https://project.supabase.example"
 
 @pytest.fixture(scope="session")
 def platform_database_url() -> Iterator[str]:
-    """A fresh database with the Supabase stubs, every migration and Procrastinate's schema.
+    """A fresh database with the Supabase stubs and every migration (Procrastinate's schema
+    is one of them, since PR 122).
 
     Built like main's `database_url` (tests/db/conftest.py), from its stubs and migrations:
     skipped without TEST_DATABASE_URL, failed when it's set and no Postgres answers.
@@ -54,7 +55,6 @@ def platform_database_url() -> Iterator[str]:
     if not server_url:
         pytest.skip("TEST_DATABASE_URL is not set")
     import psycopg
-    from procrastinate.schema import SchemaManager
     from psycopg import conninfo, sql
 
     try:
@@ -70,7 +70,6 @@ def platform_database_url() -> Iterator[str]:
                 conn.execute(SUPABASE_STUBS)
                 for path in migration_files():
                     conn.execute(cast(LiteralString, path.read_text()))
-                conn.execute(SchemaManager.get_schema())
             yield url
         finally:
             admin.execute(
