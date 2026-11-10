@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse, Response
 
 from app.contracts.api import (
@@ -20,14 +20,15 @@ from app.contracts.api import (
     Thread,
 )
 from app.contracts.checks import RecordStatus
-from app.contracts.records import Record
+from app.contracts.records import Record, SignOff
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 from app.db import actions, store
 from app.db.clock import ClockError, ClockState, clock_state, move_clock
-from app.db.pool import transaction
+from app.db.pool import transaction, workspace_now
 
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
+from .report import draft_report
 from .routes import PlainErrorsRoute
 from .screens import ClockView
 from .views import (
@@ -166,46 +167,42 @@ def post_record_thread(
 # The report.
 
 
-class ReportMaker(Protocol):
-    def render(self, conn: Any, snapshot: GrantSnapshot, /) -> bytes:
-        """The current draft of the grant's evidence report, as PDF bytes."""
-        ...
-
-
-def _report_module_ready() -> bool:
-    """Whether #38's `app.packet.build_report(ReportInputs)` is on main."""
-    import importlib
-
-    return hasattr(importlib.import_module("app.packet"), "build_report")
-
-
-@router.get(
-    "/grants/{grant_id}/report",
-    response_class=Response,
-    responses={
-        200: {"content": {"application/pdf": {}}, "description": "The current draft"},
-        501: {"description": "The evidence report isn't on main yet"},
-    },
-)
-def get_report(grant: GrantDep, platform: PlatformDep, request: Request) -> Response:
-    """The current draft of the evidence report (decision 0022). A signed report is fetched
-    through its sign-off. Until #38's `build_report` is wired here, this is a 501."""
-    maker: ReportMaker | None = getattr(request.app.state, "report_maker", None)
-    if maker is None:
-        detail = (
-            "The evidence report is on main but isn't wired to this route yet."
-            if _report_module_ready()
-            else "The evidence report isn't built yet (#38)."
-        )
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail)
-    with transaction(platform.pool) as conn:
-        pdf = maker.render(conn, load_snapshot(platform, conn, grant))
-    name = f"evidence-report-{_slug(grant)}.pdf"
+def _pdf(pdf: bytes, grant: Grant, suffix: str = "") -> Response:
+    name = f"evidence-report-{_slug(grant)}{suffix}.pdf"
     return Response(
         pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{name}"'},
     )
+
+
+@router.get(
+    "/grants/{grant_id}/report",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "The current draft"}},
+)
+def get_report(grant: GrantDep, platform: PlatformDep) -> Response:
+    """The current draft of the evidence report (decision 0022). A signed report is fetched
+    through its sign-off: GET /records/{record_id}/report."""
+    with transaction(platform.pool) as conn:
+        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        pdf = draft_report(platform, conn, grant, now)
+    return _pdf(pdf, grant, "-draft")
+
+
+@router.get(
+    "/records/{record_id}/report",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "The signed report"}},
+)
+def get_signed_report(record_id: str, user: UserDep, platform: PlatformDep) -> Response:
+    """The report a sign-off stored: never made again (decision 0022)."""
+    with transaction(platform.pool) as conn:
+        record = store.get_record(conn, record_id, user.id)
+        grant = store.get_grant(conn, record.grant_id) if record else None
+    if record is None or grant is None or not isinstance(record.data, SignOff):
+        raise _not_found()
+    return _pdf(platform.storage.get(record.data.report_path), grant, f"-signed-{record.id[:8]}")
 
 
 def _slug(grant: Grant) -> str:

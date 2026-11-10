@@ -147,6 +147,14 @@ def create_record(
         problems = sign_off_refusals(platform, grant, body.data)
         if problems:
             return _rejected(actions.WriteRejected(problems))  # pyright: ignore[reportReturnType]
+        from .report import signed_report_maker
+
+        try:
+            return actions.add_sign_off(
+                platform, grant, user.id, body.data.note, signed_report_maker(platform, user.id)
+            )
+        except actions.WriteRejected as error:
+            return _rejected(error)  # pyright: ignore[reportReturnType]
     try:
         return actions.add_record(
             platform, grant, user.id, body.data.model_dump(mode="json"), body.replaces_id

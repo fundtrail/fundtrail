@@ -321,6 +321,12 @@ def sample_into_db(
         for f in sample.files:
             store.insert_file(conn, f)
         store.insert_records(conn, sample.records)
+    # The originals, so the report can quote the text files.
+    if isinstance(p.storage, FakeStorage):
+        from app.contracts.fixtures import DOCUMENTS_DIR
+
+        for f in sample.files:
+            p.storage.put(f.storage_path, (DOCUMENTS_DIR / f.name).read_bytes(), f.media_type)
     return sample
 
 

@@ -227,8 +227,24 @@ def test_sign_off_waits_for_the_agent_and_needs_a_note_when_something_is_open(ap
         json={"data": {"kind": "sign_off", "note": "L-1002 is explained."}},
         headers=api.headers,
     )
-    # Signing off stores the evidence report (decision 0022), which isn't on main yet.
-    assert signed.status_code == 422 and "evidence report" in signed.json()["detail"][0]
+    assert signed.status_code == 201, signed.text
+    record = signed.json()
+    assert record["data"]["note"] == "L-1002 is explained."
+    # The report signed is stored, with its checksum, and fetched through the sign-off.
+    stored = api.client.get(f"/records/{record['id']}/report", headers=api.headers)
+    assert stored.status_code == 200 and stored.content.startswith(b"%PDF")
+    import hashlib
+
+    assert hashlib.sha256(stored.content).hexdigest() == record["data"]["report_sha256"]
+    state = _get(api, f"/grants/{sample.grant.id}")["sign_off"]
+    assert state["state"] == "signed" and state["sign_off"]["id"] == record["id"]
+    # A later change shows as "changed since sign-off" with what changed.
+    checks.buckets = {}
+    with transaction(api.platform.pool) as conn:
+        recheck_grant(conn, checks, sample.grant, APRIL_10, Trigger(kind=TriggerKind.CLOCK))
+    state = _get(api, f"/grants/{sample.grant.id}")["sign_off"]
+    assert state["state"] == "changed"
+    assert any(c["kind"] == "charge" for c in state["changes"])
 
 
 def test_a_sign_off_needs_a_note_while_any_charge_isnt_ready(api: Api) -> None:
@@ -248,16 +264,9 @@ def test_a_sign_off_needs_a_note_while_any_charge_isnt_ready(api: Api) -> None:
 def test_the_report_route_gives_the_draft(api: Api) -> None:
     sample = _sample(api)
     path = f"/grants/{sample.grant.id}/report"
-    missing = api.client.get(path, headers=api.headers)
-    assert missing.status_code == 501 and "#38" in missing.json()["detail"]
-
-    class Maker:
-        def render(self, conn: object, snapshot: object) -> bytes:
-            return b"%PDF-1.7 draft"
-
-    api.client.app.state.report_maker = Maker()  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
     response = api.client.get(path, headers=api.headers)
-    assert response.status_code == 200 and response.content == b"%PDF-1.7 draft"
+    assert response.status_code == 200, response.text
+    assert response.content.startswith(b"%PDF")
     assert response.headers["content-type"] == "application/pdf"
     assert "SYN-2300117" in response.headers["content-disposition"]
 

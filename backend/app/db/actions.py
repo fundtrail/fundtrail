@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -16,9 +17,10 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.contracts.api import LedgerUploadResult, RowError
 from app.contracts.evidence import EvidenceFile, Source, storage_path
-from app.contracts.records import TERM_KINDS, Author, Record, RecordData
+from app.contracts.records import TERM_KINDS, Author, Record, RecordData, SignOff
 from app.contracts.rules import check_new_record
 from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
+from app.contracts.signoff import SignOffSnapshot
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
@@ -166,9 +168,8 @@ def add_record(
     """
     run: AgentRun | None = None
     if data.get("kind") == "sign_off":
-        # A sign-off stores the evidence report with it (decision 0022). The report
-        # route and the sign-off come with the screens' pull request (#63).
-        raise WriteRejected(["A sign-off stores the evidence report, which isn't built here yet."])
+        # A sign-off stores the evidence report with it (decision 0022): add_sign_off.
+        raise WriteRejected(["A sign-off goes through add_sign_off, which stores its report."])
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
@@ -245,3 +246,61 @@ def add_message(
     ping_run(p.pinger, run)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "thread")
     return message
+
+
+# Builds the evidence report at a moment, under the grant's lock: the PDF and the snapshot
+# of what counts as a change since (decision 0022). The API provides it (app/api/report.py).
+type MakeReport = Callable[[store.Conn, Grant, datetime, str | None], tuple[bytes, SignOffSnapshot]]
+
+
+def add_sign_off(
+    p: Platform, grant: Grant, user_id: str, note: str | None, make_report: MakeReport
+) -> Record:
+    """Sign off on the grant's evidence report (decision 0022).
+
+    Under the grant's lock, so nothing lands between the report and the record: refuse
+    while a run is queued or running, build the report at the workspace's "now" with this
+    sign-off on it, store the PDF, then write the sign_off record with the report's path,
+    checksum and snapshot. The stored report is never made again.
+    """
+    with transaction(p.pool) as conn:
+        store.get_grant(conn, grant.id, lock=True)
+        if store.has_pending_run(conn, grant.id):
+            raise WriteRejected(
+                ["The agent is still working on this grant. Sign off once it's done."]
+            )
+        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        pdf, snapshot = make_report(conn, grant, now, note)
+        record_id = _new_id()
+        path = f"{grant.workspace_id}/{grant.id}/sign-offs/{record_id}.pdf"
+        record = Record(
+            id=record_id,
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            written_at=now,
+            data=SignOff(
+                note=note,
+                report_path=path,
+                report_sha256=hashlib.sha256(pdf).hexdigest(),
+                snapshot=snapshot,
+            ),
+        )
+        problems = check_new_record(
+            record,
+            store.list_records(conn, grant.id, now),
+            store.list_charges(conn, grant.id, now),
+            store.list_files(conn, grant.id, now),
+            default_items=p.checks.default_items,
+            trigger=None,
+        )
+        if problems:
+            raise WriteRejected(problems)
+        # Stored before the record is written; if the commit then fails, the PDF is left
+        # without a record and nothing reads it.
+        p.storage.put(path, pdf, "application/pdf")
+        store.insert_records(conn, [record])
+        recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.RECORD, id=record.id))
+    ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
+    return record

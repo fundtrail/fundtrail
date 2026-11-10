@@ -742,3 +742,30 @@ def next_catch_up_time(conn: Conn, grant_id: str, run_id: str) -> datetime | Non
         (grant_id, run_id),
     ).fetchone()
     return row["at"] if row else None
+
+
+def get_user(conn: Conn, user_id: str) -> User | None:
+    row = conn.execute(
+        "select id, email, name from public.users where id = %s", (user_id,)
+    ).fetchone()
+    return User.model_validate(_clean(row)) if row else None
+
+
+def grant_status_history(conn: Conn, grant_id: str, now: datetime) -> list[StatusRow]:
+    """Every status row on the grant up to now, oldest first."""
+    rows = conn.execute(
+        """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist, problems,
+                  flagged, rechecking, accepted, snoozed, net_cents, corrections, reversed,
+                  changed_at, trigger_kind, trigger_id
+           from public.statuses where grant_id = %s and changed_at <= %s
+           order by changed_at, id""",
+        (grant_id, now),
+    ).fetchall()
+    return [
+        StatusRow(
+            changed_at=r["changed_at"],
+            trigger=Trigger(kind=TriggerKind(r["trigger_kind"]), id=r["trigger_id"]),
+            status=_status_from_row(r),
+        )
+        for r in rows
+    ]
