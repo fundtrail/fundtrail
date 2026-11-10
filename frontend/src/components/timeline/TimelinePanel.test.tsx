@@ -69,7 +69,7 @@ describe("TimelinePanel", () => {
     fireEvent.change(input, { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await waitFor(() => expect(within(part("Just happened")).getByText("L-1001")).toBeInTheDocument());
-    expect(within(part("Just happened")).getByRole("link", { name: "Open the charge" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
+    expect(within(part("Just happened")).getByRole("link", { name: "Open the charge from L-1001" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
   });
 });
 

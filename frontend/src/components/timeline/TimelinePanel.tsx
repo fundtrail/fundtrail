@@ -77,8 +77,13 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
             <li key={p.event.id} className="ft-tl__item">
               <EventLine event={p.event} />
               <span>{agentSummary(p)}</span>
-              {(p.charge_ids ?? []).map((chargeId) => (
-                <Link key={chargeId} className="ft-link" href={routes.charge(grantId, chargeId)}>
+              {(p.charge_ids ?? []).map((chargeId, i, all) => (
+                <Link
+                  key={chargeId}
+                  className="ft-link"
+                  href={routes.charge(grantId, chargeId)}
+                  aria-label={`Open the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`}
+                >
                   Open the charge
                 </Link>
               ))}
@@ -90,11 +95,12 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
   );
 }
 
-/** Saves a file from a link: a signed link, or a data: link in fake mode. */
-function saveFrom(url: string, name: string) {
+/** Opens a file's link in a new tab: a signed link is on another origin, where a download name is ignored. */
+function openFile(url: string, name: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
+  a.target = "_blank";
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
@@ -122,7 +128,7 @@ function Delivery({
           type="button"
           className="ft-btn ft-btn--sm"
           disabled={busy}
-          onClick={() => void act(async () => saveFrom((await api.deliveryFileUrl(grantId, event.id)).url, event.name))}
+          onClick={() => void act(async () => openFile((await api.deliveryFileUrl(grantId, event.id)).url, event.name))}
         >
           Get the file
         </button>
