@@ -51,6 +51,8 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
               </li>
             ))}
           </ul>
+          <NavLink href={routes.newGrant(workspaceId)}>Add a grant</NavLink>
+          <NavLink href={routes.mail(workspaceId)}>Held mail</NavLink>
         </div>
       )}
       <div className="ft-sidebar__foot">

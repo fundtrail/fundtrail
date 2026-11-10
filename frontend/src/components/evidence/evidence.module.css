@@ -1,0 +1,149 @@
+/* Evidence cards and the confirm screen, on the design system's tokens (globals.css). */
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.problems {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+}
+
+.facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.fact:first-child {
+  border-top: 0;
+}
+
+.factHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.values {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+.values dt {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding-top: 2px;
+}
+.values dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quote {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--rule-strong);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  text-decoration: none;
+  white-space: pre-wrap;
+}
+.quote:hover {
+  border-left-color: var(--ledger);
+}
+
+.unconfirmed {
+  color: var(--needs-human);
+  font-weight: 600;
+}
+
+.links {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.confirmList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.confirmRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.input {
+  height: var(--control-md);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+}
