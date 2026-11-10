@@ -180,8 +180,8 @@ def test_a_thread_question_goes_ahead_of_queued_runs(platform: Platform) -> None
         store.insert_charges(conn, [charge])
         now = store.list_runs(conn, grant.id)[0].clock_now
         queue_run(conn, grant, Trigger(kind=TriggerKind.CHARGE, id=charge.id), now)
-        user_id = new_auth_user(platform)
-        store.upsert_user(conn, _user(user_id))
+        # The workspace's owner: a message's author is a member of its workspace.
+        user_id = store.workspace_by_id(conn, grant.workspace_id).owner_id
         message = ThreadMessage(
             id=str(uuid.uuid4()),
             workspace_id=grant.workspace_id,
@@ -321,8 +321,8 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
     )
     with transaction(platform.pool) as conn:
         store.insert_charges(conn, [charge])
-        user_id = new_auth_user(platform)
-        store.upsert_user(conn, _user(user_id))
+        # The workspace's owner: a message's author is a member of its workspace.
+        user_id = store.workspace_by_id(conn, grant.workspace_id).owner_id
         now = store.list_runs(conn, grant.id)[0].clock_now
         message = ThreadMessage(
             id=str(uuid.uuid4()),
@@ -368,8 +368,8 @@ def test_a_thread_runs_record_that_doesnt_name_its_message_is_refused(
             "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
         )
         conn.execute("delete from procrastinate_jobs")
-        user_id = new_auth_user(platform)
-        store.upsert_user(conn, _user(user_id))
+        # The workspace's owner: a message's author is a member of its workspace.
+        user_id = store.workspace_by_id(conn, grant.workspace_id).owner_id
         now = store.list_runs(conn, grant.id)[0].clock_now
         charge = _charge(platform, grant)
         message = ThreadMessage(
