@@ -181,12 +181,12 @@ def _pdf(pdf: bytes, grant: Grant, suffix: str = "") -> Response:
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}, "description": "The current draft"}},
 )
-def get_report(grant: GrantDep, platform: PlatformDep) -> Response:
+def get_report(grant: GrantDep, user: UserDep, platform: PlatformDep) -> Response:
     """The current draft of the evidence report (decision 0022). A signed report is fetched
     through its sign-off: GET /records/{record_id}/report."""
     with transaction(platform.pool) as conn:
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
-        pdf = draft_report(platform, conn, grant, now)
+        pdf = draft_report(platform, conn, grant, now, user.id)
     return _pdf(pdf, grant, "-draft")
 
 
