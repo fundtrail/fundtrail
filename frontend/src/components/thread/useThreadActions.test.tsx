@@ -1,9 +1,9 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiProvider, type ApiClient } from "@/lib/api";
+import { ApiProvider, useCharge, type ApiClient, type ChargeDetail } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { StaticAuthProvider, type Auth } from "@/lib/auth";
-import { useServer, useThreadActions } from "./useThreadActions";
+import { useThreadActions } from "./useThreadActions";
 
 const auth: Auth = {
   state: { status: "signed_in", user: { id: "user-1", email: "accountant@university.example", name: null } },
@@ -15,24 +15,24 @@ const auth: Auth = {
 
 type Actions = ReturnType<typeof useThreadActions>;
 
-function Probe({ load, onActions }: { load: () => Promise<number>; onActions: (a: Actions) => void }) {
-  const data = useServer(["probe"], () => load());
+function Probe({ onActions }: { onActions: (a: Actions) => void }) {
+  const data = useCharge("charge-1");
   onActions(useThreadActions("grant-1", { chargeId: "charge-1" }));
-  return <p data-testid="loads">{data.data ?? "none"}</p>;
+  return <p data-testid="loads">{data.data ? data.data.charge.id : "none"}</p>;
 }
 
 function setup() {
   const client = createFakeApiClient();
   const writeRecord = vi.fn(async () => ({}) as Awaited<ReturnType<ApiClient["writeRecord"]>>);
   const postChargeMessage = vi.fn(async () => ({}) as Awaited<ReturnType<ApiClient["postChargeMessage"]>>);
-  const api: ApiClient = { ...client, writeRecord, postChargeMessage };
-  let loads = 0;
-  const load = vi.fn(async () => ++loads);
+  // Counts the screen's loads of the charge, so a test sees the refetch after a write.
+  const load = vi.fn(async () => ({ charge: { id: "charge-1" } }) as ChargeDetail);
+  const api: ApiClient = { ...client, writeRecord, postChargeMessage, getCharge: load };
   let actions: Actions | undefined;
   render(
     <StaticAuthProvider value={auth}>
       <ApiProvider client={api}>
-        <Probe load={load} onActions={(a) => (actions = a)} />
+        <Probe onActions={(a) => (actions = a)} />
       </ApiProvider>
     </StaticAuthProvider>,
   );
@@ -42,7 +42,7 @@ function setup() {
 describe("useThreadActions", () => {
   it("posts Accept as a confirmation record and refetches the screen", async () => {
     const { writeRecord, load, actions } = setup();
-    await waitFor(() => expect(screen.getByTestId("loads")).toHaveTextContent("1"));
+    await waitFor(() => expect(screen.getByTestId("loads")).toHaveTextContent("charge-1"));
     await act(() => actions().decide("rec-dispute", "confirmed"));
     expect(writeRecord).toHaveBeenCalledWith("grant-1", {
       data: { kind: "confirmation", record_ids: ["rec-dispute"], decision: "confirmed" },
@@ -63,6 +63,15 @@ describe("useThreadActions", () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
     await act(() => actions().ask("Is there a quote?"));
     expect(postChargeMessage).toHaveBeenCalledWith("charge-1", "Is there a quote?");
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it("sends any of the accountant's records as it is, and refetches", async () => {
+    const { writeRecord, load, actions } = setup();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    const input = { data: { kind: "snooze" as const, charge_id: "charge-1", until: "2026-05-01", note: "Refund coming.", reasons: [{ check: "checklist", problem: "missing_item" }] } };
+    await act(() => actions().write(input));
+    expect(writeRecord).toHaveBeenCalledWith("grant-1", input);
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 });

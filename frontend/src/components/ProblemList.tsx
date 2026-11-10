@@ -1,14 +1,9 @@
 import Link from "next/link";
-import type { FtRecord, HoldReason, ProblemRow, Reason } from "@/lib/api";
-import { date, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
+import type { FtRecord, ProblemRow, Reason } from "@/lib/api";
+import { date, HOLD_REASON_LABELS, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { ChargeStatusBadge } from "./BucketBadge";
 
-/** Why mail is held, in the words of the contract (decision 0025). */
-const HOLD_REASONS: Record<HoldReason, string> = {
-  unknown_sender: "Held: the sender isn't a known sender",
-  unverified_sender: "Held: the sender couldn't be verified",
-};
 
 /** A reason's text as the server sends it, with when a missing item is expected and whether it was accepted. */
 function ReasonLine({ reason }: { reason: Reason }) {
@@ -157,7 +152,7 @@ function Row({ row }: { row: ProblemRow }) {
               </Link>
             </p>
             <p className="ft-problem__text">
-              {HOLD_REASONS[row.held.reason]}
+              {HOLD_REASON_LABELS[row.held.reason]}
               {row.held.sender && <> · {row.held.sender}</>}
             </p>
           </div>

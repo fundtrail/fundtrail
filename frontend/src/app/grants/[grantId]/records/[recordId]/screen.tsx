@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { AppShell, Loadable } from "@/components/AppShell";
 import { grantName } from "@/components/GrantList";
 import { RecordThreadView } from "@/components/thread/RecordThreadView";
-import { useServer, useThreadActions } from "@/components/thread/useThreadActions";
-import { useGrant, useProblemList, type EvidenceFile, type Id } from "@/lib/api";
+import { useThreadActions } from "@/components/thread/useThreadActions";
+import { useEvidence, useGrant, useProblemList, useRecords, useRecordThread, type EvidenceFile, type Id } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
 /**
@@ -17,9 +17,9 @@ export function RecordThreadScreen() {
   const { grantId, recordId } = useParams<{ grantId: string; recordId: string }>();
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
-  const records = useServer(["records", grantId], (api) => api.listRecords(grantId));
-  const evidence = useServer(["evidence", grantId], (api) => api.listEvidence(grantId));
-  const thread = useServer(["record-thread", recordId], (api) => api.getRecordThread(recordId));
+  const records = useRecords(grantId);
+  const evidence = useEvidence(grantId);
+  const thread = useRecordThread(recordId);
   const actions = useThreadActions(grantId, { recordId });
   const summary = grant.data?.summary;
 

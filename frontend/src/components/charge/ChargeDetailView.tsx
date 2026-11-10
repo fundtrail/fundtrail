@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Charge, ChargeDetail, Citation, Id, LinkView } from "@/lib/api";
 import { ReviewThread } from "../thread/ReviewThread";
 import type { OnDecide } from "../thread/Decide";
+import type { OnWrite } from "../thread/useThreadActions";
 import { AgentAnswers } from "./AgentAnswers";
 import { BillsCovering } from "./BillsCovering";
 import { ChargeHeader } from "./ChargeHeader";
@@ -41,11 +42,14 @@ export function ChargeDetailView({
   detail,
   onDecide,
   onAsk,
+  onWrite,
   links = {},
 }: {
   detail: ChargeDetail;
   onDecide: OnDecide;
   onAsk: (text: string) => Promise<void>;
+  /** The accountant's other records: answers, checklist changes, accepted reasons, snoozes. */
+  onWrite?: OnWrite;
   links?: ChargeLinks;
 }) {
   const { charge, status } = detail;
@@ -61,7 +65,7 @@ export function ChargeDetailView({
       <div className={styles.layout}>
         <div className={styles.column}>
           <Section id="reasons-heading" title="Why it's in this bucket">
-            <StatusReasons status={status ?? null} />
+            <StatusReasons status={status ?? null} chargeId={charge.id} records={records} onWrite={onWrite} />
           </Section>
           <Section id="checklist-heading" title="Evidence checklist">
             <EvidenceChecklist
@@ -70,6 +74,8 @@ export function ChargeDetailView({
               waiting={waiting}
               records={records}
               files={files}
+              chargeId={charge.id}
+              onWrite={onWrite}
             />
           </Section>
           <Section id="bills-heading" title="Bills and evidence covering it">
@@ -82,6 +88,8 @@ export function ChargeDetailView({
               rechecking={status?.rechecking ?? false}
               files={files}
               quoteHref={links.quote}
+              chargeId={charge.id}
+              onWrite={onWrite}
             />
           </Section>
           <Section id="history-heading" title="Status history">

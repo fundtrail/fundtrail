@@ -5,8 +5,8 @@ import { useParams } from "next/navigation";
 import { AppShell, Loadable } from "@/components/AppShell";
 import { ChargeDetailView, type ChargeLinks } from "@/components/charge/ChargeDetailView";
 import { grantName } from "@/components/GrantList";
-import { useServer, useThreadActions } from "@/components/thread/useThreadActions";
-import { useGrant } from "@/lib/api";
+import { useThreadActions } from "@/components/thread/useThreadActions";
+import { useCharge, useChargeThread, useGrant } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
 /**
@@ -17,11 +17,11 @@ import { routes } from "@/lib/routes";
 export function ChargeScreen() {
   const { grantId, chargeId } = useParams<{ grantId: string; chargeId: string }>();
   const grant = useGrant(grantId);
-  const detail = useServer(["charge", chargeId], (api) => api.getCharge(chargeId));
+  const detail = useCharge(chargeId);
   // The thread has its own route too. The page shows that one, so a message
   // posted shows up without waiting on the whole charge; until it loads, the
   // charge's own copy stands in.
-  const thread = useServer(["charge-thread", chargeId], (api) => api.getChargeThread(chargeId));
+  const thread = useChargeThread(chargeId);
   const actions = useThreadActions(grantId, { chargeId });
   const summary = grant.data?.summary;
   const line = detail.data?.charge.ledger_line_id;
@@ -49,6 +49,7 @@ export function ChargeScreen() {
           <ChargeDetailView
             detail={thread.data ? { ...data, thread: thread.data } : data}
             onDecide={actions.decide}
+            onWrite={actions.write}
             onAsk={actions.ask}
             links={links}
           />
