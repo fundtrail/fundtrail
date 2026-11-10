@@ -263,6 +263,9 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
         deliver="user",
     )
     g.highlights[name] = "Receipt photo you deliver"
+    g.deliver_file(
+        name, at(date(2024, 12, 16), 18), "The PI uploads her taxi receipt photo on its date."
+    )
     g.record("bill", name, total="5200", dated="2024-12-09", vendor="Example Cab Co.")
     trip(
         g,
@@ -641,7 +644,7 @@ def rate_agreement(g: Grant) -> None:
     ]
     text = "\n".join(
         [
-            "EIN: 00-0000000",
+            "EIN: 00-EXAMPLE",
             f"ORGANIZATION: {UNIVERSITY}",
             "100 Example Hall, Example City, CA 94000",
             "Date: 05/28/2025",

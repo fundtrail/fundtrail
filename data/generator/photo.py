@@ -92,7 +92,7 @@ def photo(name: str, lines: list[str], *, seed: int) -> bytes:
 
 # A scanned page: white paper, straight, text from the top left. agent_records.py
 # works out a value's box from these numbers.
-SCAN_WIDTH = 1000
+SCAN_WIDTH = 1300
 SCAN_MARGIN = 60
 SCAN_TOP = 80
 SCAN_LINE = 34

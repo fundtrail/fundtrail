@@ -17,14 +17,37 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 
 ## The two samples
 
-| Sample | From | Its clock | Lines | Files |
+| Sample | Grant | Its clock | Lines | Files |
 |---|---|---|---|---|
-| `salt-marsh-carbon` (larger) | Grant A, SYN-2401835, Feb 1, 2024 to Jan 31, 2027 | Starts with its award letter, 2024-01-18T17:00Z, and runs into its 90-day closeout window and past its end date. | 65 | 45 |
-| `nitrate-sensors` (small) | SYN-2511958, Sep 1, 2025 to Aug 31, 2028 | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
+| `salt-marsh-carbon` (larger) | SYN-2401835, Salt Marsh Carbon Burial at Example Point. Continuing grant, Feb 1, 2024 to Jul 31, 2026, extended to Jan 31, 2027. $60,000 obligated, then $120,000. | Starts with its award letter, 2024-01-18T17:00Z, and runs its whole life, to the closeout certification's receipt on 2027-03-12 | 33 | 37 |
+| `nitrate-sensors` (small) | SYN-2511958, Low-Cost Nitrate Sensors for Example Valley Groundwater. Sep 1, 2025 to Aug 31, 2028. $40,000. | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
 
 There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
 
 The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`, marked `"placeholder": true` until the docs give the words.
+
+### The highlights (the sample content brief, ruling 58)
+
+Each highlight's events carry a short `highlight` label in `timeline.json`, and "Next highlight" moves to the next one. Everything else is ordinary, and clears on its own.
+
+| # | Label | In the larger sample | Expected |
+|---|---|---|---|
+| 1 | Terms tied to their passages | The award letter, a continuing grant with a participant support condition | Terms confirmed by the script |
+| 2 | Invoice before its line | Invoice INV-20514 arrives by email on 2025-02-10; its line posts 2025-02-18 | Evidence complete once the line arrives |
+| 3 | Receipt photo you deliver | A $52.00 taxi receipt photo, the PI's to deliver, on a trip whose plain text expense report rides along | Missing evidence until it's delivered |
+| 4 | Shared invoice, 56 of 96 | A $10,000.00 invoice; the PI's email gives 56 of 96 samples, so $5,833.33 is this grant's; the agent's suggestion that the rest belongs to SYN-2507264 waits | Evidence complete. Decision 0021, in `shared_invoice()` |
+| 5 | Own fee, own approval | The PI's own $650.00 conference fee on participant support, then her own "Approved" email | Possible conflict throughout |
+| 6 | Extension found in Drive | $3,150.00 of boat time in August 2026, after the July 31 end date; extension 002, dated July 15, turns up in Drive | Possible conflict, then Evidence complete once the new end date is confirmed |
+| 7 | Held vendor email, Moved off the grant | A vendor emails invoice EFG-30418 from an unknown address; let in, it shows a dinner with wine; a correcting line moves the $360.00 off the grant, with a written justification | Missing evidence, then Possible conflict after the let-in (rule NSF-NEVER-ALCOHOL), then reversed. Decision 0020, in `held_vendor_invoice()` |
+| 8 | Over budget, More money, a higher limit | A $4,950.00 corer takes spending past the $60,000.00 obligated and Materials and Supplies past its line; the accountant accepts it with a note; amendment 001 adds $60,000.00 | Charges unaffected. The grant's problem is accepted |
+| 9 | Closeout | The 90-day notice of expiration; the agent's closeout review; sign-off on 2027-03-10 with one item open and a note | Unmeasured by the key |
+| 10 | Same invoice twice | Invoice ESS-55120 by email, then a scan in Drive six weeks later; the agent marks the scan a duplicate, and the script accepts | The charge clears from the emailed copy |
+| 11 | One report, six salary lines | The postdoc's July to December 2025 effort report | All six salary lines, and their six benefit lines, clear when it arrives |
+| 12 | Bill under its charge | A $1,260.00 charge with a $1,200.00 invoice; the freight bill never arrives | Missing evidence, still open at sign-off |
+
+The small sample marks highlights 1 to 3: its award letter, invoice ESS-32410 emailed on 2026-11-19 before its line posts on 2026-12-07, and the hardware store receipt photo, the user's to deliver.
+
+**Benefits (background, not a highlight).** Beside each of the postdoc's six salary lines is a benefit line on 53080 Benefit Assessment - Limited, at 15.00% of that month's $6,500.00, from the synthetic rate agreement (laid out like a real Colleges and Universities Rate Agreement: a fixed rate per employee group and fiscal year, July 1 to June 30). The key expects a benefit line to clear when its salary line does, which assumes the benefit check the checks builder is building.
 
 ## The timeline
 
@@ -52,11 +75,16 @@ A suggestion's kind must be one of the contract's record kinds that wait for the
 
 | Action | Fields besides `at` and an optional `note` | In the samples |
 |---|---|---|
-| `confirm_terms` | `file` | The award letter, in both samples |
-| `deliver_file` | `file`, a file marked for the user, delivered by upload on or after its date, so its date stays as written | The small sample's three marked files, each on its date |
-| `decide_suggestion` | `suggestion` (the record kind suggested, such as `checklist_removal`, `dispute`, `duplicate` or `link`), `decision` (`accept` or `reject`), and a `line_id` or a `file` | None: neither key rests on one |
+| `confirm_terms` | `file` | The award letter in both samples; the larger sample's increment (001) and extension (002) |
+| `deliver_file` | `file`, a file marked for the user, delivered by upload on or after its date, so its date stays as written | The taxi photo (larger) and the hardware store photo (small), each on its date |
+| `decide_suggestion` | `suggestion` (the record kind suggested, such as `checklist_removal`, `dispute`, `duplicate` or `link`), `decision` (`accept` or `reject`), and a `line_id` or a `file` | Accept the duplicate mark on the scan (larger, highlight 10) |
 | `answer_flag` | `line_id`, `answer` | None: neither key expects a flag |
-| `enter_share` | `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021) | None: the larger sample's key expects S3c to stay Needs a human |
+| `enter_share` | `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021) | None |
+| `let_in_mail` | `file`, a Gmail file from a sender nobody on the grant uses, held until then (ruling 59) | The vendor's email (larger, highlight 7) |
+| `accept_reason` | `note` (the accountant's), `check`, an optional `problem`, and a `line_id`, a `file`, or neither for the grant (ruling 59) | Spending over the award's limit: `budget`, `over_limit`, on the grant (larger, highlight 8) |
+| `sign_off` | `note` (the accountant's) (ruling 59) | The sign-off with one item open (larger, highlight 9) |
+
+The answer key can't measure `decide_suggestion`, `let_in_mail`, `accept_reason` or `sign_off`: it doesn't express suggestions, held mail, grant problems or a sign-off. The test lets them through unmeasured, checking only that each is well formed and possible at its time. A held email counts as arriving when it's let in.
 
 Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 
@@ -69,7 +97,7 @@ Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 
 - **Terms** from the award letter: the period, the notice, every budget line with its category, and the people.
 - **Facts**: a bill or a note from each file the key names. A note gives its label, its statement and, for an effort report or an appointment letter, its period.
-- **Links** with their amounts, parts and the default checklist item each fills. Where a note gives a share, such as "56 of the 96", the link carries the share with its three cited numbers (decision 0021). S3c's link has no basis, so it has none.
+- **Links** with their amounts, parts and the default checklist item each fills. Where a note gives a share, such as "56 of the 96", the link carries the share with its three cited numbers (decision 0021).
 - **Budget assignments.**
 - **Allowable answers**, written again each time something new is linked. Each new one replaces the last, as the agent answers again.
 
@@ -81,15 +109,22 @@ IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the
 
 Each record is written when its file and its charge have both arrived. Confirmations aren't here, because they're the accountant's and live in `user_actions.json`.
 
-The records validate against the contract's models. Played through main's checks at every key time, with the scripted confirmations, they give the key's bucket each time: 103 of 103 in the larger sample and 8 of 8 in the small one. The static test checks four things:
+The larger sample's records also hold the agent's suggestions the highlights show: the remainder of the shared invoice (highlight 4), and the duplicate mark on the scan (highlight 10). Answers that rest on a rule name it: NSF-PARTICIPANT-NOT-STAFF for highlight 5, NSF-NEVER-ALCOHOL for highlight 7.
+
+Within one moment, a record comes after every record it points to, the way a run writes them: terms, then facts, then links and assignments, then answers and suggestions.
+
+The records validate against the contract's models. Played through main's checks at every key time, with the scripted steps the key measures, they give the key's bucket 8 of 8 times in the small sample. In the larger sample they give it 48 of 54 times. The six others are the benefit lines before the effort report arrives: main's checks clear a benefit line as soon as the rate agreement is linked, and the key waits for the benefit check that ties it to its salary line.
+
+The static test checks five things:
 - every link, budget line and answer the key expects is there
 - every passage is at its place in its file
 - every photo box lies inside its photo
 - nothing is written before what it rests on
+- no record comes before a record it points to
 
 ## The seed grants
 
-Grants B and C stay in `data/demo/` in the same format, unused until the samples' content is decided. Every seed grant, A included:
+Grants B and C, from the earlier placeholder seed, stay in `data/demo/` in the same format, unused. The placeholder Grant A they were built with is no longer written: the larger sample replaced it. The table and the situations below describe that placeholder seed.
 
 | Folder | Award | Period | Where the story is | Lines | Files |
 |---|---|---|---|---|---|
@@ -101,7 +136,7 @@ Each grant has an award letter laid out like a real NSF award notice ([domain.md
 
 ## The situations
 
-From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples). Each charge's `note` in its `timeline.json` names its situation. Only S3a and S3c are on the larger sample. The small sample's two later lines, whose invoices are already on file, tell S4's story too.
+From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples). They describe the placeholder seed. Its Grants B and C are kept in `data/demo/`, and its Grant A was replaced by the larger sample.
 
 | Situation | Grant | What happens | Expected bucket |
 |---|---|---|---|
