@@ -1,0 +1,40 @@
+[project]
+name = "fundtrail-backend"
+version = "0.1.0"
+description = "FundTrail backend: FastAPI app"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.162.2",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pyright[nodejs]>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pyright]
+include = ["app", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
