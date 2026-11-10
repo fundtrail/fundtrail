@@ -393,3 +393,19 @@ def test_excel_sheet_that_understates_its_size_is_read_in_full():
     result = _read(_with_dimension(content, "A1:B2"))
     assert result.rejected == []
     assert result.charges == EXPECTED_SAMPLE
+
+
+@pytest.mark.parametrize(
+    ("transaction_date", "amount", "problem"),
+    [
+        ("2025-01-01", "\u0665\u0660\u0660.\u0662\u0665", "amount"),  # Arabic-Indic 500.25
+        ("2025-01-01", "\uff11\uff10.00", "amount"),  # full-width 10.00
+        ("\u0662\u0660\u0662\u0665-01-01", "10.00", "transaction_date"),  # Arabic-Indic 2025
+    ],
+)
+def test_digits_from_other_scripts_are_rejected(transaction_date: str, amount: str, problem: str):
+    content = HEADER + f"\nL-1,{transaction_date},2025-01-02,{amount},Thing,55016,,,\n"
+    result = _read(content)
+    assert result.charges == []
+    [rejected] = result.rejected
+    assert rejected.reason.startswith(problem)

@@ -28,8 +28,9 @@ REQUIRED_COLUMNS = (
 OPTIONAL_COLUMNS = ("vendor", "reference", "original_line_id")
 KNOWN_COLUMNS = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
 
-_AMOUNT_PATTERN = re.compile(r"^-?\d+(\.\d{1,2})?$")
-_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Only ASCII digits: `\d` would also accept digits from other scripts, such as Arabic-Indic.
+_AMOUNT_PATTERN = re.compile(r"-?[0-9]+(\.[0-9]{1,2})?")
+_DATE_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _XLSX_MAGIC = b"PK\x03\x04"
 
 type Cell = str | int | float | Decimal | date | datetime | bool | None
@@ -247,7 +248,7 @@ def _date(cell: Cell, name: str) -> date:
     text = _text(cell)
     if text is None:
         raise _RowError(f"{name} is empty.")
-    if not _DATE_PATTERN.match(text):
+    if not _DATE_PATTERN.fullmatch(text):
         raise _RowError(f"{name} {text!r} isn't a date written as YYYY-MM-DD.")
     try:
         return date.fromisoformat(text)
@@ -266,6 +267,6 @@ def _cents(cell: Cell) -> int:
         text = _text(cell)
     if text is None:
         raise _RowError("amount is empty.")
-    if not _AMOUNT_PATTERN.match(text):
+    if not _AMOUNT_PATTERN.fullmatch(text):
         raise _RowError(f"amount {text!r} isn't dollars with up to two decimals, such as -1240.00.")
     return int(Decimal(text) * 100)
