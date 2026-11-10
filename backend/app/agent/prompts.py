@@ -64,6 +64,13 @@ checklist is filled only by rate math (such as a per diem of days times a rate),
 Evidence complete with no question for you, so no one else looks at it. Most are fine. Flag one \
 that looks off, such as a $0 line that shouldn't be $0, or a per diem whose days or rate don't \
 fit the trip; the flag sends it to the accountant.
+- A credit memo, a refund or a credit note is a bill with a negative total. When it names the \
+invoice or charge it credits, link it to that charge with its own negative amount, even before \
+the ledger's credit line posts; the charge then waits for the credit with the accountant. A memo \
+that names no invoice or charge: link nothing, and flag it if it needs a look.
+- When the sign beside an amount can be read either way, such as a dash with a space before it \
+("Hotel - $612.40"), your reading stands, so say in the link's reason what you read the sign \
+from, such as "credit memo", "refund" or "amount due".
 - Unsure is a good answer when the evidence doesn't settle the question. It sends the charge to \
 the accountant with your reasoning.
 - When you're done, call finish with a one-line summary.
@@ -86,6 +93,16 @@ decides the answer: for a not-allowed rule, contradicts when the documents show 
 unless they show the exception the rule states; for an allowed-under-a-condition rule, supports \
 when a document shows the condition is met and contradicts when none does; for a judgment rule, \
 a flag rather than contradicts, unless the rule names a comparison that gives contradicts.
+- The Allowable answer is about the cost itself: is it necessary, reasonable and for this \
+project, and is it a kind of cost the rulebook allows. A charge's date against the period of \
+performance isn't part of it: that's code's own check, and the charge's bucket follows the \
+period in force once the accountant confirms it, with no new answer from you. So don't answer \
+unsure or contradicts because of the date, don't rest an Allowable answer on the period term, \
+and don't add a checklist item or a flag about where the date falls. If a document shows the \
+date check is wrong for a charge, such as an order placed before the end date, dispute the check \
+(NSF-POST-END-COMMITMENTS is for that dispute). Two things still use the dates: the flag on a \
+purchase close to the end date (NSF-END-DATE-PURCHASES), which is yours to raise, and a Covers \
+answer on a pre-award approval, which rests on the start date.
 - A cost no rule names isn't thereby allowed: still answer whether it is necessary, reasonable and \
 for this project.
 

@@ -77,6 +77,31 @@ describe("the fake client", () => {
     expect((await api.listRecords(SAMPLE_GRANT_ID)).map((r) => r.record.id)).not.toContain(written.id);
   });
 
+  it("serves the reusable note on the grant page", async () => {
+    const detail = await createFakeApiClient().getGrant(SAMPLE_GRANT_ID);
+    expect(detail.reusable_notes?.map((n) => n.note.id)).toEqual(["rec-note-usage-statement"]);
+  });
+
+  it("shows a sign-off stored in fake mode as signed, filled in like the server", async () => {
+    const api = createFakeApiClient();
+    expect((await api.getGrant(SAMPLE_GRANT_ID)).sign_off.state).toBe("not_signed");
+    const stored = await api.writeRecord(SAMPLE_GRANT_ID, { data: { kind: "sign_off", note: "Ready for the certification." } });
+    const { sign_off } = await api.getGrant(SAMPLE_GRANT_ID);
+    expect(sign_off.state).toBe("signed");
+    expect(sign_off.sign_off?.id).toBe(stored.id);
+    const data = sign_off.sign_off!.data;
+    expect(data.note).toBe("Ready for the certification.");
+    expect(data.report_sha256).toMatch(/^fake-/);
+    expect(data.snapshot.charges.map((c) => [c.charge_id, c.bucket])).toEqual([
+      ["chg-l-1001", "evidence_complete"],
+      ["chg-l-1002", "possible_conflict"],
+    ]);
+    expect(data.snapshot.problem_rows).toContain("charge:chg-l-1002");
+    expect(data.snapshot.totals.ledger_total_cents).toBe(342_000);
+    // Another client starts unsigned.
+    expect((await createFakeApiClient().getGrant(SAMPLE_GRANT_ID)).sign_off.state).toBe("not_signed");
+  });
+
   it("counts a ledger upload by line ID", () => {
     expect(countLedger(SAMPLE_LEDGER_CSV)).toEqual({ added: 0, already_present: 2, rejected: [] });
     expect(countLedger(`${SAMPLE_LEDGER_CSV}\nL-1003,2026-03-01,2026-03-02,10.00,Tips,55016 Lab,,,\n,2026-03-01,2026-03-02,1.00,x,y,,,`)).toEqual({

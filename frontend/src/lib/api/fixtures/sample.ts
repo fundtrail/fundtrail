@@ -12,7 +12,7 @@
 // text the server builds; screens show it as it comes.
 
 import { ApiError } from "../client";
-import type { Charge, Cents, EvidenceFile, FtRecord, Grant, HeldMail, Id, IsoDate, IsoDatetime, SignOffState, User, ValueState, Workspace } from "../types";
+import type { Charge, Cents, EvidenceFile, FtRecord, Grant, HeldMail, Id, IsoDate, IsoDatetime, ReusableNoteView, SignOffState, User, ValueState, Workspace } from "../types";
 import raw from "./sample_grant.json";
 
 export interface DefaultItemFixture {
@@ -101,6 +101,33 @@ export const SAMPLE_HELD_MAIL: HeldMail[] = [
 
 /** The sample hasn't been signed off. Shared by the grant page and the closeout screen. */
 export const SAMPLE_SIGN_OFF: SignOffState = { state: "not_signed", sign_off: null, changes: [] };
+
+/**
+ * A synthetic reusable note, so the grant page and the reusable notes list
+ * have one to show. The contract's sample has none; this one is made up on
+ * L-1002, isn't part of the sample's story, and covers no other charge.
+ */
+export const SAMPLE_REUSABLE_NOTE: ReusableNoteView = {
+  note: {
+    id: "rec-note-usage-statement",
+    workspace_id: WORKSPACE_ID,
+    grant_id: SAMPLE_GRANT_ID,
+    author: "user",
+    author_user_id: sample.user.id,
+    written_at: "2026-04-09T17:00:00Z",
+    replaces_id: null,
+    data: {
+      kind: "accepted_reason",
+      charge_id: "chg-l-1002",
+      reason: { check: "checklist", problem: "item_missing" },
+      note: "The core sends one usage statement a quarter.",
+      reusable: true,
+    },
+  },
+  charge: sampleCharge("chg-l-1002"),
+  amount_limit_cents: 218_000,
+  covered: [],
+};
 
 /** A deep copy, or a 404 when there's nothing, the way the server answers. */
 export function served<T>(value: T | undefined): Promise<T> {
