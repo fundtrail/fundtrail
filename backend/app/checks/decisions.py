@@ -42,6 +42,22 @@ class Coverage(StrEnum):
     OFFERED = "offered"  # the same problem and account, outside the vendor or amount limit
 
 
+def _later(charge: Charge, note: Record) -> bool:
+    """Whether a charge is "a later charge" than a reusable note (call 36, ruling 3).
+
+    It arrived after the note was written, or at the same time and was stored after it.
+    The demo clock stands still between moves, so equal times are common. Unknown
+    stored order isn't "after".
+    """
+    if charge.arrived_at != note.written_at:
+        return charge.arrived_at > note.written_at
+    return (
+        charge.stored_seq is not None
+        and note.stored_seq is not None
+        and charge.stored_seq > note.stored_seq
+    )
+
+
 @dataclass(frozen=True)
 class SubjectKey:
     charge_id: str | None = None
@@ -169,7 +185,7 @@ class Decisions:
         if (data.reason.check, data.reason.problem) != (check, problem):
             return None
         noted = self.charges[data.charge_id]
-        if noted.account != charge.account or charge.arrived_at <= note.written_at:
+        if noted.account != charge.account or not _later(charge, note):
             return None
         same_vendor = (
             charge.vendor is not None
