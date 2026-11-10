@@ -174,7 +174,7 @@ def test_the_prompt_keeps_the_date_out_of_the_allowable_answer():
 
 
 def test_the_end_date_purchases_flag_still_saves_and_sends_the_charge_to_a_person():
-    """Decision 0015: a purchase close to the end date is the agent's flag, resting on the period."""
+    """Decision 0015: a purchase close to the end date is the agent's flag, on the period."""
     from app.contracts.records import Link
 
     l1001 = SAMPLE.charges[0]
@@ -207,7 +207,7 @@ def test_the_end_date_purchases_flag_still_saves_and_sends_the_charge_to_a_perso
         "flag",
         charge_id="chg-late",
         question="A $3,800 laptop bought 11 days before the end date: was it used in the project?",
-        reasoning="NSF says the university typically shouldn't buy a computing device this close to the end.",
+        reasoning="NSF says the university typically shouldn't buy a computer this late.",
         rule="NSF-END-DATE-PURCHASES",
         rests_on=["rec-period"],
     )
