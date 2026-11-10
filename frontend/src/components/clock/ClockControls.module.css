@@ -1,0 +1,31 @@
+/* The demo clock's controls in the sidebar. Only the clock's own layout; colors come from the tokens. */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.forward {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.forward label {
+  flex-basis: 100%;
+}
+
+.forward input {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
