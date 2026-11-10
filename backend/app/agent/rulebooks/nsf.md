@@ -112,7 +112,7 @@ Consultant and professional service costs are allowed only for people who are no
 
 ### NSF-ADMIN-SALARIES
 
-Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs. On an award under the older conditions, they must also be explicitly included in the approved budget or have NSF's prior written approval: RTC Appendix A keeps that condition, 2 CFR 200.413(c)(3) in the edition then in force, for NSF. A budget line on the grant for those salaries, from the award notice, satisfies it. When they're neither in the approved budget nor approved by NSF, the agent flags them and says why in its reason; it's a flag, not contradicts, because code's standing approval list comes from the current matrix.
+Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs. On an award under the older conditions, they must also be explicitly included in the approved budget or have NSF's prior written approval: RTC Appendix A keeps that condition, 2 CFR 200.413(c)(3) in the edition then in force, for NSF. A budget line on the grant for those salaries, from the award notice, satisfies it. When they aren't in the approved budget, the agent adds NSF's prior approval to the charge's evidence checklist, naming this rule in the item's reason, so the charge stays in Missing evidence until an approval is linked; it doesn't answer contradicts or flag, because code's standing approval list comes from the current matrix.
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.413(c)](https://www.ecfr.gov/current/title-2/part-200/section-200.413#p-200.413(c))
@@ -218,7 +218,7 @@ Interest on borrowed money, on temporary use of endowment funds, or on the unive
 
 ### NSF-NEVER-SOCIAL-CLUBS
 
-Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed. Under the older 2 CFR wording, civic or community memberships are allowed only with prior approval.
+Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed. Under the older 2 CFR wording, civic or community memberships are allowed only with prior approval. On an award under the older wording, the agent adds that prior approval to the charge's evidence checklist, naming this rule in the item's reason, so the charge stays in Missing evidence until an approval is linked; it doesn't answer contradicts or flag.
 
 - Kind: not allowed
 - Source: [2 CFR 200.454(a), (c) and (d)](https://www.ecfr.gov/current/title-2/part-200/section-200.454)
@@ -308,14 +308,19 @@ The university typically should not buy equipment or computing devices, or resto
 
 ### NSF-PARTICIPANT-NOT-STAFF
 
-Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports. Under the older 2 CFR wording, which has no definition of Participant, participant support is for "participants or trainees (but not employees)" in connection with conferences or training projects, so it excludes only employees. Whether a person named on the grant who isn't an employee counts as a participant under that wording is an open question.
+Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports. Under the older 2 CFR wording, which has no definition of Participant, participant support is for "participants or trainees (but not employees)" in connection with conferences or training projects, so it excludes only employees. On an award under the older wording, a named employee is still contradicts, and a named person who isn't an employee is unsure, with both readings in the reason. A speaker or trainer paid from participant support is contradicts unless their main purpose at the event was to learn as a participant, because every PAPPG edition in force for those awards (NSF 20-1, 22-1, 23-1 and 24-1) already said speakers and trainers generally aren't participants.
 
 - Kind: judgment
 - Source: [2 CFR 200.1, definitions of Participant and Participant support costs](https://www.ecfr.gov/current/title-2/part-200/section-200.1)
 - Source: [NSF PAPPG 24-1, Chapter II.D.2.f(v)](https://www.nsf.gov/policies/pappg/24-1/ch-2-proposal-preparation)
 - Older source: [2 CFR 200.1, Participant support costs, as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.1)
+- Older source: [NSF PAPPG 20-1 (June 1, 2020), Chapter II.C.2.g(v) and II.E.7](https://nsf-gov-resources.nsf.gov/pubs/policydocs/pappg20_1/nsf20_1.pdf)
+- Older source: [NSF PAPPG 22-1 (October 4, 2021), Chapter II.C.2.g(v) and II.E.7](https://nsf-gov-resources.nsf.gov/pubs/policydocs/pappg22_1/nsf22_1.pdf)
+- Older source: [NSF PAPPG 23-1 (January 30, 2023), Chapter II.D.2.f(v) and II.F.7](https://www.nsf.gov/policies/pappg/23-1/ch-2-proposal-preparation)
+- Older answer: from the governing wording
 - Quote: "Individuals committing effort to the development or delivery of program activities under a Federal award (such as consultants, project personnel, or staff members of a recipient or subrecipient) are not participants." (2 CFR 200.1)
 - Quote: "Participant support costs means direct costs for items such as stipends or subsistence allowances, travel allowances, and registration fees paid to or on behalf of participants or trainees (but not employees) in connection with conferences, or training projects." (2 CFR 200.1, edition in force on September 30, 2024, which has no definition of Participant)
+- Quote: "Speakers and trainers generally are not considered participants and should not be included in this section of the budget." (PAPPG 20-1 and 22-1, II.C.2.g(v); 23-1 and 24-1, II.D.2.f(v))
 - Checked: 2026-11-10
 
 ### NSF-LATE-EXTENSION
