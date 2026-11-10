@@ -48,6 +48,40 @@ PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png"}
 CATEGORIES = (ev.CATEGORIES - {"other"}) | {"other_direct_costs_other"}
 ODC_SUBLINES = (ev.ODC_SUBLINE_CATEGORIES - {"other"}) | {"other_direct_costs_other"}
 MAX_FILE_BYTES = 200_000
+# Each account group's NSF categories, by account code prefix, longest prefix
+# first. This is the test's own copy: domain.md's starting groups, with the
+# categories from the account groups table proposed in pull request 30. Replace
+# it with that table once it's on main.
+ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str]], ...] = tuple(
+    sorted(
+        [
+            ("50", frozenset({"senior_personnel", "other_personnel"})),
+            ("51", frozenset({"senior_personnel", "other_personnel"})),
+            ("53", frozenset({"fringe_benefits"})),
+            ("538", frozenset({"fringe_benefits", "other_direct_costs_other"})),
+            ("5742", frozenset({"fringe_benefits", "other_direct_costs_other"})),
+            ("5721", frozenset({"travel"})),
+            ("5722", frozenset({"travel"})),
+            *((p, frozenset({"materials_and_supplies"})) for p in ("550", "551", "552", "553")),
+            ("541", frozenset({"equipment"})),
+            ("542", frozenset({"equipment"})),
+            ("5671", frozenset({"participant_support"})),
+            ("5672", frozenset({"other_direct_costs"})),
+            ("564", frozenset({"other_direct_costs"})),
+            ("590", frozenset({"other_direct_costs"})),
+            ("59005", frozenset({"materials_and_supplies"})),
+            ("59006", frozenset({"materials_and_supplies"})),
+            ("59007", frozenset({"participant_support"})),
+            ("59008", frozenset({"travel"})),
+            ("59012", frozenset({"equipment"})),
+            ("59013", frozenset({"equipment"})),
+            *((f"578{d}", frozenset({"subawards"})) for d in "123456789"),
+            ("925", frozenset({"subawards"})),
+        ],
+        key=lambda pair: len(pair[0]),
+        reverse=True,
+    )
+)
 # Section 1's fields, plus `scope` on an approval rule (the contract change in
 # issue 39): `every_charge`, or `moved_out` for a rule about moving money out of
 # participant support. It's the agent's reading of the rule, not a value quoted
@@ -498,6 +532,29 @@ def share_of(note: str, award_number: str) -> tuple[int, int] | None:
     return None
 
 
+def account_categories(account: str) -> frozenset[str] | None:
+    """The NSF categories of a ledger account's group, or None outside every group."""
+    code = account.split(" ")[0]
+    for prefix, categories in ACCOUNT_CATEGORIES:
+        if code.startswith(prefix):
+            return categories
+    return None
+
+
+def categories_agree(account: frozenset[str], line: str) -> bool:
+    """The two-way rule: the same category, or one contains the other.
+
+    Other Direct Costs contains its six sub-lines, the only categories that sit
+    inside another.
+    """
+    return any(
+        c == line
+        or (c == "other_direct_costs" and line in ODC_SUBLINES)
+        or (line == "other_direct_costs" and c in ODC_SUBLINES)
+        for c in account
+    )
+
+
 def check_invariants(
     key: dict,
     lines: dict,
@@ -515,6 +572,8 @@ def check_invariants(
       charges on this grant that take the rest of the bill.
     - Where the note gives a share, "N of M", the link is the bill's total times
       N over M, to within one cent.
+    - Nothing is Evidence complete when its ledger account's categories and its
+      budget line's category disagree under the two-way rule.
     """
     kinds: dict[str, set[str]] = {}
     totals: dict[str, int] = {}
@@ -557,6 +616,12 @@ def check_invariants(
                         f"{name}'s {totals[name]} cents ({want:.2f})"
                     )
 
+    line_category = {
+        rec["fields"]["name"]: rec["fields"]["category"]
+        for rec in key["records"]
+        if rec["kind"] == "budget_line"
+    }
+    assigned = {b["line_id"]: b["budget_line"] for b in key["budget_lines"]}
     doubtful = {a["line_id"] for a in key["answers"] if a["answer"] != "supports"}
     for item in key["buckets"]:
         if item["bucket"] != "evidence_complete":
@@ -573,6 +638,13 @@ def check_invariants(
             problems.append(f"{where}: complete with nothing linked")
         if lid in unbased:
             problems.append(f"{where}: complete on part of a bill with no basis (0021)")
+        account = account_categories(lines[lid]["account"])
+        category = line_category.get(assigned.get(lid, ""))
+        if account and category and not categories_agree(account, category):
+            problems.append(
+                f"{where}: complete, but account {lines[lid]['account']!r} and budget line "
+                f"{assigned[lid]!r} disagree"
+            )
 
 
 def folder_inputs(key_dir: Path, files: Path, grant, ledger_upload, problems: list[str]):
@@ -610,7 +682,11 @@ def test_files_and_keys() -> None:
 
 
 def test_invariants_catch_false_clears() -> None:
-    """The four edits a reviewer tried, each of which the byte check alone missed."""
+    """The edits a reviewer tried, each of which the byte check alone missed.
+
+    The last one marks the reagents filed on participant support (L-7264-0039)
+    complete, though their account and their budget line disagree.
+    """
     g = gen()
 
     def run(folder: str, edit) -> list[str]:
@@ -642,6 +718,7 @@ def test_invariants_catch_false_clears() -> None:
     assert run("river-delta-sediment", complete("EMS-2609-14", "2026-11-23")), "S2 early"
     assert run("coastal-microbial-genomics", complete("REG-2026-0457")), "S1 marked complete"
     assert run("salt-marsh-carbon", relink), "S3a linked for $5,900"
+    assert run("coastal-microbial-genomics", complete("ESS-29944")), "reagents marked complete"
 
 
 def test_seed_story() -> None:
