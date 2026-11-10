@@ -280,9 +280,11 @@ def record_problems(
             record_id = run.trigger.id
             text = "The agent couldn't finish answering an open question on this record."
         if record_id is not None:
-            found = view.state.by_id.get(record_id)
+            # Like a flag, on the record as it stands now, following corrections.
+            now_version = view.state.current_version(record_id)
+            found = now_version or view.state.by_id.get(record_id)
             if found is not None and found.grant_id == view.grant_id:
-                subject = Subject(record_id=record_id)
+                subject = Subject(record_id=found.id)
         if subject is not None:
             out.append(
                 SubjectFinding(

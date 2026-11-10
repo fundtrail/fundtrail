@@ -9,15 +9,17 @@ How a funding notice's own budget lines combine with the lines already confirmed
 is the builder's (provisional). A category's budget is counted once per notice:
 the parent line's amount when the notice prints one, otherwise the sum of the
 category's lines. A line belongs to the notice whose file it's cited from (call
-36). A line the accountant typed has no citation, so nothing ties it to a
-notice; the typed lines of a category count as one group. The sub-lines of Participant
-Support Costs and of Travel carry their parent's category (contract ruling f),
+36). A line the accountant typed has no citation: when it corrects a cited line
+it belongs to that line's notice, and otherwise it's grouped by its own date.
+The sub-lines of Participant Support Costs and of Travel carry their parent's
+category (contract ruling f),
 so this keeps a parent and its sub-lines from being counted twice. Then the
 notices add up. A charge's spending counts on its assigned line's category and,
 for a sub-line of Other Direct Costs, on Other Direct Costs too. Notes are per
 category, named as NSF prints the category.
 """
 
+import hashlib
 from collections import defaultdict
 from collections.abc import Sequence
 
@@ -157,10 +159,14 @@ def grant_problems(
             )
     skipped = [s for s in skipped_files if s.grant_id == view.grant_id]
     if skipped:
+        # The problem names the set of files, so accepting it covers just those, and
+        # a file skipped later raises it again.
+        names = sorted(f"{s.source}:{s.source_ref}:{s.name}" for s in skipped)
+        digest = hashlib.sha256("\n".join(names).encode()).hexdigest()[:12]
         out.append(
             Finding(
                 SKIPPED_FILES,
-                "skipped",
+                f"skipped:{digest}",
                 Bucket.NEEDS_HUMAN,
                 "These files weren't taken in: "
                 + "; ".join(f"{s.name} ({_SKIP_WHY[s.reason]})" for s in skipped)
@@ -186,13 +192,32 @@ def grant_problems(
     return out
 
 
-def _notice_file(line: BudgetLine) -> str | None:
-    """The notice a budget line belongs to: the file its amount, or failing that its name,
-    is cited from. None for a line the accountant typed, which no file ties to a notice."""
+def _cited_file(line: BudgetLine) -> str | None:
+    """The file a budget line's amount, or failing that its name, is cited from."""
     for value in (line.amount, line.name):
         if value.citation is not None:
             return value.citation.file_id
     return None
+
+
+def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
+    """Which notice a budget line belongs to (call 36).
+
+    The file it's cited from. A line the accountant typed has no citation: when it
+    corrects a cited line, it belongs to that line's file, followed back through the
+    corrections; a typed line with no cited line behind it is grouped by its date.
+    """
+    seen: set[str] = set()
+    r: Record | None = record
+    while r is not None and r.id not in seen:
+        seen.add(r.id)
+        if isinstance(r.data, BudgetLine):
+            found = _cited_file(r.data)
+            if found is not None:
+                return ("file", found)
+        r = view.state.by_id.get(r.replaces_id) if r.replaces_id else None
+    assert isinstance(record.data, BudgetLine)
+    return ("dated", record.data.dated.value.isoformat())
 
 
 def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
@@ -209,11 +234,11 @@ def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
 
 def grant_notes(view: GrantView) -> list[GrantNote]:
     """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
-    by_notice: dict[tuple[BudgetCategory, str | None], list[Record]] = defaultdict(list)
+    by_notice: dict[tuple[BudgetCategory, tuple[str, str]], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
     for r in view.budget_lines():
         assert isinstance(r.data, BudgetLine)
-        by_notice[(r.data.category, _notice_file(r.data))].append(r)
+        by_notice[(r.data.category, _notice_of(view, r))].append(r)
         lines[r.data.category].append(r)
     budget: dict[BudgetCategory, int] = defaultdict(int)
     for (category, _), members in by_notice.items():

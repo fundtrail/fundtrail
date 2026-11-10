@@ -174,11 +174,45 @@ def test_skipped_files_are_one_problem_on_the_grant_naming_them() -> None:
         ),
     ]
     out = g.run(at(2024, 3, 2))
-    assert grant_problems(out) == {"skipped"}
-    assert out.grants[0].problems[0].text == (
+    (problem,) = out.grants[0].problems
+    assert problem.check == "skipped_files" and problem.problem.startswith("skipped:")
+    assert problem.text == (
         "These files weren't taken in: scan.pdf (too large); "
         "Budget sheet (couldn't be exported to a PDF)."
     )
+
+
+def _skipped(name: str, ref: str) -> SkippedFile:
+    return SkippedFile(
+        workspace_id="w",
+        grant_id="g1",
+        name=name,
+        source="gmail",
+        source_ref=ref,
+        reason=SkipReason.TOO_LARGE,
+        skipped_at=at(2024, 3, 1),
+    )
+
+
+def test_accepting_skipped_files_doesnt_accept_a_file_skipped_later() -> None:
+    g = Grant()
+    g.standard_terms()
+    g.skipped_files = [_skipped("a.pdf", "m-1")]
+    (problem,) = g.run(at(2024, 3, 2)).grants[0].problems
+    g.user(
+        {
+            "kind": "accepted_reason",
+            "reason": {"check": "skipped_files", "problem": problem.problem},
+            "note": "Asked the sender for a smaller scan.",
+        },
+        at(2024, 3, 2),
+    )
+    (status,) = g.run(at(2024, 3, 3)).grants
+    assert status.accepted and not status.flagged
+    g.skipped_files.append(_skipped("b.pdf", "m-2"))
+    (status,) = g.run(at(2024, 3, 4)).grants
+    assert not status.accepted and status.flagged
+    assert status.problems[0].problem != problem.problem
 
 
 def _failed(
@@ -304,6 +338,66 @@ def test_two_notices_add_up_even_when_they_share_a_date() -> None:
     assert [n.text for n in g.run(at(2024, 3, 3)).notes] == [
         "Participant Support Costs: $31,000.00 of $30,000.00"
     ]
+
+
+def _typed_line(
+    g: Grant, name: str, amount: int, dated: date, when: datetime, replaces: str | None = None
+) -> str:
+    """A budget line the accountant typed: no citation."""
+    data = {
+        "kind": "budget_line",
+        "dated": {"value": dated},
+        "name": {"value": name},
+        "amount": {"value": amount},
+        "category": "participant_support",
+    }
+    return g.user(data, when, replaces=replaces)
+
+
+def test_a_typed_correction_of_a_parent_line_stays_with_its_notice() -> None:
+    """The accountant retypes PSC $20,000; with Stipends and Travel from the same letter."""
+    g = Grant()
+    t = g.standard_terms()
+    when = at(2023, 1, 12, 15)
+    stipends = g.budget_line("Stipends", 1_500_000, "participant_support", when)
+    travel = g.budget_line("Travel", 500_000, "participant_support", when)
+    g.confirm(stipends, travel, when=at(2023, 1, 12, 17))
+    _typed_line(
+        g, "Participant Support Costs", 2_000_000, date(2023, 1, 10), at(2023, 2, 1), t["psc"]
+    )
+    assert _stipend_overspend(g, stipends) == [
+        "Participant Support Costs: $25,000.00 of $20,000.00"
+    ]
+
+
+def test_two_typed_parent_lines_from_two_notices_both_count() -> None:
+    g = Grant()
+    first = _typed_line(
+        g, "Participant Support Costs", 2_000_000, date(2023, 1, 10), at(2023, 2, 1)
+    )
+    _typed_line(g, "Participant Support Costs", 1_000_000, date(2024, 1, 10), at(2024, 1, 11))
+    g.charge("stip", date(2024, 3, 1), 3_100_000, account=STIPENDS, vendor=None)
+    g.assign("stip", first, at(2024, 3, 1))
+    assert [n.text for n in g.run(at(2024, 3, 2)).notes] == [
+        "Participant Support Costs: $31,000.00 of $30,000.00"
+    ]
+
+
+def test_a_failed_run_lands_on_the_current_version_of_its_record() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    fixed = g.user(
+        {
+            "kind": "period_of_performance",
+            "dated": {"value": date(2023, 1, 10)},
+            "start": {"value": date(2023, 2, 1)},
+            "end": {"value": date(2026, 1, 31)},
+        },
+        at(2023, 2, 1),
+        replaces=t["period"],
+    )
+    g.failed_runs = [_failed(Trigger(kind=TriggerKind.RECORD, id=t["period"]))]
+    assert record_problems(g.run(at(2024, 3, 2))) == {fixed: {"failed:run-1"}}
 
 
 def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
