@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { TextSegment } from "@/lib/api/types";
 import CASES from "./fixtures/reading_cases.json";
-import { mapSpanToReading, mapSpansToReading } from "./reading";
+import { mapSpanToReading, mapSpansToReading, passageInReading } from "./reading";
+import { splitBySpans } from "./textSpans";
 
 // A stored email and the text the agent reads: the Date header is replaced by
 // the grant's date (a longer line), the Message-ID header is dropped, and the
@@ -127,5 +128,38 @@ describe("mapSpanToReading on real reading_view output", () => {
   it("highlights nothing for an empty range", () => {
     const c = cases[0];
     for (const at of [0, 10, c.span[0]]) expect(mapSpanToReading({ start: at, end: at }, c.segments, c.text)).toBeNull();
+  });
+});
+
+
+describe("passageInReading (ruling 50: the passage is reading text, positions stay stored)", () => {
+  // The Message-ID header is dropped before the cited lines, and Date is replaced.
+  const stored = "Date: Sat, 21 Feb 2026 09:30:00 -0800\nMessage-ID: <synthetic-0001@university.example>\nContent-Type: text/plain\n\nTotal: $2,180.00\n";
+  const reading = "Date: Fri, 10 Apr 2026 17:00:00 +0000\nContent-Type: text/plain\n\nTotal: $2,180.00\n";
+  const keptAt = stored.indexOf("Content-Type");
+  const segments: TextSegment[] = [
+    { stored_start: keptAt, reading_start: reading.indexOf("Content-Type"), length: stored.length - keptAt },
+  ];
+  const marked = (passage: string, spans: { start: number; end: number }[], offset: number) =>
+    splitBySpans(passage, spans, offset)
+      .filter((p) => p.marked)
+      .map((p) => p.text);
+
+  it("marks a value after a dropped header in the right place", () => {
+    // The passage runs from the Date line, across the dropped header, to the total.
+    const passage = "Date: Fri, 10 Apr 2026 17:00:00 +0000\nContent-Type: text/plain\n\nTotal: $2,180.00";
+    const value = stored.indexOf("$2,180.00");
+    const { spans, offset } = passageInReading([{ start: value, end: value + 9 }], 0, segments, reading);
+    expect(marked(passage, spans, offset)).toEqual(["$2,180.00"]);
+    // Splitting by stored positions, as before, puts the mark in the wrong place.
+    expect(marked(passage, [{ start: value, end: value + 9 }], 0)).not.toEqual(["$2,180.00"]);
+  });
+
+  it("marks the reading Date line for a highlight on the replaced Date header", () => {
+    const passage = "Date: Fri, 10 Apr 2026 17:00:00 +0000\nContent-Type: text/plain";
+    const at = stored.indexOf("Sat, 21 Feb 2026");
+    const { spans, offset } = passageInReading([{ start: at, end: at + 16 }], 0, segments, reading);
+    expect(offset).toBe(0);
+    expect(marked(passage, spans, offset)).toEqual(["Date: Fri, 10 Apr 2026 17:00:00 +0000"]);
   });
 });

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { BoxOverlay } from "./BoxOverlay";
 import type { ReadingView } from "@/lib/api/types";
 import { placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
-import { mapSpansToReading } from "./reading";
+import { mapSpansToReading, passageInReading } from "./reading";
 import { splitBySpans } from "./textSpans";
 import styles from "./viewer.module.css";
 
@@ -99,7 +99,7 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   } else if (kind === "text") {
     body = <TextFile url={url} placement={placement} zoom={zoom} onReady={onReady} />;
   } else if (kind === "docx") {
-    body = <DocxPassage url={url} placement={placement} zoom={zoom} />;
+    body = <DocxPassage url={url} placement={placement} zoom={zoom} reading={reading} />;
   } else if (kind === "pdf") {
     body = <PdfFile url={url} placement={placement} zoom={zoom} onReady={onReady} />;
   } else if (kind === "image") {
@@ -282,7 +282,17 @@ function MarkedText({
  * cited passage, which is that text, with the exact characters highlighted, and
  * links to the original.
  */
-function DocxPassage({ url, placement, zoom }: { url: string; placement: Placement | null; zoom: number }) {
+function DocxPassage({
+  url,
+  placement,
+  zoom,
+  reading = null,
+}: {
+  url: string;
+  placement: Placement | null;
+  zoom: number;
+  reading?: ReadingView | null;
+}) {
   return (
     <div>
       <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }}>
@@ -292,12 +302,32 @@ function DocxPassage({ url, placement, zoom }: { url: string; placement: Placeme
         </a>
       </p>
       {placement?.kind === "text" ? (
-        <MarkedText text={placement.passage} spans={placement.spans} offset={placement.passageStart} zoom={zoom} />
+        <PassageText placement={placement} reading={reading} zoom={zoom} />
       ) : placement?.kind === "unplaced" && placement.quote ? (
         <MarkedText text={placement.quote} spans={[]} offset={0} zoom={zoom} />
       ) : null}
     </div>
   );
+}
+
+/**
+ * Just the cited passage, highlighted. On a sample grant (ruling 50) the passage
+ * is reading text while the highlights stay in stored positions, so they're
+ * carried into the reading text first, and the passage's start with them.
+ */
+export function PassageText({
+  placement,
+  reading,
+  zoom,
+}: {
+  placement: Extract<Placement, { kind: "text" }>;
+  reading: ReadingView | null;
+  zoom: number;
+}) {
+  const { spans, offset } = reading
+    ? passageInReading(placement.spans, placement.passageStart, reading.segments, reading.text)
+    : { spans: placement.spans, offset: placement.passageStart };
+  return <MarkedText text={placement.passage} spans={spans} offset={offset} zoom={zoom} />;
 }
 
 // --- PDF ---------------------------------------------------------------------
