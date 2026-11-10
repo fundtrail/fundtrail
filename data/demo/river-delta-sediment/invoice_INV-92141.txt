@@ -1,0 +1,24 @@
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-92141
+Invoice date: January 23, 2025
+Customer PO: PO-25-2937
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Parker Proxy
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2309472, river delta sediment transport
+
+Item  Description                                   Qty   Unit price      Amount
+1     Pipette tips, 1000 uL, 10 racks                 1       $64.20      $64.20
+
+Subtotal                                                                  $64.20
+Shipping                                                                   $0.00
+Total due                                                                 $64.20
+
+Terms: net 30

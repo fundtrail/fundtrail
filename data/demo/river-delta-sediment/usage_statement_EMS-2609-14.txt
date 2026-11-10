@@ -1,0 +1,18 @@
+UNIVERSITY OF EXAMPLE
+Example Marine Station
+Field Operations
+
+RECHARGE USAGE STATEMENT
+
+Statement number: EMS-2609-14
+Statement date: October 1, 2026
+Service period: September 1, 2026 to September 30, 2026
+Principal investigator: Parker Proxy
+Award charged: SYN-2309472
+
+Service                                         Units        Rate        Amount
+Research vessel time, per hour                     18     $175.00     $3,150.00
+
+Total charged to award                                                $3,150.00
+
+Rates are the facility's approved recharge rates for the fiscal year.

@@ -1,0 +1,22 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-25-6576
+Traveler: Rowan Mockley, Postdoctoral Scholar
+Email: rowan.mockley@university.example
+Award charged: SYN-2401835
+
+Purpose of trip: Example Estuaries Conference, talk on marsh cores
+Destination: Example Harbor Convention Center, Example Harbor, MA
+Departure: November 3, 2025
+Return: November 6, 2025
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXR8MV                      $464.00
+  Lodging, Example Harbor Inn, 3 nights                          $687.00
+  Total reimbursement                                          $1,151.00
+
+Meals are not claimed on this report.
+
+Submitted by traveler: November 11, 2025
+Approved by department: November 12, 2025, Earth and Ocean Sciences business office

@@ -1,0 +1,43 @@
+From: Kendall Dummy <kendall.dummy@university.example>
+To: Earth and Ocean Sciences Grants <grants@university.example>
+Date: Thu, 19 Nov 2026 10:20:00 -0800
+Subject: Fwd: Invoice INV-11872
+Message-ID: <fwd-inv-11872@university.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Invoice INV-11872 for SYN-2507264, for the files. The order shipped today.
+
+Kendall
+
+---------- Forwarded message ----------
+From: Example Lab Supply Co. Billing <orders@labsupply.example>
+Date: Wed, 18 Nov 2026 15:05:00 -0800
+Subject: Invoice INV-11872
+To: kendall.dummy@university.example
+
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-11872
+Invoice date: November 18, 2026
+Customer PO: PO-26-5120
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Kendall Dummy
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2507264, coastal microbial genomics
+
+Item  Description                                   Qty   Unit price      Amount
+1     Sample bags, sterile, 500 count                 2       $96.00     $192.00
+2     Nitrile gloves, medium, case of 1000            2       $89.50     $179.00
+
+Subtotal                                                                 $371.00
+Shipping                                                                  $18.75
+Total due                                                                $389.75
+
+Terms: net 30

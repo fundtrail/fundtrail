@@ -1,0 +1,29 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: No Cost Extensions
+Amendment Number: 001
+Amendment Date: August 14, 2026
+Amendment Description: The purpose of this amendment is to extend the end
+date from August 31, 2026 to August 31, 2027, as notified by the awardee
+under its authority to extend the award once without additional funds. No
+funds are added by this amendment.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2309472
+Period of Performance Start Date: September 1, 2023
+Period of Performance End Date: August 31, 2027
+Project Title: Sediment Transport in Example River Delta Channels
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Managing Program Officer: Pat Panel
+  Email: pat.panel@funder.example
+
+Except as modified by this amendment, the award conditions remain unchanged.
