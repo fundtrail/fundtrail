@@ -1,0 +1,106 @@
+/* The grant setup and held mail screens. Built on the tokens in globals.css. */
+
+.ft-pad {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ft-section-head {
+  margin: var(--space-5) 0 var(--space-3);
+}
+.ft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ft-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ft-field input,
+.ft-field select {
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  max-width: 100%;
+}
+.ft-waiting {
+  margin-bottom: var(--space-4);
+}
+.ft-terms,
+.ft-notes-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-term {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.ft-term.is-muted {
+  color: var(--ink-muted);
+}
+.ft-term__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.ft-term__values {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ft-term__value {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr;
+  gap: var(--space-3);
+}
+.ft-term__value dd {
+  margin: 0;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .ft-term__value {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+.ft-term__unconfirmed ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+}
+.ft-struck {
+  text-decoration: line-through;
+}
+.ft-quote {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--rule-strong);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ft-typeterm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius-md);
+}
+.ft-files {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+}
