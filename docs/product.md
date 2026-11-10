@@ -36,36 +36,109 @@ Every charge sits in exactly one bucket.
 
 | Bucket | Meaning |
 |---|---|
-| **Evidence complete** | Every check passes on verified records, and every question about the charge is answered supports |
+| **Evidence complete** | Every check passes on verified records, every item on the charge's evidence checklist is filled, and every question about the charge is answered supports |
 | **Possible conflict** | Verified evidence contradicts a rule, or an answer is contradicts |
-| **Missing evidence** | Something required isn't on file |
-| **Needs a human** | Code can't decide safely, the agent is unsure, or a fix the agent suggested waits for the accountant |
+| **Missing evidence** | Something on the charge's evidence checklist isn't on file |
+| **Needs a human** | Code can't decide safely, the agent is unsure, a suggestion from the agent waits for the accountant, or the charge rests on a fact that couldn't be confirmed in its file |
 
 When several checks fail, the charge shows the most serious bucket and lists every reason. From most to least serious: Possible conflict, Needs a human, Missing evidence.
 
 ### How a charge gets its bucket
 
-- **Code checks the clear-cut rules:** dates against the period in force, whether the receipts linked to a charge add up to it, the approver's role and channel, and budget room. When terms change, code reruns instantly, with no agent call.
-- **The agent decides what takes judgment.** It decides which budget line each charge belongs to, and code asks it about each charge: is this cost necessary and reasonable, and is it for this project? Does this approval cover this charge? Does this unusual term change anything? The agent answers supports, contradicts or unsure, with its reasoning and quotes. Contradicts is Possible conflict, and unsure is Needs a human.
-- **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, and approve or reject any fix the agent suggests. Once they've answered a question, new evidence sends it back to them, not to the agent.
+- **Code checks the clear-cut rules:** dates against the period in force, each charge's [evidence checklist](#the-evidence-checklist), whether the bills linked to a charge add up to it, the approver's role and channel, and budget room. When terms change, code reruns instantly, with no agent call.
+- **The agent decides what takes judgment.** It decides which budget line each charge belongs to, adds to each charge's checklist, and answers the questions code asks about each charge: is this cost necessary and reasonable, and is it for this project? Does this approval cover this charge? Does this unusual term change anything? The agent answers supports, contradicts or unsure, with its reasoning and quotes. Contradicts is Possible conflict, and unsure is Needs a human.
+- **The agent suggests, and the accountant decides.** Anything the agent does that adds information or raises a concern takes effect right away: a comment, a link for evidence nobody has linked, a flag, a new checklist item, a first answer. Anything that would clear or weaken a problem, or change something already decided, is a suggestion that waits for the accountant: changing an answer, fixing a link, removing a checklist item, withdrawing its own flag, or disputing one of code's checks. There's one exception. When the agent answered unsure and new evidence settles it, its new answer counts right away.
+- **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, accept or reject every suggestion, and can accept any reason on a charge with a note. Once they've answered a question, new evidence sends it back to them. The agent can suggest a new answer, and theirs stays in force until they decide.
+- **The budget line is checked from two sides.** The ledger's own account and the agent's budget line both count. Code asks for an approval if either one says the charge needs it, and a disagreement between them goes to the accountant.
 - **While the agent is answering again,** the charge shows its last answer marked "rechecking", or Needs a human if there's no answer yet.
+
+### The evidence checklist
+
+Every charge has a checklist of the evidence it should have. A **bill** is any document that bills for a cost: an invoice, a receipt or a card slip. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. But many charges never have a bill, such as salaries, stipends and per diem, so "the bills add up to the charge" can't be the only rule.
+
+- **Defaults come from the ledger.** Each ledger account has a default checklist, starting with Berkeley's accounts. Materials and Supplies defaults to a bill that adds up to the charge. Salaries and Wages defaults to an appointment letter and an effort report for the month. A reversal or cost transfer defaults to the line it corrects plus a written justification. An account with no default gets only the agent's items.
+- **Code adds a required approval** as an item when one of the grant's approval rules applies to the charge.
+- **The agent adds what this charge needs,** for example "per diem, 5 days at $100 a day" on a trip. Adding an item takes effect right away. Removing one is a suggestion that waits for the accountant.
+- **The accountant can add or remove items,** and their changes take effect right away.
+- **Code tracks each item** as filled or missing:
+  - Bills still have to add up to the amount they cover.
+  - When an amount comes from a rate, the agent writes out the math and code re-checks it. The rate has to come from a file on the grant, such as the travel policy, so it can be cited.
+  - An item can name a period, such as "effort report for January". Code checks that the linked document's own period covers it.
+  - One document can fill items on many charges. A quarterly effort report fills three months of salary lines.
+- **An item can say when it's expected.** January's effort report is only signed after the quarter ends, so it isn't late before then.
+
+| Example | What happens |
+|---|---|
+| A $2,300 trip | The agent adds "airfare receipt, $1,800" and "per diem, 5 days at $100 a day". Code checks 5 times $100 is $500, and that $1,800 plus $500 is $2,300 |
+| A $6,000 salary line for January | Defaults: appointment letter, effort report for January. The quarter's report arrives in April and fills January, February and March at once |
+| A $1,500 charge posted as Participant Support Stipends, with an invoice for a laptop | The default asks for a participant list. The agent adds "invoice" and suggests removing the default. That suggestion waits, which is how the accountant sees the misfiled laptop |
+| A $500 stipend paid to one guest speaker | The agent suggests swapping "participant list" for "honorarium letter". The accountant accepts. A real exception costs one click |
 
 ### The problem list
 
-Possible conflict and Needs a human are always on the accountant's problem list. A charge in Missing evidence stays off the list until 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, because receipts often arrive weeks after a charge posts. From then on, a receipt with money never charged is listed on the grant too.
+The problem list is what the accountant works from. It holds charges, and records that have a problem of their own.
+
+**Charges.**
+
+- Possible conflict and Needs a human are always on the list.
+- A charge in Missing evidence goes on the list once an item has been missing for 60 days past the date it was expected, which for most items is the day the charge posted. It also goes on the list 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, whichever comes first. Bills often arrive weeks after a charge posts, so a charge isn't a problem on day one.
+- A missing approval is on the list right away.
+- The 60 days is our own choice. No federal rule sets it. It's the same for every grant, and there's no settings page for now.
+
+**Records.** Some problems aren't about one charge.
+
+| Who raises it | Problem |
+|---|---|
+| Code | A bill linked for more than its total |
+| Code | A bill with money nobody charged, 60 days after it arrived |
+| Code | A term waiting for the accountant to confirm it |
+| Code | Confirmed terms that disagree |
+| Code | The exact same file on the grant twice |
+| The agent | Anything else, with its reasoning: a photo and a PDF of the same invoice, evidence for another grant, a file that can't be read |
+
+When a bill arrives, code looks for likely matches among the bills already on the grant, and the agent compares them. It flags the newer copy as a duplicate and doesn't link it. Both files are kept, and the accountant confirms or rejects the flag. If the newer copy is the clearer one, the agent can suggest switching the link to it. If two charges match the same invoice, the charges are flagged too, since that may be a double payment.
+
+**How a problem leaves the list.** There's no resolve button, so the list can never disagree with the checks.
+
+1. **It fixes itself.** The missing bill arrives and the agent links it, or a refund posts and cancels a duplicate payment. The checks pass, with no click.
+2. **Snooze until a date.** The accountant expects it to fix itself: "refund coming, check Mar 1." It comes back on that date if it isn't fixed. A new problem brings it back early, and every snooze ends when the 90-day closeout window opens.
+3. **Accept with a note.** It will never fix itself, and the accountant is fine with it: "duplicate, refunded in March." The acceptance covers the problem as it stood. If the facts change later, the charge comes back.
+
+**Standing notes.** When accepting, the accountant can make the note a standing one. It then covers every charge on the grant, past and future, with the same problem, the same ledger account and the same vendor. Code does the matching, and nothing else is excused: every other check still runs. A monthly facility fee that never has an invoice takes one note, not twelve. A charge with no vendor only gets a one-off note. Each covered charge shows "accepted under the accountant's note". The grant page lists each standing note with the charges it covered, and withdrawing a note brings those charges back.
+
+### Review threads
+
+Every charge can have a thread, and so can a record with a problem. It reads top to bottom like a chat: code's reasons, the agent's comments and suggestions, and the accountant's replies.
+
+- **Suggestions.** Each suggestion from the agent names the change and waits for Accept or Reject.
+- **Disputes.** When the agent thinks one of code's checks is wrong for a charge, it disputes it with its reasoning and a quote. The charge moves from Possible conflict to Needs a human. Accepting the dispute works like accept with a note, with the agent's reasoning as the note. Example: a January charge fails the start-date check, and the agent quotes the amendment that allows costs from January 1.
+- **Asking the agent.** The accountant can ask a question in the thread. The agent answers for that charge, and a question goes ahead of the agent's queued work. If the accountant tells the agent to change something, the change comes back as a suggestion to accept, so every change is seen before it happens.
+- **No nagging.** After the accountant rejects a suggestion or a dispute, the agent can't raise it again unless new evidence arrives: something new linked to the charge, or a record its answer rested on corrected or withdrawn.
+- **What's kept.** Messages are kept with the charge but stay out of the evidence report. The report shows the decisions.
 
 ## What the user sees
 
-- **Evidence cards.** Each piece of evidence gets a card listing the facts pulled from it. Every fact shows its quoted passage and page number.
-- **Viewer.** Clicking a fact opens the full original in a viewer, scrolled and zoomed to the passage, with the passage highlighted.
-  - **PDFs with real text, email, .docx:** the highlight is exact.
-  - **Photos and scans:** the viewer zooms to a box the agent estimated, and the box is approximate. There's no OCR (optical character recognition).
+- **Evidence cards.** Each piece of evidence gets a card listing the facts pulled from it. Every fact shows its quoted passage and page number, and whether it's confirmed or unconfirmed.
+- **Viewer.** Clicking a fact opens the full original in a viewer, scrolled and zoomed to the right spot.
+  - **PDFs with real text, email, .docx:** the exact line is highlighted.
+  - **Photos and scans:** a box is outlined around the value. There's no OCR (optical character recognition).
+  - **A fact that couldn't be placed:** the viewer opens the page and shows the quote beside it, with no guessed highlight. The fact is unconfirmed, and anything that rests on it is in Needs a human until the accountant confirms the value or types the right one.
+- **The evidence checklist.** Each charge shows what it should have, which items are filled or missing, who added each one, and any removal still waiting.
+- **The review thread.** Each charge shows its thread, with the agent's suggestions and a box for asking the agent.
 - **Status history.** Every status change records what triggered it and links to it. Example: "Apr 10, 2026 · new end date confirmed · Possible conflict → Evidence complete."
-- **Receipts covering a charge.** Each charge lists the receipts that pay for it, with how much of each it uses, for example "invoice 2050, $5,000 of $10,000". Clicking one opens the receipt with the part for that charge highlighted. Approvals and explaining emails show the same way.
+- **Bills covering a charge.** Each charge lists the bills that pay for it, with how much of each it uses, for example "invoice 2050, $5,000 of $10,000". Clicking one opens the bill with the part for that charge highlighted. Approvals and explaining emails show the same way.
 - **The agent's answers.** Each answer shows the question, the answer, the agent's reasoning and its quotes, labeled as the agent's.
-- **Suggestions waiting.** A fix the agent suggests to an earlier link waits on the charge, with its reason, until the accountant approves or rejects it.
+- **Suggestions waiting.** Anything the agent suggests waits in the charge's thread, with its reason, until the accountant accepts or rejects it.
+- **Standing notes.** The grant page lists each standing note: what it excuses, who wrote it and when, and every charge it covered.
 - **People as sources.** Example: "Link corrected by the accountant, May 22, 2026."
 - **Status text comes from code.** Every status explanation is built by code from the check and its records. The agent's reasoning appears next to it, labeled as the agent's.
+
+### Layout ideas
+
+These are ideas to start the screens from, not designs.
+
+- **The review thread.** A header with the charge (ledger line, vendor, amount, date) and its bucket as a badge. Entries run top to bottom, each with a small icon and label for who wrote it: a check, the agent or the accountant. A suggestion is an outlined box inside the agent's entry, naming the change, with Accept and Reject. A reply box sits at the bottom.
+- **The evidence checklist.** The charge header shows its ledger account and bucket. Below it, each item shows whether it's filled or missing, who added it (default or agent), and any removal still waiting. The agent's suggestion sits underneath with Accept and Reject.
 
 ## Closeout
 
@@ -89,8 +162,9 @@ Every university has its own closeout step, with its own forms and deadlines, bu
 - **Evidence report: a PDF per grant.** It shows why each charge was allowed. It's attached to the university's closeout step, next to the university's own ledger report, which shows only what was spent. NSF doesn't require it and never receives it. Example layout, to decide later:
   1. Summary: the award, its dates, the total of all charges (matching the ledger report), and how many charges are in each bucket.
   2. A table with one row per charge: date, description, amount, bucket and a one-line reason.
-  3. A section per charge: the checks, the evidence quoted from its source, and its status history.
+  3. A section per charge: the checks, the evidence quoted from its source, the accountant's decisions, and its status history.
   4. Sign-off: who prepared it, who reviewed it, and when. At Berkeley this mirrors the preparer and the supervisor who approves the certification.
+- **The report shows decisions, not conversations.** It includes every decision that changed what a charge needed or how it was judged: an accepted reason with its note (standing notes too), an accepted dispute with the agent's reasoning, a default checklist item the accountant agreed to remove, a confirmed duplicate, and an answer the accountant changed, shown with the earlier answer. It leaves out thread messages, rejected suggestions and snoozes that have ended.
 - **Drafted explanations (optional).** For each charge that has to move off the grant, a draft that answers the university's questions, such as Berkeley's: why the move is needed, why the wrong fund was charged, and how the expense relates to the project.
 - **Audit export (optional).** The same records, filtered to the charges an auditor picked.
 
@@ -107,7 +181,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
 | A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete** once the accountant confirms the new end date, citing it |
 | One purchase is shared with a second grant and split across both ledgers | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
-| A receipt arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
+| A bill arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
 | A new grant is built from scratch from a seed pack: award letter, ledger file, emails, invoices, a receipt photo | Create the grant, confirm its terms, upload the ledger, add the evidence, watch the statuses fill in |
 
 ## Scope
@@ -161,11 +235,15 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | How drafted explanations are written: by code from the records, or by the agent with citations | product, if the feature is built |
 | The clock controls the user sees | product |
 | What a workspace reset clears, and how the seed is copied on sign-up | product |
-| The screen where the accountant confirms terms and reviews the agent's suggestions | product |
+| The screens for confirming terms, the problem list, the checklist and the thread. The layout ideas above are a starting point. | product |
 | A charge's bucket between an amendment's arrival and the accountant's confirmation of it, and while a grant's terms aren't confirmed yet | product |
-| How reversals and cost transfers show in buckets and at closeout | product |
+| How reversals and cost transfers show in buckets and at closeout, beyond their default checklist | product |
 | Whether a later change reopens a sign-off | product |
 | A cost shared by two grants while each grant is isolated: each grant's copy of the invoice shows the other grant's part as money never charged at closeout. How to show that without a false alarm. | product |
-| Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. Only link fixes were discussed. The contracts make every correction the agent writes wait, except a new answer to its own question. | product |
+| Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. Only link fixes were discussed. The contracts make every correction the agent writes wait, except a new answer to its own question, which [0010](decisions/0010-agent-suggests-accountant-decides.md) narrows. | product |
 | How the evidence report shows the agent's answers next to code's reasons | product |
+| Whether review threads and asking the agent are core or optional, and how they relate to the optional chat | product |
+| The default checklist for each ledger account, starting with Berkeley's account names. The demo ledger's account names have to match it. | product, then W2 |
+| How charges and records are sorted together on the problem list. A simple start: most serious first, then oldest. | product, with the screens |
+| How standing notes and confirmed duplicates are laid out | product, with the screens |
 | Screen layouts, and how emails are displayed | builder |

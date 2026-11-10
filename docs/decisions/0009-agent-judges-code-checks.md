@@ -1,6 +1,6 @@
 # 0009. Code checks the clear-cut rules, and the agent answers the rest
 
-**Date:** 2026-11-09 · **Status:** accepted. Supersedes [0002](0002-agent-writes-records-code-decides.md). Amends rules 1 and 3 of [0005](0005-four-trust-rules.md).
+**Date:** 2026-11-09 · **Status:** accepted. Supersedes [0002](0002-agent-writes-records-code-decides.md). Amends rules 1 and 3 of [0005](0005-four-trust-rules.md). Amended by [0010](0010-agent-suggests-accountant-decides.md) (what waits for the accountant, and when missing evidence is flagged) and [0011](0011-evidence-checklist.md) (what evidence a charge needs).
 
 ## Context
 

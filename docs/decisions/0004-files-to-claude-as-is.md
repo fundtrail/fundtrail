@@ -1,6 +1,6 @@
 # 0004. Files go to Claude as they are, with no OCR
 
-**Date:** 2026-11-07 · **Status:** accepted
+**Date:** 2026-11-07 · **Status:** accepted. Amended by [0012](0012-checked-quotes-and-highlights.md): photos and scanned pages are sent as images at a size we control, and their boxes are checked.
 
 ## Context
 

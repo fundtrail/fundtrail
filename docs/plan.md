@@ -41,11 +41,11 @@ The split follows one seam. Alex owns everything that turns files into records a
 
 | # | Workstream | Owner |
 |---|---|---|
-| W1 | Agent: read with citations, write records and links, answer the checks' questions, suggest fixes | Alex |
-| W2 | Checks, National Science Foundation (NSF) rules, link sums, the questions for the agent, buckets, status history and status text | Alex |
+| W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads | Alex |
+| W2 | Checks, National Science Foundation (NSF) rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text | Alex |
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
 | W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs, deploys | Grant |
-| W5 | App screens: sign-in, workspaces, grants, buckets, charge detail, evidence cards, history, clock controls | Grant |
+| W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls | Grant |
 | W6 | Viewer with highlights, closeout view, PDF evidence report | Grant |
 | Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config | both |
 
@@ -115,5 +115,6 @@ A small correction inside one area doesn't need a decision file. The PR descript
 | Item | Who settles it |
 |---|---|
 | How to demo | product |
+| Issues for the work in decisions 0010 to 0012, the contract PR they need, and which parts are core | both leads |
 | The demo data | product (Alex and Grant), built by W3 |
 | The agent's exact actions and prompts: a W1 task of its own, which can go to a worker. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1) |

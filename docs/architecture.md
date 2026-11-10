@@ -11,10 +11,10 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
                      accountant ──────────────────────────┘   confirms terms, approves fixes, answers, signs off
 ```
 
-- **The agent** is the app's intelligence. It reads evidence, writes cited facts, links them to charges, and answers the questions code asks. It never sets a status.
+- **The agent** is the app's intelligence. It reads evidence, writes cited facts, links them to charges, answers the questions code asks, and suggests changes for the accountant to decide. It never sets a status.
 - **Records** are the single source of truth. A record is never edited. A correction is a new record that replaces the old one. The accountant writes records too.
 - **Checks** are code. They check the clear-cut rules and ask questions about what they can't settle. Every time a record changes, code reruns every check and recomputes every status, with no agent call. "What changed" is the difference between before and after.
-- The decision behind this split is [decisions/0009](decisions/0009-agent-judges-code-checks.md). The contracts are in [contracts.md](contracts.md).
+- The decisions behind this split are [0009](decisions/0009-agent-judges-code-checks.md), [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md) and [0012](decisions/0012-checked-quotes-and-highlights.md). The contracts are in [contracts.md](contracts.md).
 
 ## Inputs
 
@@ -29,6 +29,7 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
 - Each upload is for one grant.
 - There's no card feed, because card purchases are already in the ledger, and there's no manual charge entry.
 - A reimbursement is an ordinary ledger line. Its receipt usually arrives first and waits, unlinked, until the line posts.
+- Each line carries the ledger's own account, the expense category the university's accounting system gave it. FundTrail uses it as an outside opinion on what kind of charge it is: it picks the charge's default evidence checklist, and it's compared with the agent's budget line.
 
 ### Evidence: why the spending was allowed
 
@@ -40,7 +41,7 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
 
 ### Files go to the agent as they are
 
-PDFs, scanned PDFs and images are sent unchanged. The only exception is .docx, which the model doesn't accept, so its text is extracted first.
+PDFs with real text are sent unchanged. There are two exceptions. A .docx file's text is extracted first, because the model doesn't accept .docx. A photo, or a scanned page with no text, is turned into an image at a size we control before it's sent, so a box the model draws maps back onto the original (see [Quotes and highlights](#quotes-and-highlights)). There's no OCR (optical character recognition).
 
 ## The agent
 
@@ -56,18 +57,21 @@ the agent (our code, in backend/app/agent/)
      the backend saves everything from the run
 ```
 
-- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, and once per grant as closeout nears. Runs for one grant go one at a time. In the demo, "arrives" means the clock reaches the item's arrival time.
-- **What it does.** It works in a loop of actions, like a person at a desk. It can look at anything on its grant, with no filtering. For now each grant is isolated, so it doesn't see other grants. It sees every charge with its links, every source and the facts read from it, the grant's terms, and a charge's history, including fixes the accountant rejected. It can open any file again to quote the exact part it needs. It writes facts, links, suggested fixes, answers to code's questions, and flags for anything no question covers. Reading, matching and answering aren't fixed steps; it does them in whatever order it needs.
+- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, whenever the accountant writes in a thread, and once per grant as closeout nears. Runs for one grant go one at a time. A question in a thread goes ahead of queued runs and waits only for the run in progress, and the thread shows that the agent is busy. In the demo, "arrives" means the clock reaches the item's arrival time.
+- **What it does.** It works in a loop of actions, like a person at a desk. It can look at anything on its grant, with no filtering. For now each grant is isolated, so it doesn't see other grants. It sees every charge with its links, every source and the facts read from it, the grant's terms, and a charge's history, including fixes the accountant rejected. It can open any file again to quote the exact part it needs. It writes facts, links, checklist items, answers to code's questions, comments, suggestions, and flags for anything no question covers, on a charge or on a record. Reading, matching and answering aren't fixed steps; it does them in whatever order it needs.
+- **Structure over memory.** The agent has no hidden memory between runs, so code hands it what needs attention instead of expecting it to remember. When a file arrives, it gets every checklist item still missing on the grant and is asked which ones the file fills. It gets the checks that are failing on the charges in the run, so it can dispute one it has evidence against. When a bill arrives, code finds the bills already on file that look like the same one, and the agent compares the saved facts first. It opens an earlier file only when the facts don't settle it, which should be rare. When it's asked a question in a thread, it gets that thread and the charge's records.
 - **Budget lines.** The agent decides which budget line each charge belongs to, because there's a lot of nuance in it. It writes the choice as a `budget_assignment` record (see [contracts.md](contracts.md#2-links)).
-- **Matching.** The agent matches in both directions: a new receipt to its charges, and a new charge to the receipts on file. It looks through everything, not a shortlist, so it can also spot an earlier link that looks wrong.
-- **Correcting earlier mistakes.** The agent is told to look for them: every time it matches, when a sum goes over, and once in a review of all the grant's links as closeout nears. Every fix is a suggestion that waits for the accountant. When a new link conflicts with an old one, the agent still writes it and suggests a fix for the old one, and the over sum keeps the charges with the accountant until they decide.
-- **Reading files.** Files go to the model as they are. For text and for PDFs with real text, citations are on, and the API returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents. For photos and scans the API has no citations, so the agent estimates a box around each quote. The agent never types a quote itself.
+- **Matching.** The agent matches in both directions: a new bill to its charges, and a new charge to the bills on file. It looks through everything, not a shortlist, so it can also spot an earlier link that looks wrong.
+- **Correcting earlier mistakes.** The agent is told to look for them: every time it matches, when a sum goes over, and once in a review of all the grant's links as closeout nears. That review also looks again at every checklist item still missing. Every fix is a suggestion that waits for the accountant. When a new link conflicts with an old one, the agent still writes it and suggests a fix for the old one, and the over sum keeps the charges with the accountant until they decide.
+- **Reading files.** For text and for PDFs with real text, citations are on, and the API returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents. For photos and scans the API has no citations, so the agent returns a box around each value, in pixels on the image we sent. The agent never types a quote itself. How quotes are checked and highlighted is in [Quotes and highlights](#quotes-and-highlights).
 - **No database access.** The agent only proposes. The backend checks every write as it happens and returns any problems to the agent. Everything a run wrote is saved together at the end, so a run that fails saves nothing.
 - **Still to design: its exact actions and prompts (W1).** Only the idea above is settled. Whoever builds the agent decides the actions, the prompts and the guidance, and whether to tune them against the eval. The eval can help, but it isn't required. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Starting points from the design discussion, as guidance rather than rules:
   - Write the links you believe are right. Don't skip or shrink a link to make a sum fit, because code checks the sums.
   - When matching a new item, check whether it shows that an earlier link was wrong. If it does, suggest a fix and say why.
   - Don't guess between charges that look alike. Flag it instead.
-  - Write part of a receipt as an amount when a document states that part, or when the numbers leave only one answer.
+  - Write part of a bill as an amount when a document states that part, or when the numbers leave only one answer.
+  - Link an approval that was offered for a charge even when it doesn't fit. The Covers answer then says so, and the accountant learns the wrong approval was sent.
+  - Use the reference list of typical evidence for each kind of charge when adding to a checklist.
 
   Code enforces only the hard limits below.
 
@@ -77,14 +81,49 @@ The model is called through Anthropic's SDK inside LangGraph. The reason is in [
 
 These are deliberately simple:
 
-1. **The agent reads, links and answers.** It writes each fact together with its citation, links facts to charges, and answers the questions code asks. Its first links are trusted, and the eval measures how often they're wrong. Any fix it suggests to an existing link waits for the accountant, including a fix to one of the accountant's own links. It never changes the accountant's records on its own, and never their answers.
-2. **Every quote is checked.** Code confirms each value appears in its cited passage, both when the agent writes it and in the checks. Photos and scans have no passage, so their values must match their ledger line instead: the amount, the date or the vendor. How that works when one receipt pays part of a charge, or several charges, is still open (see [contracts.md](contracts.md#not-decided-yet)). If the check fails, the charge goes to Needs a human. The box drawn on an image only shows where to look.
+1. **The agent reads, links, answers and suggests.** It writes each fact together with its citation, links facts to charges, and answers the questions code asks. Its first links are trusted, and the eval measures how often they're wrong. Anything it does that adds information or raises a concern takes effect right away. Anything that would clear or weaken a problem, or change something already decided, is a suggestion that waits for the accountant (see [The agent suggests, the accountant decides](#the-agent-suggests-the-accountant-decides)). It never changes the accountant's records on its own.
+2. **Every quote is checked against its file.** Code confirms each value appears in its cited passage, and that the passage is really in the file. For photos and scans, which have no passage, a second look reads only the boxed area and has to see the same value. A fact that fails is unconfirmed. It can't make anything pass and it isn't ignored: whatever rests on it goes to Needs a human until the accountant confirms the value or types the right one (see [Quotes and highlights](#quotes-and-highlights)).
 3. **The agent may do simple math. Code re-checks every number it can:** the link sums, and dates against the period in force. Code does every clear-cut rule.
-4. **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, and sign off on the evidence report before attaching it to the university's closeout step.
+4. **The accountant has the last word.** They answer what the agent was unsure about, can overrule any answer, accept or reject every suggestion, can accept any reason on a charge with a note, and sign off on the evidence report before attaching it to the university's closeout step.
 
-Hard limits that code enforces: the sums, the quote check, the agent never overruling the accountant, and the agent's fixes waiting for the accountant's approval. Everything else is guidance in the agent's prompts.
+Hard limits that code enforces: the sums, the quote check, the agent never overruling the accountant, and the agent's suggestions waiting for the accountant's approval. Everything else is guidance in the agent's prompts.
 
 Code also decides an approver's role by matching the sender's address against the people named in the award letter. For a forwarded email, the agent extracts the original sender, with a citation. Unknown senders go to Needs a human. The National Science Foundation (NSF) rules the checks apply are in [domain.md](domain.md).
+
+### The agent suggests, the accountant decides
+
+The rule: what goes with the flow takes effect, and what goes against it waits, unless it overrides nothing, like a comment.
+
+| Takes effect right away | Waits for the accountant |
+|---|---|
+| A comment | Changing an answer the accountant gave |
+| A link for evidence nobody has linked | Fixing an existing link. A bill and a charge have one link in force at a time, so a second link beside it doesn't count until it's accepted. |
+| A flag, on a charge or a record | Withdrawing its own flag, or turning its own contradicts into supports |
+| A new checklist item | Removing a checklist item |
+| A first answer to a question code asks | Disputing one of code's checks |
+| A new answer after its own unsure, once new evidence arrives | The same change with no new evidence |
+
+- **New evidence** means something new was linked to the charge, or a record the answer rested on was corrected or withdrawn, since the agent's last answer. Code checks it, so the agent can't claim it.
+- **A dispute** names the check, the agent's reasoning and a quote. While it waits, the charge moves from Possible conflict to Needs a human. Accepting it works like accept with a note, with the agent's reasoning as the note. Rejecting it puts the charge back.
+- **No repeats.** After the accountant rejects a suggestion or a dispute, or keeps their own answer, the agent can't raise the same one again without new evidence.
+- **An instruction is still a suggestion.** When the accountant tells the agent in a thread to change something, the change comes back as a suggestion with one click, so every change is seen before it happens and leaves the same record.
+- **Accepting a reason** covers the problem as it stood. If the facts under it change, the charge comes back. A standing note covers every charge on the grant with the same problem, ledger account and vendor, past and future. Code does that matching, not the agent, and every other check still runs.
+- **Where it's kept.** Thread messages are kept in their own table, outside the evidence file. Suggestions and decisions are records, so they're never edited and the evidence report can show them. The agent's own working steps are kept per run, for debugging.
+
+## Quotes and highlights
+
+The accountant clicks a fact and the file opens at the right spot. We copy patterns that are already in production use ([0012](decisions/0012-checked-quotes-and-highlights.md)).
+
+| File | Where the spot comes from | The check |
+|---|---|---|
+| Plain text, email, .docx (as text) | The API's citation gives the exact characters | The text at those characters is the quoted passage, and the value is inside it |
+| PDF with real text | The API's citation gives the page and the quoted passage. Code finds the passage in that page's text. | The passage is found on the page, by exact match first and then a close match, and the value is inside it |
+| Photo, or a scanned page | We send an image at a size we control, and the agent returns a pixel box around the value, following Anthropic's coordinates guide. Code scales the box back to the original. | A second look reads only the boxed area and has to see the same value |
+| Anything that can't be placed | The viewer opens the page and shows the quote beside it, with no guessed highlight | The fact is unconfirmed (trust rule 2) |
+
+- **Matched once, on the server.** The match runs when the record is saved, and where the highlight goes is stored. The viewer only draws it.
+- **How Claude reads a PDF.** Each page goes in as an image with its extracted text alongside. A PDF citation returns the quoted passage and the page range, nothing finer, and Anthropic's own cookbook finds the passage on the page the same way.
+- **OCR is the fallback** if the eval shows boxes on photos aren't reliable enough.
 
 ## The clock
 
@@ -133,7 +172,17 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 | The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |
 | Whether citations work on a file the agent opens again in the middle of a run. The citation test in `spikes/` can check it. | builder (W1) |
-| How quoted text is located in a PDF for highlighting | builder (W6) |
+| How loose the PDF passage match can be. A draft: clean up both texts the same way (straight quotes, single spaces, words rejoined across line breaks), and let a close match place the highlight only when the value itself appears exactly. | builder (W1 with W6), discussed with Alex before building |
+| Quotes that cross a page break | builder (W1 with W6), discussed with Alex before building |
+| The cost of the second look on photos: one call per fact, or one per photo with all its crops | builder (W1), discussed with Alex before building |
+| What eval result would switch photos and scans to OCR | product |
+| A value the API returns with no citation. Suggested: it's unconfirmed. | builder (W1), discussed with Alex before building |
+| Handwriting, and scans with many pages | builder (W1), discussed with Alex before building |
+| Citations can't be combined with structured outputs, so the agent's answer format has to work around it | builder (W1), discussed with Alex before building |
+| The exact list of agent writes that wait, as code enforces it | contract |
+| What an agent run loads when it's asked a question in a thread, and how long the agent's working steps are kept | builder (W1 with W4), discussed with Alex before building |
+| The search rule for likely duplicate bills: which fields, and how wide a window of dates. A long list of candidates means the rule is too loose. Also what catches a duplicate the search misses. The closeout review could look again. | builder (W2), discussed with Alex before building |
+| How code tells that two confirmed terms disagree | builder (W2), discussed with Alex before building |
 | How scheduled release by the clock is implemented, and live arrivals while the clock is in the past | product, then W4 |
 | When the clock jumps past several arrivals at once: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item | product, then W4 with W1 |
 | Grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on. For now each grant is isolated. | later |
