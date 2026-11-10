@@ -1,6 +1,6 @@
 # 0006. Stack
 
-**Date:** 2026-11-07 · **Status:** accepted. The agent is no longer a fixed read step: see [0009](0009-agent-judges-code-checks.md).
+**Date:** 2026-11-07 · **Status:** accepted. The agent is no longer a fixed read step: see [0009](0009-agent-judges-code-checks.md). Amended by [0013](0013-stack-additions-and-repo-structure.md), which adds background jobs, screen updates, a PDF library and how Gmail and Drive are checked.
 
 ## Context
 

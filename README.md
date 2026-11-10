@@ -13,5 +13,6 @@
 Only the shared contracts exist as code so far. Their tests run with:
 
 ```bash
-PYTHONPATH=backend uv run --with pytest pytest -q backend/app/contracts/tests
+cd backend
+uv run pytest
 ```

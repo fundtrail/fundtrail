@@ -33,8 +33,8 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
 
 ### Evidence: why the spending was allowed
 
-- **Gmail:** each grant gets its own email address on our demo account.
-- **Google Drive:** the connector reads folders that users share with our demo account. Users never connect their own Google account.
+- **Gmail:** each grant gets its own email address on our demo account. The backend checks for new mail on a timer, every one to two minutes.
+- **Google Drive:** the connector reads folders that users share with our demo account, on the same timer. Users never connect their own Google account.
 - **Upload:** files can also be added in the app.
 - Only email from known senders is processed: our accounts, the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
 - Evidence that arrives before its ledger line waits, unlinked, until the line shows up.
@@ -57,7 +57,7 @@ the agent (our code, in backend/app/agent/)
      the backend saves everything from the run
 ```
 
-- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, whenever the accountant writes in a thread, and once per grant as closeout nears. Runs for one grant go one at a time. A question in a thread goes ahead of queued runs and waits only for the run in progress, and the thread shows that the agent is busy. In the demo, "arrives" means the clock reaches the item's arrival time.
+- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, whenever the accountant writes in a thread, and once per grant as closeout nears. Runs for one grant go one at a time. A question in a thread goes ahead of queued runs and waits only for the run in progress, and the thread shows that the agent is busy. Procrastinate runs these jobs: a lock per grant gives one at a time, and a priority puts the question first. In the demo, "arrives" means the clock reaches the item's arrival time.
 - **What it does.** It works in a loop of actions, like a person at a desk. It can look at anything on its grant, with no filtering. For now each grant is isolated, so it doesn't see other grants. It sees every charge with its links, every source and the facts read from it, the grant's terms, and a charge's history, including fixes the accountant rejected. It can open any file again to quote the exact part it needs. It writes facts, links, checklist items, answers to code's questions, comments, suggestions, and flags for anything no question covers, on a charge or on a record. Reading, matching and answering aren't fixed steps; it does them in whatever order it needs.
 - **Structure over memory.** The agent has no hidden memory between runs, so code hands it what needs attention instead of expecting it to remember. When a file arrives, it gets every checklist item still missing on the grant and is asked which ones the file fills. It gets the checks that are failing on the charges in the run, so it can dispute one it has evidence against. When a bill arrives, code finds the bills already on file that look like the same one, and the agent compares the saved facts first. It opens an earlier file only when the facts don't settle it, which should be rare. When it's asked a question in a thread, it gets that thread and the charge's records.
 - **Budget lines.** The agent decides which budget line each charge belongs to, because there's a lot of nuance in it. It writes the choice as a `budget_assignment` record (see [contracts.md](contracts.md#2-links)).
@@ -74,7 +74,7 @@ the agent (our code, in backend/app/agent/)
 
   Code enforces only the hard limits below.
 
-The model is called through Anthropic's SDK inside LangGraph. The reason is in [decisions/0006](decisions/0006-stack.md).
+The model is called through Anthropic's SDK inside LangGraph. LangGraph's saving of a run partway through is off for now, so a crashed run starts over. The reasons are in [decisions/0006](decisions/0006-stack.md) and [0013](decisions/0013-stack-additions-and-repo-structure.md).
 
 ## Trust rules
 
@@ -123,7 +123,7 @@ The accountant clicks a fact and the file opens at the right spot. We copy patte
 
 - **Confirmed three ways.** A value counts as confirmed when its citation was found in its file, when the accountant confirmed the record it's in, or when the accountant typed it. Code works this out each time, and nothing stores it. Confirming a grant term therefore confirms its values too. Only a value that a check or an answer rests on sends a charge to Needs a human.
 - **Corrections carry their links.** When a record is corrected, links to the old one follow it to the new one, and the checks rerun.
-- **Matched once, on the server.** The match runs when the record is saved, and where the highlight goes is stored. The viewer only draws it.
+- **Matched once, on the server.** The match runs when the record is saved, and where the highlight goes is stored. The viewer only draws it. The server uses pypdfium2 to read a page's text, find the passage and turn a scanned page into an image, and Pillow to resize photos.
 - **How Claude reads a PDF.** Each page goes in as an image with its extracted text alongside. A PDF citation returns the quoted passage and the page range, nothing finer, and Anthropic's own cookbook finds the passage on the page the same way.
 - **OCR is the fallback** if the eval shows boxes on photos aren't reliable enough.
 
@@ -148,16 +148,24 @@ The accountant clicks a fact and the file opens at the right spot. We copy patte
 | Backend | Python FastAPI on Railway, always on |
 | Database, sign-in, file storage | Supabase (Postgres, Google sign-in, storage) |
 | Model | Claude `claude-opus-5-5` |
-| Agent | LangGraph, calling Anthropic's SDK directly |
+| Agent | LangGraph, calling Anthropic's SDK directly. Its mid-run saving is off for now. |
+| Background jobs | Procrastinate, on our Postgres database |
+| Screen updates | A "something changed" ping through Supabase Realtime, then a refetch from our API |
+| PDFs and images on the server | pypdfium2 and Pillow |
 | Records | Pydantic models |
-| Connectors | Gmail API, Google Drive API |
+| Connectors | Gmail API and Google Drive API, checked on a timer |
+
+The screen learns that something changed, such as the agent replying in a thread, from a small ping on a private Supabase Realtime channel. It then refetches from our API. Supabase doesn't promise that every ping arrives, so the screen also refetches when it connects or reconnects.
+
+The choices added after the first stack decision, and what was set aside, are in [decisions/0013](decisions/0013-stack-additions-and-repo-structure.md).
 
 ## Deployment
 
 ```
-browser ─► Next.js (Vercel) ─► FastAPI (Railway) ─► Supabase: Postgres · auth · storage
+browser ─► Next.js (Vercel) ─► FastAPI (Railway) ─► Supabase: Postgres · auth · storage · Realtime
                 │                    ├─► Anthropic API (Claude)
                 └─ Supabase auth     └─► Gmail API · Drive API (demo account)
+                   and Realtime pings
 ```
 
 ## Repo layout
@@ -168,8 +176,12 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 
 | Item | Who settles it |
 |---|---|
-| Retries for failed agent runs, and the job runner | builder (W4 with W1) |
-| How often Gmail and Drive are checked, push or polling | builder (W3) |
+| How many times a failed agent run is retried, what the accountant sees when one fails, and how many grants run at once | builder (W4 with W1), discussed with Alex before building |
+| How the backend connects to Supabase for Procrastinate: the direct connection or the session pooler, or polling | builder (W4), discussed with Alex before building |
+| Which events send a ping to the screen, whether a channel is per grant or per workspace, and how the "agent is busy" notice is driven | builder (W4 with W5), discussed with Alex before building |
+| Whether pypdfium2 plus our clean-up step finds quotes as reliably as PyMuPDF would, tested early on real PDFs. Its calls also can't run at the same time across threads. | builder (W1), reported to Alex |
+| How the agent signals that it's done, the shape of its graph, and what's kept from each run for debugging | builder (W1), discussed with Alex before building |
+| The exact interval for checking Gmail and Drive, and whether a file added inside a shared Drive folder always shows up in Drive's change feed | builder (W3) |
 | Email body vs. attachments, duplicate files | builder (W3) |
 | The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |

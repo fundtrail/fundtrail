@@ -1,0 +1,18 @@
+[project]
+name = "fundtrail-backend"
+version = "0.1.0"
+description = "FundTrail's backend: the agent, the checks and the API behind a running evidence file for every research grant."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=2.6.0",
+    "pydantic>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["app"]

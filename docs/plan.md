@@ -41,10 +41,10 @@ The split follows one seam. Alex owns everything that turns files into records a
 
 | # | Workstream | Owner |
 |---|---|---|
-| W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads | Alex |
+| W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads. Also quotes: find each quote in its file, highlight positions, page images for scans, the second look on photos | Alex |
 | W2 | Checks, National Science Foundation (NSF) rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text | Alex |
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
-| W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs, deploys | Grant |
+| W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs on Procrastinate, thread messages, screen pings, deploys | Grant |
 | W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls | Grant |
 | W6 | Viewer with highlights, closeout view, PDF evidence report | Grant |
 | Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config | both |
