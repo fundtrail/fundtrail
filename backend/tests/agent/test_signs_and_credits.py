@@ -8,6 +8,8 @@ from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 
+import pytest
+
 from app.agent import RunSaved, run_once
 from app.agent.citations import sign_is_doubtful
 from app.agent.model import ModelRequest
@@ -18,8 +20,8 @@ from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecksInput
 from app.contracts.evidence import EvidenceFile
 from app.contracts.fixtures import DOCUMENTS_DIR, load_sample_grant
-from app.contracts.records import Record
-from app.contracts.runs import Trigger
+from app.contracts.records import Bill, Link, Record
+from app.contracts.runs import Trigger, TriggerKind
 
 from .fakes import FakeModel, calls, label_message, results_of, sample_inputs, tool
 
@@ -72,21 +74,63 @@ MEMO = (
 )
 
 
-def test_a_spaced_dash_is_a_doubtful_sign_and_an_attached_one_is_not():
-    assert sign_is_doubtful("Hotel - $612.40", "$612.40")
-    assert sign_is_doubtful("Credit amount - $248.00", "- $248.00")
-    assert sign_is_doubtful("Refund – $45.00", "$45.00")
-    assert not sign_is_doubtful("Credit amount -$248.00", "-$248.00")
-    assert not sign_is_doubtful("Total Due: $1,240.00", "$1,240.00")
-    assert not sign_is_doubtful("Year 2-$50,000", "$50,000")
+@pytest.mark.parametrize(
+    ("passage", "value"),
+    [
+        ("Hotel - $612.40", "$612.40"),
+        ("Refund \u2013 $45.00", "$45.00"),
+        # Judged from the amount's place in the passage, whatever the value's text carries.
+        ("Credit amount - $248.00", "- $248.00"),
+        ("Credit amount - $248.00", "$248.00"),
+        ("Credit amount - $248.00", "248.00"),
+        # Any run of spaces or tabs after the dash.
+        ("Hotel -    $612.40", "612.40"),
+        ("Hotel -\t$612.40", "$612.40"),
+        # A currency code between the dash and the amount.
+        ("Hotel \u2013 USD 612.40", "612.40"),
+        ("Hotel - USD 612.40", "USD 612.40"),
+        # A dash at the start of a line.
+        ("Paid\n- $45.00", "$45.00"),
+        # Brackets inside prose (the PR 58 ruling: either way).
+        ("the fee ($450.00) was paid", "($450.00)"),
+        ("the fee ($450.00) was paid", "$450.00"),
+        ("($450.00) was refunded", "450.00"),
+    ],
+)
+def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
+    assert sign_is_doubtful(passage, value)
 
 
-def test_a_credit_memo_is_linked_with_its_negative_amount_and_its_sign_reason():
-    now = datetime.fromisoformat("2025-12-01T18:00:00+00:00")
-    memo = text_file("file-memo", "credit_memo_2001.txt", "2025-12-01T18:00:00+00:00")
-    db = records_until("rec-bill-seq-0207")  # L-1001 linked, assigned and answered
-    base = sample_inputs(now=now, trigger=Trigger(kind="file", id="file-memo"), records=db)  # pyright: ignore[reportArgumentType]
-    files = [*base.files, memo]
+@pytest.mark.parametrize(
+    ("passage", "value"),
+    [
+        ("Credit amount -$248.00", "-$248.00"),  # attached: clearly a minus (call 31)
+        ("Total: -$450.00", "-$450.00"),
+        ("\u2212 $45.00", "$45.00"),  # the true minus is always a minus
+        ("Total: ($450.00)", "($450.00)"),  # accounting brackets, not prose
+        ("Total Due: $1,240.00", "$1,240.00"),
+        ("Year 2-$50,000", "$50,000"),  # a hyphen after a digit
+        ("Hotel- $612.40", "$612.40"),  # a hyphen after a letter
+    ],
+)
+def test_a_sign_that_reads_one_way_is_not_doubtful(passage: str, value: str):
+    assert not sign_is_doubtful(passage, value)
+
+
+MEMO_NOW = datetime.fromisoformat("2025-12-01T18:00:00+00:00")
+MEMO_DB = records_until("rec-bill-seq-0207")  # L-1001 linked, assigned and answered
+MEMO_FILE = text_file("file-memo", "credit_memo_2001.txt", "2025-12-01T18:00:00+00:00")
+
+
+def memo_run(total_text: str, cents: int) -> tuple[RunSaved, list[Charge], list[EvidenceFile]]:
+    """The agent reads CM-2001, cites its total as `total_text`, and links it to L-1001.
+
+    Its first link has no reason, which is refused because the sign reads either way; the next
+    gives the reason. Returns the run and what the checks need.
+    """
+    trigger = Trigger(kind=TriggerKind.FILE, id="file-memo")
+    base = sample_inputs(now=MEMO_NOW, trigger=trigger, records=MEMO_DB)
+    files = [*base.files, MEMO_FILE]
     inputs = replace(
         base,
         files=files,
@@ -97,13 +141,18 @@ def test_a_credit_memo_is_linked_with_its_negative_amount_and_its_sign_reason():
         default_items=default_items,
         new_id=iter(["rec-bill-cm-2001", "rec-link-cm-2001", "rec-allowable-again"]).__next__,
     )
-    assert bucket("chg-l-1001", db, list(base.charges), files, now) == Bucket.EVIDENCE_COMPLETE
+    link = {
+        "record_id": "rec-bill-cm-2001",
+        "charge_id": "chg-l-1001",
+        "amount_cents": cents,
+        "default_item": "bill",
+    }
 
     def read(request: ModelRequest):
         return label_message(
             request,
             [
-                ("cm_total", "- $248.00", "file-memo", "Credit amount - $248.00"),
+                ("cm_total", total_text, "file-memo", "Credit amount - $248.00"),
                 ("cm_number", "CM-2001", "file-memo", "CREDIT MEMO CM-2001"),
             ],
         )
@@ -114,35 +163,21 @@ def test_a_credit_memo_is_linked_with_its_negative_amount_and_its_sign_reason():
                 "write_fact",
                 kind="bill",
                 values=[
-                    {"field": "total", "label": "cm_total", "value": -24800},
+                    {"field": "total", "label": "cm_total", "value": cents},
                     {"field": "document_number", "label": "cm_number"},
                 ],
             ),
-            tool(
-                "link",
-                record_id="rec-bill-cm-2001",
-                charge_id="chg-l-1001",
-                amount_cents=-24800,
-                default_item="bill",
-            ),
+            tool("link", **link),
             tool("finish", summary="Read the credit memo."),
         )
 
     def give_reason(request: ModelRequest):
         results = results_of(request)
+        assert not results[0].get("is_error"), results[0]
         assert "can be read either way" in results[0]["content"]
         assert results[1]["is_error"] and "say what you read the sign from" in results[1]["content"]
-        return calls(
-            tool(
-                "link",
-                record_id="rec-bill-cm-2001",
-                charge_id="chg-l-1001",
-                amount_cents=-24800,
-                default_item="bill",
-                reason='Read the sign from "CREDIT MEMO" and "Credits invoice INV-1001".',
-            ),
-            tool("finish", summary="Linked the credit memo to L-1001."),
-        )
+        reason = 'Read the sign from "CREDIT MEMO" and "Credits invoice INV-1001".'
+        return calls(tool("link", **link, reason=reason), tool("finish", summary="Linked CM-2001."))
 
     def answer_again(request: ModelRequest):
         # The new link makes the charge's Allowable answer out of date, so the gate asks again.
@@ -161,12 +196,77 @@ def test_a_credit_memo_is_linked_with_its_negative_amount_and_its_sign_reason():
 
     result = run_once(inputs, FakeModel([read, write, give_reason, answer_again]))
     assert isinstance(result, RunSaved), getattr(result, "error", result)
+    return result, list(base.charges), files
+
+
+def test_a_credit_memo_is_linked_with_its_negative_amount_and_its_sign_reason():
+    assert (
+        bucket(
+            "chg-l-1001",
+            MEMO_DB,
+            list(SAMPLE.charges[:1]),
+            [*SAMPLE.files[:2], MEMO_FILE],
+            MEMO_NOW,
+        )
+        == Bucket.EVIDENCE_COMPLETE
+    )
+    result, charges, files = memo_run("- $248.00", -24800)
     bill, link, _ = result.records
     assert bill.data.total.value == -24800  # pyright: ignore[reportAttributeAccessIssue]
     assert link.data.amount_cents == -24800 and "credit memo" in (link.data.reason or "").lower()  # pyright: ignore[reportAttributeAccessIssue]
-    # Linked before the ledger's credit line posts: the charge waits for it with the accountant.
-    after = bucket("chg-l-1001", [*db, *result.records], list(base.charges), files, now)
-    assert after != Bucket.EVIDENCE_COMPLETE
+    # Linked before the ledger's credit line posts, the charge's bill item adds up to less than
+    # the charge: the checks' own rule for a sum that's under gives Missing evidence.
+    out = run_checks(
+        ChecksInput(
+            now=MEMO_NOW,
+            charges=tuple(charges),
+            files=tuple(files),
+            records=(*MEMO_DB, *result.records),
+        )
+    )
+    status = next(s for s in out.charges if s.charge_id == "chg-l-1001")
+    assert status.bucket == Bucket.MISSING_EVIDENCE
+    assert [
+        (r.check, r.problem) for r in status.reasons if r.bucket == Bucket.MISSING_EVIDENCE
+    ] == [("checklist", "missing:bill")]
+
+
+def test_citing_only_the_digits_still_asks_where_the_sign_came_from():
+    """The review's case: "248.00" cited out of "Credit amount - $248.00" carries no dash, but the
+    amount's place in the passage still reads either way, so the link still needs a reason."""
+    result, _, _ = memo_run("248.00", 24800)
+    bill, link, _ = result.records
+    assert isinstance(bill.data, Bill) and isinstance(link.data, Link)
+    assert bill.data.total.value == 24800  # the agent's reading stands
+    assert "sign" in (link.data.reason or "")
+
+
+@pytest.mark.xfail(
+    reason="The checks don't net a charge against its credit line yet (decision 0020; "
+    "app/checks/checklist.py says that part waits for its contract shapes).",
+    strict=False,
+)
+def test_the_ledgers_credit_line_brings_the_charge_back():
+    result, charges, files = memo_run("- $248.00", -24800)
+    credit_line = SAMPLE.charges[0].model_copy(
+        update={
+            "id": "chg-l-1003",
+            "ledger_line_id": "L-1003",
+            "amount_cents": -24800,
+            "description": "Credit, damaged liners",
+            "reference": "CM-2001",
+            "original_line_id": "L-1001",
+            "transaction_date": date(2025, 12, 3),
+            "posting_date": date(2025, 12, 5),
+            "arrived_at": datetime.fromisoformat("2025-12-05T00:00:00+00:00"),
+        }
+    )
+    later = datetime.fromisoformat("2025-12-05T12:00:00+00:00")
+    records = [*MEMO_DB, *result.records]
+    assert (
+        bucket("chg-l-1001", records, [*charges, credit_line], files, later)
+        == Bucket.EVIDENCE_COMPLETE
+    )
 
 
 def test_the_prompt_says_how_to_link_a_credit_memo_and_report_a_doubtful_sign():
