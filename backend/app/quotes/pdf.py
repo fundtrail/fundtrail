@@ -25,6 +25,7 @@ import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 
 from app.quotes.text_match import (
+    LINE_DASH,
     LINE_HYPHEN,
     CleanText,
     clean,
@@ -121,7 +122,7 @@ def _read_and_match(
                 occurrences.append(
                     QuoteOccurrence(
                         rects=boxes,
-                        matched_text=matched.replace(LINE_HYPHEN, "-"),
+                        matched_text=matched.replace(LINE_HYPHEN, "-").replace(LINE_DASH, "-"),
                         value_found=(
                             value_in_span(value_text, pages.text.text, start, end)
                             if value_text

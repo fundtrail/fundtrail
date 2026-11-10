@@ -27,6 +27,7 @@ META_PREFIXES = (
     "- Source: ",
     "- Older source: ",
     "- Older status: ",
+    "- Older editions: ",
     "- Quote: ",
     "- Checked: ",
 )
@@ -169,6 +170,19 @@ def test_every_gc1_rule_says_what_the_older_conditions_say(rulebook: Rulebook) -
             )
         if any(line.startswith("- Older status: partly unread") for line in statuses):
             assert older_sources, f"{rule.id} is partly unread but names no older source"
+
+
+def test_every_asr_citation_says_what_the_earlier_editions_say(rulebook: Rulebook) -> None:
+    for rule in rulebook.rules:
+        cites_asr = any(
+            "Agency Specific Requirements" in line for line in rule.lines("- Older source:")
+        )
+        editions = rule.lines("- Older editions:")
+        assert len(editions) <= 1, f"{rule.id} has more than one older editions line"
+        if cites_asr:
+            assert editions, f"{rule.id} cites the ASR but has no older editions line"
+        else:
+            assert not editions, f"{rule.id} has an older editions line but no ASR citation"
 
 
 def test_every_quote_is_quoted_and_attributed(rulebook: Rulebook) -> None:

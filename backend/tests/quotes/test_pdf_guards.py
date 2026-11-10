@@ -42,6 +42,12 @@ class Probe(NamedTuple):
 TRAVEL = "Travel to the Boston conference cost {} in total for the trip."
 TYPO = "Travel to the Bostn conference cost $1,450.00 in total for the trip."
 SPLIT_1 = ["The cost of the conference travel was"]
+SIGNED = [
+    ("an attached hyphen", "-$450.00"),
+    ("an attached en dash", "\u2013$450.00"),
+    ("a trailing minus", "$450.00-"),
+]
+"""Clearly negative under call 31: a value stated as positive must not confirm."""
 SPLIT_PASSAGE = "The cost of the conference travel was $1,450.00 for the whole trip."
 
 PROBES = [
@@ -234,6 +240,143 @@ PROBES = [
         None,
         "not_found",
         None,
+    ),
+    *[
+        Probe(
+            f"exact, {name} on the page the value lacks",
+            [[f"Adjustment to the order total of {amount} posted"]],
+            f"Adjustment to the order total of {amount} posted",
+            "$450.00",
+            "exact",
+            False,
+        )
+        for name, amount in SIGNED
+    ],
+    *[
+        Probe(
+            f"close, {name} on the page the passage lacks",
+            [[f"Adjustment to the order total of {amount} posted"]],
+            "Adjustment to the order totl of $450.00 posted",
+            "$450.00",
+            "not_found",
+            False,
+        )
+        for name, amount in SIGNED
+    ],
+    # Call 31, point 3: a spaced dash could be either, so the value's sign stands.
+    *[
+        Probe(f"either: {line}", [[line]], line, value, "exact", True)
+        for line, value in [
+            ("Airfare \u2013 $450.00", "$450.00"),
+            ("Year 2 - $50,000", "$50,000"),
+            ("Hotel rates run $400 \u2013 $500 per night", "$500"),
+        ]
+    ],
+    # Call 31, point 4: a date has no sign, so both dates confirm.
+    *[
+        Probe(
+            f"never a sign: date {value}",
+            [["Period of performance: 09/01/2025 - 08/31/2027"]],
+            "Period of performance: 09/01/2025 - 08/31/2027",
+            value,
+            "exact",
+            True,
+        )
+        for value in ["09/01/2025", "08/31/2027"]
+    ],
+    Probe(
+        "a dash ending the line after a number, next line a date",
+        [["Travel refund 450.00-", "2026-03-04 Lodging 300.00"]],
+        "Travel refund 450.00",
+        "450.00",
+        "exact",
+        False,
+    ),
+    Probe(
+        "close, a dash ending the line after a number",
+        [["Travel refund for the conference 450.00-", "2026-03-04 Lodging 300.00"]],
+        "Travl refund for the conference 450.00",
+        "450.00",
+        "not_found",
+        False,
+    ),
+    *[
+        Probe(
+            f"a dash ending the line after a number, next line {next_line!r}",
+            [["Travel refund $450.00-", next_line]],
+            "Travel refund $450.00",
+            "$450.00",
+            "exact",
+            False,
+        )
+        for next_line in ["$300.00 Lodging", "(see note 2)", "* adjusted", "# 14", "\u2022 Lodging"]
+    ],
+    *[
+        Probe(
+            f"an attached dash after {line.split('$')[0][-2:]!r} is a minus",
+            [[line]],
+            line,
+            "$450.00",
+            "exact",
+            False,
+        )
+        for line in [
+            'The ledger line reads "-$450.00" for the refund',
+            "The ledger line reads '-$450.00' for the refund",
+            "Balance=-$450.00 after the refund",
+            "Credits;-$450.00 after the refund",
+            "Adjustments,-$450.00 after the refund",
+            "Item *-$450.00 refund",
+        ]
+    ],
+    *[
+        Probe(
+            f"a trailing minus before a date-shaped line: {value}",
+            [lines],
+            lines[0],
+            value,
+            "exact",
+            False,
+        )
+        for lines, value in [
+            (["Refund $12-", "3-15 Fee waived"], "$12"),
+            (["Refund 1234-", "05-06 Lodging"], "1234"),
+        ]
+    ],
+    *[
+        Probe(
+            f"a minus starting the line after a line-end dash, value {value}",
+            [["Travel refund 450.00-", "-$12.00 Fee"]],
+            "-$12.00 Fee",
+            value,
+            "exact",
+            found,
+        )
+        for value, found in [("$12.00", False), ("-$12.00", True)]
+    ],
+    Probe(
+        "a date broken at its dash confirms",
+        [["Travel dates 2026-", "03-04 to 2026-03-09"]],
+        "Travel dates 2026-03-04 to 2026-03-09",
+        "2026-03-04",
+        "exact",
+        True,
+    ),
+    Probe(
+        "a range broken across lines confirms as a whole",
+        [["Stay of 10-", "20 days for the field work"]],
+        "Stay of 10-20 days for the field work",
+        "10-20",
+        "exact",
+        True,
+    ),
+    Probe(
+        "a negative value where the page's dash is a hyphen",
+        [["Hotel rates run $300-$450 per night"]],
+        "Hotel rates run $300-$450 per night",
+        "-$450",
+        "exact",
+        False,
     ),
 ]
 

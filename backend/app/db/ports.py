@@ -12,15 +12,14 @@ they exist. Tests pass fakes instead.
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.contracts.charges import Charge
-from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion, RunChecks
+from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion
 from app.contracts.evidence import EvidenceFile
-from app.contracts.records import BudgetCategory, DefaultItem, DefaultItems, Record
+from app.contracts.records import BudgetCategory, DefaultItem, Record
 from app.contracts.runs import AgentRun
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
@@ -41,30 +40,19 @@ class Checks(Protocol):
         ...
 
 
-def _not_yet(module: str, name: str, issue: str) -> Callable[..., Any]:
-    """`module.name` from another area, or a clear error naming the issue that delivers it."""
-    found = getattr(importlib.import_module(module), name, None)
-    if found is None:
-        raise NotImplementedError(f"{module}.{name} isn't on main yet ({issue})")
-    return found
-
-
 class ModuleChecks:
-    """The real checks.
-
-    - `account_categories`: the account groups table on main (#20),
-      `app.checks.account_groups.lookup_account(account).nsf_categories`.
-    - `run_checks` and `default_items`: `app.checks.run_checks` and `app.checks.default_items`,
-      which #24 delivers. Until then they raise NotImplementedError saying so.
-    """
+    """The real checks (W2): `app.checks.run.run_checks`, `app.checks.checklist.default_items`,
+    and the account groups table's `lookup_account(account).nsf_categories` (#20)."""
 
     def run_checks(self, checks_input: ChecksInput, /) -> ChecksOutput:
-        run: RunChecks = _not_yet("app.checks", "run_checks", "#24")
-        return run(checks_input)
+        from app.checks.run import run_checks
+
+        return run_checks(checks_input)
 
     def default_items(self, charge: Charge, records: Sequence[Record], /) -> Sequence[DefaultItem]:
-        items: DefaultItems = _not_yet("app.checks", "default_items", "#24")
-        return items(charge, records)
+        from app.checks.checklist import default_items
+
+        return default_items(charge, records)
 
     def account_categories(self, account: str, /) -> Sequence[BudgetCategory]:
         from app.checks.account_groups import lookup_account
@@ -125,8 +113,16 @@ class ModuleAgent:
     """The real agent: `app.agent.run_agent(agent_input) -> AgentResult`."""
 
     def run(self, agent_input: AgentInput, /) -> AgentResult:
-        run: Callable[[AgentInput], AgentResult] = _not_yet("app.agent", "run_agent", "#23")
-        return run(agent_input)
+        from app.agent import run_agent
+
+        result = run_agent(agent_input)
+        return AgentResult(
+            records=list(result.records),
+            messages=list(result.messages),
+            summary=result.summary,
+            log=result.log,
+            other_open_questions=list(result.other_open_questions),
+        )
 
 
 class Storage(Protocol):

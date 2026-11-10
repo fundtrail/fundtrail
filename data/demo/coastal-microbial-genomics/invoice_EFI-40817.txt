@@ -1,0 +1,25 @@
+EXAMPLE FIELD INSTRUMENTS
+18 Example Court, Example Valley, CA 94030
+ar@fieldinstruments.example
+
+INVOICE
+
+Invoice number: EFI-40817
+Invoice date: April 8, 2026
+Customer PO: PO-26-2904
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Parker Proxy and Kendall Dummy
+  100 Example Hall, Example City, CA 94000
+Project reference: one order for two awards, see the items
+
+Item  Description                                   Qty   Unit price      Amount
+1     Turbidity sensor, optical (SYN-2309472)         1    $1,450.00   $1,450.00
+2     Conductivity probe (SYN-2507264)                1      $980.00     $980.00
+
+Subtotal                                                               $2,430.00
+Shipping                                                                   $0.00
+Total due                                                              $2,430.00
+
+Terms: net 30

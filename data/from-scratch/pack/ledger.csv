@@ -1,0 +1,8 @@
+line_id,transaction_date,posting_date,amount,description,account,vendor,reference,original_line_id
+L-1958-0001,2025-10-14,2025-10-21,2202.50,"Nitrate ion-selective electrode, Microcontroller board",55016 Lab Instruments and Supplies,Example Electronics Supply,EES-5531,
+L-1958-0002,2026-02-09,2026-02-17,1079.75,"Sensor housing, PVC, machined, O-ring kit",55016 Lab Instruments and Supplies,Example Electronics Supply,EES-6012,
+L-1958-0003,2026-04-20,2026-04-28,321.50,"Nitrate standard solution, 1000 ppm, Ionic strength",55016 Lab Instruments and Supplies,Example Scientific Supply,ESS-31877,
+L-1958-0004,2026-06-11,2026-06-29,676.00,Travel reimbursement - Testwell E - installing sensors in Example Valley,57210 Domestic Travel,Emery Testwell,ER-26-3348,
+L-1958-0005,2026-11-02,2026-11-09,84.33,"Well fittings, card purchase",55016 Lab Instruments and Supplies,Example Hardware & Supply,PCARD-2611-0042,
+L-1958-0006,2026-11-12,2026-11-24,1874.00,"Sensor circuit board, assembled",55016 Lab Instruments and Supplies,Example Electronics Supply,EES-7420,
+L-1958-0007,2026-11-13,2026-12-07,370.50,"Nitrate standard solution, 1000 ppm",55016 Lab Instruments and Supplies,Example Scientific Supply,ESS-32410,
