@@ -897,3 +897,17 @@ def test_a_held_file_keeps_the_sent_date_it_takes_when_let_in():
     )
     assert HeldFile.model_validate_json(f.model_dump_json()).document_date == date(2026, 2, 21)
     assert held().files[0].document_date is None  # none given
+
+
+def test_an_emails_reading_text_maps_back_to_the_stored_file():
+    """Ruling 45: the viewer shows the text the agent read, mapped to stored positions."""
+    reading = api.ReadingView(
+        text="Date: Feb 21, 2026\n\nTotal: $2,180.00",
+        segments=(api.TextSegment(stored_start=120, reading_start=20, length=16),),
+    )
+    link = api.FileLink(url="https://example.invalid/signed", expires_at=at(1), reading=reading)
+    back = api.FileLink.model_validate_json(link.model_dump_json())
+    assert back.reading is not None and back.reading.segments[0].stored_start == 120
+    assert api.FileLink(url="u", expires_at=at(1)).reading is None  # every other file
+    with pytest.raises(ValidationError):
+        api.TextSegment(stored_start=0, reading_start=0, length=0)
