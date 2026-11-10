@@ -367,8 +367,6 @@ Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract P
 | Status | For records and files as well as charges, plus accepted and snoozed. A reason can carry an expected date. |
 | Old data | No conversion. Nothing real is stored yet. |
 
-**The screen-facing parts wait for the UI flow.** What a charge page, the grant page, an evidence card and a thread each get from the server depends on screens that haven't been discussed. The contract PR comes after that discussion (see [plan.md](plan.md#where-things-stand)).
-
 ## Not decided yet
 
 | Item | Who settles it |
@@ -381,7 +379,7 @@ Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract P
 | Whether a copy can still be linked while its duplicate mark waits | contract |
 | Whether a thread can be about a file that has no record | contract |
 | How reasons name "the same problem", so a reusable note can be matched to a later charge | contract |
-| What each screen gets from the server. Waits for the UI flow. | product, then contract |
+| What each screen gets from the server: a charge page, the grant page, an evidence card and a thread. It depends on the UI flow. | product, then contract |
 | How ledger account names map to default checklists and to budget lines | builder (W2), discussed with Alex before building |
 | A charge's bucket between an amendment's arrival and the accountant's confirmation of its terms | product |
 | A charge's bucket while its grant's terms aren't confirmed yet | product |

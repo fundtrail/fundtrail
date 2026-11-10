@@ -1,23 +1,5 @@
 # Plan
 
-## Where things stand
-
-As of November 9, 2026:
-
-- **The docs describe the design through decisions [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md) and [0012](decisions/0012-checked-quotes-and-highlights.md).** They came out of a design review before the build.
-- **The contract code still implements the design through [0009](decisions/0009-agent-judges-code-checks.md).** The changes it needs are listed in [contracts.md](contracts.md#13-agreed-changes-not-yet-in-the-code).
-- **Nothing else is built.** The contracts are the only code in the repo. Everything else in the repo map is a target.
-- **The dates below have passed.** Alex set the timeline aside to get the design right. The build order gets redone in step 3.
-
-Still to discuss, in this order, because each feeds the next:
-
-1. The tech stack and how each part is implemented
-2. The structure of the codebase
-3. The build plan
-4. The UI flow
-
-The contract PR comes after the UI flow, because what each screen gets from the server depends on it. Details that only change how a part is built are under "Not decided yet" in each doc, and they're discussed with Alex before that part is built.
-
 ## Milestones
 
 | Milestone | When (PT) |
