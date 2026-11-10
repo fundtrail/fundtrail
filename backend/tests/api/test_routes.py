@@ -87,7 +87,8 @@ def test_a_ledger_upload_adds_new_lines_once_and_reports_bad_rows(api: Api) -> N
     assert error["row"] == 4 and "transaction_date" in error["message"]
 
     runs = api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
-    assert sorted(r["trigger"]["kind"] for r in runs) == ["charge", "charge", "file"]
+    # Both lines arrived at the same moment, so one run covers them.
+    assert sorted(r["trigger"]["kind"] for r in runs) == ["charge", "file"]
 
 
 def test_a_file_that_isnt_a_ledger_is_a_422(api: Api) -> None:
@@ -208,7 +209,6 @@ def test_a_record_the_contracts_refuse_is_a_422(api: Api) -> None:
     grant = _grant(api, _workspace(api)["id"])
     response = _post_record(api, grant["id"], {"kind": "no_such_kind"})
     assert response.status_code == 422
-    assert all(isinstance(p, str) for p in response.json()["detail"])
 
 
 def test_a_record_that_leaves_a_question_for_the_agent_queues_a_run(api: Api) -> None:

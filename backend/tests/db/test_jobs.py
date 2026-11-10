@@ -226,3 +226,21 @@ def test_runs_for_one_grant_go_one_at_a_time(platform: Platform) -> None:  # noq
     assert len(agent.inputs) == 4
     assert most == {g.id: 1 for g in grants}
     assert all(r.status == RunStatus.DONE for g in grants for r in _runs(platform, g))
+
+
+def test_charges_that_arrive_together_share_a_run_in_batches(platform: Platform) -> None:  # noqa: F811
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    grant = _grant(platform)
+    header = b"line_id,transaction_date,posting_date,amount,description,account\n"
+    rows = b"".join(
+        f"B-{i:03},2025-11-12,2025-11-14,10.00,Item {i},55016 Lab\n".encode() for i in range(30)
+    )
+    result = actions.add_ledger(platform, grant, header + rows)
+    assert result.added == 30
+    runs = [r for r in _runs(platform, grant) if r.trigger.kind == TriggerKind.CHARGE]
+    assert len(runs) == 2
+    run_worker_until_idle(str(platform.pool.conninfo))
+    covered = [i.charge_ids for i in agent.inputs if i.run.trigger.kind == TriggerKind.CHARGE]
+    assert sorted(len(c) for c in covered) == [5, 25]
+    assert len({c for batch in covered for c in batch}) == 30

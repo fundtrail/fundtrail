@@ -23,7 +23,7 @@ from app.contracts.workspaces import Grant, Workspace
 from app.db import actions, store
 from app.db.pool import transaction, workspace_now
 
-from .bodies import ChargeRow, NewRecordIn
+from .bodies import ChargeRow, NewRecordInput
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
 
 router = APIRouter()
@@ -101,10 +101,12 @@ def list_records(grant: GrantDep, platform: PlatformDep) -> list[Record]:
 
 @router.post("/grants/{grant_id}/records", status_code=status.HTTP_201_CREATED, responses=_REJECTED)
 def create_record(
-    body: NewRecordIn, grant: GrantDep, user: UserDep, platform: PlatformDep
+    body: NewRecordInput, grant: GrantDep, user: UserDep, platform: PlatformDep
 ) -> Record:
     try:
-        return actions.add_record(platform, grant, user.id, body.data, body.replaces_id)
+        return actions.add_record(
+            platform, grant, user.id, body.data.model_dump(mode="json"), body.replaces_id
+        )
     except actions.WriteRejected as error:
         return _rejected(error)  # pyright: ignore[reportReturnType]
 
