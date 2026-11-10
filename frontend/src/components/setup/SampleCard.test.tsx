@@ -73,7 +73,7 @@ describe("SampleCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     fireEvent.click(screen.getByRole("button", { name: "Start it" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Another sample is still running:");
+    expect(alert).toHaveTextContent("Another of your larger live samples is still reading its history:");
     expect(screen.getByRole("link", { name: "Running sample" })).toHaveAttribute("href", "/grants/grant-running");
   });
 });

@@ -60,7 +60,7 @@ export function SampleCard({
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         const blocking = readBlockingGrant(error.detail);
-        setState({ status: "refused", message: blocking ? "Another sample is still running:" : error.message, blocking });
+        setState({ status: "refused", message: blocking ? "Another of your larger live samples is still reading its history:" : error.message, blocking });
       } else {
         setState({ status: "refused", message: error instanceof ApiError ? error.message : "Couldn't open the sample. Try again.", blocking: null });
       }
