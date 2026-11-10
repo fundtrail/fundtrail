@@ -484,7 +484,10 @@ AWARD_NOTICE_GUIDANCE = (
     "(an approval_rule when it says who must approve what, otherwise an other_term). Write a "
     "term for every condition or limit the notice states, and none for a labeled field that says "
     "there is nothing (zero, none, not applicable), such as a cost share of $0 or an expenditure "
-    "limitation of none: those are empty fields, not conditions. An approval_rule also says what "
+    "limitation of none: those are empty fields, not conditions. An approval_rule's applies_to "
+    "is the narrowest words that name the budget line or NSF category, as the notice prints "
+    'it, such as "Participant Support Costs", cited from the clause, not the clause\'s '
+    'lead-in ("Funds budgeted for ..."). An approval_rule also says what '
     "it applies to, read from the clause's own words and cited: every charge in its category "
     '(every_charge, as in "every equipment purchase needs the Program Officer\'s approval"), or '
     'only money moved out of its category (moved_out, as in "may not be diverted ... to other '
