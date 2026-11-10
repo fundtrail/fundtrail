@@ -33,8 +33,7 @@ from app.ingest.incoming import (
 )
 from app.ingest.sources import DriveSource, MailSource
 
-from . import clock, store
-from .jobs import queue_run
+from . import clock, jobs, store
 from .pings import ping_changed, ping_run
 from .platform import Platform
 from .pool import transaction
@@ -106,7 +105,7 @@ def queue_arrivals(
     now = max(f.arrived_at for f in files)
     triggers = {f.id: Trigger(kind=TriggerKind.FILE, id=f.id) for f in files}
     recheck_grant(conn, p.checks, grant, now, triggers[files[0].id], file_triggers=triggers)
-    return [queue_run(conn, grant, triggers[f.id], f.arrived_at) for f in files]
+    return [jobs.queue_run(conn, grant, triggers[f.id], f.arrived_at) for f in files]
 
 
 class DbSink:
