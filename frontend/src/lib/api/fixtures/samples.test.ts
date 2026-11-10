@@ -139,3 +139,18 @@ describe("HttpApiClient for sample grants", () => {
     ]);
   });
 });
+
+describe("the fake's times", () => {
+  it("writes every timeline time one way, ending in Z", async () => {
+    const api = createFakeApiClient();
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    const times: string[] = [];
+    for (;;) {
+      const view = await api.moveTimeline(SAMPLE_GRANT_ID, {}).catch(() => null);
+      if (!view) break;
+      times.push(view.now.now, ...(view.coming_up ?? []).map((e) => e.at), ...(view.just_happened ?? []).map((p) => p.event.at));
+    }
+    expect(times.length).toBeGreaterThan(0);
+    for (const t of times) expect(t).toMatch(/Z$/);
+  });
+});

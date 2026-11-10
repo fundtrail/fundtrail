@@ -45,11 +45,19 @@ export const SAMPLE_OPTIONS: SampleOption[] = [
   },
 ];
 
+/**
+ * One way of writing a UTC time, "...Z", as the rest of the fake writes it.
+ * The contract's sample writes a ledger line's arrival as "+00:00".
+ */
+function utc(iso: IsoDatetime): IsoDatetime {
+  return iso.endsWith("+00:00") ? `${iso.slice(0, -6)}Z` : iso;
+}
+
 /** The contract's sample grant as timeline events, in date order. */
 export function sampleEvents(): TimelineEvent[] {
   const files: TimelineEvent[] = sample.files.map((f) => ({
     id: `event-${f.id}`,
-    at: f.arrived_at,
+    at: utc(f.arrived_at),
     kind: f.source === "upload" ? "user_delivery" : "arrival",
     source: f.source,
     name: f.name,
@@ -59,7 +67,7 @@ export function sampleEvents(): TimelineEvent[] {
   }));
   const lines: TimelineEvent[] = sample.charges.map((c) => ({
     id: `event-${c.id}`,
-    at: c.arrived_at,
+    at: utc(c.arrived_at),
     kind: "arrival",
     source: "ledger",
     name: c.ledger_line_id,
