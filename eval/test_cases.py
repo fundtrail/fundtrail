@@ -120,19 +120,29 @@ def date_renderings(value: date) -> list[str]:
 
 
 def money_renderings(cents: int) -> list[str]:
+    """The ways a document writes an amount. A credit can carry its minus
+    against the dollar sign, separated by a space ("Credit - $450.00"), or be
+    written in parentheses."""
     dollars, rest = divmod(abs(cents), 100)
-    sign = "-" if cents < 0 else ""
-    out = [f"{sign}${dollars:,}.{rest:02d}"]
+    plain = [f"${dollars:,}.{rest:02d}"]
     if rest == 0:
-        out.append(f"{sign}${dollars:,}")
-    return out
+        plain.append(f"${dollars:,}")
+    if cents >= 0:
+        return plain
+    return [form for p in plain for form in (f"-{p}", f"- {p}", f"({p})")]
+
+
+# A positive amount mustn't be the tail of a credit: "- $450.00" isn't $450.
+NOT_A_CREDIT = r"(?<!-)(?<!- )(?<!\()"
 
 
 def money_written(cents: int, text: str) -> bool:
     """True when the amount is written in text as a whole amount, so $150
-    doesn't match inside $150,000 or $150.50."""
+    doesn't match inside $150,000 or $150.50, and a positive amount doesn't
+    match the digits of a credit."""
+    lead = NOT_A_CREDIT if cents >= 0 else ""
     return any(
-        re.search(re.escape(normalize(r)) + r"(?![\d,]|\.\d)", text)
+        re.search(lead + re.escape(normalize(r)) + r"(?![\d,]|\.\d)", text)
         for r in money_renderings(cents)
     )
 
