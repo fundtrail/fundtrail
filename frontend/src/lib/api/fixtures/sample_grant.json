@@ -1,0 +1,1162 @@
+{
+  "user": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "email": "accountant@university.example",
+    "name": "Sample Accountant"
+  },
+  "workspace": {
+    "id": "ws-sample",
+    "name": "Sample grant",
+    "owner_id": "00000000-0000-4000-8000-000000000001",
+    "clock_now": "2026-04-10T17:00:00Z"
+  },
+  "grant": {
+    "id": "grant-sample",
+    "workspace_id": "ws-sample",
+    "funder": "NSF",
+    "award_number": "SYN-2300117",
+    "title": "Sediment Microbiome Survey of Example Bay"
+  },
+  "charges": [
+    {
+      "id": "chg-l-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "ledger_line_id": "L-1001",
+      "transaction_date": "2025-11-12",
+      "posting_date": "2025-11-14",
+      "arrived_at": "2025-11-14T00:00:00+00:00",
+      "amount_cents": 124000,
+      "description": "Sediment core liners",
+      "account": "55016 Lab Instruments and Supplies",
+      "vendor": "Example Lab Supply Co.",
+      "reference": "INV-1001"
+    },
+    {
+      "id": "chg-l-1002",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "ledger_line_id": "L-1002",
+      "transaction_date": "2026-02-20",
+      "posting_date": "2026-02-24",
+      "arrived_at": "2026-02-24T00:00:00+00:00",
+      "amount_cents": 218000,
+      "description": "Sediment DNA sequencing run 7",
+      "account": "59009 Recharge-Other Expenses",
+      "vendor": "Example Sequencing Core",
+      "reference": "SEQ-0207"
+    }
+  ],
+  "files": [
+    {
+      "id": "file-award-letter",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "source": "upload",
+      "name": "award_letter.txt",
+      "media_type": "text/plain",
+      "storage_path": "ws-sample/grant-sample/file-award-letter/award_letter.txt",
+      "sha256": "08809628ba85e5a7511e7f7bf3fb6381d76abe355fbad01e231bdcbb017d4c77",
+      "arrived_at": "2023-01-12T15:00:00Z"
+    },
+    {
+      "id": "file-invoice-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "source": "upload",
+      "name": "invoice_1001.txt",
+      "media_type": "text/plain",
+      "storage_path": "ws-sample/grant-sample/file-invoice-1001/invoice_1001.txt",
+      "sha256": "b7c7b976001791405703078035860c50928226f4dbe44e76d9d7b610c014ce46",
+      "arrived_at": "2025-11-12T18:00:00Z"
+    },
+    {
+      "id": "file-sequencing-statement",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "source": "gmail",
+      "name": "sequencing_statement.eml",
+      "media_type": "message/rfc822",
+      "storage_path": "ws-sample/grant-sample/file-sequencing-statement/sequencing_statement.eml",
+      "sha256": "bf1a4fee7248c77d68f9935b3189bb608617182398970f40e65df4cc28c55821",
+      "arrived_at": "2026-02-21T17:30:00Z",
+      "document_date": "2026-02-21",
+      "sender": "robin.example@university.example",
+      "source_ref": "gmail-synthetic-0001"
+    },
+    {
+      "id": "file-extension-notice",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "source": "drive",
+      "name": "extension_notice.txt",
+      "media_type": "text/plain",
+      "storage_path": "ws-sample/grant-sample/file-extension-notice/extension_notice.txt",
+      "sha256": "c2eb690f90a6c0f70417a9bde523e12a1a763dbf6dbfab9cbf937212e33f43b9",
+      "arrived_at": "2026-04-09T16:00:00Z",
+      "source_ref": "drive-synthetic-0001"
+    }
+  ],
+  "records": [
+    {
+      "id": "rec-period",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "period_of_performance",
+        "start": {
+          "value": "2023-02-01",
+          "text": "February 1, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Period of Performance Start Date: February 1, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 772,
+              "end_char_index": 822
+            },
+            "match": "exact"
+          }
+        },
+        "end": {
+          "value": "2026-01-31",
+          "text": "January 31, 2026",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Period of Performance End Date: January 31, 2026",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 823,
+              "end_char_index": 871
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-budget-participant-support",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "budget_line",
+        "name": {
+          "value": "Participant Support Costs",
+          "text": "Participant Support Costs",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "F. Participant Support Costs                              $20,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1700,
+              "end_char_index": 1765
+            },
+            "match": "exact"
+          }
+        },
+        "amount": {
+          "value": 2000000,
+          "text": "$20,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "F. Participant Support Costs                              $20,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1700,
+              "end_char_index": 1765
+            },
+            "match": "exact"
+          }
+        },
+        "category": "participant_support"
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-budget-other-direct-costs",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "budget_line",
+        "name": {
+          "value": "Other Direct Costs",
+          "text": "Other Direct Costs",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "G. Other Direct Costs                                    $100,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1766,
+              "end_char_index": 1831
+            },
+            "match": "exact"
+          }
+        },
+        "amount": {
+          "value": 10000000,
+          "text": "$100,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "G. Other Direct Costs                                    $100,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1766,
+              "end_char_index": 1831
+            },
+            "match": "exact"
+          }
+        },
+        "category": "other_direct_costs"
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-budget-materials-and-supplies",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "budget_line",
+        "name": {
+          "value": "Materials and Supplies",
+          "text": "Materials and Supplies",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "1. Materials and Supplies                              $40,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1835,
+              "end_char_index": 1897
+            },
+            "match": "exact"
+          }
+        },
+        "amount": {
+          "value": 4000000,
+          "text": "$40,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "1. Materials and Supplies                              $40,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1835,
+              "end_char_index": 1897
+            },
+            "match": "exact"
+          }
+        },
+        "category": "materials_and_supplies"
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-budget-other",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "budget_line",
+        "name": {
+          "value": "Other",
+          "text": "Other",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "6. Other                                               $60,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1901,
+              "end_char_index": 1963
+            },
+            "match": "exact"
+          }
+        },
+        "amount": {
+          "value": 6000000,
+          "text": "$60,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "6. Other                                               $60,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1901,
+              "end_char_index": 1963
+            },
+            "match": "exact"
+          }
+        },
+        "category": "other_direct_costs_other"
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-person-pi",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "person",
+        "name": {
+          "value": "Dr. Robin Example",
+          "text": "Dr. Robin Example",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Principal Investigator: Dr. Robin Example, robin.example@university.example, Example State University",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1242,
+              "end_char_index": 1343
+            },
+            "match": "exact"
+          }
+        },
+        "email": {
+          "value": "robin.example@university.example",
+          "text": "robin.example@university.example",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Principal Investigator: Dr. Robin Example, robin.example@university.example, Example State University",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1242,
+              "end_char_index": 1343
+            },
+            "match": "exact"
+          }
+        },
+        "role": {
+          "value": "Principal Investigator",
+          "text": "Principal Investigator",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Principal Investigator: Dr. Robin Example, robin.example@university.example, Example State University",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1242,
+              "end_char_index": 1343
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-person-program-officer",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "person",
+        "name": {
+          "value": "Dr. Jesse Sample",
+          "text": "Dr. Jesse Sample",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Program Officer: Dr. Jesse Sample, jesse.sample@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1369,
+              "end_char_index": 1431
+            },
+            "match": "exact"
+          }
+        },
+        "email": {
+          "value": "jesse.sample@funder.example",
+          "text": "jesse.sample@funder.example",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Program Officer: Dr. Jesse Sample, jesse.sample@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1369,
+              "end_char_index": 1431
+            },
+            "match": "exact"
+          }
+        },
+        "role": {
+          "value": "Program Officer",
+          "text": "Program Officer",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Program Officer: Dr. Jesse Sample, jesse.sample@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1369,
+              "end_char_index": 1431
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-person-grants-officer",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "person",
+        "name": {
+          "value": "Casey Placeholder",
+          "text": "Casey Placeholder",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Grants Officer: Casey Placeholder, casey.placeholder@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1432,
+              "end_char_index": 1499
+            },
+            "match": "exact"
+          }
+        },
+        "email": {
+          "value": "casey.placeholder@funder.example",
+          "text": "casey.placeholder@funder.example",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Grants Officer: Casey Placeholder, casey.placeholder@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1432,
+              "end_char_index": 1499
+            },
+            "match": "exact"
+          }
+        },
+        "role": {
+          "value": "Grants Officer",
+          "text": "Grants Officer",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Grants Officer: Casey Placeholder, casey.placeholder@funder.example",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1432,
+              "end_char_index": 1499
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-approval-rule",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "approval_rule",
+        "applies_to": {
+          "value": "Participant Support Costs",
+          "text": "Participant Support Costs",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 422,
+              "end_char_index": 657
+            },
+            "match": "exact"
+          }
+        },
+        "approver": {
+          "value": "Program Officer",
+          "text": "Program Officer",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 422,
+              "end_char_index": 657
+            },
+            "match": "exact"
+          }
+        },
+        "channel": {
+          "value": "Research.gov",
+          "text": "Research.gov",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 422,
+              "end_char_index": 657
+            },
+            "match": "exact"
+          }
+        },
+        "scope": {
+          "value": "moved_out",
+          "text": "may not be diverted by the awardee to other categories of expense",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 422,
+              "end_char_index": 657
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-notice-000",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2023-01-12T15:00:00Z",
+      "data": {
+        "dated": {
+          "value": "2023-01-10",
+          "text": "January 10, 2023",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Date: January 10, 2023",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 312,
+              "end_char_index": 344
+            },
+            "match": "exact"
+          }
+        },
+        "kind": "notice",
+        "amendment_number": {
+          "value": "000",
+          "text": "000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Number: 000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 290,
+              "end_char_index": 311
+            },
+            "match": "exact"
+          }
+        },
+        "amendment_type": {
+          "value": "New Project",
+          "text": "New Project",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amendment Type: New Project",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 262,
+              "end_char_index": 289
+            },
+            "match": "exact"
+          }
+        },
+        "obligated_by_amendment": {
+          "value": 12000000,
+          "text": "$120,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Amount Obligated by this Amendment: $120,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1055,
+              "end_char_index": 1099
+            },
+            "match": "exact"
+          }
+        },
+        "obligated_to_date": {
+          "value": 12000000,
+          "text": "$120,000",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Total Amount Obligated to Date: $120,000",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 1153,
+              "end_char_index": 1193
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 1
+    },
+    {
+      "id": "rec-confirm-award-terms",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "user",
+      "written_at": "2023-01-12T16:00:00Z",
+      "data": {
+        "kind": "confirmation",
+        "record_ids": [
+          "rec-period",
+          "rec-budget-participant-support",
+          "rec-budget-other-direct-costs",
+          "rec-budget-materials-and-supplies",
+          "rec-budget-other",
+          "rec-person-pi",
+          "rec-person-program-officer",
+          "rec-person-grants-officer",
+          "rec-approval-rule",
+          "rec-notice-000"
+        ]
+      },
+      "author_user_id": "00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "id": "rec-bill-inv-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2025-11-12T18:00:00Z",
+      "data": {
+        "kind": "bill",
+        "total": {
+          "value": 124000,
+          "text": "$1,240.00",
+          "citation": {
+            "file_id": "file-invoice-1001",
+            "passage": "Total Due: $1,240.00",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 297,
+              "end_char_index": 317
+            },
+            "match": "exact"
+          }
+        },
+        "vendor": {
+          "value": "Example Lab Supply Co.",
+          "text": "Example Lab Supply Co.",
+          "citation": {
+            "file_id": "file-invoice-1001",
+            "passage": "Example Lab Supply Co.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 93,
+              "end_char_index": 115
+            },
+            "match": "exact"
+          }
+        },
+        "dated": {
+          "value": "2025-11-12",
+          "text": "November 12, 2025",
+          "citation": {
+            "file_id": "file-invoice-1001",
+            "passage": "Invoice Date: November 12, 2025",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 149,
+              "end_char_index": 180
+            },
+            "match": "exact"
+          }
+        },
+        "description": {
+          "value": "Sediment core liners, 50 count",
+          "text": "Sediment core liners, 50 count",
+          "citation": {
+            "file_id": "file-invoice-1001",
+            "passage": "Sediment core liners, 50 count: $1,240.00",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 254,
+              "end_char_index": 295
+            },
+            "match": "exact"
+          }
+        },
+        "document_number": {
+          "value": "INV-1001",
+          "text": "INV-1001",
+          "citation": {
+            "file_id": "file-invoice-1001",
+            "passage": "Invoice Number: INV-1001",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 124,
+              "end_char_index": 148
+            },
+            "match": "exact"
+          }
+        },
+        "items": [
+          {
+            "description": {
+              "value": "Sediment core liners, 50 count",
+              "text": "Sediment core liners, 50 count",
+              "citation": {
+                "file_id": "file-invoice-1001",
+                "passage": "Sediment core liners, 50 count: $1,240.00",
+                "location": {
+                  "type": "char_location",
+                  "start_char_index": 254,
+                  "end_char_index": 295
+                },
+                "match": "exact"
+              }
+            },
+            "amount": {
+              "value": 124000,
+              "text": "$1,240.00",
+              "citation": {
+                "file_id": "file-invoice-1001",
+                "passage": "Sediment core liners, 50 count: $1,240.00",
+                "location": {
+                  "type": "char_location",
+                  "start_char_index": 254,
+                  "end_char_index": 295
+                },
+                "match": "exact"
+              }
+            }
+          }
+        ]
+      },
+      "read_through_seq": 13
+    },
+    {
+      "id": "rec-link-l-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2025-11-14T00:00:00Z",
+      "data": {
+        "kind": "link",
+        "record_id": "rec-bill-inv-1001",
+        "charge_id": "chg-l-1001",
+        "amount_cents": 124000,
+        "part": {
+          "file_id": "file-invoice-1001",
+          "passage": "Total Due: $1,240.00",
+          "location": {
+            "type": "char_location",
+            "start_char_index": 297,
+            "end_char_index": 317
+          },
+          "match": "exact"
+        },
+        "default_item": "bill",
+        "reason": "The ledger line's reference INV-1001, vendor and amount match the invoice."
+      },
+      "read_through_seq": 15
+    },
+    {
+      "id": "rec-budget-l-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2025-11-14T00:00:00Z",
+      "data": {
+        "kind": "budget_assignment",
+        "charge_id": "chg-l-1001",
+        "record_id": "rec-budget-materials-and-supplies",
+        "reason": "The bill is for sediment core liners, 50 count."
+      },
+      "read_through_seq": 15
+    },
+    {
+      "id": "rec-allowable-l-1001",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2025-11-14T00:00:00Z",
+      "data": {
+        "kind": "judgment",
+        "charge_id": "chg-l-1001",
+        "question": "allowable",
+        "text": "Is this cost necessary and reasonable, and is it for this project?",
+        "answer": "supports",
+        "reasoning": "The bill is for field and lab work on the sediment survey this award funds, at an ordinary price for the quantity.",
+        "quotes": [
+          {
+            "file_id": "file-invoice-1001",
+            "passage": "Sediment core liners, 50 count: $1,240.00",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 254,
+              "end_char_index": 295
+            },
+            "match": "exact"
+          }
+        ],
+        "rests_on": [
+          "rec-bill-inv-1001"
+        ]
+      },
+      "read_through_seq": 15
+    },
+    {
+      "id": "rec-bill-seq-0207",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2026-02-21T17:30:00Z",
+      "data": {
+        "kind": "bill",
+        "total": {
+          "value": 218000,
+          "text": "$2,180.00",
+          "citation": {
+            "file_id": "file-sequencing-statement",
+            "passage": "Total: $2,180.00",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 619,
+              "end_char_index": 635
+            },
+            "match": "exact"
+          }
+        },
+        "vendor": {
+          "value": "Example Sequencing Core",
+          "text": "Example Sequencing Core",
+          "citation": {
+            "file_id": "file-sequencing-statement",
+            "passage": "Example Sequencing Core, a campus core facility",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 485,
+              "end_char_index": 532
+            },
+            "match": "exact"
+          }
+        },
+        "dated": {
+          "value": "2026-02-20",
+          "text": "February 20, 2026",
+          "citation": {
+            "file_id": "file-sequencing-statement",
+            "passage": "Statement Date: February 20, 2026",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 533,
+              "end_char_index": 566
+            },
+            "match": "exact"
+          }
+        },
+        "description": {
+          "value": "Sediment DNA sequencing, run 7, 48 samples",
+          "text": "Sediment DNA sequencing, run 7, 48 samples",
+          "citation": {
+            "file_id": "file-sequencing-statement",
+            "passage": "Service: Sediment DNA sequencing, run 7, 48 samples",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 567,
+              "end_char_index": 618
+            },
+            "match": "exact"
+          }
+        },
+        "document_number": {
+          "value": "SEQ-0207",
+          "text": "SEQ-0207",
+          "citation": {
+            "file_id": "file-sequencing-statement",
+            "passage": "USAGE STATEMENT SEQ-0207",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 460,
+              "end_char_index": 484
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 19
+    },
+    {
+      "id": "rec-link-l-1002",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2026-02-24T00:00:00Z",
+      "data": {
+        "kind": "link",
+        "record_id": "rec-bill-seq-0207",
+        "charge_id": "chg-l-1002",
+        "amount_cents": 218000,
+        "part": {
+          "file_id": "file-sequencing-statement",
+          "passage": "Total: $2,180.00",
+          "location": {
+            "type": "char_location",
+            "start_char_index": 619,
+            "end_char_index": 635
+          },
+          "match": "exact"
+        },
+        "default_item": "usage_statement",
+        "reason": "The ledger line's reference SEQ-0207, vendor and amount match the usage statement."
+      },
+      "read_through_seq": 21
+    },
+    {
+      "id": "rec-budget-l-1002",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2026-02-24T00:00:00Z",
+      "data": {
+        "kind": "budget_assignment",
+        "charge_id": "chg-l-1002",
+        "record_id": "rec-budget-other",
+        "reason": "The bill is for sediment dna sequencing, run 7, 48 samples."
+      },
+      "read_through_seq": 21
+    },
+    {
+      "id": "rec-allowable-l-1002",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2026-02-24T00:00:00Z",
+      "data": {
+        "kind": "judgment",
+        "charge_id": "chg-l-1002",
+        "question": "allowable",
+        "text": "Is this cost necessary and reasonable, and is it for this project?",
+        "answer": "supports",
+        "reasoning": "The bill is for field and lab work on the sediment survey this award funds, at an ordinary price for the quantity.",
+        "quotes": [
+          {
+            "file_id": "file-sequencing-statement",
+            "passage": "Service: Sediment DNA sequencing, run 7, 48 samples",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 567,
+              "end_char_index": 618
+            },
+            "match": "exact"
+          }
+        ],
+        "rests_on": [
+          "rec-bill-seq-0207"
+        ]
+      },
+      "read_through_seq": 21
+    },
+    {
+      "id": "rec-period-extension",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "agent",
+      "written_at": "2026-04-09T16:00:00Z",
+      "data": {
+        "kind": "period_of_performance",
+        "dated": {
+          "value": "2026-01-15",
+          "text": "January 15, 2026",
+          "citation": {
+            "file_id": "file-extension-notice",
+            "passage": "Amendment Date: January 15, 2026",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 250,
+              "end_char_index": 282
+            },
+            "match": "exact"
+          }
+        },
+        "end": {
+          "value": "2027-01-31",
+          "text": "January 31, 2027",
+          "citation": {
+            "file_id": "file-extension-notice",
+            "passage": "Amendment Description: This amendment extends the end date from January 31, 2026 to January 31, 2027. No additional funds are provided.",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 283,
+              "end_char_index": 418
+            },
+            "match": "exact"
+          }
+        }
+      },
+      "read_through_seq": 25
+    },
+    {
+      "id": "rec-confirm-extension",
+      "workspace_id": "ws-sample",
+      "grant_id": "grant-sample",
+      "author": "user",
+      "written_at": "2026-04-10T16:00:00Z",
+      "data": {
+        "kind": "confirmation",
+        "record_ids": [
+          "rec-period-extension"
+        ]
+      },
+      "author_user_id": "00000000-0000-4000-8000-000000000001"
+    }
+  ],
+  "default_items": {
+    "L-1001": [
+      {
+        "key": "bill",
+        "needed": "A bill that adds up to the charge",
+        "amount_cents": 124000
+      }
+    ],
+    "L-1002": [
+      {
+        "key": "usage_statement",
+        "needed": "The facility's usage statement",
+        "amount_cents": 218000
+      }
+    ]
+  }
+}
