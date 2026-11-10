@@ -19,76 +19,42 @@ Rules the table follows:
   fee remission, not benefits.
 - An account in no group gets no default items and no NSF category.
 - A group can carry more than one NSF category. The ledger's account and the
-  budget line the agent assigned agree when that line is one of the categories,
-  or sits inside one of them. Comparing them is the checks' job, not this table's.
+  budget line the agent assigned agree when that line's category matches one of
+  them (`categories_match` in the contracts). Comparing them is the checks' job.
 - Reversals and cost transfers are not a group, and their two correction items
   (the line it corrects, a written justification) aren't in this table. Under
   decision 0020 (provisional), a line that takes money off the grant gets only
-  those two items, and a line that adds money gets its account group's default
-  plus those two. Either way, its NSF category comes from its account.
-
-The types here are plain and local on purpose. The contract models for checklist
-items aren't written yet, and these will be aligned with them once they are.
+  those two items, so `default_items` gives it no account-group items. A line
+  that adds money gets its account group's default plus the two. Either way,
+  its NSF category comes from its account.
 """
 
 from __future__ import annotations
 
+import calendar
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-
-@dataclass(frozen=True)
-class NsfLine:
-    """One of NSF's standard budget categories, or a sub-line of one.
-
-    Named as domain.md's budget lines table prints them. `parent` is the
-    category a sub-line sits in, from NSF's fixed list: Other Direct Costs
-    contains Materials and Supplies, Publication Costs, Consultant Services,
-    Computer Services, Subawards and Other.
-    """
-
-    name: str
-    parent: str | None = None
-
-
-SENIOR_PERSONNEL = NsfLine("Senior Personnel")
-OTHER_PERSONNEL = NsfLine("Other Personnel")
-FRINGE_BENEFITS = NsfLine("Fringe Benefits")
-EQUIPMENT = NsfLine("Equipment")
-TRAVEL = NsfLine("Travel")
-PARTICIPANT_SUPPORT_COSTS = NsfLine("Participant Support Costs")
-OTHER_DIRECT_COSTS = NsfLine("Other Direct Costs")
-
-MATERIALS_AND_SUPPLIES = NsfLine("Materials and Supplies", parent=OTHER_DIRECT_COSTS.name)
-PUBLICATION_COSTS = NsfLine("Publication Costs", parent=OTHER_DIRECT_COSTS.name)
-CONSULTANT_SERVICES = NsfLine("Consultant Services", parent=OTHER_DIRECT_COSTS.name)
-COMPUTER_SERVICES = NsfLine("Computer Services", parent=OTHER_DIRECT_COSTS.name)
-SUBAWARDS = NsfLine("Subawards", parent=OTHER_DIRECT_COSTS.name)
-OTHER_DIRECT_COSTS_OTHER = NsfLine("Other", parent=OTHER_DIRECT_COSTS.name)
-
-OTHER_DIRECT_COSTS_SUB_LINES: tuple[NsfLine, ...] = (
-    MATERIALS_AND_SUPPLIES,
-    PUBLICATION_COSTS,
-    CONSULTANT_SERVICES,
-    COMPUTER_SERVICES,
-    SUBAWARDS,
-    OTHER_DIRECT_COSTS_OTHER,
-)
+from app.contracts.charges import Charge
+from app.contracts.records import BudgetCategory, DefaultItem, Period, Record
 
 
 @dataclass(frozen=True)
-class DefaultItem:
-    """One default checklist item, as domain.md words it.
+class GroupItem:
+    """One of a group's default checklist items, as domain.md words it.
 
-    `id` is stable, so a link or a removal can name a default item that isn't
-    stored. `carries_charge_amount` marks the item that stands for the bill-like
-    document: it carries the charge's amount, and covers whatever the charge's
-    other amount-carrying items don't (the checks work that out).
-    `covers_charge_month` means the document has to cover the month of the charge.
+    The table's own form of an item. `default_items` turns it into the
+    contract's `DefaultItem` for one charge. `key` is stable, so a link or a
+    removal can name the item. `carries_charge_amount` marks the item that
+    stands for the bill-like document: it carries the charge's amount, and
+    covers whatever the charge's other amount-carrying items don't (the checks
+    work that out). `covers_charge_month` means the document has to cover the
+    month of the charge.
     """
 
-    id: str
-    text: str
+    key: str
+    needed: str
     carries_charge_amount: bool = False
     covers_charge_month: bool = False
 
@@ -105,9 +71,9 @@ class AccountGroup:
     id: str
     name: str
     accounts: tuple[str, ...]
-    default_items: tuple[DefaultItem, ...]
-    nsf_categories: tuple[NsfLine, ...]
-    categories_by_account: dict[str, tuple[NsfLine, ...]] = field(default_factory=dict)
+    items: tuple[GroupItem, ...]
+    nsf_categories: tuple[BudgetCategory, ...]
+    categories_by_account: dict[str, tuple[BudgetCategory, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -116,66 +82,58 @@ class AccountDefaults:
 
     account_code: str
     group: AccountGroup
-    default_items: tuple[DefaultItem, ...]
-    nsf_categories: tuple[NsfLine, ...]
+    items: tuple[GroupItem, ...]
+    nsf_categories: tuple[BudgetCategory, ...]
 
 
-def _bill(group_id: str) -> DefaultItem:
-    return DefaultItem(
-        id=f"{group_id}.bill",
-        text="A bill that adds up to the charge",
-        carries_charge_amount=True,
-    )
-
+_BILL = GroupItem(
+    key="bill", needed="A bill that adds up to the charge", carries_charge_amount=True
+)
 
 ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
     AccountGroup(
         id="salaries",
         name="Salaries",
         accounts=("50", "51"),
-        default_items=(
-            DefaultItem(id="salaries.appointment_letter", text="Appointment letter"),
-            DefaultItem(
-                id="salaries.effort_report",
-                text="Certified effort report covering the month",
+        items=(
+            GroupItem(key="appointment_letter", needed="Appointment letter"),
+            GroupItem(
+                key="effort_report",
+                needed="Certified effort report covering the month",
                 covers_charge_month=True,
             ),
         ),
         # The account doesn't say whether the person is senior or other personnel.
-        nsf_categories=(SENIOR_PERSONNEL, OTHER_PERSONNEL),
+        nsf_categories=(BudgetCategory.SENIOR_PERSONNEL, BudgetCategory.OTHER_PERSONNEL),
     ),
     AccountGroup(
         id="benefits",
         name="Benefits",
         accounts=("53",),
-        default_items=(DefaultItem(id="benefits.rate", text="Benefit rate"),),
-        nsf_categories=(FRINGE_BENEFITS,),
+        items=(GroupItem(key="benefit_rate", needed="Benefit rate"),),
+        nsf_categories=(BudgetCategory.FRINGE_BENEFITS,),
     ),
     AccountGroup(
         id="tuition",
         name="Tuition and fee remission",
         # 538xx is fee remission, inside Berkeley's benefits range 53xxx.
         accounts=("538", "5742"),
-        default_items=(
-            DefaultItem(id="tuition.appointment_letter", text="The student's appointment letter"),
-        ),
+        items=(GroupItem(key="appointment_letter", needed="The student's appointment letter"),),
         # Unverified: which NSF category budgets tuition and fee remission.
         # Berkeley keeps fee remission in its benefits tree.
-        nsf_categories=(FRINGE_BENEFITS, OTHER_DIRECT_COSTS_OTHER),
+        nsf_categories=(BudgetCategory.FRINGE_BENEFITS, BudgetCategory.OTHER_DIRECT_COSTS_OTHER),
     ),
     AccountGroup(
         id="travel",
         name="Travel",
         accounts=("5721", "5722"),
-        default_items=(
-            DefaultItem(id="travel.expense_report", text="Expense report"),
-            DefaultItem(
-                id="travel.bills",
-                text="Bills that add up to the charge",
-                carries_charge_amount=True,
+        items=(
+            GroupItem(key="expense_report", needed="Expense report"),
+            GroupItem(
+                key="bills", needed="Bills that add up to the charge", carries_charge_amount=True
             ),
         ),
-        nsf_categories=(TRAVEL,),
+        nsf_categories=(BudgetCategory.TRAVEL,),
     ),
     AccountGroup(
         id="supplies",
@@ -184,30 +142,26 @@ ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
         # NSF's line reads "Materials and Supplies (including Costs of Computing
         # Devices)".
         accounts=("550", "551", "552", "553"),
-        default_items=(_bill("supplies"),),
-        nsf_categories=(MATERIALS_AND_SUPPLIES,),
+        items=(_BILL,),
+        nsf_categories=(BudgetCategory.MATERIALS_AND_SUPPLIES,),
     ),
     AccountGroup(
         id="equipment",
         name="Equipment",
         # 541xx is computer equipment at $5,000 or more.
         accounts=("541", "542"),
-        default_items=(_bill("equipment"),),
-        nsf_categories=(EQUIPMENT,),
+        items=(_BILL,),
+        nsf_categories=(BudgetCategory.EQUIPMENT,),
     ),
     AccountGroup(
         id="participant_support",
         name="Participant support",
         accounts=("5671",),
-        default_items=(
-            DefaultItem(id="participant_support.participant_list", text="Participant list"),
-            DefaultItem(
-                id="participant_support.payment_record",
-                text="Payment record",
-                carries_charge_amount=True,
-            ),
+        items=(
+            GroupItem(key="participant_list", needed="Participant list"),
+            GroupItem(key="payment_record", needed="Payment record", carries_charge_amount=True),
         ),
-        nsf_categories=(PARTICIPANT_SUPPORT_COSTS,),
+        nsf_categories=(BudgetCategory.PARTICIPANT_SUPPORT,),
     ),
     AccountGroup(
         id="subawards",
@@ -215,59 +169,54 @@ ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
         # 5781x is subawards outside the University of California (UC).
         # 57820 to 57899 and 925xx are subawards to other UC campuses.
         accounts=("5781", "5782", "5783", "5784", "5785", "5786", "5787", "5788", "5789", "925"),
-        default_items=(
-            DefaultItem(
-                id="subawards.partner_invoice",
-                text="The partner's invoice",
-                carries_charge_amount=True,
+        items=(
+            GroupItem(
+                key="partner_invoice", needed="The partner's invoice", carries_charge_amount=True
             ),
-            DefaultItem(id="subawards.professor_approval", text="The professor's approval to pay"),
-            DefaultItem(id="subawards.agreement", text="The subaward agreement"),
+            GroupItem(key="professor_approval", needed="The professor's approval to pay"),
+            GroupItem(key="subaward_agreement", needed="The subaward agreement"),
         ),
-        nsf_categories=(SUBAWARDS,),
+        nsf_categories=(BudgetCategory.SUBAWARDS,),
     ),
     AccountGroup(
         id="consultants",
         name="Consultants and services",
         accounts=("5672",),
-        default_items=(
-            _bill("consultants"),
-            DefaultItem(id="consultants.agreement_or_rate", text="The agreement or rate"),
-        ),
+        items=(_BILL, GroupItem(key="agreement_or_rate", needed="The agreement or rate")),
         # The parent, not Consultant Services: 5672x also holds honoraria,
         # temporary labor and other payments to non-employees.
-        nsf_categories=(OTHER_DIRECT_COSTS,),
+        nsf_categories=(BudgetCategory.OTHER_DIRECT_COSTS,),
     ),
     AccountGroup(
         id="printing",
         name="Printing",
         accounts=("564",),
-        default_items=(_bill("printing"),),
+        items=(_BILL,),
         # The parent, so any of its six sub-lines agrees.
-        nsf_categories=(OTHER_DIRECT_COSTS,),
+        nsf_categories=(BudgetCategory.OTHER_DIRECT_COSTS,),
     ),
     AccountGroup(
         id="recharges",
         name="Internal recharges",
         accounts=("590",),
-        default_items=(
-            DefaultItem(
-                id="recharges.usage_statement",
-                text="The facility's usage statement",
+        items=(
+            GroupItem(
+                key="usage_statement",
+                needed="The facility's usage statement",
                 carries_charge_amount=True,
             ),
         ),
         # The parent, so the sample grant's Other sub-line agrees.
-        nsf_categories=(OTHER_DIRECT_COSTS,),
+        nsf_categories=(BudgetCategory.OTHER_DIRECT_COSTS,),
         # A recharge account that names what was bought carries that category.
         categories_by_account={
             # Under $5,000, like other equipment under the threshold.
-            "59005": (MATERIALS_AND_SUPPLIES,),  # Rechg-Fabricated Equip (OH)<5k
-            "59006": (MATERIALS_AND_SUPPLIES,),  # Recharge-Supplies
-            "59007": (PARTICIPANT_SUPPORT_COSTS,),  # Recharge-Participant Support
-            "59008": (TRAVEL,),  # Recharge-Travel
-            "59012": (EQUIPMENT,),  # Rechg-Fabricated Equip (OH)>5k
-            "59013": (EQUIPMENT,),  # Rechg-Fabrctd Equip(Non OH)>5k
+            "59005": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Rechg-Fabricated Equip (OH)<5k
+            "59006": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Recharge-Supplies
+            "59007": (BudgetCategory.PARTICIPANT_SUPPORT,),  # Recharge-Participant Support
+            "59008": (BudgetCategory.TRAVEL,),  # Recharge-Travel
+            "59012": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabricated Equip (OH)>5k
+            "59013": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabrctd Equip(Non OH)>5k
         },
     ),
 )
@@ -316,7 +265,36 @@ def lookup_account(account: str) -> AccountDefaults | None:
             return AccountDefaults(
                 account_code=code,
                 group=group,
-                default_items=group.default_items,
+                items=group.items,
                 nsf_categories=group.categories_by_account.get(code, group.nsf_categories),
             )
     return None
+
+
+def _month_of(charge: Charge) -> Period:
+    """The calendar month the cost happened in."""
+    start = charge.transaction_date.replace(day=1)
+    last = calendar.monthrange(start.year, start.month)[1]
+    return Period(start=start, end=start.replace(day=last))
+
+
+def default_items(charge: Charge, records: Sequence[Record]) -> list[DefaultItem]:
+    """A charge's default checklist items from its account group.
+
+    Matches the contracts' `DefaultItems`, which the write check takes. The
+    records aren't needed yet. A line that takes money off the grant gets no
+    account-group items (decision 0020). The two correction items, and the
+    approval and pre-award items, come from the rest of the checks.
+    """
+    found = lookup_account(charge.account)
+    if found is None or charge.amount_cents < 0:
+        return []
+    return [
+        DefaultItem(
+            key=item.key,
+            needed=item.needed,
+            amount_cents=charge.amount_cents if item.carries_charge_amount else None,
+            period=_month_of(charge) if item.covers_charge_month else None,
+        )
+        for item in found.items
+    ]

@@ -1,23 +1,20 @@
+from datetime import UTC, date, datetime
+
 import pytest
 
 from app.checks.account_groups import (
     ACCOUNT_GROUPS,
-    EQUIPMENT,
-    FRINGE_BENEFITS,
-    MATERIALS_AND_SUPPLIES,
     NOT_IN_ANY_GROUP,
-    OTHER_DIRECT_COSTS,
-    OTHER_DIRECT_COSTS_OTHER,
-    OTHER_DIRECT_COSTS_SUB_LINES,
-    OTHER_PERSONNEL,
-    PARTICIPANT_SUPPORT_COSTS,
-    SENIOR_PERSONNEL,
-    SUBAWARDS,
-    TRAVEL,
-    NsfLine,
     account_code,
+    default_items,
     lookup_account,
 )
+from app.contracts.charges import Charge
+from app.contracts.fixtures import load_sample_grant
+from app.contracts.records import BudgetCategory, Period, categories_match
+from app.contracts.rules import check_new_record
+
+B = BudgetCategory
 
 
 def group_id(account: str) -> str | None:
@@ -25,10 +22,25 @@ def group_id(account: str) -> str | None:
     return found.group.id if found else None
 
 
-def categories(account: str) -> tuple[NsfLine, ...]:
+def categories(account: str) -> tuple[BudgetCategory, ...]:
     found = lookup_account(account)
     assert found is not None, account
     return found.nsf_categories
+
+
+def charge(account: str, amount_cents: int = 50000, day: date = date(2026, 2, 17)) -> Charge:
+    return Charge(
+        id="c1",
+        workspace_id="w",
+        grant_id="g",
+        ledger_line_id="L-1",
+        transaction_date=day,
+        posting_date=day,
+        arrived_at=datetime(day.year, day.month, day.day, tzinfo=UTC),
+        amount_cents=amount_cents,
+        description="Synthetic charge",
+        account=account,
+    )
 
 
 # Real account codes from Berkeley's chart of accounts tree report (2026-08-01).
@@ -82,6 +94,7 @@ def test_berkeley_accounts_land_in_their_group(account: str, expected: str) -> N
 )
 def test_account_in_no_group(account: str) -> None:
     assert lookup_account(account) is None
+    assert default_items(charge(account), []) == []
 
 
 def test_fee_remission_is_tuition_not_benefits() -> None:
@@ -109,85 +122,100 @@ def test_account_without_a_five_digit_code(account: str) -> None:
     assert lookup_account(account) is None
 
 
-def test_sample_grant_supplies_line() -> None:
-    # L-1001 in contracts.md section 15, assigned to Materials and Supplies.
-    found = lookup_account("55016 Lab Instruments and Supplies")
-    assert found is not None
-    assert found.group.name == "Supplies"
-    assert found.account_code == "55016"
-    assert found.nsf_categories == (MATERIALS_AND_SUPPLIES,)
-    assert [item.text for item in found.default_items] == ["A bill that adds up to the charge"]
-    assert found.default_items[0].carries_charge_amount
+def test_sample_grant_defaults_match_the_fixture() -> None:
+    # contracts.md section 15: L-1001 on 55016, L-1002 on 59009.
+    sample = load_sample_grant()
+    for c in sample.charges:
+        assert default_items(c, sample.records) == list(sample.default_items[c.ledger_line_id])
 
 
-def test_sample_grant_recharge_line() -> None:
-    # L-1002 in contracts.md section 15, assigned to Other, a sub-line of Other
-    # Direct Costs, which the recharge category contains.
-    found = lookup_account("59009 Recharge-Other Expenses")
-    assert found is not None
-    assert found.nsf_categories == (OTHER_DIRECT_COSTS,)
-    assert OTHER_DIRECT_COSTS_OTHER.parent == OTHER_DIRECT_COSTS.name
-    assert [item.text for item in found.default_items] == ["The facility's usage statement"]
-    assert found.default_items[0].carries_charge_amount
+def test_sample_grant_passes_the_write_check_with_these_defaults() -> None:
+    sample = load_sample_grant()
+    written = []
+    for r in sample.records:
+        charges = [c for c in sample.charges if c.arrived_at <= r.written_at]
+        files = [f for f in sample.files if f.arrived_at <= r.written_at]
+        assert check_new_record(r, written, charges, files, default_items=default_items) == [], r.id
+        written.append(r)
+
+
+def test_sample_grant_categories_agree_with_the_assigned_lines() -> None:
+    # L-1001 is assigned Materials and Supplies, L-1002 Other in Other Direct Costs.
+    assert any(categories_match(c, B.MATERIALS_AND_SUPPLIES) for c in categories("55016"))
+    assert any(categories_match(c, B.OTHER_DIRECT_COSTS_OTHER) for c in categories("59009"))
+
+
+def test_misfiled_laptop_on_stipends_disagrees() -> None:
+    # domain.md: a laptop on 56712, assigned Materials and Supplies, is a likely misfiling.
+    assert categories("56712") == (B.PARTICIPANT_SUPPORT,)
+    assert not any(categories_match(c, B.MATERIALS_AND_SUPPLIES) for c in categories("56712"))
 
 
 @pytest.mark.parametrize(
     ("account", "expected"),
     [
-        ("59005", MATERIALS_AND_SUPPLIES),  # fabricated equipment under $5,000
-        ("59006", MATERIALS_AND_SUPPLIES),
-        ("59007", PARTICIPANT_SUPPORT_COSTS),
-        ("59008", TRAVEL),
-        ("59012", EQUIPMENT),
-        ("59013", EQUIPMENT),
+        ("59005", B.MATERIALS_AND_SUPPLIES),  # fabricated equipment under $5,000
+        ("59006", B.MATERIALS_AND_SUPPLIES),
+        ("59007", B.PARTICIPANT_SUPPORT),
+        ("59008", B.TRAVEL),
+        ("59012", B.EQUIPMENT),
+        ("59013", B.EQUIPMENT),
     ],
 )
-def test_recharge_that_names_what_was_bought(account: str, expected: NsfLine) -> None:
+def test_recharge_that_names_what_was_bought(account: str, expected: BudgetCategory) -> None:
     found = lookup_account(account)
     assert found is not None
     assert found.group.id == "recharges"
     assert found.nsf_categories == (expected,)
-    assert [item.id for item in found.default_items] == ["recharges.usage_statement"]
+    assert [item.key for item in found.items] == ["usage_statement"]
 
 
 @pytest.mark.parametrize("account", ["59001", "59002", "59003", "59004", "59009", "59011"])
 def test_other_recharges_stay_at_other_direct_costs(account: str) -> None:
-    assert categories(account) == (OTHER_DIRECT_COSTS,)
-
-
-def test_participant_stipends_are_participant_support() -> None:
-    # domain.md's misfiled laptop example: 56712 is not Materials and Supplies.
-    found = lookup_account("56712 Participant Support-Stipends")
-    assert found is not None
-    assert found.nsf_categories == (PARTICIPANT_SUPPORT_COSTS,)
-    assert [item.text for item in found.default_items] == ["Participant list", "Payment record"]
-    assert [item.carries_charge_amount for item in found.default_items] == [False, True]
-
-
-def test_salaries() -> None:
-    found = lookup_account("50200")
-    assert found is not None
-    assert found.nsf_categories == (SENIOR_PERSONNEL, OTHER_PERSONNEL)
-    texts = [item.text for item in found.default_items]
-    assert texts == ["Appointment letter", "Certified effort report covering the month"]
-    assert found.default_items[1].covers_charge_month
+    assert categories(account) == (B.OTHER_DIRECT_COSTS,)
 
 
 def test_group_categories() -> None:
-    assert categories("53100") == (FRINGE_BENEFITS,)
-    assert categories("53800") == (FRINGE_BENEFITS, OTHER_DIRECT_COSTS_OTHER)
-    assert categories("57211") == (TRAVEL,)
-    assert categories("54210") == (EQUIPMENT,)
-    assert categories("57810") == (SUBAWARDS,)
-    assert categories("56720") == (OTHER_DIRECT_COSTS,)
-    assert categories("56410") == (OTHER_DIRECT_COSTS,)
+    assert categories("50200") == (B.SENIOR_PERSONNEL, B.OTHER_PERSONNEL)
+    assert categories("53100") == (B.FRINGE_BENEFITS,)
+    assert categories("53800") == (B.FRINGE_BENEFITS, B.OTHER_DIRECT_COSTS_OTHER)
+    assert categories("57211") == (B.TRAVEL,)
+    assert categories("54210") == (B.EQUIPMENT,)
+    assert categories("57810") == (B.SUBAWARDS,)
+    assert categories("56720") == (B.OTHER_DIRECT_COSTS,)
+    assert categories("56410") == (B.OTHER_DIRECT_COSTS,)
 
 
-def test_subaward_partner_invoice_carries_the_amount() -> None:
-    found = lookup_account("57811")
-    assert found is not None
-    carrying = [item.id for item in found.default_items if item.carries_charge_amount]
-    assert carrying == ["subawards.partner_invoice"]
+def test_salary_items_name_the_charge_month() -> None:
+    items = default_items(charge("50200", day=date(2024, 2, 10)), [])
+    assert [i.key for i in items] == ["appointment_letter", "effort_report"]
+    assert items[0].period is None
+    assert items[1].period == Period(start=date(2024, 2, 1), end=date(2024, 2, 29))
+    assert all(i.amount_cents is None for i in items)
+
+
+def test_amount_goes_on_the_bill_like_item_only() -> None:
+    items = default_items(charge("56712", amount_cents=50000), [])
+    assert [(i.key, i.amount_cents) for i in items] == [
+        ("participant_list", None),
+        ("payment_record", 50000),
+    ]
+    items = default_items(charge("57811", amount_cents=900000), [])
+    assert [(i.key, i.amount_cents) for i in items] == [
+        ("partner_invoice", 900000),
+        ("professor_approval", None),
+        ("subaward_agreement", None),
+    ]
+
+
+def test_line_taking_money_off_gets_no_group_items() -> None:
+    # Decision 0020: such a line gets only the two correction items.
+    assert default_items(charge("55016", amount_cents=-1240), []) == []
+
+
+def test_line_adding_money_keeps_its_group_items() -> None:
+    moved_on = charge("55016", amount_cents=1240).model_copy(update={"original_line_id": "L-9"})
+    assert [i.key for i in default_items(moved_on, [])] == ["bill"]
 
 
 def test_reversals_are_not_a_group() -> None:
@@ -210,24 +238,8 @@ def test_entries_are_codes_or_prefixes_and_never_repeat() -> None:
 
 
 def test_every_group_has_items_and_categories() -> None:
-    ids = [item.id for group in ACCOUNT_GROUPS for item in group.default_items]
-    assert len(ids) == len(set(ids))
     for group in ACCOUNT_GROUPS:
-        assert group.default_items, group.id
+        keys = [item.key for item in group.items]
+        assert keys and len(keys) == len(set(keys)), group.id
         assert group.nsf_categories, group.id
-        amount_items = [item for item in group.default_items if item.carries_charge_amount]
-        assert len(amount_items) <= 1, group.id
-
-
-def test_sub_lines_name_a_parent_from_nsfs_list() -> None:
-    every_line = {
-        line
-        for group in ACCOUNT_GROUPS
-        for line in group.nsf_categories
-        + tuple(c for cats in group.categories_by_account.values() for c in cats)
-    }
-    for line in every_line:
-        if line.parent is not None:
-            assert line.parent == OTHER_DIRECT_COSTS.name
-            assert line in OTHER_DIRECT_COSTS_SUB_LINES
-    assert len(OTHER_DIRECT_COSTS_SUB_LINES) == 6
+        assert sum(item.carries_charge_amount for item in group.items) <= 1, group.id
