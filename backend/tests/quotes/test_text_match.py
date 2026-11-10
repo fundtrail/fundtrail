@@ -532,3 +532,24 @@ def test_a_minus_starting_a_line_after_a_line_end_dash_is_a_minus(page: str) -> 
     text = clean(page).text
     assert not contains_exactly("$12.00", text)
     assert contains_exactly("-$12.00", text)
+
+
+@pytest.mark.parametrize(
+    "page",
+    ["Credit amount – USD 248.00", "Credit amount - usd 248.00", "Hotel - US$248.00"],
+)
+def test_a_currency_code_after_a_spaced_dash_reads_either_way(page: str) -> None:
+    """Ruling 3 (the coordinator's call on PR 105): like a spaced dash alone."""
+    from app.quotes.text_match import EITHER, amount_sign, sign_reads_either_way
+
+    text = clean(page).text
+    start = text.index("248")
+    assert amount_sign(text, start, len(text)) == EITHER
+    assert sign_reads_either_way(text, start, len(text))
+
+
+def test_a_currency_code_with_no_dash_before_it_stays_positive() -> None:
+    from app.quotes.text_match import POSITIVE, amount_sign
+
+    text = clean("Credit amount USD 248.00").text
+    assert amount_sign(text, text.index("248"), len(text)) == POSITIVE
