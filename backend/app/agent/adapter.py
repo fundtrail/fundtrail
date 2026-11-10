@@ -180,6 +180,37 @@ TRIGGER_THREAD = TriggerKind.THREAD_MESSAGE
 TRIGGER_CLOCK = TriggerKind.CLOCK
 
 
+def _stand_in_likely_duplicates(new: Record, records: Sequence[Record]) -> list[Record]:
+    """Bills on file that look like the same one as a new bill: the same document number, or the
+    same total and vendor. A stand-in until the checks' own search lands."""
+
+    def key(r: Record, name: str) -> str | None:
+        v = getattr(r.data, name, None)
+        return None if v is None else str(v.value).lower()
+
+    found: list[Record] = []
+    for r in records:
+        if r.id == new.id or r.kind != RecordKind.BILL:
+            continue
+        number = key(new, "document_number")
+        vendor = key(new, "vendor")
+        same_number = number is not None and number == key(r, "document_number")
+        same_total = (
+            vendor is not None
+            and vendor == key(r, "vendor")
+            and key(new, "total") == key(r, "total")
+        )
+        if same_number or same_total:
+            found.append(r)
+    return found
+
+
+# The search for likely duplicate bills belongs to the checks (W2), as a pure function in
+# backend/app/checks/. Once it lands, this one line becomes its import, for example
+# `from app.checks import likely_duplicates`.
+likely_duplicates = _stand_in_likely_duplicates
+
+
 def _record_models(*names: str) -> dict[str, Any]:
     from app.contracts import records
 

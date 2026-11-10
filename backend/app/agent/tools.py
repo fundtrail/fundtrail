@@ -28,6 +28,7 @@ from .adapter import (
     RecordKind,
     ThreadMessage,
     citation_of,
+    likely_duplicates,
     uncited_value,
 )
 from .citations import (
@@ -450,28 +451,6 @@ def _saved(
     return f"Saved as {r.id}. {note}", False
 
 
-def _default_duplicates(new: Record, records: list[Record]) -> list[Record]:
-    def key(r: Record, name: str) -> Any:
-        v = getattr(r.data, name, None)
-        return None if v is None else str(v.value).lower()
-
-    out = []
-    for r in records:
-        if r.id == new.id or r.kind != RecordKind.BILL:
-            continue
-        same_number = key(new, "document_number") and key(new, "document_number") == key(
-            r, "document_number"
-        )
-        same_total = (
-            key(new, "total") == key(r, "total")
-            and key(new, "vendor")
-            and key(new, "vendor") == key(r, "vendor")
-        )
-        if same_number or same_total:
-            out.append(r)
-    return out
-
-
 # Handlers.
 
 
@@ -483,7 +462,7 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     if error or a.kind != "bill":
         return text, error
     new = ctx.staged[-1].record
-    finder = ctx.inputs.likely_duplicates or _default_duplicates
+    finder = ctx.inputs.likely_duplicates or likely_duplicates
     dupes = finder(new, ctx.state().current())
     if dupes:
         text += " Bills on file that look like the same one, compare before linking: " + "; ".join(

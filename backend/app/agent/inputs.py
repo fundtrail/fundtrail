@@ -29,8 +29,8 @@ from .citations import SecondLook
 CHARGE_BATCH_SIZE = 25
 
 
-# Finds the bills on file that look like the same one as a new bill. W2 owns the search rule;
-# until it exists, a default in tools.py matches on document number, or on total and vendor.
+# Finds the bills on file that look like the same one as a new bill. The checks (W2) own the
+# search; adapter.likely_duplicates is the default, and a run can pass its own.
 LikelyDuplicates = Callable[[Record, Sequence[Record]], list[Record]]
 
 

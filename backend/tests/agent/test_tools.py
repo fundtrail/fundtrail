@@ -77,6 +77,16 @@ def test_every_tool_has_a_plain_json_schema():
         assert "$defs" not in str(t["input_schema"]) and "$ref" not in str(t["input_schema"])
 
 
+def test_the_duplicate_search_sits_behind_one_seam():
+    """The checks (W2) own the search; the agent calls adapter.likely_duplicates."""
+    from app.agent import adapter
+
+    bill = BY_ID["rec-bill-inv-1001"]
+    copy = bill.model_copy(update={"id": "rec-copy"})
+    assert adapter.likely_duplicates(copy, [bill]) == [bill]
+    assert adapter.likely_duplicates(bill, [BY_ID["rec-bill-seq-0207"]]) == []
+
+
 def test_a_bill_is_staged_with_its_citations_and_takes_effect():
     ctx = context(until="rec-bill-inv-1001", now="2025-11-12T18:00:00+00:00")
     open_invoice(ctx)
