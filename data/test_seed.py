@@ -85,10 +85,11 @@ ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str] | None], ...] = tuple(
         reverse=True,
     )
 )
-# Section 1's fields, plus `scope` on an approval rule (the contract change in
-# issue 39): `every_charge`, or `moved_out` for a rule about moving money out of
-# participant support. It's the agent's reading of the rule, not a value quoted
-# from the letter.
+# Section 1's fields, plus `scope` on an approval rule (ApprovalScope, added in
+# PR 61): `every_charge`, or `moved_out` for a rule about moving money out of
+# its category. It's cited to the clause's words, such as "may not be
+# diverted", but its value is the enum's, which the letter never writes, so
+# the key's value isn't looked for in the file.
 RECORD_FIELDS = {
     **ev.RECORD_FIELDS,
     "approval_rule": ev.RECORD_FIELDS["approval_rule"] | {"scope"},
