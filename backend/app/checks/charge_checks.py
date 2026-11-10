@@ -371,6 +371,18 @@ def _values_check(
                 targets[rid] = (r, None)  # an answer may rest on any of a record's values
     out: list[Finding] = []
     for record, prefixes in targets.values():
+        if record.kind in TERM_KINDS and view.state.is_waiting(record.id):
+            out.append(
+                Finding(
+                    VALUES,
+                    "term_not_confirmed",
+                    Bucket.NEEDS_HUMAN,
+                    f"An answer rests on a {record.kind.value.replace('_', ' ')} "
+                    "that isn't confirmed yet.",
+                    [record.id],
+                )
+            )
+            continue
         paths = [p for p in view.state.unconfirmed_values(record) if _under(p, prefixes)]
         if paths:
             out.append(

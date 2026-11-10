@@ -197,3 +197,41 @@ def test_a_confirmed_dispute_accepts_the_reason_and_a_rejected_one_puts_it_back(
     status = g2.status("c1", at(2026, 2, 24))
     assert status.bucket == Bucket.POSSIBLE_CONFLICT
     assert status.flagged and not status.accepted
+
+
+def test_an_answer_resting_on_a_term_not_yet_confirmed_is_needs_a_human_not_out_of_date() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    b = _charge(g, t)
+    leave = g.agent(
+        {
+            "kind": "other_term",
+            "dated": cited(date(2024, 1, 1)),
+            "label": "PI on leave",
+            "statement": cited("The PI is on leave from January 2024."),
+        },
+        at(2024, 3, 1),
+    )
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b, leave])
+    status = g.status("c1", at(2024, 3, 2))
+    assert not status.rechecking
+    assert problems(status) == {("values_confirmed", "term_not_confirmed")}
+    g.confirm(leave, when=at(2024, 3, 3))
+    status = g.status("c1", at(2024, 3, 4))
+    assert ("values_confirmed", "term_not_confirmed") not in problems(status)
+    assert not status.rechecking
+
+
+def test_two_current_links_between_one_bill_and_one_charge_both_count() -> None:
+    """Until "one link in force" is decided, every current link counts in section 2's sums."""
+    g = Grant()
+    t = g.standard_terms()
+    b = _charge(g, t)
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
+    g.link(b, "c1", at(2024, 3, 2), amount=10000, default="bill", author="user")
+    out = g.run(at(2024, 3, 3))
+    status = out.charges[0]
+    assert ("checklist", "over:bill") in problems(status)
+    assert ("checklist", "bill_over_linked") in problems(status)
+    assert status.bucket == Bucket.NEEDS_HUMAN
+    assert {p.problem for r in out.records for p in r.problems} == {"over_linked"}
