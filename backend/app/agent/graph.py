@@ -26,6 +26,7 @@ from collections.abc import Hashable
 from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
+from langsmith import tracing_context
 
 from .adapter import (
     TRIGGER_CHARGE,
@@ -52,6 +53,7 @@ from .model import (
     ModelRequest,
     is_retryable,
 )
+from .no_tracing import check_no_tracing
 from .prompts import SYSTEM_PROMPT
 from .rulebook import load_rulebook
 from .tools import run_tool, tool_definitions
@@ -394,11 +396,18 @@ def recheck_before_save(result: RunSaved, inputs: RunInputs) -> list[str]:
 
 
 def run_once(inputs: RunInputs, model: ModelClient | None = None) -> RunResult:
-    """Run the agent once: the records to save, or a failure. Saving and queuing are W4's."""
+    """Run the agent once: the records to save, or a failure. Saving and queuing are W4's.
+
+    Raises TracingTurnedOn, before any LangGraph or langsmith call, when LangSmith tracing is
+    turned on in the environment (issue #82).
+    """
+    check_no_tracing()
     ctx = RunContext(inputs=inputs, rulebook=load_rulebook(inputs.funder))
     graph = build_graph(model or AnthropicModel())
     try:
-        graph.invoke({"ctx": ctx}, config={"recursion_limit": 4 * MAX_TURNS_CLOSEOUT + 20})
+        # A second guard: tracing off in code, whatever the environment says later.
+        with tracing_context(enabled=False):
+            graph.invoke({"ctx": ctx}, config={"recursion_limit": 4 * MAX_TURNS_CLOSEOUT + 20})
     except Exception as error:  # a bug in a tool or the graph: the run fails and saves nothing
         _fail(ctx, f"the run stopped on an error: {type(error).__name__}: {error}", False)
     if ctx.failure is not None:
