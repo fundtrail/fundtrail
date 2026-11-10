@@ -111,3 +111,9 @@
   align-self: flex-start;
   border-color: var(--ink);
 }
+/* A control with its hint underneath. */
+.ft-tl__hinted {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
