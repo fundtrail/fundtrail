@@ -1,0 +1,6 @@
+{
+  "sample": "coastal-microbial-genomics",
+  "actions": [
+    {"at": "2025-06-23T17:00:00Z", "action": "confirm_terms", "file": "award_letter.txt", "note": "The user confirms every term read from the award letter."}
+  ]
+}

@@ -1,8 +1,8 @@
 {
-  "case": "coastal-microbial-genomics",
+  "sample": "coastal-microbial-genomics",
+  "starts_at": "2025-06-20T17:00:00Z",
   "events": [
-    {"at": "2025-06-20T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
-    {"at": "2025-06-23T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2025-06-20T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The award letter arrives: the grant's first scheduled event."},
     {"at": "2025-08-11T18:00:00Z", "kind": "file", "file": "appointment_letter_synth.txt", "source": "upload", "note": "Logan Synth's appointment letter."},
     {"at": "2025-09-01T21:10:00Z", "kind": "file", "file": "invoice_ESS-76756.eml", "source": "gmail", "sender": "kendall.dummy@university.example", "note": "Kendall Dummy forwards invoice ESS-76756."},
     {"at": "2025-09-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-7264-0018"},
@@ -63,7 +63,7 @@
     {"at": "2026-11-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-7264-0014"},
     {"at": "2026-11-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-7264-0026"},
     {"at": "2026-11-19T18:20:00Z", "kind": "file", "file": "invoice_INV-11872.eml", "source": "gmail", "sender": "kendall.dummy@university.example", "note": "S4. The invoice arrives before its ledger line posts, and waits unlinked."},
-    {"at": "2026-11-24T19:05:00Z", "kind": "file", "file": "approval_forward_registration.eml", "source": "gmail", "sender": "kendall.dummy@university.example", "note": "S1. After the demo opens, the PI forwards her own March email saying \"Approved\": the wrong approver, through the wrong channel."},
+    {"at": "2026-11-24T19:05:00Z", "kind": "file", "file": "approval_forward_registration.eml", "source": "gmail", "sender": "kendall.dummy@university.example", "note": "S1. Months later, the PI forwards her own March email saying \"Approved\": the wrong approver, through the wrong channel."},
     {"at": "2026-12-02T00:00:00Z", "kind": "ledger_line", "line_id": "L-7264-0040", "note": "S4. The line posts after its invoice arrived. The agent links them now."},
     {"at": "2026-12-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-7264-0015"},
     {"at": "2026-12-03T21:45:00Z", "kind": "file", "file": "invoice_INV-33353.txt", "source": "upload", "note": "Invoice INV-33353 from Example Lab Supply Co."},
