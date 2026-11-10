@@ -1,7 +1,6 @@
 {
   "sample": "salt-marsh-carbon",
   "starts_at": "2024-01-18T17:00:00Z",
-  "opens_at": "2026-11-16T17:00:00Z",
   "events": [
     {"at": "2024-01-18T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The award letter arrives: the grant's first scheduled event."},
     {"at": "2024-01-25T18:00:00Z", "kind": "file", "file": "appointment_letter_mockley.txt", "source": "upload", "note": "Rowan Mockley's appointment letter."},

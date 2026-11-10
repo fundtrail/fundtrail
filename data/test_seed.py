@@ -9,8 +9,8 @@
   their text, and photos from the words the generator drew on them.
 - The synthetic-data rule (CLAUDE.md): award numbers start with SYN-, email
   addresses are at .example, and nothing has an em dash or an en dash.
-- The larger sample opens near the end of its period, with arrivals after the
-  opening, and the small sample starts with its award letter and its ledger.
+- The larger sample's timeline runs from its start into its closeout window,
+  and the small sample starts with its award letter and its ledger.
 
 Uses only the standard library, and borrows the eval cases' checks from
 eval/test_cases.py. Run it with `python3 data/test_seed.py`, or with pytest.
@@ -59,7 +59,6 @@ SAMPLE_JSON_FIELDS = {
     "sample",
     "award_number",
     "starts_at",
-    "opens_at",
     "last_event_at",
     "ledger_lines",
     "files",
@@ -264,8 +263,8 @@ def check_timeline(
     timeline = json.loads((key_dir / "timeline.json").read_text(encoding="utf-8"))
     actions = json.loads((key_dir / "user_actions.json").read_text(encoding="utf-8"))
     out: dict[str, datetime] = {}
-    if set(timeline) != {"sample", "starts_at", "opens_at", "events"}:
-        problems.append("timeline.json: must have exactly sample, starts_at, opens_at and events")
+    if set(timeline) != {"sample", "starts_at", "events"}:
+        problems.append("timeline.json: must have exactly sample, starts_at and events")
         return out
     if set(actions) != {"sample", "actions"}:
         problems.append("user_actions.json: must have exactly sample and actions")
@@ -292,7 +291,10 @@ def check_timeline(
             if name not in documents:
                 problems.append(f"{where}: {name!r} isn't a document")
             seen_files[name] = seen_files.get(name, 0) + 1
-            out[f"file:{name}"] = t
+            # A file marked for the user arrives only when the user delivers it
+            # (ruling 44); the clock never does.
+            if e.get("deliver") != "user":
+                out[f"file:{name}"] = t
             if e.get("source") not in ev.SOURCES:
                 problems.append(f"{where}: bad source")
             if e.get("source") == "gmail":
@@ -348,8 +350,8 @@ def check_timeline(
         t = ev.parse_time(a["at"])
         out[f"{a['action']}:{a['file']}"] = t
         if a["action"] == "deliver_file":
-            # The file arrives when the user brings it in, or when the clock does.
-            out[f"file:{a['file']}"] = min(t, out.get(f"file:{a['file']}", t))
+            # A file marked for the user arrives when the user brings it in.
+            out[f"file:{a['file']}"] = t
     return out
 
 
@@ -844,7 +846,7 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
     - confirm_terms: the file has arrived on the timeline, or the user brought
       it in, before the action.
     - deliver_file: the file is marked for the user, and the user brings it in
-      no later than the clock would.
+      on or after its date (ruling 44: the clock never delivers it).
     """
     events = load(folder, "timeline.json")["events"]
     scheduled = {e["file"]: e for e in events if e.get("kind") == "file"}
@@ -863,11 +865,12 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
         if a["action"] == "deliver_file":
             if event.get("deliver") != "user":
                 problems.append(f"{where}: the file isn't marked for the user to deliver")
-            if at > clock_at:
-                problems.append(f"{where}: comes after the clock would deliver the file")
+            if at < clock_at:
+                problems.append(f"{where}: comes before the file's date")
         else:
-            arrived = min(clock_at, delivered.get(a["file"], clock_at))
-            if at <= arrived:
+            marked = event.get("deliver") == "user"
+            arrived = delivered.get(a["file"]) if marked else clock_at
+            if arrived is None or at <= arrived:
                 problems.append(f"{where}: comes before its file arrives")
 
 
@@ -887,14 +890,17 @@ def check_sample_json(folder: Path, problems: list[str]) -> list[str]:
         )
     if meta["award_number"] != key["award_number"]:
         problems.append(f"{where}: award_number differs from the answer key's")
-    for field in ("starts_at", "opens_at"):
-        if meta[field] != timeline[field]:
-            problems.append(f"{where}: {field} differs from the timeline's")
+    if meta["starts_at"] != timeline["starts_at"]:
+        problems.append(f"{where}: starts_at differs from the timeline's")
     events = timeline["events"]
     if events and meta["starts_at"] != events[0]["at"]:
         problems.append(f"{where}: starts_at isn't the first scheduled event")
-    if ev.parse_time(meta["opens_at"]) < ev.parse_time(meta["starts_at"]):
-        problems.append(f"{where}: opens before it starts")
+    if (
+        events
+        and meta["last_event_at"] != events[-1]["at"]
+        and not any(e["kind"] == "ledger" for e in events)
+    ):
+        problems.append(f"{where}: last_event_at isn't the last scheduled event")
     choices = []
     for i, option in enumerate(meta["options"]):
         if set(option) != OPTION_FIELDS:
@@ -981,21 +987,26 @@ def test_a_user_decision_in_a_timeline_fails() -> None:
                 "file": "invoice_EES-5531.pdf",
             }
         )
+        # A marked file delivered before its date (ruling 44).
+        for a in actions["actions"]:
+            if a["action"] == "deliver_file" and a["file"] == "hardware_receipt.jpg":
+                a["at"] = actions["actions"][0]["at"]
         (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
         problems: list[str] = []
         check_no_user_decision(copy, problems)
         check_user_actions(copy, problems)
     assert any("user decision" in p for p in problems), problems
     assert any("isn't marked for the user" in p for p in problems), problems
+    assert any("comes before the file's date" in p for p in problems), problems
 
 
 def test_larger_sample() -> None:
-    """The larger sample opens near its end date, with arrivals after it."""
+    """The larger sample reaches closeout: its timeline starts with its award
+    letter and runs past the start of its 90-day closeout window."""
     g = gen()[LARGER]
-    opens = g.opens_at
-    end = datetime.combine(g.end, datetime.min.time(), opens.tzinfo)
-    assert timedelta(0) < end - opens <= timedelta(days=90), "not inside its closeout window"
-    assert g.first_event_at() < opens < g.last_event_at(), "nothing before or after opening"
+    end = datetime.combine(g.end, datetime.min.time(), g.first_event_at().tzinfo)
+    assert g.docs[0].name.startswith("award_letter.") and g.docs[0].at == g.first_event_at()
+    assert g.last_event_at() > end - timedelta(days=90), "never reaches its closeout window"
 
 
 def test_small_sample() -> None:
@@ -1010,7 +1021,7 @@ def test_small_sample() -> None:
     assert any(n.startswith("invoice_") for n in names)
     assert any(Path(n).suffix in PHOTO_SUFFIXES for n in names)
     assert any(d.deliver == "user" for d in g.docs), "no file marked for the user"
-    assert any(g.line_arrival(ln) > g.opens_at for ln in g.lines), "no later ledger lines"
+    assert any(g.line_arrival(ln) > g.ledger_at for ln in g.lines), "no later ledger lines"
 
 
 def test_line_ids_are_unique() -> None:

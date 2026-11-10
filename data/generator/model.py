@@ -53,8 +53,10 @@ class Doc:
     source: str  # gmail, drive or upload
     sender: str | None = None
     note: str | None = None
-    # "user": the user is expected to bring this file in. Its `at` is when the
-    # clock delivers it instead, if it isn't on the grant by then.
+    # "user": the user is expected to bring this file in (ruling 44). Its `at` is
+    # its date: from then it waits under the timeline's Now until the user
+    # delivers it. The clock never delivers it. In the play the key assumes,
+    # the user delivers it on that date, so `at` is also when it arrives.
     deliver: str | None = None
 
 
@@ -100,7 +102,6 @@ class Grant:
     # on its posting date (decision 0023). None: each line is its own event.
     ledger_at: datetime | None = None
     starts_at: datetime | None = None
-    opens_at: datetime | None = None
     records: list[dict] = field(default_factory=list)
     links: list[dict] = field(default_factory=list)
     budget_lines: list[dict] = field(default_factory=list)
@@ -341,7 +342,6 @@ class Grant:
         head = {
             "sample": self.slug,
             "starts_at": iso(self.starts_at or self.first_event_at()),
-            "opens_at": iso(self.opens_at or self.first_event_at()),
             "events": self.timeline_events(),
         }
         return dump_list_obj(head, "events")

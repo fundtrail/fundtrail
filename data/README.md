@@ -9,7 +9,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/timeline.json` | Its scheduled events only: files, the ledger file or each ledger line, each with its time. No user decision is in it. |
 | `samples/<sample>/user_actions.json` | What the user does in the play the answer key assumes: confirming terms, and bringing in the files marked for them |
 | `samples/<sample>/answer_key.json` | Each charge's expected result, in the eval's format (contracts.md section 14) |
-| `samples/<sample>/sample.json` | Its opening date, counts, and the Add-a-grant options it serves, with placeholder names |
+| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves, with placeholder names |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
@@ -18,8 +18,10 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 
 | Sample | From | Its clock | Lines | Files |
 |---|---|---|---|---|
-| `salt-marsh-carbon` (larger) | Grant A, SYN-2401835, Feb 1, 2024 to Jan 31, 2027 | Starts at its first arrival, 2024-01-18T17:00Z, and opens at 2026-11-16T17:00Z, inside its 90-day closeout window. The jump to the opening is replayed in order (decision 0023). | 65 | 45 |
-| `nitrate-sensors` (small) | SYN-2511958, Sep 1, 2025 to Aug 31, 2028 | Starts and opens with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
+| `salt-marsh-carbon` (larger) | Grant A, SYN-2401835, Feb 1, 2024 to Jan 31, 2027 | Starts with its award letter, 2024-01-18T17:00Z, and runs into its 90-day closeout window and past its end date. | 65 | 45 |
+| `nitrate-sensors` (small) | SYN-2511958, Sep 1, 2025 to Aug 31, 2028 | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
+
+There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
 
 The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`, marked `"placeholder": true` until the docs give the words.
 
@@ -33,7 +35,7 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 | `ledger` | The whole ledger file | At its `at`. Each line arrives at the later of that and 00:00 UTC on its posting date (decision 0023). The small sample uses it. |
 | `ledger_line` | One seeded ledger line | At 00:00 UTC on its posting date. The larger sample uses these. |
 
-**Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is when the clock delivers it instead, if the user hasn't. If the user brings it in first, the scheduled event finds the same file on the grant (the same `sha256`, contracts.md section 7) and does nothing. The small sample marks three: `hardware_receipt.jpg`, `email_invoice_ESS-32410.eml` and `invoice_EES-7420.pdf`. The clock delivers them at 2026-11-18T17:00Z. The larger sample marks none.
+**Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is its date. From then it waits under the timeline's Now, with Get the file and Deliver for me, until the user delivers it. The clock never delivers it (ruling 44). The small sample marks three, dated 2026-11-18T17:00Z: `hardware_receipt.jpg`, `email_invoice_ESS-32410.eml` and `invoice_EES-7420.pdf`. The larger sample marks none.
 
 ## The user actions and the two plays
 
@@ -42,7 +44,7 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 | Action | What it does | In the samples |
 |---|---|---|
 | `confirm_terms` | Confirms every term read from a file | The award letter, in both samples |
-| `deliver_file` | Brings in a file marked for the user, by upload, so its date stays as written | The small sample's three marked files, at the time the clock would deliver them, so the key holds whichever brings them in |
+| `deliver_file` | Brings in a file marked for the user, by upload, so its date stays as written | The small sample's three marked files, each on its date |
 
 Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 
@@ -68,14 +70,14 @@ From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples)
 
 | Situation | Grant | What happens | Expected bucket |
 |---|---|---|---|
-| S1. The professor's own conference fee on participant support | B | A $650 registration for the principal investigator (PI) posts to 56714 Participant Support-Other on March 17, 2026. On November 24, after the opening date, the PI forwards her own March email saying "Approved". | Possible conflict at both times. The Allowable answer is contradicts, because the person paid is named on the grant, and the approval comes from the wrong person through the wrong channel. |
+| S1. The professor's own conference fee on participant support | B | A $650 registration for the principal investigator (PI) posts to 56714 Participant Support-Other on March 17, 2026. On November 24, the PI forwards her own March email saying "Approved". | Possible conflict at both times. The Allowable answer is contradicts, because the person paid is named on the grant, and the approval comes from the wrong person through the wrong channel. |
 | S2. Work after the end date, then an extension | C | $3,150 of boat time in September 2026 posts on October 6, after the award letter's end date. On November 20 the no-cost extension, dated August 14, 2026, 17 days before the old end date, turns up in Drive. In the key's play, the user confirms it on November 23. | Possible conflict, still Possible conflict after the notice arrives, then Evidence complete after the confirmation. The grant's other lines dated after August 31 follow the same path. |
 | S3a. A shared cost, split on an email's basis | A and B | A $10,000 invoice for one 96-reaction kit. Harper Fixture, PI on A and co-PI on B, emails that 56 of the 96 samples are for Grant A and 40 for Grant B. A is charged $5,833.33 and B $4,166.67. Each grant holds its own copy of the invoice and the email. | Evidence complete on both, with the invoice and the email linked |
 | S3b. A shared cost, split on the invoice's own lines | B and C | One $2,430 invoice itemized by award: $1,450 for C and $980 for B | Evidence complete on both |
 | S3c. A shared cost with nothing that gives the basis | A and C | A $1,500 invoice that names both awards. A is charged $900 and C $600, and nothing on file says why. | Needs a human on both ([0021](../docs/decisions/0021-a-cost-shared-by-two-grants.md)) |
 | Participant support money moved out | B | $1,172.00 of lab reagents posts to 56714 Participant Support-Other on September 22, 2026. The agent assigns it to Materials and Supplies, so money leaves participant support, and no approval is on file. This exercises the award letter's approval rule. | Needs a human: the ledger's account disagrees with the budget line, and the Program Officer's approval is missing |
-| S4. A bill before its ledger line | B | An invoice arrives by email on November 19, after the opening date. Its ledger line posts on December 2. | Evidence complete once the line arrives |
-| The small sample | `nitrate-sensors` | Its award letter, then its ledger, then its evidence. Three files wait for the user, or for the clock two days later. Two lines post after the opening, with their invoices already on file. | Evidence complete on every line once its evidence is on file. The hardware store line is Missing evidence until its photo arrives. |
+| S4. A bill before its ledger line | B | An invoice arrives by email on November 19. Its ledger line posts on December 2. | Evidence complete once the line arrives |
+| The small sample | `nitrate-sensors` | Its award letter, then its ledger, then its evidence. Three files wait for the user from their date. Two lines post later, with their invoices already on file. | Evidence complete on every line once its evidence is on file. The hardware store line is Missing evidence until its photo arrives. |
 
 ## The answer keys
 
@@ -93,7 +95,7 @@ Where an expected result depends on something the docs and the provisional decis
 - **S1: no budget line and no Covers answer.** The agent could assign the registration to Travel or to participant support's Other, and nothing settles which. Covers is asked, since an approval is linked, but what it should answer for a professor approving her own charge isn't settled. Neither changes the bucket, which rests on the Allowable answer and on code's approver check: the wrong person, through the wrong channel.
 - **S3c: no Allowable answer.** With no basis for the share, the agent may answer unsure. The bucket is Needs a human either way.
 - **The `approval_rule` term's fields other than `dated`, and the `approval` record's `covers` and `channel`.** They're free text, so a key can't predict the agent's wording.
-- **What the key format can't express yet:** checklist items (such as the reagents line's missing Program Officer approval), the agent's suggestions (such as S3's "the rest of this bill belongs to the other award"), problems on a bill or on the grant, and accepted charges. Two to watch for: each shared invoice's copy shows the other grant's part as money nobody charged 60 days after it arrived, unless the accountant accepts the agent's suggestion, and Grant C at the opening date is past its end date until the extension is confirmed.
+- **What the key format can't express yet:** checklist items (such as the reagents line's missing Program Officer approval), the agent's suggestions (such as S3's "the rest of this bill belongs to the other award"), problems on a bill or on the grant, and accepted charges. Two to watch for: each shared invoice's copy shows the other grant's part as money nobody charged 60 days after it arrived, unless the accountant accepts the agent's suggestion, and Grant C is past its end date until the extension is confirmed.
 
 ## Choices the docs left to the builder
 
@@ -117,4 +119,4 @@ python3 data/test_seed.py
 
 The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, and only a marked file delivered, no later than the clock), and that `sample.json` agrees with the timeline and the key. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, and only a marked file delivered, on or after its date), and that `sample.json` agrees with the timeline and the key. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.
