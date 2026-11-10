@@ -370,6 +370,30 @@ def test_a_typed_correction_of_a_parent_line_stays_with_its_notice() -> None:
     ]
 
 
+def test_a_typed_sub_line_joins_the_one_cited_notice_of_its_date() -> None:
+    """#84: the agent missed Stipends and the accountant typed it, dated as the letter."""
+    g = Grant()
+    g.standard_terms()  # cited Participant Support Costs, $20,000, dated Jan 10, 2023
+    stipends = _typed_line(g, "Stipends", 1_500_000, date(2023, 1, 10), at(2023, 2, 1))
+    assert _stipend_overspend(g, stipends) == [
+        "Participant Support Costs: $25,000.00 of $20,000.00"
+    ]
+
+
+def test_a_typed_line_whose_date_two_cited_notices_share_stays_on_its_own() -> None:
+    """Code doesn't pick between two notices of the same date."""
+    g = Grant()
+    g.standard_terms()  # the letter: PSC $20,000, dated Jan 10, 2023
+    g.file("f-other", at(2023, 6, 1))
+    other = g.budget_line(
+        "Equipment", 500_000, "equipment", at(2023, 6, 1), dated=date(2023, 1, 10), f="f-other"
+    )
+    g.confirm(other, when=at(2023, 6, 1, 13))
+    stipends = _typed_line(g, "Stipends", 1_500_000, date(2023, 1, 10), at(2023, 6, 2))
+    # Counted on its own: $20,000 + $15,000, so $25,000 isn't over.
+    assert _stipend_overspend(g, stipends) == []
+
+
 def test_two_typed_parent_lines_from_two_notices_both_count() -> None:
     g = Grant()
     first = _typed_line(

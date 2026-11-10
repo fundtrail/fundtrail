@@ -10,7 +10,8 @@ is the builder's (provisional). A category's budget is counted once per notice:
 the parent line's amount when the notice prints one, otherwise the sum of the
 category's lines. A line belongs to the notice whose file it's cited from (call
 36). A line the accountant typed has no citation: when it corrects a cited line
-it belongs to that line's notice, and otherwise it's grouped by its own date.
+it belongs to that line's notice; otherwise it joins the one cited notice of its
+date, or, when there isn't exactly one, it's grouped by its own date.
 The sub-lines of Participant Support Costs and of Travel carry their parent's
 category (contract ruling f),
 so this keeps a parent and its sub-lines from being counted twice. Then the
@@ -205,7 +206,9 @@ def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
 
     The file it's cited from. A line the accountant typed has no citation: when it
     corrects a cited line, it belongs to that line's file, followed back through the
-    corrections; a typed line with no cited line behind it is grouped by its date.
+    corrections. A typed line with no cited line behind it is keyed by its date here,
+    and _notice_keys() then puts it with the one cited notice of that date, if exactly
+    one exists (#84).
     """
     seen: set[str] = set()
     r: Record | None = record
@@ -218,6 +221,25 @@ def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
         r = view.state.by_id.get(r.replaces_id) if r.replaces_id else None
     assert isinstance(record.data, BudgetLine)
     return ("dated", record.data.dated.value.isoformat())
+
+
+def _notice_keys(view: GrantView, lines: list[Record]) -> dict[str, tuple[str, str]]:
+    """Each budget line's notice. A typed line with no cited line behind it joins the
+    cited notice whose lines carry the same date, when exactly one does; otherwise it's
+    grouped with the other typed lines of that date."""
+    keys = {r.id: _notice_of(view, r) for r in lines}
+    dates_of: dict[str, set[str]] = defaultdict(set)  # a cited notice's file -> its dates
+    for r in lines:
+        kind, value = keys[r.id]
+        if kind == "file" and isinstance(r.data, BudgetLine):
+            dates_of[value].add(r.data.dated.value.isoformat())
+    for r in lines:
+        kind, value = keys[r.id]
+        if kind == "dated":
+            files = [f for f, dates in dates_of.items() if value in dates]
+            if len(files) == 1:
+                keys[r.id] = ("file", files[0])
+    return keys
 
 
 def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
@@ -236,9 +258,10 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
     """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
     by_notice: dict[tuple[BudgetCategory, tuple[str, str]], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
+    keys = _notice_keys(view, view.budget_lines())
     for r in view.budget_lines():
         assert isinstance(r.data, BudgetLine)
-        by_notice[(r.data.category, _notice_of(view, r))].append(r)
+        by_notice[(r.data.category, keys[r.id])].append(r)
         lines[r.data.category].append(r)
     budget: dict[BudgetCategory, int] = defaultdict(int)
     for (category, _), members in by_notice.items():
