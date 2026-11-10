@@ -51,10 +51,15 @@ describe("TimelinePanel", () => {
     const deliveries = await screen.findByRole("list", { name: "For you to deliver" });
     expect(within(deliveries).getByText("award_letter.txt")).toBeInTheDocument();
     expect(within(deliveries).getByRole("button", { name: "Get the file" })).toBeInTheDocument();
-    fireEvent.click(within(deliveries).getByRole("button", { name: "Deliver for me" }));
+    // Each action waits until the last one has finished refetching and the buttons work again.
+    const deliver = within(deliveries).getByRole("button", { name: "Deliver for me" });
+    await waitFor(() => expect(deliver).toBeEnabled());
+    fireEvent.click(deliver);
     await waitFor(() => expect(screen.queryByRole("list", { name: "For you to deliver" })).toBeNull());
 
-    fireEvent.click(screen.getByRole("button", { name: "Next event" }));
+    const nextEvent = screen.getByRole("button", { name: "Next event" });
+    await waitFor(() => expect(nextEvent).toBeEnabled());
+    fireEvent.click(nextEvent);
     const next = await screen.findByRole("list", { name: "For you to deliver" });
     expect(within(next).getByText("invoice_1001.txt")).toBeInTheDocument();
     expect(within(part("Coming up")).getAllByRole("listitem")).toHaveLength(4);
