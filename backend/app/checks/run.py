@@ -53,6 +53,7 @@ def _problem(m: Marked) -> Problem:
         text=f.text,
         record_ids=tuple(dict.fromkeys(f.record_ids)),
         accepted_by=m.accepted_by,
+        amount_cents=f.amount_cents,
     )
 
 

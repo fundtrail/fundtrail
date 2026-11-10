@@ -302,9 +302,79 @@ def test_spending_over_the_awards_limit_is_a_problem_on_the_grant() -> None:
     (status,) = out.grants
     assert status.flagged
     assert status.problems[0].text == (
-        "Spending of $120,000.01 is over the award's limit of $120,000.00, "
+        "Spending of $120,000.01 is $0.01 over the award's limit of $120,000.00, "
         "the total obligated to date on amendment 000."
     )
+    assert status.problems[0].amount_cents == 1
+
+
+def _over_by(g: Grant, t: dict[str, str], cents: int, charge_id: str, when: datetime) -> None:
+    g.supplies_charge(charge_id, when.date(), cents, when, line=t["ms"])
+
+
+def _accept_over(g: Grant, t: dict[str, str], amount: int, when: datetime) -> str:
+    return g.user(
+        {
+            "kind": "accepted_reason",
+            "reason": {"check": "budget", "problem": "over_limit"},
+            "note": "Supplement requested from NSF.",
+            "rests_on": [t["notice"]],
+            "amount_cents": amount,
+        },
+        when,
+    )
+
+
+def test_an_accepted_over_limit_problem_returns_when_the_amount_over_grows() -> None:
+    """Issue 83: accepted at $5,000 over; spending reaches $6,000 over."""
+    g = Grant()
+    t = g.standard_terms()  # $120,000 obligated to date
+    _over_by(g, t, 12_500_000, "c1", at(2024, 3, 1))  # $5,000 over
+    (status,) = g.run(at(2024, 3, 2)).grants
+    assert status.problems[0].amount_cents == 500_000
+    ok = _accept_over(g, t, 500_000, at(2024, 3, 2))
+    (status,) = g.run(at(2024, 3, 3)).grants
+    assert status.accepted and not status.flagged
+    assert status.problems[0].accepted_by == ok
+
+    _over_by(g, t, 100_000, "c2", at(2024, 4, 1))  # now $6,000 over
+    (status,) = g.run(at(2024, 4, 2)).grants
+    assert not status.accepted and status.flagged
+    (problem,) = status.problems
+    assert problem.amount_cents == 600_000
+    assert "$6,000.00 over" in problem.text
+    assert problem.text.endswith("$5,000.00 over was accepted before.")
+
+
+def test_an_accepted_over_limit_problem_holds_while_the_amount_over_doesnt_grow() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    _over_by(g, t, 12_500_000, "c1", at(2024, 3, 1))  # $5,000 over
+    _accept_over(g, t, 500_000, at(2024, 3, 2))
+    _over_by(g, t, 0, "c2", at(2024, 4, 1))  # a $0 line: still $5,000 over
+    (status,) = g.run(at(2024, 4, 2)).grants
+    assert status.accepted and not status.flagged
+    g.charge("credit", date(2024, 5, 1), -100_000)  # a credit: $4,000 over
+    (status,) = g.run(at(2024, 5, 2)).grants
+    assert status.accepted and not status.flagged
+
+
+def test_an_over_limit_acceptance_with_no_amount_doesnt_hold() -> None:
+    """It can't say how much it covered, so the problem stays on the list."""
+    g = Grant()
+    t = g.standard_terms()
+    _over_by(g, t, 12_500_000, "c1", at(2024, 3, 1))
+    g.user(
+        {
+            "kind": "accepted_reason",
+            "reason": {"check": "budget", "problem": "over_limit"},
+            "note": "Supplement requested from NSF.",
+            "rests_on": [t["notice"]],
+        },
+        at(2024, 3, 2),
+    )
+    (status,) = g.run(at(2024, 3, 3)).grants
+    assert not status.accepted and status.flagged
 
 
 def test_a_notice_that_adds_money_raises_the_limit_once_confirmed() -> None:

@@ -41,6 +41,8 @@ from app.contracts.checks import Bucket, GrantNote
 from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.records import (
     CATEGORY_PARENT,
+    OVER_LIMIT_CHECK,
+    OVER_LIMIT_PROBLEM,
     BudgetCategory,
     BudgetLine,
     Notice,
@@ -180,14 +182,17 @@ def grant_problems(
     if limit is not None and spending > limit[0]:
         d = limit[1].data
         assert isinstance(d, Notice)
+        over = spending - limit[0]
         out.append(
             Finding(
-                BUDGET,
-                "over_limit",
+                OVER_LIMIT_CHECK,
+                OVER_LIMIT_PROBLEM,
                 Bucket.NEEDS_HUMAN,
-                f"Spending of {money(spending)} is over the award's limit of {money(limit[0])}, "
-                f"the total obligated to date on amendment {d.amendment_number.value}.",
+                f"Spending of {money(spending)} is {money(over)} over the award's limit of "
+                f"{money(limit[0])}, the total obligated to date on amendment "
+                f"{d.amendment_number.value}.",
                 [limit[1].id],
+                amount_cents=over,
             )
         )
     out += _notice_findings(view)
