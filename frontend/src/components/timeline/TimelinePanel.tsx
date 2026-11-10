@@ -46,6 +46,7 @@ function EventLine({ event }: { event: TimelineEvent }) {
     <>
       <span className="ft-num">{date(event.at)}</span>
       <span className="ft-strong">{event.name}</span>
+      {event.highlight && <span className="ft-tag ft-tl__highlight">Highlight: {event.highlight}</span>}
       <span className="ft-caption">
         {KIND_WORDS[event.kind]}
         {event.source && <> · {SOURCE_WORDS[event.source]}</>}
@@ -322,6 +323,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   // Ruling 47: Next event and Go to a date can let the sample accountant do the human steps.
   const [skip, setSkip] = useState(false);
   const skipId = useId();
+  const highlightHintId = useId();
 
   async function act(run: () => Promise<unknown>): Promise<void> {
     await attempt(run);
@@ -348,6 +350,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   }
 
   const view = timeline.data;
+  const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
   return (
     <section className="ft-panel ft-tl" aria-labelledby="tl-heading">
       <div className="ft-panel__head">
@@ -372,6 +375,21 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             >
               Next event
             </button>
+            {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
+            <span className="ft-tl__hinted">
+              <button
+                type="button"
+                className="ft-btn ft-btn--sm"
+                aria-describedby={highlightHintId}
+                disabled={busy || !nextHighlight}
+                onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+              >
+                Next highlight
+              </button>
+              <span id={highlightHintId} className="ft-caption">
+                Always skips the human steps.
+              </span>
+            </span>
             <GoToDate
               now={view.now.now}
               busy={busy}

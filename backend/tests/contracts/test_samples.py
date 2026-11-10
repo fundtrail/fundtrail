@@ -157,3 +157,13 @@ def test_a_played_delivery_says_whether_the_sample_accountant_delivered_it():
     assert PlayedEvent(event=delivery).delivered_by_sample_accountant is False
     skipped = PlayedEvent(event=delivery, delivered_by_sample_accountant=True)
     assert PlayedEvent.model_validate_json(skipped.model_dump_json()) == skipped
+
+
+def test_an_event_can_be_one_of_the_samples_highlights():
+    """Ruling 58: a short label on a highlight; None on an ordinary event."""
+    ordinary = TimelineEvent(id="e1", at=at(1), kind=TimelineEventKind.ARRIVAL, name="L-1001")
+    assert ordinary.highlight is None
+    marked = ordinary.model_copy(update={"highlight": "A credit memo arrives"})
+    assert TimelineEvent.model_validate_json(marked.model_dump_json()) == marked
+    with pytest.raises(ValidationError):  # an empty label is refused
+        TimelineEvent.model_validate({**ordinary.model_dump(), "highlight": ""})
