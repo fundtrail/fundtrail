@@ -15,9 +15,11 @@ from app.contracts.charges import Charge
 from app.contracts.checks import (
     Bucket,
     ChargeStatus,
+    ChecklistEntry,
     ChecksOutput,
     GrantNote,
     GrantStatus,
+    ItemSource,
     Problem,
     Reason,
 )
@@ -808,3 +810,25 @@ def test_thread_messages_belong_to_the_grant():
     )
     with pytest.raises(ValueError, match="belongs to the grant"):
         sample_inputs(thread_messages=(message,))
+
+
+def test_an_approval_rules_item_names_the_rule():
+    """Issue 115: an item an approval rule added prints the rule, not "by default"."""
+    base = sample_inputs()
+    l1001 = next(s for s in base.checks.charges if s.charge_id == "chg-l-1001")
+    rule_item = ChecklistEntry(
+        default_item="approval:rec-approval-rule",
+        added_by=ItemSource.RULE,
+        rule_id="rec-approval-rule",
+        needed="The Program Officer's approval through Research.gov",
+        filled=False,
+    )
+    with_rule = l1001.model_copy(update={"checklist": (*l1001.checklist, rule_item)})
+    checks = base.checks.model_copy(
+        update={"charges": tuple(with_rule if s is l1001 else s for s in base.checks.charges)}
+    )
+    text = texts(section(sample_inputs(checks=checks), 5))
+    assert (
+        "The Program Officer's approval through Research.gov: Missing (added by the approval rule "
+        "Participant Support Costs: approved by Program Officer, through Research.gov)" in text
+    )
