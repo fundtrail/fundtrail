@@ -2,6 +2,7 @@
 
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 from anthropic.types import CitationCharLocation, CitationPageLocation
@@ -56,11 +57,17 @@ def test_label_lines_join_split_blocks_and_keep_their_citations():
     assert lines["total"].text == "$1,240.00"
 
 
-def test_a_text_citation_is_narrowed_to_the_line_that_holds_the_value():
+def highlighted(c: dict[str, Any]) -> list[str]:
+    ranges: list[dict[str, int]] = c.get("highlight") or []
+    return [INVOICE[r["start_char_index"] : r["end_char_index"]] for r in ranges]
+
+
+def test_a_text_citation_keeps_the_apis_passage_and_highlights_the_line_with_the_value():
     c = resolve_citation("INV-1001", [char(HEAD)], [DOC])
-    assert c["passage"] == "Invoice Number: INV-1001"
+    assert c["passage"] == HEAD
     loc = c["location"]
-    assert INVOICE[loc["start_char_index"] : loc["end_char_index"]] == "Invoice Number: INV-1001"
+    assert INVOICE[loc["start_char_index"] : loc["end_char_index"]] == HEAD
+    assert highlighted(c) == ["Invoice Number: INV-1001"]
     assert c["match"] == "exact"
 
 
@@ -130,7 +137,7 @@ def test_narrowing_stays_inside_the_passage():
 def test_the_citation_whose_passage_holds_the_text_is_picked():
     other = char("Total Due: $1,240.00")
     c = resolve_citation("INV-1001", [other, char(HEAD)], [DOC])
-    assert c["passage"] == "Invoice Number: INV-1001"
+    assert c["passage"] == HEAD and highlighted(c) == ["Invoice Number: INV-1001"]
     with pytest.raises(CitationProblem):
         resolve_citation("INV-9999", [other, char(HEAD)], [DOC])
 

@@ -3,10 +3,12 @@
 The fake model reads each document the way the API would cite it (a paragraph at a time), writes
 its label lines in a message of their own, then the records. Every record passes the write check
 as it's staged and again before it's handed back, and the agent's records come out equal to the
-sample's own, citations included: the line narrowing reproduces the sample's one-line passages.
+sample's own. Each citation keeps the paragraph the API cited as its passage, and its highlight is
+the line where the value stands on its own, which is exactly the sample's one-line passage.
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from app.agent import RunSaved, run_once
@@ -57,8 +59,8 @@ def _values(r: Record) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for path, v in cited_values(r.data):
         item: dict[str, Any] = {"field": path, "label": label_for(r.id, path)}
-        if not isinstance(v.value, str):
-            item["value"] = str(v.value)
+        if not isinstance(v.value, str) or isinstance(v.value, Enum):
+            item["value"] = str(v.value.value if isinstance(v.value, Enum) else v.value)
         out.append(item)
     return out
 
@@ -184,13 +186,67 @@ def test_sample_grant_replays_through_the_agent():
     expected = [r for r in SAMPLE.records if r.author == Author.AGENT]
     assert [r.id for r in produced] == [r.id for r in expected]
     for got, want in zip(produced, expected, strict=True):
-        assert got.model_dump() == want.model_dump(), got.id
+        assert as_highlighted(got.model_dump(mode="json")) == want.model_dump(mode="json"), got.id
+
+    # The citations keep the API's paragraph: the invoice number's is the invoice's header block.
+    bill = next(r for r in produced if r.id == "rec-bill-inv-1001")
+    assert any(
+        p.startswith("Example Lab Supply Co.\nINVOICE\nInvoice Number: INV-1001\n")
+        for p in api_passages(bill)
+    )
 
     # Every record passes the write check when the whole grant is replayed in order.
     for i, r in enumerate(db):
-        assert (
-            check_new_record(
-                r, db[:i], SAMPLE.charges, SAMPLE.files, default_items=SAMPLE.sample_default_items
-            )
-            == []
+        trigger = None if r.author == Author.USER else Trigger(kind="clock")  # pyright: ignore[reportArgumentType]
+        problems = check_new_record(
+            r,
+            db[:i],
+            SAMPLE.charges,
+            SAMPLE.files,
+            default_items=SAMPLE.sample_default_items,
+            trigger=trigger,
         )
+        assert problems == [], r.id
+
+
+def api_passages(r: Record) -> list[str]:
+    """The passages the agent's citations keep: the paragraphs the fake API cited."""
+    out: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if "passage" in node and "location" in node:
+                out.append(node["passage"] or "")  # pyright: ignore[reportUnknownArgumentType]
+            for v in node.values():  # pyright: ignore[reportUnknownVariableType]
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:  # pyright: ignore[reportUnknownVariableType]
+                walk(v)
+
+    walk(r.model_dump(mode="json"))
+    return out
+
+
+def as_highlighted(node: Any) -> Any:
+    """A record's dump with each text citation replaced by its one highlighted line.
+
+    The sample cites each value by the one line that holds it; the agent keeps the API's
+    paragraph and highlights that line. Swapping the highlight in should give the sample.
+    """
+    if isinstance(node, list):
+        return [as_highlighted(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
+    if not isinstance(node, dict):
+        return node
+    out = {k: as_highlighted(v) for k, v in node.items()}  # pyright: ignore[reportUnknownVariableType]
+    ranges = out.get("highlight")
+    if out.get("location", {}).get("type") == "char_location" and ranges:
+        assert len(ranges) == 1, ranges
+        start, end = ranges[0]["start_char_index"], ranges[0]["end_char_index"]
+        out["passage"] = SAMPLE.document(out["file_id"])[start:end]
+        out["location"] = {
+            "type": "char_location",
+            "start_char_index": start,
+            "end_char_index": end,
+        }
+        out["highlight"] = None
+    return out
