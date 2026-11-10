@@ -6,11 +6,12 @@
 
 **Status:** under construction for the BBS x Ramp Hackathon, Round 2.
 
-**All demo data is synthetic.** See [data/demo/SYNTHETIC.md](data/demo/SYNTHETIC.md).
+**All demo data is synthetic.** No person, award number or email address in it is real.
 
-## Current step: citation test
+## What runs today
+
+Only the shared contracts exist as code so far. Their tests run with:
 
 ```bash
-cp .env.example .env   # then add your ANTHROPIC_API_KEY
-uv run --env-file .env python spikes/citation_test.py
+PYTHONPATH=backend uv run --with pytest pytest -q backend/app/contracts/tests
 ```
