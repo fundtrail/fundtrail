@@ -127,6 +127,66 @@
   min-width: 0;
 }
 
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--measure);
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-sunken);
+}
+
+.form input:not([type="radio"]):not([type="checkbox"]),
+.form textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.form textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--needs-human);
+  border-radius: var(--radius-md);
+  background: var(--needs-human-tint);
+}
+
+.offer p {
+  margin: 0;
+}
+
+.toolbar {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
 @media (max-width: 1024px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
