@@ -45,10 +45,12 @@ def records_with(answer: str) -> list[Record]:
 
 
 def receipt_run(
-    earlier: str, new_answer: str, *, stored: bool = False
+    earlier: str, new_answer: str, *, stored: bool = False, receipt_seq: int = 1000
 ) -> tuple[RunSaved, list[Record], list[EvidenceFile]]:
     """The receipt run. With `stored`, every file and record carries its stored order, as the
-    database gives them, the receipt is stored after them all, and the run reads through it."""
+    database gives them, the earlier answer carries the read point of the run that wrote it
+    (everything stored before it), and this run reads through 1000. The receipt is stored at
+    `receipt_seq`: at the read point the run read it; above it, it was stored during the run."""
     receipt = SAMPLE.files[1].model_copy(
         update={
             "id": "file-receipt",
@@ -67,11 +69,16 @@ def receipt_run(
     read_through = base.read_through_seq
     if stored:
         # Files first (each arrived before the records read from it), then the records in the
-        # order written, then the receipt; the run reads through the receipt.
+        # order written. The earlier answer is last: its run read everything stored before it.
         files = [f.model_copy(update={"stored_seq": i + 1}) for i, f in enumerate(base.files)]
         db = [r.model_copy(update={"stored_seq": 100 + i}) for i, r in enumerate(db)]
+        earlier_answer = db[-1]
+        assert isinstance(earlier_answer.data, Judgment)
+        db[-1] = earlier_answer.model_copy(
+            update={"read_through_seq": (earlier_answer.stored_seq or 0) - 1}
+        )
         read_through = 1000
-        files.append(receipt.model_copy(update={"stored_seq": read_through}))
+        files.append(receipt.model_copy(update={"stored_seq": receipt_seq}))
     inputs = replace(
         base,
         records=db,
@@ -165,6 +172,30 @@ def test_with_stored_orders_a_receipt_read_by_the_run_lets_supports_take_effect(
     assert answer.read_through_seq == 1000
     state = RecordState([*db, *result.records], files)
     assert state.is_current(answer.id) and not state.is_waiting(answer.id)
+
+
+def test_with_stored_orders_a_receipt_stored_during_the_run_isnt_new_evidence():
+    """The control: stored above the run's read point, the receipt wasn't read by the run, so
+    nothing new arrived for the answer and unsure turning into supports waits. If the receipt
+    stopped counting as new evidence, the test above would fail; if anything else counted, this
+    one would."""
+    result, db, files = receipt_run("unsure", "supports", stored=True, receipt_seq=2000)
+    state = RecordState([*db, *result.records], files)
+    answer = result.records[-1]
+    assert state.is_waiting(answer.id) and not state.is_current(answer.id)
+
+
+def test_the_receipt_is_the_only_new_evidence_for_the_answer():
+    """Asked of the contract directly: new evidence with the receipt read by the run, none
+    without it."""
+    result, db, files = receipt_run("unsure", "supports", stored=True)
+    earlier, answer = db[-1], result.records[-1]
+    with_receipt = RecordState([*db, *result.records], files)
+    assert with_receipt.new_evidence_since(earlier, answer)
+    without_receipt = RecordState(
+        [*db, *result.records], [f for f in files if f.id != "file-receipt"]
+    )
+    assert not without_receipt.new_evidence_since(earlier, answer)
 
 
 def test_with_stored_orders_contradicts_turning_into_supports_still_waits():
