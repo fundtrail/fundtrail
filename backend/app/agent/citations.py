@@ -27,7 +27,17 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from app.quotes import UnreadablePdfError, find_pdf_quote
+try:  # the quote finder (#19) isn't merged yet; until it is, a PDF citation is not found
+    from app.quotes import (  # pyright: ignore[reportAttributeAccessIssue]
+        UnreadablePdfError,  # pyright: ignore[reportAttributeAccessIssue]
+        find_pdf_quote,  # pyright: ignore[reportAttributeAccessIssue]
+    )
+except ImportError:  # pragma: no cover - depends on what's merged
+    find_pdf_quote = None
+
+    class UnreadablePdfError(Exception):  # noqa: N818
+        pass
+
 
 LABEL_LINE = re.compile(r"^\s*[-*]?\s*@([A-Za-z0-9_.\-]+)\s*:\s?(.*?)\s*$")
 
@@ -150,12 +160,18 @@ def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
     assert doc.pdf is not None
     passage = _get(raw, "cited_text") or ""
     first, last = int(_get(raw, "start_page_number")), int(_get(raw, "end_page_number"))
-    try:
-        found = find_pdf_quote(
-            doc.pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
-        )
-    except (UnreadablePdfError, ValueError):
-        found = None
+    found: Any = None
+    if find_pdf_quote is not None:
+        try:
+            found = find_pdf_quote(
+                doc.pdf,
+                passage,
+                start_page_number=first,
+                end_page_number=last,
+                value_text=value_text,
+            )
+        except (UnreadablePdfError, ValueError):
+            found = None
     match = "not_found"
     highlight: list[dict[str, Any]] | None = None
     if found is not None and found.match != "not_found" and found.value_found is not False:

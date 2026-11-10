@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "FundTrail backend: FastAPI app"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=2.7.0",
     "fastapi[standard]>=0.162.2",
+    "langgraph>=1.2.20",
+    "pillow>=13.0.0",
     "pydantic>=2.9",
 ]
 

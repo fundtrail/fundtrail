@@ -166,7 +166,7 @@ def sample_checks(sample: SampleGrant) -> Callable[[ChecksInput], ChecksOutput]:
                     filled=any(
                         isinstance(r.data, Link) and r.data.default_item == d.key for r in links
                     ),
-                    link_ids=[r.id for r in links],
+                    link_ids=tuple(r.id for r in links),
                 )
                 for d in sample.default_items.get(c.ledger_line_id, [])
             ]
@@ -176,8 +176,8 @@ def sample_checks(sample: SampleGrant) -> Callable[[ChecksInput], ChecksOutput]:
                     grant_id=c.grant_id,
                     charge_id=c.id,
                     bucket="evidence_complete" if filled else "missing_evidence",  # pyright: ignore[reportArgumentType]
-                    reasons=[],
-                    checklist=entries,
+                    reasons=(),
+                    checklist=tuple(entries),
                     flagged=False,
                 )
             )
@@ -193,7 +193,9 @@ def sample_checks(sample: SampleGrant) -> Callable[[ChecksInput], ChecksOutput]:
                         charge_id=c.id, question=Question.ALLOWABLE, answer_by=Author.AGENT
                     )
                 )
-        return ChecksOutput(charges=statuses, records=[], grants=[], questions=questions, notes=[])
+        return ChecksOutput(
+            charges=tuple(statuses), records=(), grants=(), questions=tuple(questions), notes=()
+        )
 
     return run
 

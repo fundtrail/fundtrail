@@ -122,9 +122,8 @@ def test_a_label_never_written_is_refused():
     assert error and "message of their own" in result
 
 
-def test_an_uncited_value_is_refused_then_accepted_as_uncited_which_the_contract_still_refuses():
-    """Answer 1. The contract (#14) doesn't take an uncited agent value yet, so the last write is
-    refused by the contract's own rule. Once #14 allows it, this expects an unconfirmed value."""
+def test_an_uncited_value_is_refused_then_saved_as_uncited_and_unconfirmed():
+    """Answer 1: refused first; on the repeat limit, saved marked uncited, never confirmed."""
     ctx = context(until="rec-bill-inv-1001", now="2025-11-12T18:00:00+00:00")
     open_invoice(ctx)
     label(ctx, "total", "$1,240.00", None)
@@ -133,9 +132,10 @@ def test_an_uncited_value_is_refused_then_accepted_as_uncited_which_the_contract
         result, error = run_tool(ctx, "write_fact", args)
         assert error and "came back with no citation" in result
     result, error = run_tool(ctx, "write_fact", args)
-    assert error and "needs a citation" in result
+    assert not error and "Unconfirmed values" in result and "total" in result
     assert any(e["event"] == "uncited_accepted" for e in ctx.log["events"])
-    assert not ctx.staged
+    total = ctx.staged[-1].record.data.total  # pyright: ignore[reportAttributeAccessIssue]
+    assert total.uncited and total.citation is None and total.value == 124000
 
 
 def test_the_same_problem_three_times_suggests_a_flag():

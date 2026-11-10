@@ -1,12 +1,8 @@
 """The agent's one seam with the contract code (issue #14), which is still settling.
 
 Everything the agent needs from app.contracts goes through this module, so a change in the
-contract models touches only this file. Two pieces are stand-ins until the contracts settle them:
+contract models touches only this file. One piece is a stand-in until the contracts settle it:
 
-- An uncited value. The coordinator's answer 1: after the repeat limit the write tool accepts a
-  value with no citation, marked uncited, and it's saved as unconfirmed. The contract's Record
-  still refuses an agent value with no citation, so `uncited_value` builds the value the way the
-  contract is expected to take it, and today the write check refuses it.
 - The debug log's name. Answer 5: one log per run in private storage, referenced from the run's
   `log_path`. The contract has the field but no naming rule yet, so `debug_log_path` is the
   agent's proposal for the contracts builder.
@@ -92,12 +88,12 @@ def debug_log_path(workspace_id: str, grant_id: str, run_id: str) -> str:
 
 
 def uncited_value(value: object, text: str) -> dict[str, Any]:
-    """A value the API returned with no citation, accepted after the repeat limit.
+    """A value the API returned with no citation, accepted after the repeat limit (answer 1).
 
-    It carries no citation, so it's unconfirmed. The contract's marker for "uncited" isn't
-    settled yet, and today's Record refuses it, which the write tool reports back.
+    The contract marks it uncited, and it stays unconfirmed until the accountant confirms the
+    record it's in or types the value.
     """
-    return {"value": value, "text": text}
+    return {"value": value, "text": text, "uncited": True}
 
 
 def _plain(error: ValidationError) -> list[str]:
@@ -162,7 +158,7 @@ def run_checks_on(
     records: Sequence[Record],
 ) -> ChecksOutput:
     return run_checks(
-        ChecksInput(now=now, charges=list(charges), files=list(files), records=list(records))
+        ChecksInput(now=now, charges=tuple(charges), files=tuple(files), records=tuple(records))
     )
 
 
