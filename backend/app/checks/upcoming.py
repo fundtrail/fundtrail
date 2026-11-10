@@ -11,7 +11,8 @@ wording: the screens word it. The kinds:
 - `missing_flagged`: a missing item goes on the problem list, 60 days past the date it
   was expected or when the closeout window opens, whichever is first. It belongs to the
   charge and the reason's check and problem. When a snooze names the reason before it's
-  due, it's the later of that date and the snooze's end. A missing approval is on the
+  due, it's held back to the snooze's end, or to the first date a reason the snooze
+  doesn't name comes due on the same charge, whichever is first. A missing approval is on the
   list right away, so it has no such date; a fully reversed charge never goes on the list.
 
 Only dates after the grant's "now" are given, in date order.
@@ -24,7 +25,7 @@ from app.checks.decisions import Decisions
 from app.checks.findings import APPROVAL
 from app.checks.run import run_checks
 from app.checks.view import GrantView
-from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket, ChecksInput
+from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket, ChecksInput, Reason
 from app.contracts.records import Snooze
 from app.contracts.rules import RecordState
 
@@ -83,22 +84,56 @@ def upcoming_dates(checks_input: ChecksInput, grant_id: str) -> list[UpcomingDat
     for status in run_checks(ci).charges:
         if status.grant_id != grant_id or status.reversed:
             continue
-        for reason in status.reasons:
-            if reason.bucket != Bucket.MISSING_EVIDENCE or reason.accepted_by is not None:
-                continue
-            if reason.expected_by is None or reason.check == APPROVAL:
-                continue  # a missing approval is on the list right away
+
+        def due(reason: Reason) -> date | None:
+            """When a failing reason goes on the problem list, before any snooze."""
+            if reason.accepted_by is not None:
+                return None
+            if reason.bucket in (Bucket.POSSIBLE_CONFLICT, Bucket.NEEDS_HUMAN):
+                return today
+            if reason.bucket != Bucket.MISSING_EVIDENCE:
+                return None
+            if reason.check == APPROVAL or reason.expected_by is None:
+                return today  # a missing approval is on the list right away
             on = reason.expected_by + timedelta(days=MISSING_EVIDENCE_DAYS)
-            if window is not None:
-                on = min(on, window)
-            # A snooze can name a reason before it's due; it then stays hidden until the
-            # snooze ends, so the later of the two dates is when it reaches the list.
-            for r in dec.snoozes:
-                snooze = r.data
-                assert isinstance(snooze, Snooze)
-                names = {(x.check, x.problem) for x in snooze.reasons}
-                if snooze.charge_id == status.charge_id and (reason.check, reason.problem) in names:
-                    on = max(on, dec.snooze_ends(r))
+            return min(on, window) if window is not None else on
+
+        # A snooze hides a charge only while every reason on the list is one it names.
+        snoozes = [
+            r
+            for r in dec.snoozes
+            if isinstance(r.data, Snooze) and r.data.charge_id == status.charge_id
+        ]
+        covered: dict[tuple[str, str], date] = {}  # a reason a snooze names -> its latest end
+        for r in snoozes:
+            snooze = r.data
+            assert isinstance(snooze, Snooze)
+            for x in snooze.reasons:
+                key = (x.check, x.problem)
+                covered[key] = max(covered.get(key, date.min), dec.snooze_ends(r))
+        # A snooze hides the charge only while every reason on the list is one it names,
+        # so the first uncovered reason to come due ends the hiding for the covered ones.
+        uncovered = [
+            d
+            for reason in status.reasons
+            if (reason.check, reason.problem) not in covered and (d := due(reason)) is not None
+        ]
+        first_uncovered = min(uncovered, default=None)
+
+        for reason in status.reasons:
+            if reason.bucket != Bucket.MISSING_EVIDENCE:
+                continue
+            on = due(reason)
+            if on is None or on <= today:
+                continue  # accepted, or already on the list
+            key = (reason.check, reason.problem)
+            if key in covered:
+                # Held back until the snooze ends, or until an uncovered reason on the same
+                # charge comes due and the charge is no longer snoozed.
+                held = covered[key]
+                if first_uncovered is not None:
+                    held = min(held, first_uncovered)
+                on = max(on, held)
             if on > today:
                 out.append(
                     UpcomingDate(
