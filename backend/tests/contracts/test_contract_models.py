@@ -330,3 +330,27 @@ def test_api_bodies_have_json_schemas():
 
 def test_charge_round_trips_through_json():
     assert Charge.model_validate_json(CHARGE.model_dump_json()) == CHARGE
+
+
+def test_an_item_an_approval_rule_added_names_the_rule():
+    """Issue 115: not "Account default"."""
+    entry = ChecklistEntry(
+        default_item="approval:t1",
+        added_by=ItemSource.RULE,
+        rule_id="t1",
+        needed="The Program Officer's approval through Research.gov",
+        filled=False,
+    )
+    assert entry.added_by == "rule" and entry.rule_id == "t1"
+    with pytest.raises(ValidationError):  # a rule's item names its rule
+        ChecklistEntry(
+            default_item="approval:t1", added_by=ItemSource.RULE, needed="x", filled=False
+        )
+    with pytest.raises(ValidationError):  # only a rule's item names one
+        ChecklistEntry(
+            default_item="bill", added_by=ItemSource.DEFAULT, rule_id="t1", needed="x", filled=False
+        )
+    with pytest.raises(ValidationError):  # a rule's item isn't stored
+        ChecklistEntry(
+            item_record_id="i1", added_by=ItemSource.RULE, rule_id="t1", needed="x", filled=False
+        )

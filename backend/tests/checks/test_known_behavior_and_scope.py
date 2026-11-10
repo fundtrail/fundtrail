@@ -96,3 +96,17 @@ def test_every_charge_covers_equipment_on_its_line() -> None:
     g.assign("eq", g.confirmed_line("Equipment", "equipment", when), when)
     status = g.status("eq", at(2024, 6, 2, 13))
     assert f"approval:{rule}" in [e.default_item for e in status.checklist]
+
+
+def test_an_approval_rules_item_names_the_rule_not_the_account_default() -> None:
+    """Issue 115: the checks mark an item an approval rule added with the rule."""
+    g = Grant()
+    g.standard_terms(with_rule=False)
+    rule = _rule(g, "Equipment", "Grants Officer", "every_charge")
+    when = at(2024, 6, 2)
+    g.charge("eq", date(2024, 6, 1), 1_200_000, account="54210 Cap Equipment=>$5k per Item")
+    g.assign("eq", g.confirmed_line("Equipment", "equipment", when), when)
+    status = g.status("eq", at(2024, 6, 2, 13))
+    entry = next(e for e in status.checklist if e.default_item == f"approval:{rule}")
+    assert entry.added_by == "rule" and entry.rule_id == rule
+    assert all(e.rule_id is None for e in status.checklist if e is not entry)

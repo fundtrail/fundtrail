@@ -138,7 +138,11 @@ def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
         assert isinstance(rule.data, ApprovalRule)
         specs.append(
             ItemSpec(
-                _approval_needed(rule.data), "rule", f"approval:{view.root(rule.id)}", rule=rule
+                _approval_needed(rule.data),
+                "rule",
+                f"approval:{view.root(rule.id)}",
+                rule=rule,
+                added_by=ItemSource.RULE,
             )
         )
     p = view.period
@@ -443,6 +447,7 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
             filled=item.filled,
             link_ids=tuple(lk.link.id for lk in item.links),
             removal_waiting_id=item.removal_waiting_id,
+            rule_id=item.spec.rule.id if item.spec.rule is not None else None,
         )
         for item in items
     ]
