@@ -418,6 +418,77 @@ def test_an_over_limit_acceptance_holds_while_spending_never_drops_within_the_li
     assert status.accepted and not status.flagged
 
 
+def _accepted_at_5000_over() -> tuple[Grant, dict[str, str]]:
+    g = Grant(stored=True)
+    t = g.standard_terms()  # $120,000 obligated to date
+    _over_by(g, t, 12_500_000, "c1", at(2024, 3, 1))  # $5,000 over
+    _accept_over(g, t, 500_000, at(2024, 3, 2))
+    return g, t
+
+
+def test_a_credit_then_a_debit_at_one_clock_time_ends_the_acceptance() -> None:
+    """PR 171's review, probe A: stored order, not clock time, decides. The credit brings
+    spending within the limit before the debit takes it over again."""
+    g, _ = _accepted_at_5000_over()
+    g.charge("credit", date(2024, 4, 1), -600_000)  # $1,000 under
+    g.charge("debit", date(2024, 4, 1), 200_000)  # $1,000 over, stored after the credit
+    (status,) = g.run(at(2024, 4, 2)).grants
+    assert not status.accepted and status.flagged
+    assert status.problems[0].amount_cents == 100_000
+
+
+def test_a_notice_confirmed_then_rejected_never_brings_the_grant_within_its_limit() -> None:
+    """Probe B: at one clock time, a notice raising the limit is confirmed, then rejected,
+    then a credit brings spending to $122,000. At no stored point was it within $120,000
+    (or $123,000 while the notice counted), so the acceptance holds."""
+    g, _ = _accepted_at_5000_over()
+    when = at(2024, 4, 1)
+    raised = g.notice("001", 300_000, 12_300_000, when, dated=date(2024, 3, 20))
+    g.confirm(raised, when=when)
+    g.confirm(raised, when=when, decision="rejected")
+    g.charge("credit", date(2024, 4, 1), -300_000)
+    (status,) = g.run(at(2024, 4, 2)).grants
+    assert status.accepted and not status.flagged
+    assert status.problems[0].amount_cents == 200_000
+
+
+def test_spending_exactly_at_the_limit_counts_as_within_it() -> None:
+    g, _ = _accepted_at_5000_over()
+    g.charge("credit", date(2024, 4, 1), -500_000)  # exactly $120,000
+    g.charge("debit", date(2024, 5, 1), 100_000)  # $1,000 over
+    (status,) = g.run(at(2024, 5, 2)).grants
+    assert not status.accepted and status.flagged
+
+
+def test_one_cent_over_at_best_isnt_within_the_limit() -> None:
+    g, _ = _accepted_at_5000_over()
+    g.charge("credit", date(2024, 4, 1), -499_999)  # $0.01 over
+    g.charge("debit", date(2024, 5, 1), 100_000)  # $1,000.01 over
+    (status,) = g.run(at(2024, 5, 2)).grants
+    assert status.accepted and not status.flagged
+
+
+def test_a_limit_raised_by_a_notice_later_retracted_never_held() -> None:
+    """Call 42's product answer: the raised limit put spending within it for a while, but
+    the notice was retracted, so it never really held. The acceptance survives."""
+    g, _ = _accepted_at_5000_over()
+    raised = g.notice("001", 1_000_000, 13_000_000, at(2024, 4, 1), dated=date(2024, 3, 20))
+    g.confirm(raised, when=at(2024, 4, 1, 13))  # $130,000: $125,000 is within it
+    g.user({"kind": "retraction", "reason": "Misread."}, at(2024, 4, 5), replaces=raised)
+    (status,) = g.run(at(2024, 4, 6)).grants
+    assert status.accepted and not status.flagged
+    assert status.problems[0].amount_cents == 500_000
+
+
+def test_a_limit_raised_by_a_confirmation_later_rejected_never_held() -> None:
+    g, _ = _accepted_at_5000_over()
+    raised = g.notice("001", 1_000_000, 13_000_000, at(2024, 4, 1), dated=date(2024, 3, 20))
+    g.confirm(raised, when=at(2024, 4, 1, 13))
+    g.confirm(raised, when=at(2024, 4, 5), decision="rejected")
+    (status,) = g.run(at(2024, 4, 6)).grants
+    assert status.accepted and not status.flagged
+
+
 def test_an_over_limit_acceptance_with_no_amount_doesnt_hold() -> None:
     """It can't say how much it covered, so the problem stays on the list."""
     g = Grant()

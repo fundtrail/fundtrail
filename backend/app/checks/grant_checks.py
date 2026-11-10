@@ -23,7 +23,7 @@ category, named as NSF prints the category.
 
 import hashlib
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from app.checks.findings import (
@@ -116,10 +116,18 @@ def _notice_findings(view: GrantView) -> list[Finding]:
     return out
 
 
-def award_limit(view: GrantView) -> tuple[int, Record] | None:
-    """The Total Amount Obligated to Date on the latest confirmed notice that prints one."""
+def award_limit(
+    view: GrantView, standing: Callable[[str], bool] | None = None
+) -> tuple[int, Record] | None:
+    """The Total Amount Obligated to Date on the latest confirmed notice that prints one.
+
+    `standing`, when given, leaves out notices it says no longer stand (call 42: a limit
+    raised by a notice later retracted or rejected never really held).
+    """
     best: tuple[tuple[object, ...], int, Record] | None = None
     for r in view.notices():
+        if standing is not None and not standing(r.id):
+            continue
         d = r.data
         assert isinstance(d, Notice)
         if d.obligated_to_date is None:

@@ -32,7 +32,14 @@ from app.checks.text import money, norm
 from app.checks.view import GrantView
 from app.contracts.charges import Charge
 from app.contracts.checks import CLOSEOUT_WINDOW_DAYS, MISSING_EVIDENCE_DAYS, Bucket
-from app.contracts.records import AcceptedReason, Decision, Dispute, Record, Snooze
+from app.contracts.records import (
+    AcceptedReason,
+    Decision,
+    Dispute,
+    Record,
+    RecordKind,
+    Snooze,
+)
 from app.contracts.rules import RecordState
 
 
@@ -56,6 +63,14 @@ def _later(charge: Charge, note: Record) -> bool:
         charge.stored_seq is not None
         and note.stored_seq is not None
         and charge.stored_seq > note.stored_seq
+    )
+
+
+def _moves_limit(record: Record) -> bool:
+    """Whether a record can move the award limit: a notice, a decision on one, or a
+    record that replaces or retracts one."""
+    return record.kind in (RecordKind.NOTICE, RecordKind.CONFIRMATION, RecordKind.RETRACTION) or (
+        record.replaces_id is not None
     )
 
 
@@ -138,40 +153,61 @@ class Decisions:
 
     def _back_within_limit_since(self, acceptance: Record) -> bool:
         """Whether the grant's spending was within its limit at any point after an
-        acceptance (call 42, provisional): after any later charge, or any later record
-        that can move the limit, such as a notice or a confirmation.
+        acceptance (call 42, provisional), by records that still stand.
 
-        Records are read in stored order. A charge counts as after the acceptance when
-        it arrived later, or at the same time and was stored after it.
+        Replays what came after the acceptance in stored order, records and charges
+        together: each charge moves the spending, and each record that can move the
+        limit (a notice, a confirmation or rejection, a retraction or a correction) moves
+        the limit. When every item carries its stored_seq, that's the order; otherwise
+        clock time, then stored_seq where known, as _later does. Equal to the limit is
+        within it.
         """
         view = self.view
         records = view.state.records
         at = view.pos[acceptance.id]
-        limits: dict[int, int | None] = {}
+
+        def stored_after(item_seq: int | None, when: datetime) -> bool:
+            if item_seq is not None and acceptance.stored_seq is not None:
+                return item_seq > acceptance.stored_seq
+            if when != acceptance.written_at:
+                return when > acceptance.written_at
+            return False  # the same time, with unknown order, isn't "after"
+
+        later_records = [
+            (i, r) for i, r in enumerate(records) if i > at and r.grant_id == view.grant_id
+        ]
+        later_charges = [c for c in view.charges if stored_after(c.stored_seq, c.arrived_at)]
+        events: list[tuple[datetime, int | None, int, int, Record | Charge]] = []
+        for i, r in later_records:
+            events.append((r.written_at, r.stored_seq, 0, i, r))
+        for n, c in enumerate(later_charges):
+            events.append((c.arrived_at, c.stored_seq, 1, n, c))
+        if all(e[1] is not None for e in events):
+            events.sort(key=lambda e: (e[1] or 0, e[2], e[3]))
+        else:
+            events.sort(key=lambda e: (e[0], e[1] is None, e[1] or 0, e[2], e[3]))
 
         def limit_through(i: int) -> int | None:
-            """The award limit as of the records stored before position i."""
-            if i not in limits:
-                found = award_limit(GrantView(view.grant_id, RecordState(records[:i]), [], []))
-                limits[i] = found[0] if found is not None else None
-            return limits[i]
+            """The award limit as of the records stored up to and including position i,
+            counting only notices that still stand now: a limit raised by a notice that was
+            later retracted, or whose confirmation was rejected, never really held (call 42)."""
+            prefix = GrantView(view.grant_id, RecordState(records[: i + 1]), [], [])
+            found = award_limit(prefix, standing=view.state.is_current)
+            return found[0] if found is not None else None
 
-        def spent_by(moment: datetime) -> int:
-            return sum(c.amount_cents for c in view.charges if c.arrived_at <= moment)
-
-        for i in range(at + 1, len(records)):
-            r = records[i]
-            if r.grant_id != view.grant_id:
-                continue
-            limit = limit_through(i + 1)
-            if limit is not None and spent_by(r.written_at) <= limit:
-                return True
-        for c in view.charges:
-            if not _later(c, acceptance):
-                continue
-            before = sum(1 for r in records if r.written_at <= c.arrived_at)
-            limit = limit_through(max(before, at + 1))
-            if limit is not None and spent_by(c.arrived_at) <= limit:
+        later_ids = {c.id for c in later_charges}
+        spent = sum(c.amount_cents for c in view.charges if c.id not in later_ids)
+        limit = limit_through(at)
+        for _, _, kind, i, item in events:
+            if kind == 1:
+                assert isinstance(item, Charge)
+                spent += item.amount_cents
+            else:
+                assert isinstance(item, Record)
+                if not _moves_limit(item):
+                    continue
+                limit = limit_through(i)
+            if limit is not None and spent <= limit:
                 return True
         return False
 
