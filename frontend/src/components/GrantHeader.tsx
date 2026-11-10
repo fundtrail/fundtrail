@@ -33,6 +33,10 @@ export function GrantHeader({ summary }: { summary: GrantSummary }) {
           <Link className="ft-link" href={routes.reusableNotes(grant.id)}>
             Reusable notes
           </Link>
+          {" · "}
+          <Link className="ft-link" href={routes.ledger(grant.id)}>
+            Ledger
+          </Link>
         </p>
       </div>
       <div className="ft-ready">
