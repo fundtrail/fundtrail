@@ -220,8 +220,9 @@ class SampleRefusal(Model):
     Opening a sample and starting one over are refused only with `needs_confirm`.
     The read-live limit is settled as ruling 48, a first version, and is on the clock
     move: while one of the user's larger read-live samples has agent runs queued or
-    running from a move of its clock, moving the clock of another is refused with
-    `another_sample_working`, and `grant` names the one still working.
+    running from a move of its clock, moving the clock of another of the user's
+    larger read-live samples is refused with `another_sample_working`, and `grant`
+    names the one still working.
     """
 
     reason: SampleRefusalReason
