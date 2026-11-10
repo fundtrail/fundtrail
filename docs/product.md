@@ -56,7 +56,7 @@ When several checks fail, the charge shows the most serious bucket and lists eve
 
 Every charge has a checklist of the evidence it should have. **Bill** is our working name for any document that bills for a cost: an invoice, a receipt or a card slip. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. But many charges never have a bill, such as salaries, stipends and per diem, so "the bills add up to the charge" can't be the only rule.
 
-- **Defaults come from the ledger.** Each ledger account has a default checklist, starting with Berkeley's accounts. Materials and Supplies defaults to a bill that adds up to the charge. Salaries and Wages defaults to an appointment letter and an effort report for the month. A reversal or cost transfer defaults to the line it corrects plus a written justification. An account with no default gets only the agent's items.
+- **Defaults come from the ledger.** Each ledger account has a default checklist, starting with Berkeley's accounts. The defaults live in the code for now, so a developer changes them, and the accountant adjusts single charges. Code works the defaults out fresh each time, so a fixed default reaches old charges too and can put them back on the list. Materials and Supplies defaults to a bill that adds up to the charge. Salaries and Wages defaults to an appointment letter and an effort report for the month. A reversal or cost transfer defaults to the line it corrects plus a written justification. An account with no default gets only the agent's items.
 - **Code adds a required approval** as an item when one of the grant's approval rules applies to the charge.
 - **The agent adds what this charge needs,** for example "per diem, 5 days at $100 a day" on a trip. Adding an item takes effect right away. Removing one is a suggestion that waits for the accountant.
 - **The accountant can add or remove items,** and their changes take effect right away.
@@ -82,7 +82,7 @@ The problem list is what the accountant works from. It holds charges, and record
 **Charges.**
 
 - Possible conflict and Needs a human are on the list, unless the accountant has accepted the reason or snoozed the charge (see below).
-- A charge in Missing evidence goes on the list once an item has been missing for 60 days past the date it was expected, which for most items is the day the charge posted. It also goes on the list 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, whichever comes first. Bills often arrive weeks after a charge posts, so a charge isn't a problem on day one.
+- A charge in Missing evidence goes on the list once an item has been missing for 60 days past the date it was expected, which for most items is the charge's posting date, the day the ledger recorded it. When a grant is added partway through its life, old charges with no evidence are flagged right away, because they really are late. It also goes on the list 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, whichever comes first. Bills often arrive weeks after a charge posts, so a charge isn't a problem on day one.
 - Inside that 90-day window every missing item is listed, even one that isn't due yet, as a reminder to chase it before the grant ends. Each one shows when it's expected, so a reminder doesn't read as a late item.
 - A missing approval is on the list right away.
 - The 60 days is our own choice. No federal rule sets it. It's the same for every grant, and there's no settings page for now.
@@ -98,7 +98,9 @@ The problem list is what the accountant works from. It holds charges, and record
 | Code | The exact same file on the grant twice |
 | The agent | Anything else, with its reasoning: a photo and a PDF of the same invoice, evidence for another grant, a file that can't be read |
 
-When a bill arrives, code looks for likely matches among the bills already on the grant, and the agent compares them. It flags the newer copy as a duplicate and doesn't link it. Both files are kept, and the accountant confirms or rejects the flag. A rejected flag means the agent matches the file normally. If the newer copy is the clearer one, the agent can suggest switching the link to it. If two charges match the same invoice, the charges are flagged too, since that may be a double payment.
+A new kind of problem starts as the agent's flag. If it keeps coming up, code gets a check for it later.
+
+When a bill arrives, code looks for likely matches among the bills already on the grant, and the agent compares them. It flags the newer copy as a duplicate and doesn't link it. Both files are kept, and the accountant confirms or rejects the flag. A rejected flag means the agent matches the file normally. A confirmed copy stays in the evidence list, marked as a duplicate of the original, and stays out of matching. The accountant can undo it. If the newer copy is the clearer one, the agent can suggest switching the link to it. If two charges match the same invoice, the charges are flagged too, since that may be a double payment.
 
 **How a problem leaves the list.** There's no resolve button, so the list can never disagree with the checks.
 
@@ -140,6 +142,8 @@ Every charge can have a thread, and so can a record with a problem. It reads top
   - **PDFs with real text, email, .docx:** the exact line is highlighted.
   - **Photos and scans:** a box is outlined around the value. There's no OCR (optical character recognition).
   - **A fact that couldn't be placed:** the viewer opens the page and shows the quote beside it, with no guessed highlight. The fact is unconfirmed, and anything that rests on it is in Needs a human until the accountant confirms the value or types the right one.
+- **Confirmed values.** A value counts as confirmed in three ways: its quote was found in the file, the accountant confirmed the record it's in, or the accountant typed it. So confirming a grant term also confirms the values in it, and the accountant is never asked twice about the same value. When a record has several values that couldn't be found, the confirm screen lists each one. Only a value that a check or an answer depends on sends a charge to Needs a human. Any other unconfirmed value, such as a vendor name, just shows that way on its evidence card.
+- **Correcting a value.** When the accountant types the right value, the links to that record carry over to the corrected one on their own, and the checks rerun. If the links now add up to more than the bill, the charges go to Needs a human.
 - **The evidence checklist.** Each charge shows what it should have, which items are filled or missing, who added each one, and any removal still waiting.
 - **The review thread.** Each charge shows its thread, with the agent's suggestions and a box for asking the agent.
 - **Status history.** Every status change records what triggered it and links to it. Example: "Apr 10, 2026 · new end date confirmed · Possible conflict → Evidence complete."
@@ -261,7 +265,7 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. Only link fixes were discussed. The contracts make every correction the agent writes wait, except a new answer to its own question, which [0010](decisions/0010-agent-suggests-accountant-decides.md) narrows. | product |
 | How the evidence report shows the agent's answers next to code's reasons | product |
 | How the optional chat relates to review threads | product, if chat is built |
-| The default checklist for each ledger account, starting with Berkeley's account names. Also where that table lives and who edits it. The demo ledger's account names have to match it. | product, then W2 |
+| The default checklist for each ledger account, starting with Berkeley's account names. The demo ledger's account names have to match it. | product, then W2 |
 | How charges and records are sorted together on the problem list. A simple start: most serious first, then oldest. | product, with the screens |
 | How reusable notes, the offer on a similar charge, and confirmed duplicates are laid out | product, with the screens |
 | Screen layouts, and how emails are displayed | builder |

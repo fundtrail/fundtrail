@@ -19,6 +19,8 @@ We looked at how production systems do this instead of inventing our own. Anthro
 - **Photos and scanned pages:** we turn each page into an image at a size we control and send that. The agent returns a pixel box around the value, and code scales it back to the original. A second look reads only the boxed area and has to see the same value.
 - **Nothing is guessed.** A fact that can't be placed opens to its page with the quote shown beside it, and the fact is unconfirmed.
 - **An unconfirmed fact can't make anything pass, and it isn't ignored.** Whatever rests on it goes to Needs a human until the accountant confirms the value or types the right one.
+- **A value is confirmed in three ways:** its citation was found in its file, the accountant confirmed the record it's in, or the accountant typed it. Confirming a grant term confirms its values too, so the accountant is never asked twice about one value. Only a value that a check or an answer rests on sends a charge to Needs a human. Any other unconfirmed value just shows that way on its evidence card.
+- **Correcting a value carries its links over.** Links to the corrected record follow it, and the checks rerun.
 - **The match runs once, on the server,** when the record is saved. Where the highlight goes is stored, and the viewer only draws it.
 - **Still no OCR** (optical character recognition). It's the fallback if the eval shows boxes on photos aren't reliable enough.
 

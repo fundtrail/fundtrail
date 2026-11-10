@@ -11,7 +11,7 @@ A charge can also be filed under the wrong ledger account, such as a laptop post
 ## Decision
 
 - **Every charge has a checklist of the evidence it should have.** Code tracks each item as filled or missing.
-- **Defaults come from the ledger account.** Each account has a default list, for Berkeley's accounts first. An account with no default gets only the agent's items.
+- **Defaults come from the ledger account.** Each account has a default list, for Berkeley's accounts first. An account with no default gets only the agent's items. The defaults live in the code for now, and code works them out fresh each time. So a fixed default reaches old charges too, which can put them back on the list.
 - **The agent adds what the charge needs.** Adding takes effect right away. Removing an item is a suggestion that waits. So a misfiled charge surfaces when the agent asks to drop a default that doesn't fit.
 - **The accountant can add or remove items,** and their changes take effect right away.
 - **Code adds a required approval as an item** when an approval rule applies. A reversal or cost transfer defaults to the line it corrects plus a written justification.
