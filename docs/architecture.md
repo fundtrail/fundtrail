@@ -187,7 +187,7 @@ The layout is in [CLAUDE.md](../CLAUDE.md#repo-map). The areas of the repo are i
 | Email body vs. attachments, duplicate files | builder (W3) |
 | The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. That includes how the lists of charges and documents are built and searched. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1), discussed with Alex before building |
-| Where the rulebook file lives in the repo, its format, and the exact rules in it. About a dozen federal cost sections are still unread (see [domain.md](domain.md#not-decided-yet)). | builder (W1), discussed with Alex before building |
+| Where the rulebook file lives in the repo, its format, and the exact rules in it. The rulebook's header lists the sources still unread (see [domain.md](domain.md#not-decided-yet)). | builder (W1), discussed with Alex before building |
 | Whether citations work on a file the agent opens again in the middle of a run. A small test against the API can check it. | builder (W1) |
 | How loose the PDF passage match can be. A draft: clean up both texts the same way (straight quotes, single spaces, words rejoined across line breaks), and let a close match place the highlight. The fact is confirmed only when the value itself appears exactly in the matched text. | builder (W1 with W6), discussed with Alex before building |
 | Quotes that cross a page break | builder (W1 with W6), discussed with Alex before building |

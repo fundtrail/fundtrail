@@ -1,6 +1,6 @@
 # Domain
 
-What the checks need to know about NSF (National Science Foundation) grants. **Verify every rule here against NSF's own pages and the Electronic Code of Federal Regulations (eCFR) before coding it.** The section numbers below are pointers to check, not settled facts.
+What the checks need to know about NSF (National Science Foundation) grants. **Verify every rule here against NSF's own pages and the Electronic Code of Federal Regulations (eCFR) before coding it.** The section numbers below are pointers to check, not settled facts. The rules the agent applies are checked against their sources and quoted in the NSF rulebook, [backend/app/agent/rulebooks/nsf.md](../backend/app/agent/rulebooks/nsf.md). Where this doc and the rulebook differ, the rulebook holds.
 
 ## The rules
 
@@ -16,12 +16,12 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 
 | Concept | What it means for a check | Pointer to verify |
 |---|---|---|
-| Period of performance | A cost has to be incurred between the start and end dates, with the exceptions in [The cost's date](#the-costs-date). An extension moves the end date. | 2 CFR 200.309, 200.308, GC-1 Article 5 |
+| Period of performance | A cost has to be incurred between the start and end dates, with the exceptions in [The cost's date](#the-costs-date). An extension moves the end date. | 2 CFR 200.309, 200.308, GC-1 Term and Condition Nos. 5 and 6 |
 | Allowable cost | A cost has to be necessary, reasonable, allocable and consistent with the award's terms. Code can't judge this, so it's the Allowable question the agent answers. | 2 CFR 200.403 |
 | Allocable cost, shared costs | A cost shared across grants has to be split on a documented basis, for example "56 of 96 samples". | 2 CFR 200.405 |
 | Budget lines and rebudgeting | The university may move money between budget categories, so going over one line isn't a violation by itself. The total can't exceed the award. Moving money out of participant support needs NSF's approval. | 2 CFR 200.308, NSF's Prior Approval Matrix, the award letter |
-| Participant support costs | Costs for participants and trainees, such as stipends, travel and registration, not for employees or project staff. Speakers generally don't count as participants. Moving these funds to other uses needs prior approval. | 2 CFR 200.1, 200.456 |
-| Prior approval | The approval has to come from the right person, through the right channel, before the cost. NSF has a standing list of what needs its approval (see [Approvals](#approvals)), and the award letter can add to it. | GC-1 Article 2, NSF's Prior Approval Matrix, the award letter |
+| Participant support costs | Costs for participants or trainees, such as stipends, travel and registration. The policy guide adds "but not employees", and project staff aren't participants either. Speakers and trainers generally aren't participants. Moving these funds to other uses needs prior approval. | 2 CFR 200.1, 200.456, PAPPG Chapter II.D.2.f(v) |
+| Prior approval | The approval has to come from the right person, through the right channel, before the cost. NSF has a standing list of what needs its approval (see [Approvals](#approvals)), and the award letter can add to it. | GC-1 Term and Condition No. 2, NSF's Prior Approval Matrix, the award letter |
 | Supporting documentation | Every charge has to be backed by source documentation, and the documentation should show the university's review or approval, ideally before the cost. | 2 CFR 200.302(b)(3), NSF's Proposal and Award Policies and Procedures Guide (PAPPG) Chapter VII.A.1 |
 | Cost transfer | Moving a charge off a grant needs a written explanation. Berkeley asks why the move is needed, why the wrong fund was charged, and how the expense relates to the project. NSF sets no time limit. The 90-day figure people cite comes from the National Institutes of Health (NIH) and from university policies. Berkeley's own limit is 120 days after the close of the month the charge posted. | University policy, for example Berkeley's cost transfer procedures |
 | Closeout | Reports to NSF and the final payment amount are due 120 days after the end date. Universities set earlier internal deadlines (see [Closeout](#closeout)). | 2 CFR 200.344, NSF PAPPG Chapters VII.D.4 and VIII.E |
@@ -31,7 +31,14 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 
 The decision is [0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md). The six checks themselves are listed in [product.md](product.md#what-code-checks). This section holds the NSF rules behind them.
 
-**How far these were checked.** Researched on Nov 10, 2026. NSF's Grant General Conditions (GC-1, the edition dated July 31, 2026) and its Prior Approval Matrix (October 1, 2024) were read in full. NSF's policy guide (PAPPG 24-1) and 2 CFR 200 were read in parts: 200.403 to 200.406, 200.413, the shorter cost items and the policy guide's Chapter X in full, and 200.430 in part. About a dozen cost sections of 2 CFR 200 and the policy guide's Chapter XI weren't read. Spot-check a rule against its source before coding it or writing it into the rulebook.
+**How far these were checked.** Checked for the rulebook on Nov 10, 2026, against 2 CFR 200 as of Nov 6, 2026, NSF's Grant General Conditions (GC-1, the edition dated July 31, 2026), and NSF's policy guide (PAPPG 24-1) with its Supplements 1 and 2. GC-1 numbers its parts "Term and Condition No.". The rulebook's header lists what is still unread, in short:
+
+- 2 CFR 200 Subpart E: about 30 sections, most of 200.430, and parts of a few more. Every section from 200.420 to 200.476 was searched for "unallowable" and "not allowable", and each hit was read.
+- PAPPG 24-1: every chapter except Chapter X and Chapter II.D.2.f(v) and (xiii), including Chapter VI.D.3.c on further extensions. Of Supplement 1, only its list of changes and items 4 and 13. Supplement 2 was read in full.
+- GC-1 beyond Term and Condition Nos. 1 to 12.
+- NSF's Prior Approval Matrix, which the standing approval list below rests on, and the Research Terms and Conditions for awards made before October 1, 2024.
+
+Spot-check a rule against its source before coding it or adding it to the rulebook.
 
 ### The cost's date
 
@@ -40,11 +47,11 @@ The date check follows NSF's four zones:
 | When the cost is dated | What the check says | Pointer to verify |
 |---|---|---|
 | During the grant | Fine | 2 CFR 200.309 |
-| Up to 90 days before the start date | Allowed. The university may approve these costs on its own, at its own risk, documented under its own policy. The charge's checklist asks for the university's own pre-award approval, so a missing one is missing evidence, not a conflict. | GC-1 Article 5 |
-| More than 90 days before the start date | Possible conflict, unless NSF's approval is on file: an approval linked to the charge that the agent's Covers answer supports | GC-1 Article 5 |
-| After the end date | Possible conflict. A cost after the end date is allowed only to pay for a commitment made on or before the end date, so the agent can dispute the check with proof that the order was placed by then. | PAPPG Chapter X.A.2.c |
+| Up to 90 days before the start date | Allowed. The university may approve these costs on its own, at its own risk, documented under its own policy. The charge's checklist asks for the university's own pre-award approval, so a missing one is missing evidence, not a conflict. | GC-1 Term and Condition No. 5 |
+| More than 90 days before the start date | Possible conflict, unless NSF's approval is on file: an approval linked to the charge that the agent's Covers answer supports | GC-1 Term and Condition No. 5 |
+| After the end date | Possible conflict. A cost after the end date is allowed only to pay for a commitment made on or before the end date, so the agent can dispute the check with proof that the order was placed by then. | PAPPG Chapter X.A.2, under the heading "Post-End Date Costs" |
 
-- **Extensions.** The university can extend the grant once, by up to 12 months, by notifying NSF through Research.gov at least 10 days before the end date. Later extensions need NSF's approval. Code doesn't check the 10 days. A notice filed later than that, with no NSF approval on file, is the agent's to flag.
+- **Extensions.** The university can extend the grant once on its own, by up to 12 months, by notifying NSF through Research.gov at least 10 days before the end date (GC-1 Term and Condition No. 6). It may not extend merely to spend the remaining balance, and it can't extend an award with a zero balance. Extensions beyond that follow PAPPG Chapter VI.D.3.c, which hasn't been read. Code doesn't check any of this. A late notice, a further extension, or a notice that shows either limit is the agent's to flag.
 - 2 CFR 200.403(h) states its date rule in terms of the budget period, and lets administrative closeout costs be incurred until the final report is due.
 
 ### Budget lines
@@ -53,27 +60,34 @@ The budget check runs on the grant, not on charges. NSF lets the university move
 
 ### Rules that go to the agent
 
-Every rule of the form "this kind of cost isn't allowed, or is allowed only under a condition" goes to the agent, not to code. The agent's rulebook carries them, each with its source, and a rule goes into the rulebook only after it's checked against that source. The rules found so far:
+Every rule of the form "this kind of cost isn't allowed, or is allowed only under a condition" goes to the agent, not to code. The agent's rulebook carries them, each with its source, and a rule goes into the rulebook only after it's checked against that source. Each rule is stated here in a sentence. The exact text, quotes and links are in the [rulebook](../backend/app/agent/rulebooks/nsf.md).
 
 | Rule | Pointer to verify |
 |---|---|
-| Airfare above the least expensive unrestricted class isn't allowed, except for five listed reasons, such as medical need or a much longer route, each justified and documented | 2 CFR 200.475(e) |
-| International flights use a U.S.-flag carrier, with listed exceptions: Open Skies agreements, long delays, short trips | GC-1 Article 10 |
-| No travel, meal or hotel costs for employees who aren't travelling | PAPPG Chapter X |
-| Publication fees only for work the award supported, and only when the journal charges every author the same way. They can be charged during closeout. | 2 CFR 200.461 |
-| Fringe benefit rates apply to salary and wages, not to stipends | A 2026 university audit by NSF's Office of Inspector General |
-| Kinds of cost that are never allowed. Found so far, and not yet a verified list: alcohol, promotional items, entertainment, donations, fines, fundraising, lobbying, goods for personal use, interest, club dues, alumni and student activities, banned telecommunications equipment and covered foreign drones | 2 CFR 200.421 and other sections of Subpart E |
-| Consultants are people who aren't employees, paid at a rate that can be justified | GC-1 Article 7 |
-| Administrative and clerical salaries are charged directly only when they're integral to the award. This is what Berkeley's "consistently treated" criterion means in practice. | 2 CFR 200.413, Berkeley's cost principles |
-| Short-term visas can be charged. Long-term immigration visas can't. | 2 CFR 200.463 |
+| Airfare above the basic least expensive unrestricted class isn't allowed. A higher class is allowed only when the cheaper one would need circuitous routing, travel at unreasonable hours or excessively long travel, would add costs that offset the savings, or wouldn't meet the traveler's medical needs, and the reason is justified and documented. GC-1 also makes the difference above economy airfare unallowable. | 2 CFR 200.475(e), GC-1 Term and Condition No. 10.a.2 |
+| International flights use a U.S.-flag carrier, or a code-share with one, when one is available. The exceptions are GC-1's list: an Open Skies agreement, involuntary rerouting, set limits on added travel time and connections, and short trips a U.S. carrier would at least double. Lower cost and convenience aren't exceptions. | GC-1 Term and Condition No. 10.c and 10.d |
+| No travel, meal or hotel costs for employees who aren't travelling | PAPPG Chapter X.C.3 |
+| No meals or coffee breaks at internal meetings of the university or its labs, departments and centers. The policy guide words this for proposals, so it binds a grant only when the award notice restates it as a condition. | PAPPG Chapter II.D.2.f(xiii)(b) |
+| Publication fees only for work the award supported, and only when the journal charges every item it publishes the same way. Costs not incurred during the period of performance can be charged during closeout, to the final budget period. | 2 CFR 200.461(b), PAPPG 24-1 Supplement 2 |
+| A cost after the end date is allowed only to pay a valid commitment made on or before the end date. Equipment or supplies ordered after the end date generally can't be charged. | PAPPG Chapter X.A.2, under the heading "Post-End Date Costs" |
+| Consultants are people who aren't officers or employees of the university, paid at a rate that's reasonable and can be justified | GC-1 Term and Condition No. 7, 2 CFR 200.459(a) |
+| Administrative and clerical salaries are charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with it, and the costs aren't also recovered as indirect costs | 2 CFR 200.413(c) |
+| Short-term visas can be charged. Long-term immigration visas can't. | 2 CFR 200.463(d) |
 
-Three more rules go to the agent because they need its reading of the documents:
+**Kinds of cost that aren't allowed.** Alcohol, promotional items, entertainment, donations, fines, fundraising, lobbying, goods for personal use, interest, country, social and dining club memberships, alumni activities, student activities, commencement and convocation, taxes the university could have been exempted from, renting property from people or entities affiliated with the university, costs moved from another award that ran over its funding, banned telecommunications equipment, and covered foreign drones. Pointers: 2 CFR 200 Subpart E (200.421 to 200.471), 2 CFR 200.216 for telecommunications, and PAPPG 24-1 Supplement 1, item 4, for drones, which aren't in 2 CFR 200.
 
-- **Purchases close to the end date.** NSF's policy guide says the university "typically should not" buy equipment or computers, or restock supplies, to use up funds when little or no time is left to use them (PAPPG Chapter X). It names no number of days and doesn't word it as unallowable, so code has no day count. The agent flags the charge.
-- **Participant support paid to project staff.** The definition of a participant excludes consultants, project personnel and university staff, and lists students as examples. It's worded with "generally" (2 CFR 200.1). The agent compares who was paid with the people named on the grant.
+- Some have a narrow exception in the source: entertainment with a specific programmatic purpose included in the award, fines that come from complying with the award or have NSF's prior written approval, fundraising for the program's objectives with NSF's prior written approval, interest to finance capital assets, and student activities the award expressly authorizes.
+- Membership in business, technical, professional, civic or community organizations is allowed. Membership in a lobbying organization falls under lobbying.
+- Gifts, t-shirts and memorabilia for participants aren't promotional items. They're participant support and need NSF's prior written approval (see [Approvals](#approvals)).
+
+Four more rules go to the agent because they need its reading of the documents. Each is a flag, not contradicts, except where the rule names a comparison:
+
+- **Purchases close to the end date.** NSF's policy guide says the university "typically should not" buy "equipment, computing devices, or restocking of materials and supplies" to use up funds when little or no time is left to use them (PAPPG Chapter X.A.2, "Post-End Date Costs"). It names no number of days and doesn't word it as unallowable, so code has no day count. The agent flags the charge.
+- **Participant support paid to project staff.** The definition of a participant excludes consultants, project personnel and university staff (2 CFR 200.1). The policy guide says participants or trainees "but not employees", and that speakers and trainers generally aren't participants (PAPPG Chapter II.D.2.f(v)). The agent compares who was paid with the people named on the grant, and flags a payment to a speaker or trainer.
 - **A late extension notice,** as above.
+- **Fringe benefits on stipends.** This comes from one NSF Office of Inspector General audit finding, not a written rule. It rests on that university's own rate agreement, which named salaries and wages as the fringe base, and the university disputed part of it. So the agent flags a fringe charge on a stipend for the accountant, and only when a rate term on the grant states its base. It isn't a kind of cost that isn't allowed.
 
-Two side notes from the same reading. The two-month limit on senior salary is a proposal-budget rule and doesn't bind after the award. The federal equipment threshold is $10,000 in 2 CFR 200.1, while the policy guide still prints $5,000.
+Two side notes from the same reading. The two-month limit on senior salary is a proposal-budget rule and doesn't bind after the award. The federal equipment threshold is $10,000 in 2 CFR 200.1, and the policy guide's Supplement 1, item 13, raised its own figure from $5,000 to $10,000 for awards made on or after December 8, 2025.
 
 ## Evidence a charge needs
 
@@ -153,7 +167,7 @@ Only the documents on the default checklists come into FundTrail for now, such a
   - extra participant items, such as gifts and t-shirts
 
   Equipment and foreign travel don't need NSF's approval. When the agent recognizes one of these on a charge, "NSF approval" goes on the charge's checklist, and a missing one is flagged right away.
-- **Who approves, and how.** Requests "must be submitted via Research.gov" (GC-1 Article 2.b). The university's authorized representative submits them (NSF's policy guide, Chapter VII). The Program Officer approves moving money out of participant support. A Grants Officer approves most other things.
+- **Who approves, and how.** Requests "must be submitted via Research.gov" (GC-1 Term and Condition No. 2.b). The university's authorized representative submits them (NSF's policy guide, Chapter VII). The Program Officer approves moving money out of participant support. A Grants Officer approves most other things.
 - **The approval channel.** An approval from the wrong person, through the wrong channel or after the cost is Possible conflict. One case is held back: an approval from the right NSF person that came by email, outside Research.gov, stays in Needs a human, because no source we read says whether it counts (see [Not decided yet](#not-decided-yet)). Only a Research.gov record reaches Evidence complete.
 - **Example: self-approval.** A professor approving their own charge is not a prior approval.
 
@@ -290,7 +304,7 @@ The supporting documents for every charge, kept for the retention period and han
 | Item | Who settles it |
 |---|---|
 | Whether a Program Officer's email, outside Research.gov, counts as approval. No source we read says either way. Until it's settled, such an approval stays in Needs a human. | product |
-| The exact federal list for the rulebook, above all the kinds of cost that are never allowed. About a dozen cost sections of 2 CFR 200 are unread. Each rule is checked against its source before it goes in. | builder (W1), discussed with Alex before building |
+| The exact federal list for the rulebook, above all the kinds of cost that aren't allowed. The rulebook's header lists the sources still unread. Each rule is checked against its source before it goes in. | builder (W1), discussed with Alex before building |
 | The exact table of which Berkeley account codes belong to which group, and each group's NSF budget category | builder (W2), discussed with Alex before building |
 | Whether Berkeley has moved its equipment and subaward thresholds from $5,000 and $25,000 to the federal $10,000 and $50,000 | builder (W2), verified before coding |
 | Berkeley's effort report timing under its new system, re-checked before building | builder (W2) |
@@ -306,6 +320,7 @@ The supporting documents for every charge, kept for the retention period and han
 - NSF Grant General Conditions (GC-1), and NSF's Prior Approval Matrix (October 1, 2024)
 - NSF PAPPG 24-1, Chapter II (the budget lines) and Chapter X (allowability of costs)
 - 2 CFR 200.1 and the cost principles in Subpart E: 200.403 to 200.406, 200.413, 200.421, 200.430, 200.461, 200.463 and 200.475
+- The [NSF rulebook](../backend/app/agent/rulebooks/nsf.md), which links the source of each rule it holds, including NSF GC-1 (July 31, 2026), PAPPG 24-1 Supplements 1 and 2, and the 2026 audit behind the fringe benefits flag
 - NSF Office of Inspector General audit reports, read in part: a 2022 summary of 18 audits, and two university audits from 2025 and 2026
 - Real NSF award notices and NSF's sample notices, read on Nov 10, 2026
 - Berkeley's public account list, and its pages on effort reporting, travel, subawards, participant support and cost principles

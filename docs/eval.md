@@ -40,7 +40,7 @@ Each new behavior gets a case, so the agent's handling of nuance is measured ins
 - an effort report for January to June that fills six months of salary lines
 - a trip that's part airfare receipt and part per diem at a rate
 - a charge posted to the wrong ledger account, such as a laptop under Participant Support Stipends
-- a real exception to a default, such as a stipend paid to one guest speaker
+- a stipend paid to one guest speaker from participant support: the agent suggests swapping the participant list for an honorarium letter, flags the charge, picks a budget line that disagrees with the ledger's account and adds a missing NSF approval, so the charge stays in Needs a human
 
 Suggested, not yet agreed:
 
