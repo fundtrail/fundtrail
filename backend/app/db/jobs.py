@@ -132,8 +132,19 @@ def agent_questions_open(questions: Sequence[OpenQuestion]) -> bool:
 
 
 def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
+    """What the run is given, read as one snapshot of the database, so the read point counts
+    exactly what the run is given: nothing that commits during the read can raise it past
+    something the run didn't get (call 40)."""
+    conn.execute("set transaction isolation level repeatable read")
     grant = store.get_grant(conn, run.grant_id)
     assert grant is not None
+    workspace = store.workspace_by_id(conn, grant.workspace_id)
+    if workspace.clock_now is None:
+        # A real-date workspace: the run works as of this snapshot's moment, so everything
+        # it's given, records written since it started included, counts as read by it.
+        clock_now = store.snapshot_now(conn)
+        store.set_run(conn, run.id, RunStatus.RUNNING, clock_now=clock_now)
+        run = run.model_copy(update={"clock_now": clock_now})
     thread = []
     if run.trigger.kind == TriggerKind.THREAD_MESSAGE and run.trigger.id:
         message = store.get_message(conn, run.trigger.id)

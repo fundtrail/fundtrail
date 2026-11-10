@@ -808,3 +808,48 @@ def test_a_receipt_uploaded_mid_run_doesnt_let_its_supports_count(
     unsure, supports = judgments[:2]
     assert state.is_waiting(supports.id)  # pyright: ignore[reportAttributeAccessIssue]
     assert state.is_current(unsure.id)  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_the_read_point_counts_only_what_the_run_was_given(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reviewer's hold: between reading the files and reading the records, a receipt is
+    uploaded and an accountant record written. The run reads one snapshot, so neither is
+    given to it, and its read point stays below both."""
+    from datetime import UTC, datetime
+
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    grant = _grant(platform)
+    real = store.list_files
+    held: list[int] = []
+
+    def hold(conn: object, grant_id: str, now: object) -> object:
+        files = real(conn, grant_id, now)  # pyright: ignore[reportArgumentType]
+        if not held:
+            held.append(1)
+            upload = actions.Upload("receipt.txt", "text/plain", b"Paid.")
+            actions.add_evidence(platform, grant, upload)
+            actions.add_record(
+                platform,
+                grant,
+                _user_id(platform, grant),
+                {"kind": "other_term", "label": "Note", "statement": {"value": "Look."}},
+                None,
+            )
+        return files
+
+    monkeypatch.setattr(store, "list_files", hold)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    first = agent.inputs[0]
+    assert [f.name for f in first.files] == ["invoice.txt"]
+    assert not any(r.kind == "other_term" for r in first.records)
+    with transaction(platform.pool) as conn:
+        receipt = next(
+            f
+            for f in real(conn, grant.id, datetime.max.replace(tzinfo=UTC))
+            if f.name == "receipt.txt"
+        )
+    assert first.run.read_through_seq is not None and receipt.stored_seq is not None
+    assert first.run.read_through_seq < receipt.stored_seq

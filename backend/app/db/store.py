@@ -626,3 +626,10 @@ def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:
         "update public.agent_runs set read_through_seq = %s where id = %s",
         (read_through_seq, run_id),
     )
+
+
+def snapshot_now(conn: Conn) -> datetime:
+    """The database's "now" for the current transaction: when its snapshot was taken."""
+    row = conn.execute("select now() as now").fetchone()
+    assert row is not None
+    return row["now"]
