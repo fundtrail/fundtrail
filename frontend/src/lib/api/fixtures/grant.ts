@@ -9,6 +9,7 @@
 
 import type { ApiClient } from "../client";
 import type { AgentRun, BudgetLine, ChargeRow, FtRecord, Grant, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, SignOff, TermView, Workspace } from "../types";
+import { SAMPLE_GRANT_SAMPLE } from "./samples";
 import { chargeStatusAt } from "./statuses";
 import {
   atNow,
@@ -47,7 +48,9 @@ function stateAt(record: FtRecord): RecordState {
 }
 
 export const sampleSummary: GrantSummary = {
-  grant: sample.grant,
+  // The fake marks the contract's sample grant as a sample grant (ruling 40), so its timeline panel shows.
+  grant: { ...sample.grant, clock_now: FAKE_NOW, sample: SAMPLE_GRANT_SAMPLE },
+  now: FAKE_NOW,
   end_date: "2026-01-31",
   charges_ready: 1,
   charges_total: 2,
@@ -180,10 +183,11 @@ const sampleRuns: AgentRun[] = [
 ];
 
 /** A grant just added, before the agent has read its award letter: no terms, charges or problems. */
-function newGrantDetail(grant: Grant): GrantDetail {
+export function newGrantDetail(grant: Grant): GrantDetail {
   return {
     summary: {
       grant,
+      now: grant.clock_now ?? FAKE_NOW,
       end_date: null,
       charges_ready: 0,
       charges_total: 0,

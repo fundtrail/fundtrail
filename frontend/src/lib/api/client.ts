@@ -20,6 +20,11 @@ import type {
   Thread,
   ThreadMessage,
   Workspace,
+  SampleCreate,
+  SampleOption,
+  SampleRefusal,
+  TimelineMove,
+  TimelineView,
 } from "./types";
 
 /**
@@ -66,6 +71,21 @@ export interface ApiClient {
    * this gathers the held-mail rows from each grant's problem list.
    */
   listHeldMail(workspaceId: Id): Promise<HeldMail[]>;
+
+  // Sample grants (ruling 40). Every timeline method is a 404 on a grant that isn't a sample.
+  /** The Sample dropdown's choices, in order. */
+  listSamples(): Promise<SampleOption[]>;
+  /** Opens a sample grant. A refusal (409) throws SampleRefusalError. */
+  createSample(workspaceId: Id, body: SampleCreate): Promise<GrantSummary>;
+  getTimeline(grantId: Id): Promise<TimelineView>;
+  /** No `to` plays to the next event. Forward only: earlier is a 409. */
+  moveTimeline(grantId: Id, move: TimelineMove): Promise<TimelineView>;
+  /** Starts the one grant over. A refusal (409) throws SampleRefusalError. */
+  startOver(grantId: Id): Promise<TimelineView>;
+  /** "Deliver for me": brings in an item the user was to deliver. */
+  deliverForMe(grantId: Id, eventId: Id): Promise<TimelineView>;
+  /** "Get the file": a short-lived link to an item the user was to deliver. */
+  deliveryFileUrl(grantId: Id, eventId: Id): Promise<FileLink>;
 }
 
 /** An error from the API, with FastAPI's `detail` when it sent one. A 422 from the write check carries its problems. */
@@ -83,6 +103,29 @@ export class ApiError extends Error {
     return this.status === 422 && Array.isArray(this.detail) && this.detail.every((d) => typeof d === "string")
       ? (this.detail as string[])
       : null;
+  }
+}
+
+/** A 409 refusing to open a sample or start one over, with the server's reason (ruling 41). */
+export class SampleRefusalError extends ApiError {
+  constructor(readonly refusal: SampleRefusal) {
+    super(409, refusal);
+    this.name = "SampleRefusalError";
+    this.message = refusal.message;
+  }
+}
+
+function isSampleRefusal(detail: unknown): detail is SampleRefusal {
+  return typeof detail === "object" && detail !== null && "reason" in detail && "message" in detail;
+}
+
+/** Turns a 409 carrying a SampleRefusal into a SampleRefusalError. */
+async function refusable<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409 && isSampleRefusal(error.detail)) throw new SampleRefusalError(error.detail);
+    throw error;
   }
 }
 
@@ -212,5 +255,26 @@ export class HttpApiClient implements ApiClient {
     const grants = await this.listGrants(workspaceId);
     const lists = await Promise.all(grants.map((g) => this.getProblemList(g.grant.id)));
     return lists.flatMap((list) => list.rows.flatMap((row) => (row.kind === "held_mail" ? [row.held] : [])));
+  }
+  listSamples() {
+    return this.get<SampleOption[]>("/samples");
+  }
+  createSample(workspaceId: Id, body: SampleCreate) {
+    return refusable(this.post<GrantSummary>(`/workspaces/${e(workspaceId)}/samples`, body));
+  }
+  getTimeline(grantId: Id) {
+    return this.get<TimelineView>(`/grants/${e(grantId)}/timeline`);
+  }
+  moveTimeline(grantId: Id, move: TimelineMove) {
+    return this.post<TimelineView>(`/grants/${e(grantId)}/timeline`, move);
+  }
+  startOver(grantId: Id) {
+    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline/start-over`, { confirmed: true }));
+  }
+  deliverForMe(grantId: Id, eventId: Id) {
+    return this.post<TimelineView>(`/grants/${e(grantId)}/timeline/deliveries/${e(eventId)}`);
+  }
+  deliveryFileUrl(grantId: Id, eventId: Id) {
+    return this.get<FileLink>(`/grants/${e(grantId)}/timeline/deliveries/${e(eventId)}/file`);
   }
 }
