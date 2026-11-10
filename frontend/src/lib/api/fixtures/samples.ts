@@ -88,10 +88,12 @@ interface TimelineState {
   stoppedOn: Id | null;
   /** The sample accountant's decisions in the last move, by the event they follow. */
   scripted: Map<Id, FtRecord[]>;
+  /** Items the sample accountant delivered for the user. */
+  byAccountant: Set<Id>;
 }
 
 function emptyState(at: IsoDatetime): TimelineState {
-  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null, scripted: new Map() };
+  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null, scripted: new Map(), byAccountant: new Set() };
 }
 
 /** A sample at the start of its timeline: its first event played. */
@@ -127,7 +129,12 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     .map((event) => ({ event, delivered: false, delivered_at: null }));
   const comingUp = events.filter((e) => !state.played.has(e.id));
   return {
-    just_happened: state.justHappened.map((id) => ({ ...played(byId.get(id)!), scripted_decisions: state.scripted.get(id) ?? [], loaded: false })),
+    just_happened: state.justHappened.map((id) => ({
+      ...played(byId.get(id)!),
+      scripted_decisions: state.scripted.get(id) ?? [],
+      loaded: false,
+      delivered_by_sample_accountant: state.byAccountant.has(id),
+    })),
     now: {
       now: state.now,
       stopped_on: state.stoppedOn ? byId.get(state.stoppedOn) ?? null : null,
@@ -155,12 +162,20 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
 
 /**
  * Skipping the human steps: as the clock passes them, the sample accountant
- * delivers what was the user's to deliver, and makes the sample's own
- * accountant decisions. Each decision is listed under the event it follows.
+ * delivers what was the user's to deliver, and each item it delivered is
+ * listed under Just happened, marked delivered_by_sample_accountant. The sample's own accountant decisions are listed
+ * under the event they follow.
+ *
+ * The fake only lists those decisions; it doesn't carry them out. It has no
+ * checks, so the grant's terms, problem list and records stay as they are.
  */
 function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: IsoDatetime) {
   for (const e of events) {
-    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) state.delivered.set(e.id, e.at);
+    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) {
+      state.delivered.set(e.id, e.at);
+      state.byAccountant.add(e.id);
+      if (!state.justHappened.includes(e.id)) state.justHappened.push(e.id);
+    }
   }
   const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
   for (const decision of decisions) {
@@ -169,6 +184,9 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
     if (!state.justHappened.includes(after.id)) state.justHappened.push(after.id);
     state.scripted.set(after.id, [...(state.scripted.get(after.id) ?? []), decision]);
   }
+  // In date order, as the server sends them.
+  const at = new Map(events.map((e) => [e.id, time(e.at)]));
+  state.justHappened.sort((a, b) => at.get(a)! - at.get(b)!);
 }
 
 function dataUrl(text: string, mediaType: string): string {
@@ -240,7 +258,11 @@ export function samplesFake(hooks: {
       if (!timeline) return notASample();
       const event = events.find((e) => e.id === eventId);
       if (!event || event.kind !== "user_delivery" || !timeline.state.played.has(eventId)) return served<TimelineView>(undefined);
-      if (!timeline.state.delivered.has(eventId)) timeline.state.delivered.set(eventId, timeline.state.now);
+      if (!timeline.state.delivered.has(eventId)) {
+        // The user's own delivery shows under Just happened too (ruling 44), untagged.
+        timeline.state.delivered.set(eventId, timeline.state.now);
+        if (!timeline.state.justHappened.includes(eventId)) timeline.state.justHappened.push(eventId);
+      }
       return show(grantId);
     },
     deliveryFileUrl: (grantId, eventId) => {

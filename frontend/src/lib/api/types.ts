@@ -828,6 +828,8 @@ export interface PlayedEvent {
   scripted_decisions?: FtRecord[];
   /** The result was loaded from the prerun, not worked live. */
   loaded?: boolean;
+  /** An item the user was to deliver, delivered for them by the sample accountant (ruling 52). */
+  delivered_by_sample_accountant?: boolean;
 }
 
 export interface UserDelivery {
