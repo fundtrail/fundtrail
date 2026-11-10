@@ -6,11 +6,11 @@
 
 import { useState, type ReactNode } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { PDF_OPTIONS } from "./pdfOptions";
 import styles from "./viewer.module.css";
 
 // react-pdf asks for the worker to be set in the module that renders it.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-
 export interface PdfPagesProps {
   url: string;
   /** Each page's width in CSS pixels. */
@@ -28,6 +28,7 @@ export default function PdfPages({ url, width, overlay, targetPage, onPageReady 
   return (
     <Document
       file={url}
+      options={PDF_OPTIONS}
       suspense={false}
       loading={<p className="ft-empty">Loading the file…</p>}
       error={<p className="ft-error">Couldn&apos;t open this PDF.</p>}
