@@ -1,14 +1,27 @@
 """Text clean-up and matching for cited passages. Pure Python, with no PDF library.
 
-The matching rule is provisional (set by the build coordinator, pending Alex):
+The rules are provisional. The build coordinator set the starting rule (exact after normalizing
+whitespace and line-end hyphens, anything looser is close, a value counts only if it appears
+exactly), and the main coordinator ruled on the details below. They're pending Alex and the eval.
 
-- **Exact** means equal after cleaning up both texts the same way: runs of whitespace become one
-  space, curly quotes become straight ones, the Unicode hyphen characters become "-", typographic
-  ligatures such as "fi" are spelled out, invisible zero-width characters are dropped, and a
-  hyphen that ends a line is optional. Dashes (en and em) are left alone.
-- **Close** is anything looser. Two steps, tried in order: the letters and digits alone match,
-  ignoring case, spaces and punctuation; or they match within a small number of edits.
-- A value counts as found only when it appears exactly (same clean-up) in the matched text.
+- **Exact** means equal after cleaning up both texts the same way:
+  - runs of whitespace become one space;
+  - a hyphen that ends a line is optional, unless it sits between two digits ("10-" then "20"),
+    where it's a real hyphen and is kept;
+  - curly quotes become straight ones, and two single quotes in a row become one double quote
+    (the Government Publishing Office prints a double quote that way);
+  - the Unicode hyphens U+2010 and U+2011 become "-", typographic ligatures such as "fi" are
+    spelled out, and zero-width characters are dropped;
+  - a soft hyphen (U+00AD) is an invisible hyphenation point and may be dropped;
+  - en and em dashes are left alone.
+- **Close** is anything looser, in two steps tried in order: the letters and digits alone match,
+  ignoring case, spaces and punctuation; or they match within CLOSE_MAX_EDIT_RATIO edits. A
+  passage needs CLOSE_MIN_CHARS letters and digits before either is tried. A close match still
+  confirms a value, so it has to be unable to hide a wrong number. Two guards (`close_span_ok`):
+  every run of digits in the passage appears in the matched text, in order, so edits only touch
+  letters; and the value itself appears exactly in the matched text.
+- **A value is found** only when it appears exactly in the matched text, and not as part of a
+  longer number or word: "450.00" isn't found in "$12,450.00".
 
 Every cleaned-up text keeps a map from each of its characters back to the character it came
 from, so a match can be turned back into a span of the original page text.
@@ -33,30 +46,31 @@ CLOSE_MAX_EDIT_RATIO = 0.1
 Provisional, pending the eval.
 """
 
-_SOFT_HYPHENS = frozenset({LINE_HYPHEN, "­", "￾"})
-_LINE_BREAKS = frozenset("\r\n\v\f\x85  ")
-_ZERO_WIDTH = frozenset({"​", "‌", "‍", "⁠", "﻿"})
+_SOFT_HYPHENS = frozenset({LINE_HYPHEN, "\u00ad", "\ufffe"})
+_LINE_BREAKS = frozenset("\r\n\v\f\x85\u2028\u2029")
+_ZERO_WIDTH = frozenset({"\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"})
 _REPLACEMENTS = {
-    "‐": "-",
-    "‑": "-",
-    "‘": "'",
-    "’": "'",
-    "‚": "'",
-    "‛": "'",
-    "′": "'",
-    "“": '"',
-    "”": '"',
-    "„": '"',
-    "‟": '"',
-    "″": '"',
-    "ﬀ": "ff",
-    "ﬁ": "fi",
-    "ﬂ": "fl",
-    "ﬃ": "ffi",
-    "ﬄ": "ffl",
-    "ﬅ": "st",
-    "ﬆ": "st",
+    "\u2010": "-",
+    "\u2011": "-",
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201a": "'",
+    "\u201b": "'",
+    "\u2032": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u201e": '"',
+    "\u201f": '"',
+    "\u2033": '"',
+    "\ufb00": "ff",
+    "\ufb01": "fi",
+    "\ufb02": "fl",
+    "\ufb03": "ffi",
+    "\ufb04": "ffl",
+    "\ufb05": "st",
+    "\ufb06": "st",
 }
+_NUMBER_SEPARATORS = frozenset(".,")
 
 
 @dataclass(frozen=True)
@@ -71,8 +85,9 @@ def clean(chars: Sequence[str]) -> CleanText:
     """Clean up a text, one source character at a time, keeping where each character came from.
 
     `chars` is a string or a sequence of one-character strings (one per pdfium character index).
-    A hyphen followed by a line break becomes LINE_HYPHEN and the break is dropped. Other runs of
-    whitespace become one space, and leading and trailing whitespace is dropped.
+    A hyphen followed by a line break becomes LINE_HYPHEN and the break is dropped, except between
+    two digits, where the hyphen stays "-". Other runs of whitespace become one space, and leading
+    and trailing whitespace is dropped.
     """
     out: list[str] = []
     origin: list[int] = []
@@ -87,14 +102,18 @@ def clean(chars: Sequence[str]) -> CleanText:
                 space_at = i
             space_has_break = space_has_break or ch in _LINE_BREAKS
             continue
+        after_digit = len(out) >= 2 and out[-2].isdigit()
         if space_at is not None and out:
             if out[-1] == "-" and space_has_break:
-                out[-1] = LINE_HYPHEN
+                if not (after_digit and ch.isdigit()):
+                    out[-1] = LINE_HYPHEN
             elif out[-1] != LINE_HYPHEN:
                 out.append(" ")
                 origin.append(space_at)
         space_at = None
         space_has_break = False
+        if out and out[-1] == LINE_HYPHEN and after_digit and ch.isdigit():
+            out[-1] = "-"
 
         if ch in _SOFT_HYPHENS:
             if not out or out[-1] != LINE_HYPHEN:
@@ -102,6 +121,9 @@ def clean(chars: Sequence[str]) -> CleanText:
                 origin.append(i)
             continue
         for piece in _REPLACEMENTS.get(ch, ch):
+            if piece == "'" and out and out[-1] == "'" and origin[-1] == i - 1:
+                out[-1] = '"'
+                continue
             out.append(piece)
             origin.append(i)
 
@@ -142,21 +164,57 @@ def _plain(ch: str) -> bool:
     return ch not in (" ", "-", LINE_HYPHEN)
 
 
-def find_exact(passage: str, page: CleanText) -> tuple[int, int] | None:
-    """Find `passage` exactly in a cleaned-up page text. Returns the span in `page.text`."""
+def find_exact(passage: str, page: CleanText) -> list[tuple[int, int]]:
+    """Every place `passage` appears exactly in a cleaned-up page text, as spans of `page.text`."""
     pattern = exact_pattern(passage)
     if pattern is None:
-        return None
-    found = pattern.search(page.text)
-    if found is None or found.end() == found.start():
-        return None
-    return found.start(), found.end()
+        return []
+    return [(m.start(), m.end()) for m in pattern.finditer(page.text) if m.end() > m.start()]
 
 
 def contains_exactly(value_text: str, text: str) -> bool:
-    """Whether a value appears exactly in a cleaned-up text, under the same clean-up."""
+    """Whether a value appears exactly in a cleaned-up text, under the same clean-up.
+
+    The value has to stand on its own: where its first or last character is a letter or digit,
+    the text beside it can't be a letter or digit, and a number can't go on through a separator
+    (so "450.00" isn't in "$12,450.00", and "$12,450" isn't in "$12,450.00").
+    """
     pattern = exact_pattern(value_text)
-    return pattern is not None and pattern.search(text) is not None
+    if pattern is None:
+        return False
+    pos = 0
+    while (found := pattern.search(text, pos)) is not None:
+        if found.end() > found.start() and _stands_alone(text, found.start(), found.end()):
+            return True
+        pos = found.start() + 1
+    return False
+
+
+def _stands_alone(text: str, start: int, end: int) -> bool:
+    first, last = text[start], text[end - 1]
+    if first.isalnum() and start > 0:
+        before = text[start - 1]
+        if before.isalnum():
+            return False
+        if (
+            first.isdigit()
+            and before in _NUMBER_SEPARATORS
+            and start > 1
+            and text[start - 2].isdigit()
+        ):
+            return False
+    if last.isalnum() and end < len(text):
+        after = text[end]
+        if after.isalnum():
+            return False
+        if (
+            last.isdigit()
+            and after in _NUMBER_SEPARATORS
+            and end + 1 < len(text)
+            and text[end + 1].isdigit()
+        ):
+            return False
+    return True
 
 
 def letters_and_digits(text: str) -> CleanText:
@@ -171,16 +229,21 @@ def letters_and_digits(text: str) -> CleanText:
     return CleanText("".join(out), tuple(origin))
 
 
-def find_letters_and_digits(passage: str, page: CleanText) -> tuple[int, int] | None:
-    """Find the passage's letters and digits, in order, among the page's. Span in `page.text`."""
+def find_letters_and_digits(passage: str, page: CleanText) -> list[tuple[int, int]]:
+    """Every place the passage's letters and digits appear, in order, among the page's.
+
+    Spans of `page.text`, not overlapping. Empty for a passage shorter than CLOSE_MIN_CHARS.
+    """
     q = letters_and_digits(clean(passage).text).text
     if len(q) < CLOSE_MIN_CHARS:
-        return None
+        return []
     p = letters_and_digits(page.text)
+    spans: list[tuple[int, int]] = []
     at = p.text.find(q)
-    if at < 0:
-        return None
-    return _widen(page.text, p.origin[at], p.origin[at + len(q) - 1] + 1)
+    while at >= 0:
+        spans.append(_widen(page.text, p.origin[at], p.origin[at + len(q) - 1] + 1))
+        at = p.text.find(q, at + len(q))
+    return spans
 
 
 def find_within_edits(passage: str, page: CleanText) -> tuple[tuple[int, int], int] | None:
@@ -202,6 +265,23 @@ def find_within_edits(passage: str, page: CleanText) -> tuple[tuple[int, int], i
     if edits > int(len(q) * CLOSE_MAX_EDIT_RATIO):
         return None
     return _widen(page.text, p.origin[start], p.origin[end - 1] + 1), edits
+
+
+def close_span_ok(passage: str, value_text: str | None, span_text: str) -> bool:
+    """The guards on a close match, so it can't hide a wrong number.
+
+    Every run of digits in the passage appears in the matched text, in order, and the value (when
+    there is one) appears exactly in the matched text.
+    """
+    if not _digits_in_order(clean(passage).text, span_text):
+        return False
+    return value_text is None or contains_exactly(value_text, span_text)
+
+
+def _digits_in_order(passage: str, span_text: str) -> bool:
+    wanted = re.findall(r"\d+", passage)
+    found = iter(re.findall(r"\d+", span_text.replace(LINE_HYPHEN, "")))
+    return all(any(run == have for have in found) for run in wanted)
 
 
 def _widen(text: str, start: int, end: int) -> tuple[int, int]:

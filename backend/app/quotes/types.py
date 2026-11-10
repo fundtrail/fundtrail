@@ -18,16 +18,34 @@ MatchMethod = Literal["exact", "letters_and_digits", "edit_distance"]
 
 @dataclass(frozen=True)
 class HighlightRect:
-    """One highlight box on a page, as fractions of the page from its top left corner.
+    """One highlight box, as fractions of its page from the page's top left corner.
 
     The page is the page as a viewer shows it: its crop box, turned by its own rotation. This
     is the same frame docs/contracts.md uses for an `image_box`.
     """
 
+    page_number: int
+    """Counted from 1."""
     left: float
     top: float
     right: float
     bottom: float
+
+
+@dataclass(frozen=True)
+class QuoteOccurrence:
+    """One place the passage was found. A passage across a page break has boxes on both pages."""
+
+    rects: tuple[HighlightRect, ...]
+    """One box per line of text, in reading order."""
+    matched_text: str
+    """The page's text for the matched span after clean-up, with line-end hyphens shown as "-".
+
+    Lossy: whitespace is collapsed and the clean-up's other changes are applied, so it's for the
+    value check and for reading, not a copy of the file's characters.
+    """
+    value_found: bool | None
+    """Whether the value appears exactly in this occurrence. None when no value was given."""
 
 
 @dataclass(frozen=True)
@@ -37,11 +55,18 @@ class PdfQuoteMatch:
     match: MatchKind
     method: MatchMethod | None
     """The step that found the passage, or None when it wasn't found."""
-    page_number: int | None
-    """The page it was found on, counted from 1. None when it wasn't found."""
-    rects: tuple[HighlightRect, ...]
-    """Where the highlight goes, one box per line of text. Empty when it wasn't found."""
-    matched_text: str | None
-    """The page's own text for the matched span, after clean-up. None when it wasn't found."""
+    occurrences: tuple[QuoteOccurrence, ...]
+    """Every place it was found, in page order. Empty when it wasn't found."""
     value_found: bool | None
-    """Whether the value appears exactly in the matched text. None when no value was given."""
+    """Whether the value appears exactly in a matched occurrence. None when no value was given."""
+
+    @property
+    def rects(self) -> tuple[HighlightRect, ...]:
+        """Every highlight box, across all occurrences."""
+        return tuple(rect for occurrence in self.occurrences for rect in occurrence.rects)
+
+    @property
+    def page_number(self) -> int | None:
+        """The page of the first box, or None when it wasn't found."""
+        rects = self.rects
+        return rects[0].page_number if rects else None

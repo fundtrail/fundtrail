@@ -8,10 +8,11 @@ one way of writing text into a PDF:
 
 - reportlab (a dev dependency): invoice_reportlab.pdf, letter_reportlab.pdf and
   hyphenated_reportlab.pdf.
-- Headless Google Chrome printing an HTML page, with automatic hyphenation and justified text:
-  memo_chrome.pdf. Needs Chrome installed; skipped otherwise.
-- The U.S. Government Publishing Office (GPO): ecfr_2cfr200.pdf, two printed pages of 2 CFR part
-  200 (2025 edition), public federal text, cut from these two govinfo files:
+- Headless Google Chrome printing an HTML (HyperText Markup Language) page, with automatic
+  hyphenation and justified text: memo_chrome.pdf. Needs Chrome installed; skipped otherwise.
+- The U.S. Government Publishing Office (GPO): ecfr_2cfr200.pdf, two printed pages of 2 CFR
+  (Code of Federal Regulations) part 200 (2025 edition), public federal text, cut from these two
+  govinfo files:
   https://www.govinfo.gov/content/pkg/CFR-2025-title2-vol1/pdf/CFR-2025-title2-vol1-sec200-403.pdf
   https://www.govinfo.gov/content/pkg/CFR-2025-title2-vol1/pdf/CFR-2025-title2-vol1-sec200-453.pdf
   Pass their local paths to rebuild it.

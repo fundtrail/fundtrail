@@ -7,9 +7,10 @@ from pathlib import Path
 import pypdfium2 as pdfium
 import pytest
 
+import app.quotes.pdf as pdf_module
 from app.quotes import PDFIUM_LOCK, UnreadablePdfError, find_pdf_quote
 from app.quotes.types import HighlightRect
-from tests.quotes.cases import CASES, HYPHENATED, INVOICE, Case
+from tests.quotes.cases import CASES, HYPHENATED, INVOICE, LETTER, Case
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -31,22 +32,28 @@ def test_case(case: Case) -> None:
     assert result.page_number == case.page
     assert result.value_found == case.value_found
     if case.expect == "not_found":
-        assert result.rects == ()
-        assert result.matched_text is None
-    else:
-        assert result.rects
-        assert result.matched_text
-        for rect in result.rects:
-            assert 0 <= rect.left < rect.right <= 1
-            assert 0 <= rect.top < rect.bottom <= 1
+        assert result.occurrences == ()
+        assert result.method is None
+        return
+    assert len(result.occurrences) == case.occurrences
+    for occurrence in result.occurrences:
+        assert occurrence.rects
+        assert occurrence.matched_text
+        assert occurrence.value_found == case.value_found
+    pages = sorted({rect.page_number for rect in result.rects})
+    assert pages == list(case.pages or (case.page,))
+    for rect in result.rects:
+        assert case.start_page <= rect.page_number < case.end_page
+        assert 0 <= rect.left < rect.right <= 1
+        assert 0 <= rect.top < rect.bottom <= 1
 
 
-def _ink(path: Path, page_number: int, rect: HighlightRect) -> float:
+def _ink(path: Path, rect: HighlightRect) -> float:
     """Share of dark pixels inside a box on the rendered page (rotation and crop applied)."""
     with PDFIUM_LOCK:
         doc = pdfium.PdfDocument(path)
         try:
-            page = doc[page_number - 1]
+            page = doc[rect.page_number - 1]
             bitmap = page.render(scale=2, grayscale=True)
             width, height, stride = bitmap.width, bitmap.height, bitmap.stride
             pixels = bytes(bitmap.buffer)
@@ -65,21 +72,59 @@ def _ink(path: Path, page_number: int, rect: HighlightRect) -> float:
 
 
 @pytest.mark.parametrize(
-    ("fixture", "passage", "start"),
+    ("fixture", "passage", "start", "end"),
     [
-        (INVOICE, "Total due: $12,450.00", 1),
-        (HYPHENATED, "an internal recharge rate approved by the university", 1),
-        (HYPHENATED, "the approved carryover amount is $4,200.00.", 2),
+        (INVOICE, "Total due: $12,450.00", 1, 2),
+        (HYPHENATED, "an internal recharge rate approved by the university", 1, 2),
+        (HYPHENATED, "the approved carryover amount is $4,200.00.", 2, 3),
+        (
+            LETTER,
+            "such as hours of use or the number of samples processed for each project during "
+            "the award period.",
+            1,
+            3,
+        ),
     ],
 )
-def test_highlight_covers_ink(fixture: str, passage: str, start: int) -> None:
-    """Each highlight box lands on printed text in the rendered page, including a rotated one."""
+def test_highlight_covers_ink(fixture: str, passage: str, start: int, end: int) -> None:
+    """Each box lands on printed text in the rendered page: rotated, and across a page break."""
     result = find_pdf_quote(
-        FIXTURES / fixture, passage, start_page_number=start, end_page_number=start + 1
+        FIXTURES / fixture, passage, start_page_number=start, end_page_number=end
     )
     assert result.page_number == start
     for rect in result.rects:
-        assert _ink(FIXTURES / fixture, start, rect) > 0.03, rect
+        assert _ink(FIXTURES / fixture, rect) > 0.03, rect
+
+
+def test_page_break_boxes_end_page_one_and_start_page_two() -> None:
+    result = find_pdf_quote(
+        FIXTURES / LETTER,
+        "such as hours of use or the number of samples processed for each project during the "
+        "award period.",
+        start_page_number=1,
+        end_page_number=3,
+    )
+    (occurrence,) = result.occurrences
+    on_one = [r for r in occurrence.rects if r.page_number == 1]
+    on_two = [r for r in occurrence.rects if r.page_number == 2]
+    assert on_one and on_two
+    assert on_one[-1].top > 0.8
+    assert on_two[0].top < 0.2
+    assert "processed for each project" in occurrence.matched_text
+
+
+def test_a_match_with_no_boxes_is_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When nothing can be placed on the page, the passage counts as not found."""
+    monkeypatch.setattr(pdf_module, "_rects", lambda *args: ())
+    result = find_pdf_quote(
+        FIXTURES / INVOICE,
+        "Total due: $12,450.00",
+        start_page_number=1,
+        end_page_number=2,
+        value_text="$12,450.00",
+    )
+    assert result.match == "not_found"
+    assert result.value_found is False
 
 
 def test_hyphenated_passage_gets_a_box_per_line() -> None:
@@ -113,7 +158,8 @@ def test_matched_text_shows_line_hyphens() -> None:
         start_page_number=1,
         end_page_number=2,
     )
-    assert result.matched_text == "Travel funds sup-port two trips"
+    (occurrence,) = result.occurrences
+    assert occurrence.matched_text == "Travel funds sup-port two trips"
 
 
 def test_bytes_and_path_agree() -> None:
@@ -128,6 +174,11 @@ def test_bytes_and_path_agree() -> None:
 def test_unreadable_file() -> None:
     with pytest.raises(UnreadablePdfError):
         find_pdf_quote(b"not a pdf", "anything", start_page_number=1, end_page_number=2)
+
+
+def test_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        find_pdf_quote(tmp_path / "missing.pdf", "anything", start_page_number=1, end_page_number=2)
 
 
 @pytest.mark.parametrize(("start", "end"), [(0, 1), (2, 2), (3, 1)])

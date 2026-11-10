@@ -1,7 +1,13 @@
 """Finding quotes in files and highlight positions (W1)."""
 
 from app.quotes.pdf import PDFIUM_LOCK, UnreadablePdfError, find_pdf_quote
-from app.quotes.types import HighlightRect, MatchKind, MatchMethod, PdfQuoteMatch
+from app.quotes.types import (
+    HighlightRect,
+    MatchKind,
+    MatchMethod,
+    PdfQuoteMatch,
+    QuoteOccurrence,
+)
 
 __all__ = [
     "PDFIUM_LOCK",
@@ -9,6 +15,7 @@ __all__ = [
     "MatchKind",
     "MatchMethod",
     "PdfQuoteMatch",
+    "QuoteOccurrence",
     "UnreadablePdfError",
     "find_pdf_quote",
 ]

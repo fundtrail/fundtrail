@@ -3,6 +3,9 @@
 Each passage is written the way a citation could quote it: usually the clean text, sometimes with
 the PDF's own line breaks, hyphens or quote marks, and a few with a misread to test close matches.
 Plain data with no imports, so a throwaway script can load it to compare with other libraries.
+
+Page ranges follow the Anthropic API (application programming interface): from 1, end exclusive.
+The federal pages are from 2 CFR (Code of Federal Regulations) part 200.
 """
 
 from typing import NamedTuple
@@ -20,6 +23,10 @@ class Case(NamedTuple):
     page: int | None
     value_found: bool | None
     note: str = ""
+    occurrences: int = 1
+    """How many places it's found (0 when not found)."""
+    pages: tuple[int, ...] = ()
+    """The pages its boxes are on, when that's more than the first page."""
 
 
 INVOICE = "invoice_reportlab.pdf"
@@ -110,6 +117,51 @@ CASES: list[Case] = [
         False,
         "not in the file",
     ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Benchtop centrifuge, 24-place rotor 1 $9,850.00 $9,580.00",
+        None,
+        "not_found",
+        None,
+        None,
+        "two digits swapped: within the edit limit, but digits must match exactly",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "TOTAL DUE: $12,450.00",
+        "$12,540.00",
+        "not_found",
+        None,
+        False,
+        "a close match whose value isn't in it is not found",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Total due: $12,450.00",
+        "450.00",
+        "exact",
+        1,
+        False,
+        "the value is only part of a longer number",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "billing@northfield-supply.example",
+        "billing@northfield-supply.example",
+        "exact",
+        1,
+        True,
+        "appears twice on the page",
+        occurrences=2,
+    ),
     # A two-page letter laid out by reportlab, justified, wrapping on its own.
     Case(
         LETTER,
@@ -149,7 +201,7 @@ CASES: list[Case] = [
         LETTER,
         1,
         3,
-        "recorded in the university’s property system within sixty days of receipt",
+        "recorded in the university\u2019s property system within sixty days of receipt",
         None,
         "exact",
         1,
@@ -173,10 +225,23 @@ CASES: list[Case] = [
         "such as hours of use or the number of samples processed for each project during the "
         "award period.",
         None,
+        "exact",
+        1,
+        None,
+        "runs across the page break, about half on each page; boxes on both pages",
+        pages=(1, 2),
+    ),
+    Case(
+        LETTER,
+        1,
+        2,
+        "such as hours of use or the number of samples processed for each project during the "
+        "award period.",
+        None,
         "not_found",
         None,
         None,
-        "runs across the page break, about half on each page",
+        "the same, but the citation names page 1 only",
     ),
     Case(
         LETTER,
@@ -186,10 +251,37 @@ CASES: list[Case] = [
         "was divided between the projects and the basis used for the division, such as hours "
         "of use or the number of samples processed",
         None,
-        "close",
+        "exact",
         1,
         None,
         "runs across the page break with one word on page 2",
+        pages=(1, 2),
+    ),
+    Case(
+        LETTER,
+        1,
+        2,
+        "Where an item is shared with another project, the record must also show how its cost "
+        "was divided between the projects and the basis used for the division, such as hours "
+        "of use or the number of samples processed",
+        None,
+        "close",
+        1,
+        None,
+        "the same, but the citation names page 1 only",
+    ),
+    Case(
+        LETTER,
+        1,
+        2,
+        "The project studies how soil microbes respond to seasonal drought across three field "
+        "sites.",
+        None,
+        "exact",
+        1,
+        None,
+        "the same sentence six times on the page: every one is highlighted",
+        occurrences=6,
     ),
     Case(
         LETTER,
@@ -463,8 +555,9 @@ CASES: list[Case] = [
         ECFR,
         1,
         2,
-        "(5) Property management and disposition requirements in §§200.310 through 200.316.",
-        "§§200.310",
+        "(5) Property management and disposition requirements in \u00a7\u00a7200.310 through "
+        "200.316.",
+        "\u00a7\u00a7200.310",
         "exact",
         1,
         True,
@@ -488,10 +581,10 @@ CASES: list[Case] = [
         3,
         'the common rule, "New Restrictions on Lobbying," published on February 26, 1990',
         "February 26, 1990",
-        "close",
+        "exact",
         2,
         True,
-        "GPO prints a double quote as two single quotes",
+        "the Government Publishing Office prints a double quote as two single quotes",
     ),
     Case(
         ECFR, 2, 3, "(c) Restrictions on nonprofit organizations and IHEs.", None, "exact", 2, None

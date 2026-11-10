@@ -1,20 +1,23 @@
-"""Find a cited passage on a PDF page with pypdfium2, and say where its highlight goes.
+"""Find a cited passage in a PDF with pypdfium2, and say where its highlight goes.
 
-The API's citation for a PDF gives the quoted passage and a page range, nothing finer
-(docs/architecture.md, "Quotes and highlights"). This module reads those pages' text, finds the
-passage by exact match first and then a close one (see `text_match`), and returns the highlight
-boxes on the page.
+The Anthropic API (application programming interface) cites a PDF by the quoted passage and a
+page range, nothing finer (docs/architecture.md, "Quotes and highlights"). This module reads the
+text of the pages in that range, joined in order, finds the passage by exact match first and then
+a close one (see `text_match`), and returns the highlight boxes for every place it was found. A
+passage that runs across a page break gets boxes on both pages.
 
 pdfium, the library under pypdfium2, isn't safe to call from several threads at once. Every
-pypdfium2 call in the backend has to run while holding `PDFIUM_LOCK`. In this module that holds
-by construction: the only place that touches pypdfium2 is `_read_and_match`, which opens the file,
-does all its work and closes every pdfium object before it lets the lock go, so no pdfium object
-outlives the lock or is closed later by the garbage collector on another thread.
+pypdfium2 call in the backend has to run while holding `PDFIUM_LOCK`, whichever module makes it.
+In this module that holds by construction: the only place that touches pypdfium2 is
+`_read_and_match`, which opens the file, does all its work and closes every pdfium object before
+it lets the lock go, so no pdfium object outlives the lock or is closed later by the garbage
+collector on another thread.
 """
 
 import ctypes
 import threading
-from collections.abc import Callable
+from bisect import bisect_right
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,18 +28,25 @@ from app.quotes.text_match import (
     LINE_HYPHEN,
     CleanText,
     clean,
+    close_span_ok,
     contains_exactly,
     find_exact,
     find_letters_and_digits,
     find_within_edits,
 )
-from app.quotes.types import HighlightRect, MatchMethod, PdfQuoteMatch
+from app.quotes.types import HighlightRect, MatchMethod, PdfQuoteMatch, QuoteOccurrence
 
 PDFIUM_LOCK = threading.Lock()
-"""Held around every pypdfium2 call in the process. Other modules that use pypdfium2 take it too."""
+"""Held around every pypdfium2 call in the process, by every module that uses pypdfium2.
+
+Not reentrant: code that holds it must not call `find_pdf_quote`, or it waits forever.
+"""
 
 _DEVICE_SIZE = 1_000_000
 """Size of the virtual device pdfium maps page points onto, so a box comes back as fractions."""
+
+_PAGE_BREAK = "\n"
+"""Put between pages when their text is joined, so the clean-up treats it as a line break."""
 
 
 class UnreadablePdfError(Exception):
@@ -44,11 +54,16 @@ class UnreadablePdfError(Exception):
 
 
 @dataclass(frozen=True)
-class _Found:
-    page_index: int
-    span: tuple[int, int]
-    method: MatchMethod
-    edits: int = 0
+class _Pages:
+    """The text of the pages in the range, joined, and where each page starts in it."""
+
+    numbers: tuple[int, ...]
+    """Page numbers, counted from 1."""
+    starts: tuple[int, ...]
+    """Where each page's first character sits in the joined characters."""
+    lengths: tuple[int, ...]
+    """How many characters pdfium reports on each page."""
+    text: CleanText
 
 
 def find_pdf_quote(
@@ -59,17 +74,20 @@ def find_pdf_quote(
     end_page_number: int,
     value_text: str | None = None,
 ) -> PdfQuoteMatch:
-    """Find a cited passage in a PDF's page range and return where the highlight goes.
+    """Find a cited passage in a PDF's page range and return where its highlights go.
 
     The page range uses the Anthropic API's `page_location` names and counting: pages count from
-    1, and `end_page_number` is exclusive. Pages past the end of the file are ignored.
+    1, and `end_page_number` is exclusive. Pages past the end of the file are ignored. The pages
+    in the range are searched as one text, so a passage across a page break is found; a citation
+    that names one page is searched on that page alone.
 
-    Tries an exact match on every page in the range first, then the close steps. A passage that
-    runs across a page break isn't joined up, so it's found only if a close match on one page
-    covers it. `value_text` is the cited value exactly as the document writes it; the result says
-    whether it appears exactly in the matched text.
+    Every place the passage appears is returned. An exact match wins; otherwise the close steps
+    run, and a close match counts only when it passes `close_span_ok` (its digits and the value
+    appear exactly). A match that can't be placed on the page (no boxes) counts as not found.
+    `value_text` is the cited value exactly as the document writes it.
 
-    Raises UnreadablePdfError when the file can't be opened, and ValueError for a bad range.
+    Raises FileNotFoundError for a path that doesn't exist, UnreadablePdfError when the file
+    can't be opened as a PDF, and ValueError for a bad range.
     """
     if start_page_number < 1 or end_page_number <= start_page_number:
         raise ValueError(f"bad page range: {start_page_number} to {end_page_number}")
@@ -85,67 +103,122 @@ def _read_and_match(
         doc = pdfium.PdfDocument(pdf)
     except pdfium.PdfiumError as error:
         raise UnreadablePdfError(str(error)) from error
+    method: MatchMethod | None = None
+    occurrences: list[QuoteOccurrence] = []
     try:
-        pages: list[CleanText] = []
-        for index in range(first, min(stop, len(doc))):
-            page = doc[index]
-            try:
-                textpage = page.get_textpage()
-                try:
-                    pages.append(clean(_page_chars(textpage)))
-                finally:
-                    textpage.close()
-            finally:
-                page.close()
+        pages = _read_pages(doc, range(first, min(stop, len(doc))))
+        found = _find(passage, pages.text, value_text)
+        if found is not None:
+            method, spans = found
+            rects = _rects_for_spans(doc, pages, spans)
+            for (start, end), boxes in zip(spans, rects, strict=True):
+                if not boxes:
+                    continue
+                matched = pages.text.text[start:end]
+                occurrences.append(
+                    QuoteOccurrence(
+                        rects=boxes,
+                        matched_text=matched.replace(LINE_HYPHEN, "-"),
+                        value_found=contains_exactly(value_text, matched) if value_text else None,
+                    )
+                )
+    finally:
+        doc.close()
 
-        found = _find(passage, pages)
-        if found is None:
-            return PdfQuoteMatch("not_found", None, None, (), None, False if value_text else None)
+    if method is None or not occurrences:
+        return PdfQuoteMatch("not_found", None, (), False if value_text else None)
+    return PdfQuoteMatch(
+        match="exact" if method == "exact" else "close",
+        method=method,
+        occurrences=tuple(occurrences),
+        value_found=any(o.value_found for o in occurrences) if value_text else None,
+    )
 
-        page_text = pages[found.page_index]
-        start, end = found.span
-        matched = page_text.text[start:end]
-        page = doc[first + found.page_index]
+
+def _read_pages(doc: pdfium.PdfDocument, indexes: range) -> _Pages:
+    chars: list[str] = []
+    starts: list[int] = []
+    lengths: list[int] = []
+    for index in indexes:
+        page = doc[index]
         try:
             textpage = page.get_textpage()
             try:
-                first_char = page_text.origin[start]
-                last_char = page_text.origin[end - 1]
-                rects = _rects(page, textpage, first_char, last_char)
+                page_chars = _page_chars(textpage)
             finally:
                 textpage.close()
         finally:
             page.close()
-    finally:
-        doc.close()
-
-    return PdfQuoteMatch(
-        match="exact" if found.method == "exact" else "close",
-        method=found.method,
-        page_number=first + found.page_index + 1,
-        rects=rects,
-        matched_text=matched.replace(LINE_HYPHEN, "-"),
-        value_found=contains_exactly(value_text, matched) if value_text else None,
-    )
+        starts.append(len(chars))
+        lengths.append(len(page_chars))
+        chars.extend(page_chars)
+        chars.append(_PAGE_BREAK)
+    numbers = tuple(index + 1 for index in indexes)
+    return _Pages(numbers, tuple(starts), tuple(lengths), clean(chars))
 
 
-def _find(passage: str, pages: list[CleanText]) -> _Found | None:
-    """Exact on any page wins, then letters and digits, then the fewest edits on any page."""
-    steps: list[tuple[MatchMethod, Callable[[str, CleanText], tuple[int, int] | None]]] = [
-        ("exact", find_exact),
-        ("letters_and_digits", find_letters_and_digits),
+def _find(
+    passage: str, text: CleanText, value_text: str | None
+) -> tuple[MatchMethod, list[tuple[int, int]]] | None:
+    """Exact first, then letters and digits, then the fewest edits. Close spans must pass guards."""
+    spans = find_exact(passage, text)
+    if spans:
+        return "exact", spans
+    spans = [
+        span
+        for span in find_letters_and_digits(passage, text)
+        if close_span_ok(passage, value_text, text.text[span[0] : span[1]])
     ]
-    for method, step in steps:
-        for index, page in enumerate(pages):
-            span = step(passage, page)
-            if span is not None:
-                return _Found(index, span, method)
-    best: _Found | None = None
-    for index, page in enumerate(pages):
-        result = find_within_edits(passage, page)
-        if result is not None and (best is None or result[1] < best.edits):
-            best = _Found(index, result[0], "edit_distance", result[1])
-    return best
+    if spans:
+        return "letters_and_digits", spans
+    within = find_within_edits(passage, text)
+    if within is not None:
+        span = within[0]
+        if close_span_ok(passage, value_text, text.text[span[0] : span[1]]):
+            return "edit_distance", [span]
+    return None
+
+
+def _rects_for_spans(
+    doc: pdfium.PdfDocument, pages: _Pages, spans: Sequence[tuple[int, int]]
+) -> list[tuple[HighlightRect, ...]]:
+    """The boxes for each span, on every page the span touches, opening each page once."""
+    # For each span, the character range it covers on each page: {page position: (first, last)}.
+    wanted: list[dict[int, tuple[int, int]]] = []
+    for start, end in spans:
+        first_char = pages.text.origin[start]
+        last_char = pages.text.origin[end - 1]
+        per_page: dict[int, tuple[int, int]] = {}
+        for pos in range(_page_at(pages, first_char), _page_at(pages, last_char) + 1):
+            page_start = pages.starts[pos]
+            local_first = max(first_char, page_start) - page_start
+            local_last = min(last_char, page_start + pages.lengths[pos] - 1) - page_start
+            if local_first <= local_last:
+                per_page[pos] = (local_first, local_last)
+        wanted.append(per_page)
+
+    boxes: list[list[HighlightRect]] = [[] for _ in spans]
+    for pos in sorted({pos for per_page in wanted for pos in per_page}):
+        page = doc[pages.numbers[pos] - 1]
+        try:
+            textpage = page.get_textpage()
+            try:
+                for i, per_page in enumerate(wanted):
+                    if pos in per_page:
+                        local_first, local_last = per_page[pos]
+                        boxes[i].extend(
+                            _rects(page, textpage, pages.numbers[pos], local_first, local_last)
+                        )
+            finally:
+                textpage.close()
+        finally:
+            page.close()
+    return [tuple(b) for b in boxes]
+
+
+def _page_at(pages: _Pages, char_index: int) -> int:
+    """The position in the range of the page a joined-character index falls on."""
+    return max(bisect_right(pages.starts, char_index) - 1, 0)
 
 
 def _page_chars(textpage: pdfium.PdfTextPage) -> list[str]:
@@ -155,7 +228,11 @@ def _page_chars(textpage: pdfium.PdfTextPage) -> list[str]:
 
 
 def _rects(
-    page: pdfium.PdfPage, textpage: pdfium.PdfTextPage, first_char: int, last_char: int
+    page: pdfium.PdfPage,
+    textpage: pdfium.PdfTextPage,
+    page_number: int,
+    first_char: int,
+    last_char: int,
 ) -> tuple[HighlightRect, ...]:
     """One box per line for a character span, as fractions of the page a viewer shows.
 
@@ -193,7 +270,7 @@ def _rects(
     for x_left, y_top, x_right, y_bottom in lines:
         x1, y1 = _to_fraction(page, x_left, y_top)
         x2, y2 = _to_fraction(page, x_right, y_bottom)
-        rect = HighlightRect(min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        rect = HighlightRect(page_number, min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
         if rect.right > rect.left and rect.bottom > rect.top:
             rects.append(rect)
     return tuple(rects)
