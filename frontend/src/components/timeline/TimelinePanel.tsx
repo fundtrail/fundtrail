@@ -46,6 +46,7 @@ function EventLine({ event }: { event: TimelineEvent }) {
     <>
       <span className="ft-num">{date(event.at)}</span>
       <span className="ft-strong">{event.name}</span>
+      {event.highlight && <span className="ft-tag ft-tl__highlight">Highlight: {event.highlight}</span>}
       <span className="ft-caption">
         {KIND_WORDS[event.kind]}
         {event.source && <> · {SOURCE_WORDS[event.source]}</>}
@@ -348,6 +349,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   }
 
   const view = timeline.data;
+  const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
   return (
     <section className="ft-panel ft-tl" aria-labelledby="tl-heading">
       <div className="ft-panel__head">
@@ -371,6 +373,15 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
             >
               Next event
+            </button>
+            {/* Ruling 58: straight to the next highlight, with the human steps skipped. */}
+            <button
+              type="button"
+              className="ft-btn ft-btn--sm"
+              disabled={busy || !nextHighlight}
+              onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+            >
+              Next highlight
             </button>
             <GoToDate
               now={view.now.now}
