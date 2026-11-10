@@ -104,6 +104,8 @@ def _unused_bill(
     view: GrantView, r: Record, now: datetime, total: int, target: int, ids: list[str]
 ) -> SubjectFinding | None:
     # Decision 0021 (provisional, shared costs) plugs in here.
+    # Reached only when the links are under the total with the same sign: links of
+    # the opposite sign are "over" (compare), so the amount left has the bill's sign.
     arrived = _arrived(view, r)
     if now < arrived + timedelta(days=MISSING_EVIDENCE_DAYS):
         return None
