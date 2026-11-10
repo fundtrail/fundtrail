@@ -37,20 +37,24 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 
 **Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is its date. From then it waits under the timeline's Now, with Get the file and Deliver for me, until the user delivers it. The clock never delivers it (ruling 44). The small sample marks three, dated 2026-11-18T17:00Z: `hardware_receipt.jpg`, `email_invoice_ESS-32410.eml` and `invoice_EES-7420.pdf`. The larger sample marks none.
 
-## The user actions and the two plays
+## The accountant script and the two plays
 
-`user_actions.json` is the script the answer key assumes: what a user who does everything expected does, and when. Confirming terms is always the user's decision, so it lives here and never in a timeline.
+`user_actions.json` is the answer key's accountant script (ruling 47): every accountant step the key assumes, and no more, each with its time. When the user skips the human steps, the workspace's sample accountant performs these as the clock passes each one. A scripted step whose target isn't there, because the live agent did otherwise, is left for the user. Confirming terms is always a person's decision, so it lives here and never in a timeline.
 
-| Action | What it does | In the samples |
+Each step names its target by stable references: a ledger line ID, a file name, a record kind, and the expected decision or values. It never uses a record ID.
+
+| Action | Fields besides `at` and an optional `note` | In the samples |
 |---|---|---|
-| `confirm_terms` | Confirms every term read from a file | The award letter, in both samples |
-| `deliver_file` | Brings in a file marked for the user, by upload, so its date stays as written | The small sample's three marked files, each on its date |
+| `confirm_terms` | `file` | The award letter, in both samples |
+| `deliver_file` | `file`, a file marked for the user, delivered by upload on or after its date, so its date stays as written | The small sample's three marked files, each on its date |
+| `decide_suggestion` | `suggestion` (the record kind suggested, such as `checklist_removal`, `dispute`, `duplicate` or `link`), `decision` (`accept` or `reject`), and a `line_id` or a `file` | None: neither key rests on one |
+| `answer_flag` | `line_id`, `answer` | None: neither key expects a flag |
+| `enter_share` | `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021) | None: the larger sample's key expects S3c to stay Needs a human |
 
 Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 
 - **Doing nothing.** No user action. Every scheduled event plays through to the end without an error. Charges are expected to wait, so no bucket is asserted.
-- **Doing everything expected.** Every action in `user_actions.json`, at its time. Then the key's buckets hold at the key's times. A checks-only version runs in CI, on hand-written agent records (`agent_records.json`, a later step). The live-agent version runs on demand, like the eval.
-
+- **Doing everything expected.** Every scripted step, at its time. Then the key's buckets hold at the key's times. A checks-only version runs in CI, on hand-written agent records (`agent_records.json`, a later step). The live-agent version runs on demand, like the eval.
 
 ## The seed grants
 
@@ -119,4 +123,4 @@ python3 data/test_seed.py
 
 The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, and only a marked file delivered, on or after its date), and that `sample.json` agrees with the timeline and the key. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.

@@ -50,7 +50,22 @@ META_FILES = {
     "README.md",
 }
 TIMELINE_KINDS = {"file", "ledger", "ledger_line"}
-USER_ACTIONS = {"confirm_terms", "deliver_file"}
+# The accountant script (ruling 47): each action's required and optional fields,
+# besides `at`, `action` and an optional `note`. References are stable (a ledger
+# line ID, a file name, a record kind) and never record IDs.
+ACTION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
+    "confirm_terms": ({"file"}, set()),
+    "deliver_file": ({"file"}, set()),
+    # suggestion: the record kind suggested, such as checklist_removal, dispute,
+    # duplicate or link. decision: accept or reject.
+    "decide_suggestion": ({"suggestion", "decision"}, {"line_id", "file"}),
+    # The accountant's answer to the agent's flag on a charge.
+    "answer_flag": ({"line_id", "answer"}, set()),
+    # A share and its basis typed for part of a bill (decision 0021).
+    "enter_share": ({"line_id", "file", "share", "out_of", "basis"}, set()),
+}
+USER_ACTIONS = set(ACTION_FIELDS)
+DECISIONS = {"accept", "reject"}
 # SampleChoice, as issue 165 settles it. When the contract code has the enum,
 # test_sample_choices_match_the_contract reads it and compares.
 SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
@@ -341,14 +356,32 @@ def check_timeline(
 
     for i, a in enumerate(actions["actions"]):
         where = f"user_actions.json actions[{i}]"
-        if set(a) - {"at", "action", "file", "note"} or not ev.ISO_TIME.match(str(a.get("at"))):
-            problems.append(f"{where}: needs at, action and file, and may have a note")
+        if a.get("action") not in USER_ACTIONS or not ev.ISO_TIME.match(str(a.get("at"))):
+            problems.append(f"{where}: needs at and an action in {sorted(USER_ACTIONS)}")
             continue
-        if a.get("action") not in USER_ACTIONS:
-            problems.append(f"{where}: action must be one of {sorted(USER_ACTIONS)}")
+        required, optional = ACTION_FIELDS[a["action"]]
+        given = set(a) - {"at", "action", "note"}
+        if not required <= given or given - required - optional:
+            problems.append(
+                f"{where}: {a['action']} takes {sorted(required)}, and may take {sorted(optional)}"
+            )
             continue
+        if a["action"] == "decide_suggestion" and (
+            a["decision"] not in DECISIONS or not ({"line_id", "file"} & given)
+        ):
+            problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+        if a["action"] == "answer_flag" and a["answer"] not in ev.ANSWERS:
+            problems.append(f"{where}: answer must be one of {sorted(ev.ANSWERS)}")
         t = ev.parse_time(a["at"])
-        out[f"{a['action']}:{a['file']}"] = t
+        out[f"{a['action']}:{a.get('line_id') or a.get('file')}"] = t
+        if a["action"] == "answer_flag":
+            out[f"answer_flag_value:{a['line_id']}"] = a["answer"]  # type: ignore[assignment]
+        if a["action"] == "enter_share":
+            out[f"enter_share_value:{a['line_id']}"] = (  # type: ignore[assignment]
+                a["file"],
+                int(a["share"]),
+                int(a["out_of"]),
+            )
         if a["action"] == "deliver_file":
             # A file marked for the user arrives when the user brings it in.
             out[f"file:{a['file']}"] = t
@@ -702,6 +735,15 @@ def check_invariants(
                 continue
             if amount in items[name] or used[name] == totals[name]:
                 continue
+            typed = arrivals.get(f"enter_share_value:{lid}")
+            if typed and typed[0] == name:  # type: ignore[index]
+                _, share, out_of = typed  # type: ignore[misc]
+                want = totals[name] * share / out_of
+                if abs(amount - want) > 1:
+                    problems.append(
+                        f"links {lid}: {amount} cents isn't the scripted share {share} of "
+                        f"{out_of} of {name}'s {totals[name]} cents ({want:.2f})"
+                    )
             if not notes:
                 unbased.add(lid)
                 continue
@@ -723,6 +765,15 @@ def check_invariants(
     }
     assigned = {b["line_id"]: b["budget_line"] for b in key["budget_lines"]}
     doubtful = {a["line_id"] for a in key["answers"] if a["answer"] != "supports"}
+    flagged_only = {
+        lid
+        for lid in doubtful
+        if all(
+            a["question"] == "flag"
+            for a in key["answers"]
+            if a["line_id"] == lid and a["answer"] != "supports"
+        )
+    }
     for item in key["buckets"]:
         if item["bucket"] != "evidence_complete":
             continue
@@ -732,11 +783,19 @@ def check_invariants(
         start, end = period_in_force(key, arrivals, when)
         if start is None or end is None or not start <= cost <= end:
             problems.append(f"{where}: complete, but {cost} is outside the period in force")
-        if lid in doubtful:
+        answered = arrivals.get(f"answer_flag:{lid}")
+        cleared = (
+            lid in flagged_only
+            and answered is not None
+            and answered < when
+            and arrivals.get(f"answer_flag_value:{lid}") == "supports"
+        )
+        if lid in doubtful and not cleared:
             problems.append(f"{where}: complete, but an answer isn't supports")
         if not links_by_line.get(lid):
             problems.append(f"{where}: complete with nothing linked")
-        if lid in unbased:
+        shared = arrivals.get(f"enter_share:{lid}")
+        if lid in unbased and (shared is None or shared >= when):
             problems.append(f"{where}: complete on part of a bill with no basis (0021)")
         account = account_categories(lines[lid]["account"])
         category = line_category.get(assigned.get(lid, ""))
@@ -847,16 +906,41 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
       it in, before the action.
     - deliver_file: the file is marked for the user, and the user brings it in
       on or after its date (ruling 44: the clock never delivers it).
+    - Any action about a ledger line comes after the line arrives, and any
+      action about a file after the file arrives.
+    - answer_flag answers a flag the key expects on that line; enter_share is
+      for a part of a bill the key links to that line.
     """
     events = load(folder, "timeline.json")["events"]
     scheduled = {e["file"]: e for e in events if e.get("kind") == "file"}
     actions = load(folder, "user_actions.json")["actions"]
+    key = load(folder, "answer_key.json")
     delivered = {
         a["file"]: ev.parse_time(a["at"]) for a in actions if a["action"] == "deliver_file"
     }
+    ledger_at = next((ev.parse_time(e["at"]) for e in events if e["kind"] == "ledger"), None)
+    line_at = {}
+    with (folder / "ledger.csv").open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            posting = ev.parse_time(f"{row['posting_date']}T00:00:00Z")
+            line_at[row["line_id"]] = max(posting, ledger_at) if ledger_at else posting
     for a in actions:
-        where = f"{folder.name}: user action {a['action']} {a['file']}"
+        where = f"{folder.name}: user action {a['action']} {a.get('line_id') or a.get('file')}"
         at = ev.parse_time(a["at"])
+        lid = a.get("line_id")
+        if lid is not None and (lid not in line_at or at <= line_at[lid]):
+            problems.append(f"{where}: comes before its ledger line arrives")
+        if a["action"] == "answer_flag" and not any(
+            x["line_id"] == lid and x["question"] == "flag" for x in key["answers"]
+        ):
+            problems.append(f"{where}: the key expects no flag on this line to answer")
+        if a["action"] == "enter_share" and not any(
+            x["line_id"] == lid and x["file"] == a["file"] and "amount_cents" in x
+            for x in key["links"]
+        ):
+            problems.append(f"{where}: the key links no part of this bill to the line")
+        if "file" not in a:
+            continue
         event = scheduled.get(a["file"])
         if event is None:
             problems.append(f"{where}: its file isn't on the timeline")
@@ -1000,6 +1084,67 @@ def test_a_user_decision_in_a_timeline_fails() -> None:
     assert any("comes before the file's date" in p for p in problems), problems
 
 
+def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
+    """S3c (no basis on file) marked complete fails without the accountant's typed
+    share in the script, passes with a share that works out to the link, and
+    fails with one that doesn't. A scripted action must also be possible at its
+    time."""
+    import shutil
+    import tempfile
+
+    folder = LARGER
+    g = gen()[folder]
+    problems: list[str] = []
+    lines, arrivals, text = folder_inputs(folder, g, problems)
+    assert not problems, problems
+    key = load(folder, "answer_key.json")
+    s3c = next(lid for lid, row in lines.items() if row["reference"] == "ECX-7702")
+    for b in key["buckets"]:
+        if b["line_id"] == s3c:
+            b["bucket"] = "evidence_complete"
+            b["at"] = "2026-03-20T12:00:00Z"
+
+    def run(share: tuple[str, int, int] | None) -> list[str]:
+        scripted = dict(arrivals)
+        if share:
+            scripted[f"enter_share:{s3c}"] = ev.parse_time("2026-03-12T17:00:00Z")
+            scripted[f"enter_share_value:{s3c}"] = share  # type: ignore[assignment]
+        out: list[str] = []
+        check_invariants(key, lines, scripted, text, out)
+        return out
+
+    assert any("no basis" in p for p in run(None))
+    assert not run(("invoice_ECX-7702.txt", 3, 5)), run(("invoice_ECX-7702.txt", 3, 5))
+    assert any("scripted share" in p for p in run(("invoice_ECX-7702.txt", 1, 2)))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / folder.name
+        shutil.copytree(folder, copy)
+        actions = load(copy, "user_actions.json")
+        actions["actions"] += [
+            {
+                "at": "2026-03-09T12:00:00Z",
+                "action": "enter_share",
+                "line_id": s3c,
+                "file": "invoice_ECX-7702.txt",
+                "share": "3",
+                "out_of": "5",
+                "basis": "Three fifths of the shared dewar's nitrogen",
+            },
+            {
+                "at": "2026-03-12T12:00:00Z",
+                "action": "answer_flag",
+                "line_id": s3c,
+                "answer": "supports",
+            },
+        ]
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        found: list[str] = []
+        check_user_actions(copy, found)
+    assert any("before its ledger line arrives" in p for p in found), found
+    assert any("no flag on this line" in p for p in found), found
+
+
 def test_larger_sample() -> None:
     """The larger sample reaches closeout: its timeline starts with its award
     letter and runs past the start of its 90-day closeout window."""
@@ -1040,6 +1185,7 @@ if __name__ == "__main__":
         test_samples_follow_the_rule,
         test_sample_choices_match_the_contract,
         test_a_user_decision_in_a_timeline_fails,
+        test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action,
         test_larger_sample,
         test_small_sample,
         test_line_ids_are_unique,
