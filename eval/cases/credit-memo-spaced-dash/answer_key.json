@@ -16,6 +16,7 @@
   ],
   "links": [
     {"file": "invoice_20417.txt", "line_id": "L-8101", "amount_cents": 120000},
+    {"file": "credit_memo_20417.eml", "line_id": "L-8101", "amount_cents": -45000},
     {"file": "invoice_20388.txt", "line_id": "L-8102", "amount_cents": 45000}
   ],
   "budget_lines": [
@@ -28,6 +29,7 @@
   ],
   "buckets": [
     {"line_id": "L-8101", "at": "2026-03-09T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-8101", "at": "2026-03-24T12:00:00Z", "bucket": "missing_evidence"},
     {"line_id": "L-8102", "at": "2026-03-11T12:00:00Z", "bucket": "missing_evidence"},
     {"line_id": "L-8102", "at": "2026-03-24T12:00:00Z", "bucket": "missing_evidence"},
     {"line_id": "L-8102", "at": "2026-04-08T19:00:00Z", "bucket": "evidence_complete"}

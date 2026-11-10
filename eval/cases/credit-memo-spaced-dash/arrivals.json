@@ -6,7 +6,7 @@
     {"at": "2026-03-04T18:00:00Z", "kind": "file", "file": "invoice_20417.txt", "source": "upload", "note": "The invoice for eight sieves, $1,200.00."},
     {"at": "2026-03-09T00:00:00Z", "kind": "ledger_line", "line_id": "L-8101"},
     {"at": "2026-03-11T00:00:00Z", "kind": "ledger_line", "line_id": "L-8102", "note": "A $450.00 purchase whose invoice hasn't reached FundTrail yet."},
-    {"at": "2026-03-23T17:12:00Z", "kind": "file", "file": "credit_memo_20417.eml", "source": "gmail", "sender": "reese.mockup@university.example", "note": "The trap: a credit memo written \"- $450.00\", the same amount as the purchase on L-8102, which still has no bill. It's a credit, so it supports no charge."},
+    {"at": "2026-03-23T17:12:00Z", "kind": "file", "file": "credit_memo_20417.eml", "source": "gmail", "sender": "reese.mockup@university.example", "note": "The trap: a credit memo written \"- $450.00\", the same amount as the purchase on L-8102, which still has no bill. It credits INV-20417, so it belongs on L-8101 at -$450.00, and never on L-8102."},
     {"at": "2026-04-08T18:00:00Z", "kind": "file", "file": "invoice_20388.txt", "source": "upload", "note": "The vendor resends L-8102's own invoice."}
   ]
 }
