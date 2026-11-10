@@ -80,13 +80,14 @@ Travel, meal and hotel costs of university employees who are not on travel statu
 
 ### NSF-PUBLICATION-FEES
 
-Page charges, article processing charges and open access fees are allowed only when the publication reports work the federal award supported and the journal charges them on every item it publishes, federally funded or not. Publication costs not incurred during the period of performance may be charged during closeout, to the final budget period.
+Page charges, article processing charges and open access fees are allowed only when the publication reports work the federal award supported and the journal charges them on every item it publishes, federally funded or not. Publication costs not incurred during the period of performance may be charged during closeout, to the final budget period. Under the older 2 CFR wording, 200.461(b) names only page charges for professional journal publications, under the same two conditions; article processing charges and open access fees aren't named there.
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.461(b)](https://www.ecfr.gov/current/title-2/part-200/section-200.461#p-200.461(b))
 - Source: [NSF PAPPG 24-1, Chapter X.A.2.c, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
 - Source: [NSF PAPPG 24-1, Supplement 2 (NSF 26-202), item 1, revising Chapter XI.D.2.c](https://www.nsf.gov/policies/document/pappg24-1-supplement-2)
 - Older source: [2 CFR 200.461(b) as in force on September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.461)
+- Older answer: from the governing wording
 - Quote: "Special fees for the purpose of making published versions of record (VORs) publicly accessible are allowable costs but such payments are not required for deposits of AAMs in PAR." (PAPPG 24-1 Supplement 2)
 - Quote: "Page charges for professional journal publications are allowable where:" (2 CFR 200.461(b), edition in force on September 30, 2024)
 - Checked: 2026-11-10
@@ -308,12 +309,13 @@ The university typically should not buy equipment or computing devices, or resto
 
 ### NSF-PARTICIPANT-NOT-STAFF
 
-Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports.
+Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports. Under the older 2 CFR wording, which has no definition of Participant, participant support is for "participants or trainees (but not employees)" in connection with conferences or training projects.
 
 - Kind: judgment
 - Source: [2 CFR 200.1, definitions of Participant and Participant support costs](https://www.ecfr.gov/current/title-2/part-200/section-200.1)
 - Source: [NSF PAPPG 24-1, Chapter II.D.2.f(v)](https://www.nsf.gov/policies/pappg/24-1/ch-2-proposal-preparation)
 - Older source: [2 CFR 200.1, Participant support costs, as in force on September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.1)
+- Older answer: from the governing wording
 - Quote: "Individuals committing effort to the development or delivery of program activities under a Federal award (such as consultants, project personnel, or staff members of a recipient or subrecipient) are not participants." (2 CFR 200.1)
 - Quote: "Participant support costs means direct costs for items such as stipends or subsistence allowances, travel allowances, and registration fees paid to or on behalf of participants or trainees (but not employees) in connection with conferences, or training projects." (2 CFR 200.1, edition in force on September 30, 2024, which has no definition of Participant)
 - Checked: 2026-11-10
