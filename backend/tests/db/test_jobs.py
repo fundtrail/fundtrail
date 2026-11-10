@@ -244,3 +244,58 @@ def test_charges_that_arrive_together_share_a_run_in_batches(platform: Platform)
     covered = [i.charge_ids for i in agent.inputs if i.run.trigger.kind == TriggerKind.CHARGE]
     assert sorted(len(c) for c in covered) == [5, 25]
     assert len({c for batch in covered for c in batch}) == 30
+
+
+class _RunFailed(Exception):
+    """Shaped like the agent's AgentRunFailed."""
+
+    def __init__(self, error: str, retryable: bool, log: bytes):
+        super().__init__(error)
+        self.retryable = retryable
+        self.log = log
+
+
+def test_a_failure_that_cant_be_retried_fails_at_once_and_keeps_its_log(
+    platform: Platform,  # noqa: F811
+) -> None:
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        raise _RunFailed("refused", retryable=False, log=b'{"turns": 3}')
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    assert len(agent.inputs) == 1
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.FAILED and run.error and "refused" in run.error
+    storage = platform.storage
+    assert isinstance(storage, FakeStorage)
+    assert storage.objects[log_path(run)] == (b'{"turns": 3}', "application/json")
+
+
+def test_questions_a_thread_run_left_open_get_an_ordinary_run(
+    platform: Platform,  # noqa: F811
+) -> None:
+    from app.contracts.checks import OpenQuestion
+    from app.contracts.records import Question
+
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    calls: list[TriggerKind] = []
+
+    def behave(i: AgentInput) -> AgentResult:
+        calls.append(i.run.trigger.kind)
+        if len(calls) == 1:
+            question = OpenQuestion(
+                charge_id="c-1", question=Question.ALLOWABLE, answer_by=Author.AGENT
+            )
+            return AgentResult(other_open_questions=[question])
+        return AgentResult()
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    assert calls == [TriggerKind.FILE, TriggerKind.FILE]
+    assert [r.status for r in _runs(platform, grant)] == [RunStatus.DONE, RunStatus.DONE]

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.contracts.charges import Charge
-from app.contracts.checks import ChecksInput, ChecksOutput
+from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import BudgetCategory, DefaultItem, Record
 from app.contracts.runs import AgentRun
@@ -95,11 +95,16 @@ class AgentResult:
     summary: str | None = None
     # The run's debug log (JSON), stored in private storage. Never shown to the accountant.
     log: bytes | None = None
+    # For a thread run: open questions for the agent its gate left, outside the thread's
+    # charge or record. The platform queues an ordinary run for them.
+    other_open_questions: list[OpenQuestion] = field(default_factory=list[OpenQuestion])
 
 
 class Agent(Protocol):
     def run(self, agent_input: AgentInput, /) -> AgentResult:
-        """Do one run. Raise to fail it: nothing is saved, and the platform retries it."""
+        """Do one run. Raise to fail it: nothing is saved. The platform retries it unless
+        the exception has `retryable` False, and stores the exception's `log` bytes if any
+        (the agent's AgentRunFailed carries both)."""
         ...
 
 
