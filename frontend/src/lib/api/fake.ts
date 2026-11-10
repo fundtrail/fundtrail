@@ -3,8 +3,9 @@ import { chargeFake } from "./fixtures/charge";
 import { clockFake } from "./fixtures/clock";
 import { closeoutFake } from "./fixtures/closeout";
 import { evidenceFake } from "./fixtures/evidence";
-import { grantFake } from "./fixtures/grant";
+import { grantFake, newGrantDetail, sampleSummary } from "./fixtures/grant";
 import { mailFake } from "./fixtures/mail";
+import { samplesFake } from "./fixtures/samples";
 import { setupFake } from "./fixtures/setup";
 import { threadFake } from "./fixtures/thread";
 
@@ -32,5 +33,6 @@ export function createFakeApiClient(): ApiClient {
     },
     ...mailFake(),
     ...closeoutFake(),
+    ...samplesFake({ addGrant, summaryOf: (grant) => newGrantDetail(grant).summary, problemRows: sampleSummary.on_problem_list }),
   };
 }

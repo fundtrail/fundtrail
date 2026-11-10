@@ -268,8 +268,14 @@ def _notice_budget(category: BudgetCategory, members: list[Record], typed: bool 
 
     In a group of typed lines (grouped by date because nothing ties them to a notice),
     each typed parent line may be a different notice's, so every parent counts (#104).
-    Counting them all can only raise the budget, so it can miss a note but never give
-    a false one.
+    Counting them all can only raise the budget, so this rule can miss a note but
+    doesn't make a false one. Two false notes are still possible, both because nothing
+    ties a typed line to its notice (#104):
+    - an increment's typed sub-line that shares the award letter's date joins the
+      letter (see _notice_keys), and its amount drops out;
+    - in a group of typed lines, one notice's typed parent and another notice's typed
+      sub-line with the same date: the sub-line drops out, because a group with a
+      parent counts only parents.
     """
     parents = [
         r for r in members if isinstance(r.data, BudgetLine) and _is_parent(category, r.data)
@@ -313,6 +319,11 @@ class CategoryFigure:
 class BudgetFigures:
     lines: tuple[LineFigure, ...]
     categories: tuple[CategoryFigure, ...]
+    # The award's limit: the Total Amount Obligated to Date on the latest confirmed
+    # notice that prints one, and that notice. None when no confirmed notice prints one.
+    limit_cents: int | None
+    limit_notice_id: str | None
+    spent_cents: int  # the sum of every charge on the grant's ledger, as the limit compares
 
 
 def _figures(view: GrantView) -> BudgetFigures:
@@ -361,7 +372,14 @@ def _figures(view: GrantView) -> BudgetFigures:
         )
         for category, amount in budget.items()
     )
-    return BudgetFigures(lines=tuple(line_figures), categories=category_figures)
+    limit = _limit(view)
+    return BudgetFigures(
+        lines=tuple(line_figures),
+        categories=category_figures,
+        limit_cents=limit[0] if limit is not None else None,
+        limit_notice_id=limit[1].id if limit is not None else None,
+        spent_cents=sum(c.amount_cents for c in view.charges),
+    )
 
 
 def budget_figures(
