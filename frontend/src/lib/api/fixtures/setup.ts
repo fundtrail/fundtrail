@@ -8,35 +8,11 @@
 // the charges list.
 
 import type { ApiClient } from "../client";
-import type { Grant, LedgerUploadResult, ReusableNoteView, RowError, TermView } from "../types";
-import { fakeId, sample, sampleCharge, sampleRecord, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
+import type { Grant, LedgerUploadResult, RowError, TermView } from "../types";
+import { fakeId, sample, sampleRecord, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
 
-/**
- * A synthetic reusable note, for the reusable notes list's tests. The sample
- * grant has none, so the fake's grant page serves none; this one is made up
- * on L-1002 and isn't part of the sample's story.
- */
-export const SAMPLE_REUSABLE_NOTE: ReusableNoteView = {
-  note: {
-    id: "rec-note-usage-statement",
-    workspace_id: WORKSPACE_ID,
-    grant_id: SAMPLE_GRANT_ID,
-    author: "user",
-    author_user_id: sample.user.id,
-    written_at: "2026-04-09T17:00:00Z",
-    replaces_id: null,
-    data: {
-      kind: "accepted_reason",
-      charge_id: "chg-l-1002",
-      reason: { check: "checklist", problem: "item_missing" },
-      note: "The core sends one usage statement a quarter.",
-      reusable: true,
-    },
-  },
-  charge: sampleCharge("chg-l-1002"),
-  amount_limit_cents: 218_000,
-  covered: [],
-};
+/** The synthetic reusable note now lives in sample.ts, shared with the grant page. */
+export { SAMPLE_REUSABLE_NOTE } from "./sample";
 
 /**
  * The sample's waiting extension with its end date not found in the file, for

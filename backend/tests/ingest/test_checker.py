@@ -1,15 +1,23 @@
 """The checker against the disk stand-ins: no Google account needed."""
 
 import os
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from app.contracts.mail import CheckerProgress, HeldFile, HeldMail, SkippedFile
 from app.ingest import drive_files, email_files
 from app.ingest.checker import CheckState, check_drive, check_mail, check_once
 from app.ingest.drive_files import SETTLE, folder_id_from_link
-from app.ingest.incoming import GrantRoute, HeldMail, IncomingFile, SkippedFile
+from app.ingest.incoming import (
+    GrantRoute,
+    IncomingFile,
+    PendingHold,
+    let_in_skips,
+    to_held_mail,
+)
 from app.ingest.sources import (
     EXPORT_LIMIT_BYTES,
     GOOGLE_DOC,
@@ -46,17 +54,29 @@ ROUTE_2 = GrantRoute(
 class MemorySink:
     def __init__(self) -> None:
         self.stored: list[IncomingFile] = []
-        self.held: list[HeldMail] = []
+        self.held: list[PendingHold] = []
         self.skipped: list[SkippedFile] = []
 
-    def store(self, files: list[IncomingFile]) -> None:
+    def store(self, files: list[IncomingFile], skipped: Sequence[SkippedFile] = ()) -> None:
         self.stored.extend(files)
+        self.skipped.extend(skipped)
 
-    def hold(self, held: HeldMail) -> None:
+    def hold(self, held: PendingHold) -> None:
         self.held.append(held)
 
     def skip(self, skipped: SkippedFile) -> None:
         self.skipped.append(skipped)
+
+
+def stored_hold(pending: PendingHold) -> HeldMail:
+    """The contract's held message a sink would save for `pending`."""
+    files = tuple(
+        HeldFile(
+            name=f.name, media_type=f.media_type, storage_path=f"held/{f.key}", sha256=f.sha256
+        )
+        for f in pending.files
+    )
+    return to_held_mail(pending, held_id="h1", files=files)
 
 
 def now(_workspace_id: str) -> datetime:
@@ -173,8 +193,9 @@ def test_unknown_sender_is_held_and_arrives_when_let_in(mailbox) -> None:
     assert held.sender == STRANGER and held.held_at == WORKSPACE_NOW
     assert held.reason == "unknown_sender"
     assert all(f.arrived_at is None for f in held.files)
-    later = WORKSPACE_NOW + timedelta(days=2)
-    assert {f.arrived_at for f in held.let_in(later).files} == {later}
+    contract = stored_hold(held)
+    assert contract.source_ref == "001" and contract.reason == "unknown_sender"
+    assert [f.name for f in contract.files][1:] == ["invoice_1001.pdf"]
 
 
 # Drive
@@ -297,11 +318,11 @@ class FlakySink(MemorySink):
         super().__init__()
         self.failures = failures
 
-    def store(self, files: list[IncomingFile]) -> None:
+    def store(self, files: list[IncomingFile], skipped: Sequence[SkippedFile] = ()) -> None:
         if self.failures:
             self.failures -= 1
             raise RuntimeError("database down")
-        super().store(files)
+        super().store(files, skipped)
 
 
 def test_a_failed_store_loses_no_mail(mailbox) -> None:
@@ -325,7 +346,7 @@ def test_a_failed_first_read_is_tried_again(tmp_path: Path) -> None:
     source, state = DiskMailbox(folder), CheckState()
     sink = FlakySink(failures=1)
     check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
-    assert sink.stored == [] and ROUTE.grant_id not in state.started_grants
+    assert sink.stored == [] and ROUTE.grant_id not in state.first_search_done
     check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
     assert [f.name for f in sink.stored] == ["Early.eml"]
 
@@ -419,12 +440,81 @@ def test_held_mail_never_reports_a_skipped_file_until_let_in(mailbox, monkeypatc
     sink = check(source, state)
     assert sink.skipped == [] and sink.stored == []
     (held,) = sink.held
-    assert [(s.name, s.source_ref, s.skipped_at) for s in held.skipped] == [
-        ("invoice_1001.pdf", "001", None)
+    contract = stored_hold(held)
+    assert [(s.name, s.source_ref, s.skipped_at) for s in contract.skipped] == [
+        ("invoice_1001.pdf", "001", WORKSPACE_NOW)
     ]
     later = WORKSPACE_NOW + timedelta(days=1)
-    let_in = held.let_in(later)
-    assert [(s.name, s.skipped_at) for s in let_in.skipped] == [("invoice_1001.pdf", later)]
+    assert [(s.name, s.skipped_at) for s in let_in_skips(contract, later)] == [
+        ("invoice_1001.pdf", later)
+    ]
+
+
+def test_progress_round_trips_through_the_contract(mailbox, tmp_path: Path) -> None:
+    source, folder, state = mailbox
+    write_mail(folder, "001", email())
+    touch(tmp_path / "grant-g1" / "quote.pdf", b"%PDF", OLD)
+    check(source, state)
+    check_drive(DiskDrive(tmp_path), routes=[ROUTE], state=state, now=now, sink=MemorySink())
+    progress = state.to_progress()
+    assert isinstance(progress, CheckerProgress)
+    assert progress.first_search_done == ("g1",) and progress.seen_message_ids == ("001",)
+    assert [v.drive_file_id for v in progress.drive_versions] == ["grant-g1/quote.pdf"]
+    again = CheckState.from_progress(progress)
+    assert again.to_progress() == progress
+
+
+def test_a_first_search_cut_off_partway_is_redone_in_full_after_a_restart(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "mail"
+    folder.mkdir()
+    write_mail(folder, "001", email(subject="One"))
+    write_mail(folder, "002", email(subject="Two"))
+    source, state = DiskMailbox(folder), CheckState()
+
+    class CutOff(MemorySink):
+        """Stores the first message, then the process stops."""
+
+        def store(self, files, skipped=()):
+            if self.stored:
+                raise RuntimeError("restart")
+            super().store(files, skipped)
+
+    first = CutOff()
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=first)
+    progress = state.to_progress()  # saved as the process stops
+    assert progress.first_search_done == ()  # the search didn't finish
+    restarted = CheckState.from_progress(progress)
+    second = MemorySink()
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=restarted, now=now, sink=second)
+    assert [f.name for f in first.stored + second.stored] == ["One.eml", "Two.eml"]
+    assert restarted.to_progress().first_search_done == ("g1",)
+
+
+def test_a_message_is_stored_once_with_its_skips_even_if_saving_them_fails(
+    mailbox, monkeypatch
+) -> None:
+    monkeypatch.setattr(email_files, "MAX_FILE_BYTES", 10)
+    source, folder, state = mailbox
+    write_mail(folder, "001", with_attachments(email()))
+
+    class SkipsFailOnce(MemorySink):
+        failed = False
+
+        def store(self, files, skipped=()):
+            # One write: if the skips can't be saved, nothing of the message is.
+            if skipped and not self.failed:
+                self.failed = True
+                raise RuntimeError("could not save the skips")
+            super().store(files, skipped)
+
+    sink = SkipsFailOnce()
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert sink.stored == [] and sink.skipped == []
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert [f.name for f in sink.stored] == ["Approval for sequencing, award SYN-2401.eml"]
+    assert [s.name for s in sink.skipped] == ["invoice_1001.pdf"]
 
 
 def test_disk_drive_refuses_paths_outside_its_root(tmp_path: Path) -> None:

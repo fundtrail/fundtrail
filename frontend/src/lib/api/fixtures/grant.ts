@@ -3,11 +3,12 @@
 // screens foundation, #92): the grant list and grant page read it.
 //
 // Writing a record stores it in memory and returns it with an ID, the
-// accountant as author and FAKE_NOW as its time. The fake has no checks, so
-// nothing else changes.
+// accountant as author and FAKE_NOW as its time. A sign-off is filled in the
+// way the server fills it in, and the grant then shows as signed. The fake has
+// no checks, so nothing else changes.
 
 import type { ApiClient } from "../client";
-import type { AgentRun, BudgetLine, ChargeRow, FtRecord, Grant, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, TermView, Workspace } from "../types";
+import type { AgentRun, BudgetLine, ChargeRow, FtRecord, Grant, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, SignOff, TermView, Workspace } from "../types";
 import { chargeStatusAt } from "./statuses";
 import {
   atNow,
@@ -20,6 +21,7 @@ import {
   sampleRecord,
   sampleWorkspace,
   SAMPLE_HELD_MAIL,
+  SAMPLE_REUSABLE_NOTE,
   SAMPLE_SIGN_OFF,
   served,
   SAMPLE_GRANT_ID,
@@ -86,8 +88,54 @@ function grantDetail(): GrantDetail {
       spent_cents: 342_000,
     },
     grant_notes: [],
-    reusable_notes: [],
+    reusable_notes: [SAMPLE_REUSABLE_NOTE],
     sign_off: SAMPLE_SIGN_OFF,
+  };
+}
+
+/**
+ * What a sign-off stores (decision 0022), filled in by the fake the way the
+ * server fills in a sign-off that sends only its note: a report path and
+ * checksum that say they're fake, and a snapshot of the grant as served.
+ */
+function storedSignOff(grantId: Id, detail: GrantDetail, problems: ProblemList, charges: ChargeRow[], note: string | null | undefined): SignOff {
+  const rowKey = (row: ProblemList["rows"][number]): string => {
+    switch (row.kind) {
+      case "grant":
+        return `grant:${row.problem.check}:${row.problem.problem}`;
+      case "terms_waiting":
+        return `terms_waiting:${row.file.id}`;
+      case "record":
+        return `record:${row.status.record_id ?? ""}:${row.status.file_id ?? ""}`;
+      case "charge":
+        return `charge:${row.charge.id}`;
+      case "held_mail":
+        return `held_mail:${row.held.id}`;
+    }
+  };
+  const id = fakeId("report");
+  return {
+    kind: "sign_off",
+    note: note ?? null,
+    report_path: `${WORKSPACE_ID}/${grantId}/reports/${id}.pdf`,
+    report_sha256: `fake-${id}`,
+    snapshot: {
+      charges: charges.map(({ charge, status }) => ({
+        charge_id: charge.id,
+        bucket: status?.bucket ?? "needs_human",
+        accepted: status?.accepted ?? false,
+        reversed: status?.reversed ?? false,
+      })),
+      problem_rows: problems.rows.map(rowKey),
+      totals: {
+        ledger_total_cents: detail.budget.spent_cents,
+        charges_total: detail.summary.charges_total,
+        charges_ready: detail.summary.charges_ready,
+        accepted: charges.filter((c) => c.status?.accepted).length,
+        reversed: charges.filter((c) => c.status?.reversed).length,
+        bucket_counts: detail.summary.bucket_counts,
+      },
+    },
   };
 }
 
@@ -184,7 +232,12 @@ export function grantFake(): Pick<
       ),
     getGrant: (grantId) => {
       const grant = added.get(grantId);
-      return served(isSample(grantId) ? grantDetail() : grant ? newGrantDetail(grant) : undefined);
+      const detail = isSample(grantId) ? grantDetail() : grant ? newGrantDetail(grant) : undefined;
+      // The latest sign-off stored in fake mode shows as signed. The fake has no
+      // checks, so nothing changes after it.
+      const signed = records.filter((r) => r.record.grant_id === grantId && r.record.data.kind === "sign_off").at(-1);
+      if (detail && signed) detail.sign_off = { state: "signed", sign_off: signed.record as FtRecord<SignOff>, changes: [] };
+      return served(detail);
     },
     getProblemList: (grantId) => served(isSample(grantId) ? problemList() : known(grantId) ? { rows: [] } : undefined),
     listCharges: (grantId) => served(isSample(grantId) ? chargeRows() : known(grantId) ? [] : undefined),
@@ -200,7 +253,16 @@ export function grantFake(): Pick<
         author_user_id: sample.user.id,
         written_at: FAKE_NOW,
         replaces_id: body.replaces_id ?? null,
-        data: body.data as RecordData,
+        data:
+          body.data.kind === "sign_off"
+            ? storedSignOff(
+                grantId,
+                isSample(grantId) ? grantDetail() : newGrantDetail(added.get(grantId)!),
+                isSample(grantId) ? problemList() : { rows: [] },
+                isSample(grantId) ? chargeRows() : [],
+                body.data.note,
+              )
+            : (body.data as RecordData),
       };
       records.push({ record, state: "counts" });
       return served(record);

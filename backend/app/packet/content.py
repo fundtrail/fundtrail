@@ -17,6 +17,7 @@ from app.contracts.charges import Charge
 from app.contracts.checks import (
     Bucket,
     ChargeStatus,
+    ChecklistEntry,
     ItemSource,
     Reason,
     StatusEntry,
@@ -116,6 +117,7 @@ ANSWER_LABELS = {
 
 ADDED_BY = {
     ItemSource.DEFAULT: "by default",
+    ItemSource.RULE: "added by an approval rule",
     ItemSource.AGENT: "added by the agent",
     ItemSource.USER: "added by the accountant",
 }
@@ -235,6 +237,13 @@ class _Report:
             else:
                 out.append(Para(f"Cited: {self.place(c)}", "small"))
         return out
+
+    def added_by(self, entry: ChecklistEntry) -> str:
+        """Who added a checklist item; for an approval rule's item, the rule (issue 115)."""
+        rule = self.by_id.get(entry.rule_id or "")
+        if entry.added_by == ItemSource.RULE and rule is not None:
+            return f"added by the approval rule {self.describe(rule)}"
+        return ADDED_BY[entry.added_by]
 
     def describe(self, r: Record | None) -> str:
         """One line naming a record by what it says."""
@@ -840,7 +849,7 @@ class _Report:
         if not s.checklist:
             blocks.append(Para("No checklist items.", "small"))
         for entry in s.checklist:
-            details = [ADDED_BY[entry.added_by]]
+            details = [self.added_by(entry)]
             if entry.amount_cents is not None:
                 details.append(f"amount {fmt.money(entry.amount_cents)}")
             if entry.period is not None:

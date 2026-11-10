@@ -5,8 +5,10 @@ The evidence file model is the contract's `EvidenceFile` (docs/contracts.md sect
 the contract has no field for yet, and one adapter, `to_evidence_file`, that turns it
 into the contract model.
 
-Held mail, a grant's address and its Drive folder wait on contract additions
-(issue 39). Until then `HeldMail` and `GrantRoute` are local types.
+Held mail, skipped files and the checker's progress are the contract's
+(`app/contracts/mail.py`). The checker hands the sink a `PendingHold`, which still
+carries the bytes, and `to_held_mail` makes the contract's `HeldMail` once they're
+stored. A grant's address and its Drive folder are still a local `GrantRoute`.
 """
 
 import hashlib
@@ -17,6 +19,7 @@ from datetime import date, datetime
 from typing import Literal
 
 from app.contracts.evidence import EvidenceFile, Source, storage_path
+from app.contracts.mail import HeldFile, HeldMail, HoldReason, SkippedFile, SkipReason
 
 IncomingSource = Literal["gmail", "drive", "upload"]  # the contract's `Source` values
 
@@ -105,26 +108,12 @@ class GrantRoute:
         object.__setattr__(self, "tag", self.tag.lower())
 
 
-# Why a message is held:
-# - "unknown_sender": the From address isn't a known sender.
-# - "unverified_sender": the message claims a known sender, or its From line can't be
-#   read as exactly one address, and the mailbox couldn't verify that it really came
-#   from that address.
-HoldReason = Literal["unknown_sender", "unverified_sender"]
-
-
-# Why a file the accountant sent wasn't taken in:
-# - "too_large": over MAX_FILE_BYTES, or a Google export over Drive's 10 MB limit.
-# - "not_exportable": a Google file with no PDF export, such as a Form or a Site.
-SkipReason = Literal["too_large", "not_exportable"]
-
-
 @dataclass(frozen=True)
-class SkippedFile:
-    """A file that was sent but not taken in, so the grant can show it as a problem.
+class FoundSkip:
+    """A file found not to be taken in, before it's reported.
 
-    Its fields are the contract's `SkippedFile` (PR 61, `app/contracts/mail.py`), which
-    isn't on main yet. Very small images and signature parts aren't reported: 0025
+    It becomes the contract's `SkippedFile` once it has a time, through
+    `to_skipped_file`. Very small images and signature parts aren't reported: 0025
     skips them on purpose.
     """
 
@@ -134,44 +123,76 @@ class SkippedFile:
     source: Literal["gmail", "drive"]
     source_ref: str  # the Gmail message ID, or the grant's Drive folder ID
     reason: SkipReason
-    skipped_at: datetime | None = None  # the workspace's "now"; set when it's reported
 
-    def at(self, now: datetime) -> "SkippedFile":
-        return replace(self, skipped_at=now)
+
+def to_skipped_file(found: FoundSkip, skipped_at: datetime | None) -> SkippedFile:
+    """The contract's skipped file. One with no time is refused, as a file that hasn't
+    arrived is refused by `to_evidence_file`."""
+    if skipped_at is None:
+        raise ValueError("a skipped file is reported only with the workspace's now")
+    return SkippedFile(
+        workspace_id=found.workspace_id,
+        grant_id=found.grant_id,
+        name=found.name,
+        source=found.source,
+        source_ref=found.source_ref,
+        reason=found.reason,
+        skipped_at=skipped_at,
+    )
 
 
 @dataclass(frozen=True)
-class LetIn:
-    """What a held message brings when it's let in."""
+class PendingHold:
+    """A message to hold, as the checker hands it to the sink, before it's stored.
 
-    files: list[IncomingFile]  # arrived at that moment
-    skipped: list[SkippedFile]  # attachments that weren't taken in, reported at that moment
-
-
-@dataclass(frozen=True)
-class HeldMail:
-    """Mail held for the accountant: stored, not read by the agent, not used by checks.
-
-    Its skipped attachments are kept here and reported only if it's let in, because no
-    check uses held mail (0025). The accountant can still let it in.
+    The sink stores `files` in the evidence bucket and saves the contract's `HeldMail`
+    with `to_held_mail`, in one write with its `skipped` files. The skipped files go on
+    the held message only, never on the grant's own list, so they stay off the grant's
+    problem list until it's let in (0025).
     """
 
-    grant_id: str
     workspace_id: str
+    grant_id: str
     sender: str | None  # the From address, when it reads as exactly one address
-    from_header: str  # the From line as written, to show the accountant
+    # The From line as written, to show the accountant. The contract has no field for it.
+    from_header: str
     gmail_message_id: str
+    subject: str | None
     files: tuple[IncomingFile, ...]  # the message first, then its attachments; not arrived
     held_at: datetime  # the workspace's "now" when it was held
-    reason: HoldReason = "unknown_sender"
-    skipped: tuple[SkippedFile, ...] = ()  # not reported while held
+    reason: HoldReason
+    skipped: tuple[SkippedFile, ...] = ()  # stamped with held_at, when they were found
 
-    def let_in(self, now: datetime) -> LetIn:
-        """A message that's let in arrives at that moment (0025), and so do its skips."""
-        return LetIn(
-            files=[f.arriving(now) for f in self.files],
-            skipped=[s.at(now) for s in self.skipped],
-        )
+
+def to_held_mail(pending: PendingHold, *, held_id: str, files: tuple[HeldFile, ...]) -> HeldMail:
+    """The contract's held message, once its files are stored as `files`."""
+    if len(files) != len(pending.files):
+        raise ValueError("every file of a held message is stored")
+    return HeldMail(
+        id=held_id,
+        workspace_id=pending.workspace_id,
+        grant_id=pending.grant_id,
+        sender=pending.sender,
+        reason=pending.reason,
+        source_ref=pending.gmail_message_id,
+        subject=pending.subject or None,
+        held_at=pending.held_at,
+        files=files,
+        skipped=pending.skipped,
+    )
+
+
+def let_in_skips(held: HeldMail, now: datetime) -> list[SkippedFile]:
+    """A held message's skipped files, reported when it's let in, at that moment (0025).
+
+    The sink saves them in the same write as the evidence files the message becomes.
+    """
+    # model_validate, not model_copy: the time is checked and converted to UTC like any
+    # contract timestamp, so a naive time is refused.
+    return [
+        SkippedFile.model_validate({**skip.model_dump(), "skipped_at": now})
+        for skip in held.skipped
+    ]
 
 
 def to_evidence_file(

@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.checks.answers import _out_of_date  # pyright: ignore[reportPrivateUsage]
 from app.checks.duplicates import likely_duplicates
 from app.checks.rules_match import rule_category
 from app.checks.view import GrantView
@@ -278,3 +279,37 @@ def applies_to_is_matchable(
     )
     view = GrantView(grant_id, RecordState(records, files), [], files)
     return rule_category(view, probe) is not None
+
+
+def agent_has_answered(
+    question: OpenQuestion,
+    records: Sequence[Record],
+    charges: Sequence[Charge],
+    files: Sequence[EvidenceFile],
+    grant_id: str,
+) -> bool:
+    """Whether the agent's latest answer to an open question is saved, counting or waiting, and
+    still fresh (issue #136).
+
+    The checks list a question as open for the agent while its newer answer waits for the
+    accountant, as a milder answer over its own contradicts always does. That answer is the
+    agent's word on it: the accountant decides now. Fresh uses the checks' own rule for an
+    answer that's out of date (a link on the charge written after it, or a record it rests on
+    no longer current), so the two can't drift; the checks could make it public.
+    """
+    state = RecordState(records, files)
+    key = (question.question, question.charge_id, question.record_id)
+    mine = [
+        r
+        for r in state.records
+        if r.author == Author.AGENT
+        and isinstance(r.data, Judgment)
+        and (r.data.question, r.data.charge_id, r.data.record_id) == key
+    ]
+    if not mine:
+        return False
+    latest = mine[-1]
+    if not (state.is_current(latest.id) or state.is_waiting(latest.id)):
+        return False
+    view = GrantView(grant_id, state, charges, files)
+    return not _out_of_date(view, latest)
