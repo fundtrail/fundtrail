@@ -40,11 +40,10 @@ frontend/         Next.js app                              W5 Grant (viewer: W6)
 supabase/         migrations (shared), config, seed        W4 Grant
 eval/             cases, answer keys, runner               W3 Alex
 data/             synthetic seed packs                     W3 Alex
-spikes/           throwaway experiments
 docs/, CLAUDE.md  docs                                     shared
 ```
 
-This is the target layout. The skeleton task creates it, so until then only `spikes/`, `data/demo/` and the docs exist.
+This is the target layout. The skeleton task creates it. Until then only `backend/app/contracts/`, the first migration and the docs exist.
 
 ## Working rules
 
@@ -61,7 +60,7 @@ This is the target layout. The skeleton task creates it, so until then only `spi
 
 ## Project rules
 
-- All demo data is synthetic (see [data/demo/SYNTHETIC.md](data/demo/SYNTHETIC.md)). Award numbers start with `SYN-`, and email addresses use the `.example` domain.
+- All demo data is synthetic. No person, award number or email address in it is real, and no document in it was issued by any agency or institution. Award numbers start with `SYN-`, and email addresses use the `.example` domain. Rule text quoted from the National Science Foundation (NSF) is public federal text, cited to its source.
 - Never commit `.env` or any key, and never print credentials.
 - No invented statistics, no savings claims, and no percentages in the README or the pitch.
 - The README and the pitch open with the theme.
@@ -70,11 +69,10 @@ This is the target layout. The skeleton task creates it, so until then only `spi
 
 ## Running things
 
-Right now only the citation spike runs:
+Right now only the contract tests run:
 
 ```bash
-cp .env.example .env   # then add ANTHROPIC_API_KEY
-uv run --env-file .env python spikes/citation_test.py
+PYTHONPATH=backend uv run --with pytest pytest -q backend/app/contracts/tests
 ```
 
 The skeleton task replaces this section with the backend, frontend and test commands.

@@ -173,7 +173,7 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 | Email body vs. attachments, duplicate files | builder (W3) |
 | The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |
-| Whether citations work on a file the agent opens again in the middle of a run. The citation test in `spikes/` can check it. | builder (W1) |
+| Whether citations work on a file the agent opens again in the middle of a run. A small test against the API can check it. | builder (W1) |
 | How loose the PDF passage match can be. A draft: clean up both texts the same way (straight quotes, single spaces, words rejoined across line breaks), and let a close match place the highlight. The fact is confirmed only when the value itself appears exactly in the matched text. | builder (W1 with W6), discussed with Alex before building |
 | Quotes that cross a page break | builder (W1 with W6), discussed with Alex before building |
 | The cost of the second look on photos: one call per fact, or one per photo with all its crops | builder (W1), discussed with Alex before building |
