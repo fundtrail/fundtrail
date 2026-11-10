@@ -1,8 +1,9 @@
 // Names the change one of the agent's waiting records would make, so a
-// suggestion can say what accepting it does. Plain wording per record kind;
-// the bucket and the reasons stay the server's.
+// suggestion can say what accepting it does. The server words it now
+// (issue 114); the plain wording per record kind here is the fallback while
+// the platform doesn't fill it yet. The bucket and the reasons stay the server's.
 
-import type { ChecklistEntry, EvidenceFile, FtRecord, Id } from "@/lib/api";
+import type { ChecklistEntry, EvidenceFile, FtRecord, Id, SuggestionView } from "@/lib/api";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { ANSWER_LABELS, citedValue, field, recordName } from "../charge/labels";
 
@@ -66,6 +67,27 @@ function itemNeeded(record: FtRecord, ctx: DescribeContext): string {
 
 function reasonOf(record: FtRecord): string | undefined {
   return field<string | null>(record, "reason") ?? field<string | null>(record, "reasoning") ?? undefined;
+}
+
+/**
+ * What accepting one of the agent's waiting records changes: the server's
+ * wording when the suggestion carries it (issue 114), and the page's own
+ * wording only as a fallback. The agent's own reason always comes from its record.
+ */
+export function changeFor(
+  view: Pick<SuggestionView, "change"> | undefined,
+  record: FtRecord,
+  replaces: FtRecord | null,
+  ctx: DescribeContext,
+): Change {
+  const server = view?.change;
+  if (!server) return describeChange(record, replaces, ctx);
+  return {
+    title: server.title,
+    now: server.now ?? undefined,
+    suggested: server.suggested ?? undefined,
+    reason: reasonOf(record),
+  };
 }
 
 /** What accepting one of the agent's waiting records changes. */

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Charge, ChargeStatus, EvidenceFile, FtRecord, ProblemRow, Reason } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
+import { UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { ProblemList } from "./ProblemList";
 
 function charge(id: string, line: string, tx: string, description: string): Charge {
@@ -129,6 +130,15 @@ describe("ProblemList", () => {
     render(<ProblemList rows={[{ kind: "charge", charge: charge("c1", "L-1", "2025-01-01", "A charge"), status: status("needs_human", [missing, accepted]) }]} />);
     expect(screen.getByText(/Expected by Dec 18, 2025/)).toBeInTheDocument();
     expect(within(screen.getByText("The agent is unsure.")).getByText("Accepted")).toBeInTheDocument();
+  });
+
+  it("says the From line couldn't be read for held mail with no sender, in place of the hold reason", async () => {
+    const { rows } = await createFakeApiClient().getProblemList(SAMPLE_GRANT_ID);
+    const held = rows.find((r) => r.kind === "held_mail");
+    if (held?.kind !== "held_mail") throw new Error("the sample's problem list has no held mail");
+    render(<ProblemList rows={[{ ...held, held: { ...held.held, sender: null, reason: "unverified_sender" } }]} />);
+    expect(screen.getByText(UNREADABLE_FROM_LABEL)).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't be verified/)).toBeNull();
   });
 
   it("names a record that has no file by its kind and date", () => {

@@ -53,6 +53,7 @@ def _problem(m: Marked) -> Problem:
         text=f.text,
         record_ids=tuple(dict.fromkeys(f.record_ids)),
         accepted_by=m.accepted_by,
+        amount_cents=f.amount_cents,
     )
 
 
@@ -94,6 +95,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
             m for m in failing if m.accepted_by is None and dec.due(m.finding, charge.posting_date)
         ]
         snoozed = dec.snoozed(SubjectKey(charge_id=charge.id), flagging)
+        net = view.nets.get(charge.id)
         charges.append(
             ChargeStatus(
                 grant_id=charge.grant_id,
@@ -101,10 +103,15 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
                 bucket=most_serious([m.finding.bucket for m in marked]),
                 reasons=tuple(_reason(m) for m in marked),
                 checklist=tuple(found.entries),
-                flagged=bool(flagging) and not snoozed,
+                # Decision 0020: a fully reversed charge leaves the problem list and stays
+                # visible, keeping the bucket the checks give it.
+                flagged=bool(flagging) and not snoozed and not (net is not None and net.reversed),
                 rechecking=found.rechecking,
                 accepted=bool(failing) and all(m.accepted_by is not None for m in failing),
                 snoozed=snoozed,
+                net_cents=net.net_cents if net is not None and net.corrections else None,
+                corrections=net.corrections if net is not None else (),
+                reversed=net is not None and net.reversed,
             )
         )
         questions += found.questions

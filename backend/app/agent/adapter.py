@@ -15,8 +15,7 @@ from pydantic import ValidationError
 
 from app.checks.answers import _out_of_date  # pyright: ignore[reportPrivateUsage]
 from app.checks.duplicates import likely_duplicates
-from app.checks.ledger_accounts import CATEGORY_NAMES
-from app.checks.rules_match import name_key
+from app.checks.rules_match import rule_category
 from app.checks.view import GrantView
 from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion, RunChecks
@@ -30,7 +29,6 @@ from app.contracts.records import (
     Bill,
     BudgetAssignment,
     BudgetCategory,
-    BudgetLine,
     Citation,
     Cited,
     Decision,
@@ -254,25 +252,33 @@ TERM_RECORD_MODELS = _record_models(
 FACT_RECORD_MODELS = _record_models("Bill", "Approval", "Note")
 
 
-def applies_to_is_matchable(applies_to: str, records: Sequence[Record]) -> bool:
+def applies_to_is_matchable(
+    applies_to: str, records: Sequence[Record], files: Sequence[EvidenceFile], grant_id: str
+) -> bool:
     """Whether code can match an approval rule's applies_to to one budget category.
 
-    The checks' own rule (app.checks.rules_match): applies_to is compared with the grant's
-    budget line names, then with NSF's category names, after dropping case, punctuation, a
-    leading line letter and a trailing "Costs". Lines staged in this run count.
+    Asks the checks' own matcher (app.checks.rules_match.rule_category) about a stand-in rule
+    with this applies_to, so only the budget lines in force or waiting for their confirmation
+    count, the same as when the checks apply the rule. Lines staged in this run count.
     """
-    target = name_key(applies_to)
-    lines = {
-        r.data.category
-        for r in records
-        if isinstance(r.data, BudgetLine) and name_key(r.data.name.value) == target
-    }
-    if lines:
-        return len(lines) == 1
-    found = {
-        cat for cat, names in CATEGORY_NAMES.items() if any(name_key(n) == target for n in names)
-    }
-    return len(found) == 1
+    probe = Record.model_validate(
+        {
+            "id": "applies-to-probe",
+            "workspace_id": "probe",
+            "grant_id": grant_id,
+            "author": Author.USER,
+            "author_user_id": "probe",
+            "written_at": "2000-01-01T00:00:00+00:00",
+            "data": {
+                "kind": "approval_rule",
+                "dated": {"value": "2000-01-01"},
+                "applies_to": {"value": applies_to},
+                "approver": {"value": "probe"},
+            },
+        }
+    )
+    view = GrantView(grant_id, RecordState(records, files), [], files)
+    return rule_category(view, probe) is not None
 
 
 def agent_has_answered(

@@ -63,6 +63,44 @@ function item(name: string): HTMLElement {
   return screen.getByText(name).closest("li")!;
 }
 
+describe("EvidenceChecklist, server wording", () => {
+  const rule = record("r-rule", "agent", {
+    kind: "approval_rule",
+    applies_to: { value: "Participant Support Costs", text: "Participant Support Costs", citation: null },
+    approver: { value: "Program Officer", text: "Program Officer", citation: null },
+    channel: { value: "Research.gov", text: "Research.gov", citation: null },
+  });
+  const ruleItem = entry({ default_item: "approval:r-rule", added_by: "rule", rule_id: "r-rule", needed: "Program Officer's approval" });
+
+  it("names the approval rule that added an item", () => {
+    render(<EvidenceChecklist checklist={[ruleItem]} links={[]} waiting={[]} records={{ [rule.id]: rule }} files={{}} />);
+    expect(
+      screen.getByText("Added by the approval rule: Participant Support Costs, approved by Program Officer through Research.gov"),
+    ).toBeInTheDocument();
+  });
+
+  it("says the approval rule added it even when the body doesn't carry the rule", () => {
+    render(<EvidenceChecklist checklist={[ruleItem]} links={[]} waiting={[]} records={{}} files={{}} />);
+    expect(screen.getByText("Added by the approval rule")).toBeInTheDocument();
+  });
+
+  it("shows the server's wording of a waiting removal when it sends one", () => {
+    render(
+      <EvidenceChecklist
+        checklist={checklist}
+        links={[]}
+        waiting={[{ record: removal, replaces: null, charge_ids: ["c"], change: { title: "Remove the participant list from L-2001's checklist" } }]}
+        records={{ [removal.id]: removal }}
+        files={{}}
+      />,
+    );
+    const box = within(item("Participant list")).getByTestId("suggestion");
+    expect(within(box).getByText("Remove the participant list from L-2001's checklist")).toBeInTheDocument();
+    expect(within(box).queryByText('Remove "Participant list" from the checklist')).toBeNull();
+    expect(within(box).getByText("The invoice is for a laptop, not a participant.")).toBeInTheDocument();
+  });
+});
+
 describe("EvidenceChecklist", () => {
   it("shows each item filled or missing, in words", () => {
     renderChecklist();

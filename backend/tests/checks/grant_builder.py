@@ -54,8 +54,12 @@ def cited(
 
 
 class Grant:
-    def __init__(self, grant_id: str = "g1"):
+    def __init__(self, grant_id: str = "g1", stored: bool = False):
+        """`stored` numbers every file, charge and record in the order it's made, like the
+        database's shared `stored_seq`. Off by default, so older tests stay as they were."""
         self.grant_id = grant_id
+        self._stored = stored
+        self._seq = 0
         self.records: list[Record] = []
         self.files: list[EvidenceFile] = []
         self.charges: list[Charge] = []
@@ -63,6 +67,12 @@ class Grant:
         self.skipped_files: list[SkippedFile] = []
         self._n = 0
         self.file("f-letter", at(2023, 1, 12))
+
+    def _next_seq(self) -> int | None:
+        if not self._stored:
+            return None
+        self._seq += 1
+        return self._seq
 
     # Things that arrive.
 
@@ -87,6 +97,7 @@ class Grant:
                     "storage_path": f"w/{self.grant_id}/{id}/{name}",
                     "sha256": sha or f"sha-{id}",
                     "arrived_at": arrived,
+                    "stored_seq": self._next_seq(),
                 }
             )
         )
@@ -117,6 +128,7 @@ class Grant:
                 account=account,
                 vendor=vendor,
                 original_line_id=original_line_id,
+                stored_seq=self._next_seq(),
             )
         )
         return id
@@ -144,6 +156,7 @@ class Grant:
                     "written_at": when,
                     "replaces_id": replaces,
                     "data": data,
+                    "stored_seq": self._next_seq(),
                 }
             )
         )
