@@ -131,7 +131,7 @@ def test_first_check_takes_everything_sent_to_the_address_since_it_was_made(
     assert check(source, state, routes=(ROUTE, ROUTE_2)).stored == []
 
 
-def test_known_sender_arrives_at_workspace_now(mailbox) -> None:
+def test_known_sender_arrives_at_the_grants_now(mailbox) -> None:
     source, folder, state = mailbox
     write_mail(
         folder, "001", with_attachments(email(delivered_to="fundtrail-demo+abc23def@mail.example"))

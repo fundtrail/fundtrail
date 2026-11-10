@@ -34,14 +34,14 @@ class SampleChoice(StrEnum):
 
     SMALL_LIVE = "small_live"  # a small sample the agent reads live
     LARGER_LIVE = "larger_live"  # a larger sample the agent reads live; needs a confirm
-    LARGER_PRERUN = "larger_prerun"  # a larger sample copied from a released prerun
+    LARGER_PRERUN = "larger_prerun"  # a larger sample whose results load from a prerun
 
 
 class GrantSample(Model):
     """What a sample grant was opened from (issue 165).
 
-    Every sample opens at the start of its timeline. How a prerun sample is made
-    isn't settled yet.
+    Every sample opens at the start of its timeline. The prerun choice's saved results
+    come from a prerun, which a human-run command makes, never CI (ruling 47).
     """
 
     sample: Id  # the sample pack's ID, for example "nitrate-sensors"
