@@ -42,6 +42,11 @@ class Probe(NamedTuple):
 TRAVEL = "Travel to the Boston conference cost {} in total for the trip."
 TYPO = "Travel to the Bostn conference cost $1,450.00 in total for the trip."
 SPLIT_1 = ["The cost of the conference travel was"]
+SIGNED = [
+    ("an en dash as a minus", "\u2013$450.00"),
+    ("a minus and a space", "- $450.00"),
+    ("a trailing minus", "$450.00-"),
+]
 SPLIT_PASSAGE = "The cost of the conference travel was $1,450.00 for the whole trip."
 
 PROBES = [
@@ -235,6 +240,28 @@ PROBES = [
         "not_found",
         None,
     ),
+    *[
+        Probe(
+            f"exact, {name} on the page the value lacks",
+            [[f"Adjustment to the order total of {amount} posted"]],
+            f"Adjustment to the order total of {amount} posted",
+            "$450.00",
+            "exact",
+            False,
+        )
+        for name, amount in SIGNED
+    ],
+    *[
+        Probe(
+            f"close, {name} on the page the passage lacks",
+            [[f"Adjustment to the order total of {amount} posted"]],
+            "Adjustment to the order totl of $450.00 posted",
+            "$450.00",
+            "not_found",
+            False,
+        )
+        for name, amount in SIGNED
+    ],
 ]
 
 
