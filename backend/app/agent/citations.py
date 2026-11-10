@@ -28,6 +28,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from app.agent.adapter import char_citation
+from app.ingest.channel_times import ReadingText
 from app.quotes import UnreadablePdfError, find_pdf_quote
 from app.quotes.text_match import NEGATIVE as NEGATIVE_SIGN
 from app.quotes.text_match import POSITIVE as POSITIVE_SIGN
@@ -93,8 +94,11 @@ class SentDocument:
 
     file_id: str
     kind: str  # "text" or "pdf"
-    text: str | None = None  # the exact text sent, for "text"
+    text: str | None = None  # the stored file's text, for "text"
     pdf: bytes | None = None  # the bytes sent, for "pdf"
+    # A sample grant's live email (issue 165, point 4): what was sent instead of `text`, with
+    # its Date header replaced by the grant's now. Cited positions map back to `text`.
+    reading: ReadingText | None = None
 
 
 @dataclass(frozen=True)
@@ -155,18 +159,40 @@ def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[i
     return (lines[0][0], lines[-1][1]) if lines else (start, end)
 
 
+def _stored_span(reading: ReadingText, start: int, end: int) -> tuple[int, int]:
+    """A span of the text sent mapped back to the stored file.
+
+    The start maps with `stored_index`. The end is exclusive, so it maps through the last
+    character it covers: a span ending inside a replaced Date header ends where the stored
+    header ends.
+    """
+    stored_start = reading.stored_index(start)
+    if end <= start:
+        return stored_start, stored_start
+    last = end - 1
+    for sent_start, sent_end, _, header_end in reading.replaced:
+        if sent_start <= last < sent_end:
+            return stored_start, header_end
+    return stored_start, reading.stored_index(last) + 1
+
+
 def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.text is not None
+    sent = doc.reading.text if doc.reading is not None else doc.text
     passage = _get(raw, "cited_text") or ""
     start, end = int(_get(raw, "start_char_index")), int(_get(raw, "end_char_index"))
     match = "exact"
-    if doc.text[start:end] != passage:
-        # Look for the passage once in the file; a passage found nowhere is not found.
-        found = doc.text.find(passage) if passage else -1
-        if found >= 0 and doc.text.find(passage, found + 1) < 0:
+    if sent[start:end] != passage:
+        # Look for the passage once in the text sent; a passage found nowhere is not found.
+        found = sent.find(passage) if passage else -1
+        if found >= 0 and sent.find(passage, found + 1) < 0:
             start, end = found, found + len(passage)
         else:
             match = "not_found"
+    if doc.reading is not None and match == "exact":
+        # Cited in the text the agent read; checked and stored against the original file.
+        start, end = _stored_span(doc.reading, start, end)
+        passage = doc.text[start:end]
     lines = value_lines(doc.text, start, end, value_text) if match == "exact" else []
     return char_citation(doc.file_id, passage, start, end, match, lines)
 

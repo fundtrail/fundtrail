@@ -60,6 +60,9 @@ class RunInputs:
     # The run's read point (AgentRun.read_through_seq, call 40): every record it
     # writes carries it, and the write check refuses an agent record without one.
     read_through_seq: int | None = None
+    # A sample grant (issue 165, point 4): a live email's Date header is read as the grant's
+    # now. Stands in for the contracts' Grant.clock_now until it lands.
+    channel_times_from_grant_now: bool = False
 
 
 class AgentRunFailed(Exception):
