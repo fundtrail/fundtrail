@@ -28,9 +28,14 @@ from typing import Any, TypedDict
 from langgraph.graph import END, StateGraph
 
 from .adapter import (
+    TRIGGER_CHARGE,
     TRIGGER_CLOCK,
     TRIGGER_THREAD,
+    Author,
+    BudgetAssignment,
+    Judgment,
     OpenQuestion,
+    Question,
     agent_questions,
     check_write,
 )
@@ -192,27 +197,38 @@ def build_graph(model: ModelClient) -> Any:
     def gate(state: State) -> State:
         ctx = state["ctx"]
         waiting, _ = split_questions(ctx)
-        ctx.log_event("gate", waiting=[q.model_dump(mode="json") for q in waiting])
-        if not waiting:
+        unassigned = charges_without_budget_line(ctx)
+        ctx.log_event(
+            "gate",
+            waiting=[q.model_dump(mode="json") for q in waiting],
+            no_budget_line=unassigned,
+        )
+        if not waiting and not unassigned:
             ctx.next = "save"
             return state
         ctx.gate_returns += 1
         if ctx.gate_returns > MAX_GATE_RETURNS:
             _fail(
                 ctx,
-                f"open questions still waited for the agent after {MAX_GATE_RETURNS} returns",
+                f"work still waited for the agent after {MAX_GATE_RETURNS} returns",
                 False,
             )
             return state
-        text = (
-            "The run can't end yet. These questions code asked still wait for your answer:\n"
-            + "\n".join(
+        text = "The run can't end yet."
+        if waiting:
+            text += " These questions code asked still wait for your answer:\n" + "\n".join(
                 f"- {q.question} on charge {q.charge_id}"
                 + (f" about {q.record_id}" if q.record_id else "")
                 for q in waiting
             )
-        )
-        text += "\nAnswer each one (unsure is allowed), then finish."
+            text += "\nAnswer each one (unsure is allowed)."
+        if unassigned:
+            text += (
+                "\nThese charges have no budget line yet: "
+                + ", ".join(unassigned)
+                + ". Assign each one with assign_budget_line, or flag the charge if you can't tell."
+            )
+        text += "\nThen finish."
         if ctx.pending_finish_id is not None:
             results = [
                 *ctx.pending_results,
@@ -281,6 +297,29 @@ def split_questions(ctx: RunContext) -> tuple[list[OpenQuestion], list[OpenQuest
         or (message.record_id and q.record_id == message.record_id)
     ]
     return covered, [q for q in questions if q not in covered]
+
+
+def charges_without_budget_line(ctx: RunContext) -> list[str]:
+    """The charges this run covers that have neither a budget line nor the agent's flag.
+
+    A charge run covers its batch of charges. The run can't finish until each has a current
+    budget assignment, or a current flag of the agent's saying it can't tell (the main
+    coordinator's ruling).
+    """
+    i = ctx.inputs
+    if i.trigger.kind != TRIGGER_CHARGE:
+        return []
+    covered = list(i.charge_ids) or ([i.trigger.id] if i.trigger.id else [])
+    current = ctx.state().current()
+    assigned = {r.charge_id for r in current if isinstance(r.data, BudgetAssignment)}
+    flagged = {
+        r.charge_id
+        for r in current
+        if isinstance(r.data, Judgment)
+        and r.data.question == Question.FLAG
+        and r.author == Author.AGENT
+    }
+    return [c for c in covered if c not in assigned and c not in flagged]
 
 
 def recheck(ctx: RunContext) -> list[str]:

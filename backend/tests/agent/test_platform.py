@@ -95,6 +95,12 @@ def test_a_run_returns_what_the_platform_saves():
                     default_item="bill",
                 ),
                 tool(
+                    "assign_budget_line",
+                    charge_id="chg-l-1001",
+                    budget_line_id="rec-budget-materials-and-supplies",
+                    reason="Lab supplies.",
+                ),
+                tool(
                     "answer",
                     charge_id="chg-l-1001",
                     question="allowable",
@@ -109,7 +115,7 @@ def test_a_run_returns_what_the_platform_saves():
     result = run_agent(
         agent_input(CHARGE, "2025-11-14T00:00:00+00:00", records_until("rec-link-l-1001")), model
     )
-    assert [r.kind for r in result.records] == ["link", "judgment"]
+    assert [r.kind for r in result.records] == ["link", "budget_assignment", "judgment"]
     assert all(
         r.author == "agent" and r.written_at == datetime.fromisoformat("2025-11-14T00:00:00+00:00")
         for r in result.records

@@ -53,8 +53,9 @@ this first read. Put anything else that identifies a document in a bill's descri
 order numbers, and the project or award number it mentions.
 - When a bill arrives, the result of writing it lists bills on file that look like the same one. \
 Compare their saved facts before you link anything.
-- A charge needs a budget line (assign_budget_line), its checklist items filled by links, and \
-answers to the questions code asks. Add checklist items for evidence this charge needs beyond its \
+- A charge needs a budget line (assign_budget_line, or a flag when you can't tell which), its \
+checklist items filled by links, and answers to the questions code asks. A run for new charges \
+can't end until each has one. Add checklist items for evidence this charge needs beyond its \
 defaults, such as a flight itinerary when the bill doesn't show the airline and fare class.
 - Unsure is a good answer when the evidence doesn't settle the question. It sends the charge to \
 the accountant with your reasoning.

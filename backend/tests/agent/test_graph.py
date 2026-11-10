@@ -53,6 +53,15 @@ def link_l1001():
     )
 
 
+def assign_l1001():
+    return tool(
+        "assign_budget_line",
+        charge_id="chg-l-1001",
+        budget_line_id="rec-budget-materials-and-supplies",
+        reason="Sediment core liners are lab supplies.",
+    )
+
+
 def answer_l1001(charge: str = "chg-l-1001"):
     return tool(
         "answer",
@@ -66,13 +75,13 @@ def answer_l1001(charge: str = "chg-l-1001"):
 def test_a_run_ends_only_when_no_question_waits_for_the_agent():
     model = FakeModel(
         [
-            lambda r: calls(link_l1001(), tool("finish", summary="Linked.")),
+            lambda r: calls(link_l1001(), assign_l1001(), tool("finish", summary="Linked.")),
             lambda r: calls(answer_l1001(), tool("finish", summary="Linked and answered.")),
         ]
     )
     result = run_once(charge_inputs(), model)
     assert isinstance(result, RunSaved)
-    assert [r.kind for r in result.records] == ["link", "judgment"]
+    assert [r.kind for r in result.records] == ["link", "budget_assignment", "judgment"]
     assert result.summary == "Linked and answered."
     finish = results_of(model.requests[1])[-1]
     assert finish["is_error"] and "allowable on charge chg-l-1001" in finish["content"]
@@ -80,7 +89,7 @@ def test_a_run_ends_only_when_no_question_waits_for_the_agent():
 
 def test_a_turn_with_no_tool_call_and_no_labels_counts_as_done():
     model = FakeModel([lambda r: message(text("Nothing to do here."))])
-    result = run_once(charge_inputs(), model)
+    result = run_once(charge_inputs(until="rec-bill-seq-0207"), model)
     assert isinstance(result, RunSaved) and result.records == []
 
 
@@ -203,14 +212,36 @@ def test_the_gate_sends_the_model_back_only_so_many_times():
         + [lambda r: calls(tool("finish", summary="x"))] * MAX_GATE_RETURNS
     )
     result = run_once(charge_inputs(), model)
-    assert isinstance(result, RunFailed) and "open questions" in result.error
+    assert isinstance(result, RunFailed) and "still waited" in result.error
+
+
+def test_a_charge_run_needs_a_budget_line_or_a_flag_for_each_charge():
+    """The main coordinator's ruling: a run can't finish without a budget line for each charge."""
+    model = FakeModel(
+        [
+            lambda r: calls(tool("finish", summary="Nothing yet.")),
+            lambda r: calls(
+                tool(
+                    "flag",
+                    charge_id="chg-l-1001",
+                    question="Which budget line does this belong to?",
+                    reasoning="No bill on file says what was bought.",
+                ),
+                tool("finish", summary="Flagged."),
+            ),
+        ]
+    )
+    result = run_once(charge_inputs(until="rec-bill-inv-1001"), model)
+    assert isinstance(result, RunSaved) and [r.kind for r in result.records] == ["judgment"]
+    finish = results_of(model.requests[1])[-1]
+    assert finish["is_error"] and "no budget line yet: chg-l-1001" in finish["content"]
 
 
 def test_a_turn_cut_off_at_the_output_limit_is_asked_again_once():
     model = FakeModel(
         [lambda r: message(text("..."), stop="max_tokens"), lambda r: message(text("Done."))]
     )
-    assert isinstance(run_once(charge_inputs(), model), RunSaved)
+    assert isinstance(run_once(charge_inputs(until="rec-bill-seq-0207"), model), RunSaved)
     assert model.requests[1].max_tokens > model.requests[0].max_tokens
     model = FakeModel([lambda r: message(text("..."), stop="max_tokens")] * 2)
     assert isinstance(run_once(charge_inputs(), model), RunFailed)
