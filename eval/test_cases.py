@@ -48,16 +48,17 @@ DATE_FIELDS = {"start", "end", "dated", "approved_on"}
 MONEY_FIELDS = {"amount", "total", "items[].amount", "obligated_by_amendment", "obligated_to_date"}
 # A label is the agent's own short name, not a value read from the file.
 UNCITED_FIELDS = {"label"}
-# NSF's standard categories and Other Direct Costs' six sub-lines. The exact
-# spelling of these values is the contract code's; check it when it lands.
+# NSF's standard categories and Other Direct Costs' six sub-lines, spelled as
+# the contract code's BudgetCategory spells them. The sixth sub-line is
+# other_direct_costs_other, so it can't be read as participant support's Other.
 CATEGORIES = {
     "senior_personnel", "other_personnel", "fringe_benefits", "equipment", "travel",
     "participant_support", "other_direct_costs", "materials_and_supplies", "publication",
-    "consultant_services", "computer_services", "subawards", "other",
+    "consultant_services", "computer_services", "subawards", "other_direct_costs_other",
 }
 ODC_SUBLINE_CATEGORIES = {
     "materials_and_supplies", "publication", "consultant_services",
-    "computer_services", "subawards", "other",
+    "computer_services", "subawards", "other_direct_costs_other",
 }
 
 QUESTIONS = {"allowable", "covers", "unusual_term", "flag"}
@@ -481,8 +482,8 @@ def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[
             out[f"line:{line_id}"] = at
             if line_id not in lines:
                 problems.append(f"{where}: line_id {line_id!r} isn't in ledger.csv")
-            elif ev["at"] != f"{lines[line_id]['posting_date']}T00:00:00Z":
-                problems.append(f"{where}: a ledger line arrives at 00:00 UTC on its posting date (section 13)")
+            elif at < parse_time(f"{lines[line_id]['posting_date']}T00:00:00Z"):
+                problems.append(f"{where}: a ledger line can't arrive before its posting date")
         elif kind == "accountant":
             allowed = {"at", "kind", "action", "file", "note"}
             if ev.get("action") not in ACCOUNTANT_ACTIONS:
@@ -502,7 +503,35 @@ def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[
     for line_id in sorted(lines):
         if line_count.get(line_id) != 1:
             problems.append(f"arrivals.json: {line_id} must arrive exactly once")
+    check_line_arrivals(lines, out, problems)
     return out
+
+
+def check_line_arrivals(lines: dict[str, dict[str, str]], out: dict[str, datetime],
+                        problems: list[str]) -> None:
+    """Decision 0023: a ledger line arrives at the later of 00:00 UTC on its
+    posting date and the workspace's "now" when the ledger is uploaded (the
+    contract's LedgerRow.arrival(now)). A seeded line arrives on its posting
+    date. A line that arrives later than that came with the upload, so every
+    such line shares the upload's time, and no line posting before it can
+    arrive on its own posting date."""
+    posted = {
+        line_id: parse_time(f"{row['posting_date']}T00:00:00Z")
+        for line_id, row in lines.items()
+        if ISO_DATE.match(row.get("posting_date") or "")
+    }
+    arrived = {line_id: out[f"line:{line_id}"] for line_id in posted if f"line:{line_id}" in out}
+    uploads = {at for line_id, at in arrived.items() if at > posted[line_id]}
+    if len(uploads) > 1:
+        problems.append("arrivals.json: lines arriving after their posting date must share "
+                        "the ledger's one upload time")
+        return
+    upload = next(iter(uploads), None)
+    for line_id, at in sorted(arrived.items()):
+        want = max(posted[line_id], upload) if upload else posted[line_id]
+        if at != want:
+            problems.append(f"arrivals.json: {line_id} arrives at the later of its posting "
+                            "date and the ledger's upload (decision 0023)")
 
 
 def check_documents(case: Path, problems: list[str]) -> None:
