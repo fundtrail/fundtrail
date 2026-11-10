@@ -9,12 +9,12 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/timeline.json` | Its scheduled events only: files, the ledger file or each ledger line, each with its time. No user decision is in it. |
 | `samples/<sample>/user_actions.json` | What the user does in the play the answer key assumes: confirming terms, and bringing in the files marked for them |
 | `samples/<sample>/answer_key.json` | Each charge's expected result, in the eval's format (contracts.md section 14) |
-| `samples/<sample>/sample.json` | Its opening date, counts, and the Add-a-grant options it serves, with placeholder names |
+| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves, with placeholder names |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
 
-A file event marked `"deliver": "user"` is one the user is expected to bring in. Its time is when the clock delivers it instead, if the user hasn't. The full description of the samples, the timeline and the two plays comes with the static checks (issue 165, step 2).
+A file event marked `"deliver": "user"` is one the user is expected to bring in. Its time is its date: from then it waits under the timeline's Now until the user delivers it, and the clock never delivers it (ruling 44). The full description of the samples, the timeline and the two plays comes with the static checks (issue 165, step 2).
 
 ## The grants
 
@@ -32,13 +32,13 @@ From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples)
 
 | Situation | Grant | What happens | Expected bucket |
 |---|---|---|---|
-| S1. The professor's own conference fee on participant support | B | A $650 registration for the principal investigator (PI) posts to 56714 Participant Support-Other on March 17, 2026. On November 24, after the opening date, the PI forwards her own March email saying "Approved". | Possible conflict at both times. The Allowable answer is contradicts, because the person paid is named on the grant, and the approval comes from the wrong person through the wrong channel. |
+| S1. The professor's own conference fee on participant support | B | A $650 registration for the principal investigator (PI) posts to 56714 Participant Support-Other on March 17, 2026. On November 24, the PI forwards her own March email saying "Approved". | Possible conflict at both times. The Allowable answer is contradicts, because the person paid is named on the grant, and the approval comes from the wrong person through the wrong channel. |
 | S2. Work after the end date, then an extension | C | $3,150 of boat time in September 2026 posts on October 6, after the award letter's end date. On November 20 the no-cost extension, dated August 14, 2026, 17 days before the old end date, turns up in Drive. The accountant confirms it on November 23. | Possible conflict, still Possible conflict after the notice arrives, then Evidence complete after the confirmation. The grant's other lines dated after August 31 follow the same path. |
 | S3a. A shared cost, split on an email's basis | A and B | A $10,000 invoice for one 96-reaction kit. Harper Fixture, PI on A and co-PI on B, emails that 56 of the 96 samples are for Grant A and 40 for Grant B. A is charged $5,833.33 and B $4,166.67. Each grant holds its own copy of the invoice and the email. | Evidence complete on both, with the invoice and the email linked |
 | S3b. A shared cost, split on the invoice's own lines | B and C | One $2,430 invoice itemized by award: $1,450 for C and $980 for B | Evidence complete on both |
 | S3c. A shared cost with nothing that gives the basis | A and C | A $1,500 invoice that names both awards. A is charged $900 and C $600, and nothing on file says why. | Needs a human on both ([0021](../docs/decisions/0021-a-cost-shared-by-two-grants.md)) |
 | Participant support money moved out | B | $1,172.00 of lab reagents posts to 56714 Participant Support-Other on September 22, 2026. The agent assigns it to Materials and Supplies, so money leaves participant support, and no approval is on file. This exercises the award letter's approval rule. | Needs a human: the ledger's account disagrees with the budget line, and the Program Officer's approval is missing |
-| S4. A bill before its ledger line | B | An invoice arrives by email on November 19, after the opening date. Its ledger line posts on December 2. | Evidence complete once the line arrives |
+| S4. A bill before its ledger line | B | An invoice arrives by email on November 19. Its ledger line posts on December 2. | Evidence complete once the line arrives |
 | A grant from scratch | Pack | See [from-scratch/README.md](from-scratch/README.md) | Evidence complete on every line |
 
 ## The answer keys
@@ -57,7 +57,7 @@ Where an expected result depends on something the docs and the provisional decis
 - **S1: no budget line and no Covers answer.** The agent could assign the registration to Travel or to participant support's Other, and nothing settles which. Covers is asked, since an approval is linked, but what it should answer for a professor approving her own charge isn't settled. Neither changes the bucket, which rests on the Allowable answer and on code's approver check: the wrong person, through the wrong channel.
 - **S3c: no Allowable answer.** With no basis for the share, the agent may answer unsure. The bucket is Needs a human either way.
 - **The `approval_rule` term's fields other than `dated`, and the `approval` record's `covers` and `channel`.** They're free text, so a key can't predict the agent's wording.
-- **What the key format can't express yet:** checklist items (such as the reagents line's missing Program Officer approval), the agent's suggestions (such as S3's "the rest of this bill belongs to the other award"), problems on a bill or on the grant, and accepted charges. Two to watch for: each shared invoice's copy shows the other grant's part as money nobody charged 60 days after it arrived, unless the accountant accepts the agent's suggestion, and Grant C at the opening date is past its end date until the extension is confirmed.
+- **What the key format can't express yet:** checklist items (such as the reagents line's missing Program Officer approval), the agent's suggestions (such as S3's "the rest of this bill belongs to the other award"), problems on a bill or on the grant, and accepted charges. Two to watch for: each shared invoice's copy shows the other grant's part as money nobody charged 60 days after it arrived, unless the accountant accepts the agent's suggestion, and Grant C is past its end date until the extension is confirmed.
 
 ## Choices the docs left to the builder
 

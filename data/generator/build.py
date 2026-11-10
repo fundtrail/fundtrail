@@ -47,16 +47,16 @@ OPTIONS = {
     LARGER: [
         {
             "choice": "larger_live",
-            "name": "Placeholder: a grant near closeout, read live",
+            "name": "Placeholder: a grant that reaches closeout, read live",
             "description": "Placeholder until the docs give the words. A three-year grant "
-            "that opens near its end date. The agent reads its past while you watch.",
+            "that reaches closeout. Its timeline starts on the grant's first day.",
             "placeholder": True,
         },
         {
             "choice": "larger_prerun",
-            "name": "Placeholder: a grant near closeout, already read",
-            "description": "Placeholder until the docs give the words. The same grant, with "
-            "its past already read, so it opens at once.",
+            "name": "Placeholder: a grant that reaches closeout, already read",
+            "description": "Placeholder until the docs give the words. The same grant, "
+            "already read by the agent. How this works isn't settled yet.",
             "placeholder": True,
         },
     ],
@@ -70,7 +70,6 @@ def sample_json(g) -> str:
         "sample": g.slug,
         "award_number": g.award_number,
         "starts_at": iso(g.starts_at or g.first_event_at()),
-        "opens_at": iso(g.opens_at or g.first_event_at()),
         "last_event_at": iso(g.last_event_at()),
         "ledger_lines": len(g.lines),
         "files": len(g.docs),
@@ -86,8 +85,6 @@ def built() -> tuple[dict[str, object], list[object]]:
 
     grants, _ = demo.build()
     by_slug = {g.slug: g for g in grants}
-    for g in grants:
-        g.opens_at = demo.OPENING
     samples = {LARGER: by_slug.pop(LARGER), SMALL: scratch.build()}
     return samples, list(by_slug.values())
 

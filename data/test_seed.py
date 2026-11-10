@@ -9,8 +9,8 @@
   their text, and photos from the words the generator drew on them.
 - The synthetic-data rule (CLAUDE.md): award numbers start with SYN-, email
   addresses are at .example, and nothing has an em dash or an en dash.
-- The larger sample opens near the end of its period, with arrivals after the
-  opening, and the small sample starts with its award letter and its ledger.
+- The larger sample's timeline runs from its start into its closeout window,
+  and the small sample starts with its award letter and its ledger.
 
 Uses only the standard library, and borrows the eval cases' checks from
 eval/test_cases.py. Run it with `python3 data/test_seed.py`, or with pytest.
@@ -249,8 +249,8 @@ def check_timeline(
     timeline = json.loads((key_dir / "timeline.json").read_text(encoding="utf-8"))
     actions = json.loads((key_dir / "user_actions.json").read_text(encoding="utf-8"))
     out: dict[str, datetime] = {}
-    if set(timeline) != {"sample", "starts_at", "opens_at", "events"}:
-        problems.append("timeline.json: must have exactly sample, starts_at, opens_at and events")
+    if set(timeline) != {"sample", "starts_at", "events"}:
+        problems.append("timeline.json: must have exactly sample, starts_at and events")
         return out
     if set(actions) != {"sample", "actions"}:
         problems.append("user_actions.json: must have exactly sample and actions")
@@ -277,7 +277,10 @@ def check_timeline(
             if name not in documents:
                 problems.append(f"{where}: {name!r} isn't a document")
             seen_files[name] = seen_files.get(name, 0) + 1
-            out[f"file:{name}"] = t
+            # A file marked for the user arrives only when the user delivers it
+            # (ruling 44); the clock never does.
+            if e.get("deliver") != "user":
+                out[f"file:{name}"] = t
             if e.get("source") not in ev.SOURCES:
                 problems.append(f"{where}: bad source")
             if e.get("source") == "gmail":
@@ -333,8 +336,8 @@ def check_timeline(
         t = ev.parse_time(a["at"])
         out[f"{a['action']}:{a['file']}"] = t
         if a["action"] == "deliver_file":
-            # The file arrives when the user brings it in, or when the clock does.
-            out[f"file:{a['file']}"] = min(t, out.get(f"file:{a['file']}", t))
+            # A file marked for the user arrives when the user brings it in.
+            out[f"file:{a['file']}"] = t
     return out
 
 
@@ -809,12 +812,12 @@ def test_account_categories_match_the_table() -> None:
 
 
 def test_larger_sample() -> None:
-    """The larger sample opens near its end date, with arrivals after it."""
+    """The larger sample reaches closeout: its timeline starts with its award
+    letter and runs past the start of its 90-day closeout window."""
     g = gen()[LARGER]
-    opens = g.opens_at
-    end = datetime.combine(g.end, datetime.min.time(), opens.tzinfo)
-    assert timedelta(0) < end - opens <= timedelta(days=90), "not inside its closeout window"
-    assert g.first_event_at() < opens < g.last_event_at(), "nothing before or after opening"
+    end = datetime.combine(g.end, datetime.min.time(), g.first_event_at().tzinfo)
+    assert g.docs[0].name.startswith("award_letter.") and g.docs[0].at == g.first_event_at()
+    assert g.last_event_at() > end - timedelta(days=90), "never reaches its closeout window"
 
 
 def test_small_sample() -> None:
@@ -829,7 +832,7 @@ def test_small_sample() -> None:
     assert any(n.startswith("invoice_") for n in names)
     assert any(Path(n).suffix in PHOTO_SUFFIXES for n in names)
     assert any(d.deliver == "user" for d in g.docs), "no file marked for the user"
-    assert any(g.line_arrival(ln) > g.opens_at for ln in g.lines), "no later ledger lines"
+    assert any(g.line_arrival(ln) > g.ledger_at for ln in g.lines), "no later ledger lines"
 
 
 def test_line_ids_are_unique() -> None:

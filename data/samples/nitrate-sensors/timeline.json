@@ -1,7 +1,6 @@
 {
   "sample": "nitrate-sensors",
   "starts_at": "2026-11-16T17:30:00Z",
-  "opens_at": "2026-11-16T17:30:00Z",
   "events": [
     {"at": "2026-11-16T17:30:00Z", "kind": "file", "file": "award_letter.pdf", "source": "upload", "note": "The award letter arrives: the sample's first scheduled event."},
     {"at": "2026-11-16T17:45:00Z", "kind": "ledger", "file": "ledger.csv", "note": "The ledger file arrives. Each line arrives at the later of this and 00:00 UTC on its posting date (decision 0023)."},
