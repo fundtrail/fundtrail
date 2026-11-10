@@ -1,4 +1,5 @@
-"""Request dependencies: the platform, the signed-in user, and ownership checks.
+"""Request dependencies: the platform, the signed-in user, and the checks that the user
+may reach a workspace or grant.
 
 Anything outside the user's workspaces is a 404, so the API doesn't say it exists.
 """
@@ -66,7 +67,7 @@ UserDep = Annotated[User, Depends(current_user)]
 NOT_FOUND = "Not found."
 
 
-def owned_workspace(workspace_id: str, user: UserDep, platform: PlatformDep) -> Workspace:
+def reachable_workspace(workspace_id: str, user: UserDep, platform: PlatformDep) -> Workspace:
     with transaction(platform.pool) as conn:
         workspace = store.get_workspace(conn, workspace_id, user.id)
     if workspace is None:
@@ -74,7 +75,7 @@ def owned_workspace(workspace_id: str, user: UserDep, platform: PlatformDep) -> 
     return workspace
 
 
-def owned_grant(grant_id: str, user: UserDep, platform: PlatformDep) -> Grant:
+def reachable_grant(grant_id: str, user: UserDep, platform: PlatformDep) -> Grant:
     with transaction(platform.pool) as conn:
         grant = store.get_grant(conn, grant_id, user.id)
     if grant is None:
@@ -82,5 +83,5 @@ def owned_grant(grant_id: str, user: UserDep, platform: PlatformDep) -> Grant:
     return grant
 
 
-WorkspaceDep = Annotated[Workspace, Depends(owned_workspace)]
-GrantDep = Annotated[Grant, Depends(owned_grant)]
+WorkspaceDep = Annotated[Workspace, Depends(reachable_workspace)]
+GrantDep = Annotated[Grant, Depends(reachable_grant)]
