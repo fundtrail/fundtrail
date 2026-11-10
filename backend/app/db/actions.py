@@ -33,6 +33,7 @@ from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 from . import clock, store
+from .held_mail import let_in_released
 from .jobs import agent_questions_open, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
@@ -239,22 +240,28 @@ def add_record(
             store.list_charges(conn, grant.id, now),
             store.list_files(conn, grant.id, now),
             default_items=p.checks.default_items,
+            held_mail=store.list_held_mail(conn, grant.workspace_id, now),
             trigger=None,  # the accountant's write
         )
         if problems:
             raise WriteRejected(problems)
         [record] = store.insert_records(conn, [record])
         trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
-        output = recheck_grant(conn, p.checks, grant, now, trigger)
+        # Held mail this record lets in, or whose sender it makes known, arrives now.
+        arrived = let_in_released(p, conn, grant, now)
+        file_triggers = {f.id: Trigger(kind=TriggerKind.FILE, id=f.id) for f in arrived}
+        output = recheck_grant(conn, p.checks, grant, now, trigger, file_triggers=file_triggers)
         # Queued whether or not a run is in progress; a queued run that hasn't started
         # reads this record when it starts, so it's shared (the run-order ruling, 5).
         if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
             run = queue_run(conn, grant, trigger, now)
+        arrival_runs = [queue_run(conn, grant, file_triggers[f.id], now) for f in arrived]
         review = clock.queue_review_if_due(conn, grant, now)
-    for queued in (run, review):
+    for queued in (run, review, *arrival_runs):
         if queued is not None:
             ping_run(p.pinger, queued)
-    ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
+    what = ("records", "statuses", "evidence") if arrived else ("records", "statuses")
+    ping_changed(p.pinger, grant.workspace_id, grant.id, *what)
     return record
 
 
