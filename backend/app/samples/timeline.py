@@ -25,14 +25,15 @@ out (a snooze ending, the closeout window opening), which the caller passes in.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from app.contracts.api import ArrivalSource
 
-from .pack import EventKind, PackError, SamplePack, ScheduledEvent
+from .pack import EventKind, PackError, SamplePack, ScheduledEvent, event_id
 
 
 class ItemKind(StrEnum):
@@ -104,7 +105,7 @@ def _ledger_lines_later(pack: SamplePack, event: ScheduledEvent) -> list[Timelin
         raise PackError(f"{pack.files_folder}: rows {rows} of the ledger can't be read.")
     return [
         TimelineItem(
-            id=f"{event.id}-{c.ledger_line_id}",
+            id=event_id(EventKind.LEDGER_LINE, c.ledger_line_id),
             at=c.arrived_at,
             kind=ItemKind.ARRIVAL,
             name=c.ledger_line_id,
@@ -139,19 +140,23 @@ def pack_items(pack: SamplePack) -> tuple[TimelineItem, ...]:
     return _sorted(items)
 
 
+def _checks_id(d: ChecksDate) -> str:
+    utc = d.at.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"checks-{utc}-{hashlib.sha256(d.name.encode()).hexdigest()[:8]}"
+
+
 def checks_items(dates: Iterable[ChecksDate]) -> list[TimelineItem]:
-    """The checks' dates as timeline items. An ID names the date and what it is, so the same
-    date keeps its ID from one view to the next."""
-    return [
-        TimelineItem(
-            id=f"checks-{d.at.strftime('%Y%m%dT%H%M%S')}-{n}",
-            at=d.at,
-            kind=ItemKind.CHECKS_DATE,
-            name=d.name,
-            note=d.note,
-        )
-        for n, d in enumerate(sorted(dates, key=lambda d: (d.at, d.name)), start=1)
-    ]
+    """The checks' dates as timeline items. An ID names the date, in UTC, and what it is,
+    never its place in the list, so the same date keeps its ID from one view to the next.
+    The same date given twice is one item."""
+    items: dict[str, TimelineItem] = {}
+    for d in sorted(dates, key=lambda d: (d.at, d.name)):
+        item_id = _checks_id(d)
+        if item_id not in items:
+            items[item_id] = TimelineItem(
+                id=item_id, at=d.at, kind=ItemKind.CHECKS_DATE, name=d.name, note=d.note
+            )
+    return list(items.values())
 
 
 def _sorted(items: Iterable[TimelineItem]) -> tuple[TimelineItem, ...]:

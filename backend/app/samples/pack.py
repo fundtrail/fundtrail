@@ -32,7 +32,7 @@ import csv
 import hashlib
 import io
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from email import policy
 from email.parser import BytesParser
@@ -155,6 +155,16 @@ class SamplePack:
         return out.getvalue().encode()
 
 
+def event_id(kind: EventKind, name: str) -> str:
+    """An event's ID, from what it is, not where it sits in the file: a file's name or a
+    ledger line's ID (each scheduled once), hashed so it's safe in a URL. Adding, removing
+    or moving another event changes no other event's ID, and a ledger file's later line
+    has the same ID as a `ledger_line` event for that line would."""
+    key = "line" if kind is EventKind.LEDGER_LINE else kind.value
+    digest = hashlib.sha256(f"{key}/{name}".encode()).hexdigest()[:16]
+    return f"{key}-{digest}"
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -185,7 +195,12 @@ def _read_json(path: Path) -> Any:
         raise PackError(f"{path}: {error}") from error
 
 
-def _event(raw: dict[str, Any], event_id: str, where: str) -> ScheduledEvent:
+def _event(raw: dict[str, Any], where: str) -> ScheduledEvent:
+    e = _parse_event(raw, where)
+    return replace(e, id=event_id(e.kind, e.name))
+
+
+def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
     at = _time(raw.get("at"), where)
     note = raw.get("note")
     match raw.get("kind"):
@@ -197,7 +212,7 @@ def _event(raw: dict[str, Any], event_id: str, where: str) -> ScheduledEvent:
             if deliver not in (None, "user"):
                 raise PackError(f'{where}: deliver is "user" or left out.')
             return ScheduledEvent(
-                id=event_id,
+                id="",
                 at=at,
                 kind=EventKind.FILE,
                 source=source,
@@ -210,13 +225,13 @@ def _event(raw: dict[str, Any], event_id: str, where: str) -> ScheduledEvent:
             name = str(raw.get("file") or LEDGER_FILE)
             if name != LEDGER_FILE:
                 raise PackError(f"{where}: the ledger file is {LEDGER_FILE}.")
-            return ScheduledEvent(event_id, at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note)
+            return ScheduledEvent("", at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note)
         case "ledger_line":
             line_id = raw.get("line_id")
             if not isinstance(line_id, str) or not line_id:
                 raise PackError(f"{where}: a ledger line needs its line_id.")
             return ScheduledEvent(
-                event_id, at, EventKind.LEDGER_LINE, ArrivalSource.LEDGER, line_id, note
+                "", at, EventKind.LEDGER_LINE, ArrivalSource.LEDGER, line_id, note
             )
         case kind:
             raise PackError(f"{where}: {kind!r} isn't a scheduled event.")
@@ -246,14 +261,11 @@ def _build(
     meta: dict[str, Any],
     where: str,
 ) -> SamplePack:
-    numbered = [
-        _event(raw, f"e{n:03d}", f"{where}, event {n}") for n, raw in enumerate(raw_events, start=1)
-    ]
-    if not numbered:
+    parsed = [_event(raw, f"{where}, event {n}") for n, raw in enumerate(raw_events, start=1)]
+    if not parsed:
         raise PackError(f"{where}: the timeline has no events.")
-    # A stable sort: events at the same time keep the file's order, and each keeps the ID
-    # its place in the file gave it.
-    events = tuple(sorted(numbered, key=lambda e: e.at))
+    # A stable sort: events at the same time keep the file's order.
+    events = tuple(sorted(parsed, key=lambda e: e.at))
     starts = events[0].at
     if starts_at is not None and starts_at != starts:
         raise PackError(f"{where}: starts_at isn't the first event's time.")
@@ -273,6 +285,7 @@ def _build(
 def _check(pack: SamplePack, where: str) -> None:
     lines = set(pack.ledger_line_ids())
     seen_lines: set[str] = set()
+    seen_files: set[str] = set()
     for e in pack.events:
         if e.kind is EventKind.LEDGER_LINE:
             if e.name not in lines:
@@ -280,8 +293,13 @@ def _check(pack: SamplePack, where: str) -> None:
             if e.name in seen_lines:
                 raise PackError(f"{where}: line {e.name} arrives twice.")
             seen_lines.add(e.name)
-        elif not _inside(pack.files_folder, e.name).is_file():
+            continue
+        if not _inside(pack.files_folder, e.name).is_file():
             raise PackError(f"{where}: {e.name} isn't in {pack.files_folder}.")
+        # A file is scheduled once, so its name is its event's ID and a stable reference.
+        if e.name in seen_files:
+            raise PackError(f"{where}: {e.name} is scheduled twice.")
+        seen_files.add(e.name)
     if seen_lines and any(e.kind is EventKind.LEDGER for e in pack.events):
         raise PackError(f"{where}: a timeline has a ledger event or ledger_line events, not both.")
     delivered = {e.name: e.at for e in pack.events if e.deliver_by_user}

@@ -13,6 +13,7 @@ from app.samples.pack import (
     SMALL_SAMPLE,
     EventKind,
     PackError,
+    event_id,
     load_folder,
     load_pack,
 )
@@ -28,7 +29,8 @@ def test_reads_the_seed_builders_layout(tmp_path: Path) -> None:
     pack = load_folder(write_pack(tmp_path / "test-sample"))
     assert pack.sample == "test-sample"
     assert pack.starts_at == at("2026-11-16T17:30:00Z")
-    assert [e.id for e in pack.events] == ["e001", "e002", "e003", "e004", "e005", "e006"]
+    assert [e.id for e in pack.events] == [event_id(e.kind, e.name) for e in pack.events]
+    assert pack.events[0].id.startswith("file-") and pack.events[1].id.startswith("ledger-")
     assert [e.kind for e in pack.events] == [
         EventKind.FILE,
         EventKind.LEDGER,
@@ -49,12 +51,28 @@ def test_reads_the_seed_builders_layout(tmp_path: Path) -> None:
 def test_events_are_in_time_order_and_keep_their_ids(tmp_path: Path) -> None:
     events = [EVENTS[2], EVENTS[0], EVENTS[1]]
     pack = load_folder(write_pack(tmp_path / "s", events=events, actions=[]))
-    assert [(e.id, e.name) for e in pack.events] == [
-        ("e002", "award_letter.txt"),
-        ("e003", "ledger.csv"),
-        ("e001", "invoice_INV-1.txt"),
+    assert [e.name for e in pack.events] == [
+        "award_letter.txt",
+        "ledger.csv",
+        "invoice_INV-1.txt",
     ]
-    assert pack.event("e001") is pack.events[2]
+    assert pack.event(event_id(EventKind.FILE, "invoice_INV-1.txt")) is pack.events[2]
+
+
+def test_ids_come_from_what_an_event_is_not_where_it_sits(tmp_path: Path) -> None:
+    before = load_folder(write_pack(tmp_path / "a"))
+    extra = {"at": "2026-11-16T17:35:00Z", "kind": "file", "file": "extra.txt", "source": "upload"}
+    folder = write_pack(tmp_path / "b", events=[EVENTS[0], extra, *EVENTS[1:]])
+    (folder / "extra.txt").write_bytes(b"An extra synthetic file.")
+    after = load_folder(folder)
+    ids = {e.name: e.id for e in after.events}
+    assert all(ids[e.name] == e.id for e in before.events)
+
+
+def test_refuses_a_file_scheduled_twice(tmp_path: Path) -> None:
+    again = {**EVENTS[2], "at": "2026-11-20T00:00:00Z"}
+    with pytest.raises(PackError, match="scheduled twice"):
+        load_folder(write_pack(tmp_path / "s", events=[*EVENTS, again], actions=[]))
 
 
 def test_ledger_row_is_the_header_and_that_line(tmp_path: Path) -> None:

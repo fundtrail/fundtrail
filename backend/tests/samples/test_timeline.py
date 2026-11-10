@@ -7,7 +7,15 @@ from pathlib import Path
 import pytest
 
 from app.contracts.api import ArrivalSource
-from app.samples.pack import LARGER_SAMPLE, SMALL_SAMPLE, SamplePack, load_folder, load_pack
+from app.samples.pack import (
+    LARGER_SAMPLE,
+    SMALL_SAMPLE,
+    EventKind,
+    SamplePack,
+    event_id,
+    load_folder,
+    load_pack,
+)
 from app.samples.timeline import (
     ChecksDate,
     ItemKind,
@@ -63,7 +71,10 @@ def test_a_ledger_files_later_lines_are_on_the_timeline(items: tuple[TimelineIte
     later = items[6:]
     assert [i.at for i in later] == [at("2026-11-24T00:00:00Z"), at("2026-12-07T00:00:00Z")]
     assert all(i.event is None and i.source is ArrivalSource.LEDGER for i in later)
-    assert [i.id for i in later] == ["e002-L-9001-0002", "e002-L-9001-0003"]
+    assert [i.id for i in later] == [
+        event_id(EventKind.LEDGER_LINE, "L-9001-0002"),
+        event_id(EventKind.LEDGER_LINE, "L-9001-0003"),
+    ]
     assert [i.kind for i in items[4:6]] == [ItemKind.USER_DELIVERY] * 2
 
 
@@ -147,7 +158,18 @@ def test_checks_dates_are_stops_and_come_after_arrivals_at_the_same_time(
     assert move.play == ()
     nov24 = [i.name for i in merged if i.at == at("2026-11-24T00:00:00Z")]
     assert nov24 == ["L-9001-0002", "The closeout window opens"]
-    assert dates[0].id == "checks-20261120T000000-1"
+    assert dates[0].id.startswith("checks-20261120T000000Z-")
+
+
+def test_checks_date_ids_are_stable_and_in_utc() -> None:
+    snooze = ChecksDate(at("2026-11-20T00:00:00Z"), "A snooze ends")
+    window = ChecksDate(at("2026-11-24T00:00:00Z"), "The closeout window opens")
+    alone = checks_items([window])
+    with_another = checks_items([snooze, window, window])
+    assert [i.id for i in with_another] == [checks_items([snooze])[0].id, alone[0].id]
+    # The same moment written in another zone gives the same ID.
+    pacific = ChecksDate(datetime.fromisoformat("2026-11-23T16:00:00-08:00"), window.name)
+    assert checks_items([pacific])[0].id == alone[0].id
 
 
 def test_finished_ignores_checks_dates_and_waiting_items(items: tuple[TimelineItem, ...]) -> None:
