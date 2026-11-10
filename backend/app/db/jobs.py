@@ -93,7 +93,13 @@ class RunConflict(Exception):
 
 
 def _defer(
-    conn: Conn, run: AgentRun, *, attempt: int, priority: int, at: datetime | None = None
+    conn: Conn,
+    run: AgentRun,
+    *,
+    attempt: int,
+    priority: int,
+    at: datetime | None = None,
+    catch_up: bool = False,
 ) -> None:
     conn.execute(
         """select procrastinate_defer_jobs_v1(
@@ -103,24 +109,47 @@ def _defer(
             TASK_NAME,
             priority,
             grant_lock(run.grant_id),
-            Jsonb({"run_id": run.id, "attempt": attempt, "priority": priority}),
+            Jsonb(
+                {"run_id": run.id, "attempt": attempt, "priority": priority, "catch_up": catch_up}
+            ),
             at,
         ),
     )
 
 
-def queue_run(conn: Conn, grant: Grant, trigger: Trigger, clock_now: datetime) -> AgentRun:
+def grant_catching_up(conn: Conn, grant_id: str) -> bool:
+    """Whether the agent is still working through runs a clock move queued on this grant
+    (decision 0023). The move marks each run's job as a catch-up, and the mark lasts through
+    retries until the run is done or has failed for good."""
+    row = conn.execute(
+        """select 1 from procrastinate_jobs
+           where lock = %s and status in ('todo', 'doing') and (args ->> 'catch_up')::boolean
+           limit 1""",
+        (grant_lock(grant_id),),
+    ).fetchone()
+    return row is not None
+
+
+def queue_run(
+    conn: Conn, grant: Grant, trigger: Trigger, clock_now: datetime, *, catch_up: bool = False
+) -> AgentRun:
     """Queue an agent run on the grant, in the caller's transaction. Ping it after commit.
 
-    A run a thread message starts names the thread's charge or record."""
+    A run a thread message starts names the thread's charge or record. `catch_up` marks a
+    run a clock move queued for something the clock passed; it works as of `clock_now`, its
+    arrival time. A thread question goes ahead of queued runs, except while the agent
+    catches up: then it waits, so "the agent never answers with arrivals it hasn't read"
+    (decision 0023)."""
     subject: dict[str, str | None] = {}
     if trigger.kind == TriggerKind.THREAD_MESSAGE and trigger.id:
         message = store.get_message(conn, trigger.id)
         assert message is not None, "a thread run's message is stored first"
         subject = {"thread_charge_id": message.charge_id, "thread_record_id": message.record_id}
     run = store.insert_run(conn, grant.workspace_id, grant.id, trigger, clock_now, **subject)
-    priority = THREAD_PRIORITY if trigger.kind == TriggerKind.THREAD_MESSAGE else NORMAL_PRIORITY
-    _defer(conn, run, attempt=0, priority=priority)
+    priority = NORMAL_PRIORITY
+    if trigger.kind == TriggerKind.THREAD_MESSAGE and not grant_catching_up(conn, grant.id):
+        priority = THREAD_PRIORITY
+    _defer(conn, run, attempt=0, priority=priority, catch_up=catch_up)
     return run
 
 
@@ -198,7 +227,13 @@ def _check_result(run: AgentRun, result: AgentResult) -> None:
 
 
 def save_run(
-    p: Platform, conn: Conn, run: AgentRun, result: AgentResult, attempt: int = 0
+    p: Platform,
+    conn: Conn,
+    run: AgentRun,
+    result: AgentResult,
+    attempt: int = 0,
+    *,
+    catch_up: bool = False,
 ) -> Sequence[OpenQuestion]:
     """Save everything the run wrote, all or nothing, then rerun the checks.
 
@@ -244,6 +279,10 @@ def save_run(
     store.set_run(
         conn, run.id, RunStatus.DONE, finished=True, summary=result.summary, log_path=stored_log
     )
+    if catch_up:
+        from .clock import step_after_catch_up
+
+        return step_after_catch_up(p, conn, grant, run).questions
     output = recheck_grant(conn, p.checks, grant, now, run.trigger)
     return output.questions
 
@@ -265,9 +304,10 @@ def _follow_ups(conn: Conn, run: AgentRun, triggers: Sequence[Trigger]) -> list[
     return runs
 
 
-def _start(p: Platform, run_id: str) -> AgentRun | None:
+def _start(p: Platform, run_id: str, catch_up: bool) -> AgentRun | None:
     """Mark the run running and fix its clock time (the run-order ruling, 1): a run works as
-    of the workspace's "now" when it first starts, not when it was queued."""
+    of the workspace's "now" when it first starts, not when it was queued. A catch-up run
+    replays an arrival and keeps that arrival's time (decision 0023)."""
     with transaction(p.pool) as conn:
         run = store.get_run(conn, run_id, lock=True)
         if run is None or run.status in (RunStatus.DONE, RunStatus.FAILED):
@@ -283,13 +323,13 @@ def _start(p: Platform, run_id: str) -> AgentRun | None:
                 error="the worker stopped during the run",
             )
         clock_now = run.clock_now
-        if run.started_at is None:
+        if run.started_at is None and not catch_up:
             clock_now = workspace_now(store.workspace_by_id(conn, run.workspace_id))
         store.set_run(conn, run.id, RunStatus.RUNNING, started=True, clock_now=clock_now)
         return run.model_copy(update={"status": RunStatus.RUNNING, "clock_now": clock_now})
 
 
-def _attempt(p: Platform, run: AgentRun, attempt: int) -> None:
+def _attempt(p: Platform, run: AgentRun, attempt: int, catch_up: bool) -> None:
     """One try: read, run the agent, save. A save the write check refuses starts over from a
     fresh read, up to REDOS times (the run-order ruling, 4); that isn't a failure retry."""
     for redo in range(REDOS + 1):
@@ -299,7 +339,7 @@ def _attempt(p: Platform, run: AgentRun, attempt: int) -> None:
         result = p.agent.run(agent_input)
         try:
             with transaction(p.pool) as conn:
-                questions = save_run(p, conn, run, result, attempt)
+                questions = save_run(p, conn, run, result, attempt, catch_up=catch_up)
                 follow_ups = _follow_ups(conn, run, _open_questions(run, result, questions))
         except RunConflict as conflict:
             if result.log is not None:
@@ -339,7 +379,7 @@ class RunFailed(Exception):
         self.log = log
 
 
-def execute_run(p: Platform, run_id: str, attempt: int) -> None:
+def execute_run(p: Platform, run_id: str, attempt: int, catch_up: bool = False) -> None:
     """One try of one run. The Procrastinate task calls this.
 
     Whatever goes wrong ends in one of two ways: a retry of the same job, or the run marked
@@ -347,22 +387,24 @@ def execute_run(p: Platform, run_id: str, attempt: int) -> None:
     try starts and an error while recording a failure.
     """
     try:
-        run = _start(p, run_id)
+        run = _start(p, run_id, catch_up)
         if run is None:
             return
         ping_run(p.pinger, run)
         try:
-            _attempt(p, run, attempt)
+            _attempt(p, run, attempt, catch_up)
         except Exception as error:  # noqa: BLE001 - any failure fails the try; nothing was saved
-            _after_failure(p, run, attempt, error)
+            _after_failure(p, run, attempt, error, catch_up)
     except RetryRun:
         raise
     except Exception as error:  # noqa: BLE001 - the run must not stay queued or running
         log.warning("agent run %s ended by an error: %s", run_id, type(error).__name__)
-        _fail_for_good(p, run_id, f"{type(error).__name__}: {error}"[:2000], None)
+        _fail_for_good(p, run_id, f"{type(error).__name__}: {error}"[:2000], None, catch_up)
 
 
-def _after_failure(p: Platform, run: AgentRun, attempt: int, error: Exception) -> None:
+def _after_failure(
+    p: Platform, run: AgentRun, attempt: int, error: Exception, catch_up: bool = False
+) -> None:
     message = f"{type(error).__name__}: {error}"[:2000]
     log.warning("agent run %s try %s failed: %s", run.id, attempt + 1, type(error).__name__)
     # The agent's AgentRunFailed says whether trying again could help, and carries the
@@ -381,12 +423,15 @@ def _after_failure(p: Platform, run: AgentRun, attempt: int, error: Exception) -
             store.set_run(conn, run.id, RunStatus.QUEUED, error=message, log_path=stored_log)
         ping_run(p.pinger, run.model_copy(update={"status": RunStatus.QUEUED}))
         raise RetryRun(message)
-    _fail_for_good(p, run.id, message, stored_log)
+    _fail_for_good(p, run.id, message, stored_log, catch_up)
 
 
-def _fail_for_good(p: Platform, run_id: str, message: str, stored_log: str | None) -> None:
+def _fail_for_good(
+    p: Platform, run_id: str, message: str, stored_log: str | None, catch_up: bool = False
+) -> None:
     """Mark the run failed, then rerun the checks with it in failed_runs, so they raise the
-    usual problem where its trigger points.
+    usual problem where its trigger points. A catch-up run's checks step on from its own
+    time, as its save would have.
 
     Two transactions: the run ends `failed` even when the checks themselves raise, which is
     logged; the next recheck on the grant raises the problem then."""
@@ -402,8 +447,13 @@ def _fail_for_good(p: Platform, run_id: str, message: str, stored_log: str | Non
         with transaction(p.pool) as conn:
             grant = store.get_grant(conn, run.grant_id, lock=True)
             assert grant is not None
-            now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
-            recheck_grant(conn, p.checks, grant, now, run.trigger)
+            if catch_up:
+                from .clock import step_after_catch_up
+
+                step_after_catch_up(p, conn, grant, run)
+            else:
+                now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+                recheck_grant(conn, p.checks, grant, now, run.trigger)
     except Exception as error:  # noqa: BLE001 - the run is failed already; say so and go on
         log.warning("checks after run %s failed for good raised %s", run.id, type(error).__name__)
         return
@@ -421,11 +471,12 @@ def run_agent(
     run_id: str,
     attempt: int = 0,
     priority: int = NORMAL_PRIORITY,
+    catch_up: bool = False,
 ) -> None:
     """One try of one run. The try number is the job's own count of earlier attempts.
     `attempt` and `priority` are in the job's arguments for reading the queue; the job's own
-    attempts count is what's used."""
-    execute_run(get_platform(), run_id, context.job.attempts)
+    attempts count is what's used. `catch_up` marks a run a clock move queued."""
+    execute_run(get_platform(), run_id, context.job.attempts, catch_up)
 
 
 @app.periodic(cron="* * * * *", periodic_id="retry_stalled")
@@ -435,3 +486,12 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
     in the queue once its worker has stopped sending heartbeats (Procrastinate's recipe)."""
     for job in await context.app.job_manager.get_stalled_jobs(task_name=TASK_NAME):
         await context.app.job_manager.retry_job(job)
+
+
+@app.periodic(cron="5 0 * * *", periodic_id="daily_recheck")
+@app.task(name="daily_recheck", queue=QUEUE, pass_context=False)
+def daily_recheck_task(timestamp: int) -> None:
+    """Shortly after midnight UTC: time alone can change a status in a real workspace."""
+    from .clock import daily_recheck
+
+    daily_recheck(get_platform())

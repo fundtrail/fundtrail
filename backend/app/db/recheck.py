@@ -28,6 +28,7 @@ def recheck_grant(
     trigger: Trigger,
     *,
     charge_triggers: Mapping[str, Trigger] | None = None,
+    file_triggers: Mapping[str, Trigger] | None = None,
 ) -> ChecksOutput:
     """Run the checks on everything on the grant visible at `now` and write what changed.
 
@@ -53,13 +54,18 @@ def recheck_grant(
         *(s for s in output.records if s.grant_id == grant.id),
         *(s for s in output.grants if s.grant_id == grant.id),
     ]
-    current = store.current_statuses(conn, grant.id)
+    # Compared with each status as it stood at `now`, which matters when a catch-up
+    # works out a moment before the latest row: only a real change at that moment
+    # gets a row.
+    current = store.statuses_as_of(conn, grant.id, now)
     for status in statuses:
         key = store.status_key(status)
         old = current.pop(key, None)
         if old is not None and store.same_status(old, status):
             continue
-        own = (charge_triggers or {}).get(key[1] or "") if key[0] == "charge" else None
+        own = {"charge": charge_triggers or {}, "file": file_triggers or {}}.get(key[0], {}).get(
+            key[1] or ""
+        )
         store.insert_status(conn, grant.workspace_id, status, now, own or trigger)
     # A record, file or grant whose problem went away has no status in the output.
     # Write a cleared one, so its latest status no longer shows the old problem.

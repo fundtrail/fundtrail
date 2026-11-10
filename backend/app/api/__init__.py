@@ -8,6 +8,9 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import FastAPI
 
 from .routes import router
+from .screen_routes import router as _screen_router
+
+router.include_router(_screen_router)
 
 __all__ = ["lifespan", "router"]
 

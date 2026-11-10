@@ -22,6 +22,7 @@ from app.contracts.api import (
     FileLink,
     LedgerUploadResult,
     NewRecordInput,
+    SignOffInput,
     WorkspaceCreate,
     WriteRejected,
 )
@@ -141,6 +142,21 @@ def list_records(grant: GrantDep, platform: PlatformDep) -> list[Record]:
 def create_record(
     body: NewRecordInput, grant: GrantDep, user: UserDep, platform: PlatformDep
 ) -> Record:
+    if isinstance(body.data, SignOffInput):
+        from .report import signed_report_maker
+        from .views import open_check
+
+        try:
+            return actions.add_sign_off(
+                platform,
+                grant,
+                user.id,
+                body.data.note,
+                signed_report_maker(platform, user.id),
+                open_check(platform),
+            )
+        except actions.WriteRejected as error:
+            return _rejected(error)  # pyright: ignore[reportReturnType]
     try:
         return actions.add_record(
             platform, grant, user.id, body.data.model_dump(mode="json"), body.replaces_id

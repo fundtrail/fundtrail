@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from psycopg import Connection
@@ -618,6 +619,173 @@ def same_status(a: Status, b: Status) -> bool:
     return json.dumps(_status_columns(a), sort_keys=True) == json.dumps(
         _status_columns(b), sort_keys=True
     )
+
+
+def statuses_as_of(conn: Conn, grant_id: str, at: datetime) -> dict[tuple[str, str | None], Status]:
+    """The latest status of everything on the grant as it stood at a clock time."""
+    rows = conn.execute(
+        """select distinct on (charge_id, record_id, file_id)
+                  grant_id, charge_id, record_id, file_id, bucket, reasons, checklist, problems,
+                  flagged, rechecking, accepted, snoozed, net_cents, corrections, reversed
+           from public.statuses where grant_id = %s and changed_at <= %s
+           order by charge_id, record_id, file_id, changed_at desc, id desc""",
+        (grant_id, at),
+    ).fetchall()
+    out: dict[tuple[str, str | None], Status] = {}
+    for row in rows:
+        status = _status_from_row(row)
+        out[status_key(status)] = status
+    return out
+
+
+@dataclass(frozen=True)
+class StatusRow:
+    changed_at: datetime
+    trigger: Trigger
+    status: Status
+
+
+def status_history(
+    conn: Conn,
+    *,
+    charge_id: str | None = None,
+    record_ids: Sequence[str] = (),
+    file_id: str | None = None,
+) -> list[StatusRow]:
+    """A charge's, some records' or a file's status rows, oldest first."""
+    rows = conn.execute(
+        """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist, problems,
+                  flagged, rechecking, accepted, snoozed, net_cents, corrections, reversed,
+                  changed_at, trigger_kind, trigger_id
+           from public.statuses
+           where charge_id = %s or record_id = any(%s) or file_id = %s
+           order by changed_at, id""",
+        (charge_id, list(record_ids), file_id),
+    ).fetchall()
+    return [
+        StatusRow(
+            changed_at=r["changed_at"],
+            trigger=Trigger(kind=TriggerKind(r["trigger_kind"]), id=r["trigger_id"]),
+            status=_status_from_row(r),
+        )
+        for r in rows
+    ]
+
+
+def get_charge(conn: Conn, charge_id: str, owner_id: str) -> Charge | None:
+    """The charge, only if this user owns its workspace."""
+    row = conn.execute(
+        """select c.id, c.workspace_id, c.grant_id, c.ledger_line_id, c.transaction_date,
+                  c.posting_date, c.arrived_at, c.amount_cents, c.description, c.account,
+                  c.vendor, c.reference, c.original_line_id
+           from public.charges c join public.workspaces w on w.id = c.workspace_id
+           where c.id = %s and w.owner_id = %s::uuid""",
+        (charge_id, owner_id),
+    ).fetchone()
+    return Charge.model_validate(row) if row else None
+
+
+def get_record(conn: Conn, record_id: str, owner_id: str) -> Record | None:
+    """The record, only if this user owns its workspace."""
+    row = conn.execute(
+        """select r.id, r.workspace_id, r.grant_id, r.author, r.author_user_id, r.written_at,
+                  r.replaces_id, r.thread_message_id, r.stored_seq,
+                  r.read_through_seq, r.data
+           from public.records r join public.workspaces w on w.id = r.workspace_id
+           where r.id = %s and w.owner_id = %s::uuid""",
+        (record_id, owner_id),
+    ).fetchone()
+    return _record(row) if row else None
+
+
+def grant_messages(conn: Conn, grant_id: str, now: datetime) -> list[ThreadMessage]:
+    """Every thread message on the grant written by now, oldest first."""
+    rows = conn.execute(
+        f"""select {_MESSAGE_COLUMNS} from public.thread_messages
+            where grant_id = %s and written_at <= %s order by written_at, created_at, id""",
+        (grant_id, now),
+    ).fetchall()
+    return [_message(r) for r in rows]
+
+
+def pending_runs(conn: Conn, grant_id: str) -> list[AgentRun]:
+    """Queued and running runs, oldest first."""
+    rows = conn.execute(
+        f"""select {_RUN_COLUMNS} from public.agent_runs
+            where grant_id = %s and status in ('queued', 'running') order by queued_at, id""",
+        (grant_id,),
+    ).fetchall()
+    return [_run(r) for r in rows]
+
+
+def lock_workspace(conn: Conn, workspace_id: str) -> Workspace:
+    row = conn.execute(
+        "select id, name, owner_id, clock_now from public.workspaces where id = %s for update",
+        (workspace_id,),
+    ).fetchone()
+    assert row is not None
+    return Workspace.model_validate(_clean(row))
+
+
+def set_clock(conn: Conn, workspace_id: str, now: datetime) -> None:
+    conn.execute("update public.workspaces set clock_now = %s where id = %s", (now, workspace_id))
+
+
+def real_time_workspace_ids(conn: Conn) -> list[str]:
+    rows = conn.execute("select id from public.workspaces where clock_now is null").fetchall()
+    return [r["id"] for r in rows]
+
+
+END_OF_TIME = datetime.max.replace(tzinfo=UTC)
+
+
+def has_review_since(conn: Conn, grant_id: str, at: datetime) -> bool:
+    """Whether a closeout review (a run the clock started) works as of `at` or later."""
+    row = conn.execute(
+        """select 1 from public.agent_runs
+           where grant_id = %s and trigger_kind = 'clock' and clock_now >= %s limit 1""",
+        (grant_id, at),
+    ).fetchone()
+    return row is not None
+
+
+def next_catch_up_time(conn: Conn, grant_id: str, run_id: str) -> datetime | None:
+    """The earliest time of another catch-up run still queued or running on the grant."""
+    row = conn.execute(
+        """select min(r.clock_now) as at from public.agent_runs r
+           join procrastinate_jobs j on j.args ->> 'run_id' = r.id
+           where r.grant_id = %s and r.id <> %s and r.status in ('queued', 'running')
+             and j.status in ('todo', 'doing') and (j.args ->> 'catch_up')::boolean""",
+        (grant_id, run_id),
+    ).fetchone()
+    return row["at"] if row else None
+
+
+def get_user(conn: Conn, user_id: str) -> User | None:
+    row = conn.execute(
+        "select id, email, name from public.users where id = %s", (user_id,)
+    ).fetchone()
+    return User.model_validate(_clean(row)) if row else None
+
+
+def grant_status_history(conn: Conn, grant_id: str, now: datetime) -> list[StatusRow]:
+    """Every status row on the grant up to now, oldest first."""
+    rows = conn.execute(
+        """select grant_id, charge_id, record_id, file_id, bucket, reasons, checklist, problems,
+                  flagged, rechecking, accepted, snoozed, net_cents, corrections, reversed,
+                  changed_at, trigger_kind, trigger_id
+           from public.statuses where grant_id = %s and changed_at <= %s
+           order by changed_at, id""",
+        (grant_id, now),
+    ).fetchall()
+    return [
+        StatusRow(
+            changed_at=r["changed_at"],
+            trigger=Trigger(kind=TriggerKind(r["trigger_kind"]), id=r["trigger_id"]),
+            status=_status_from_row(r),
+        )
+        for r in rows
+    ]
 
 
 def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:

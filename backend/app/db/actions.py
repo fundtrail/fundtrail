@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -15,10 +16,20 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from app.contracts.api import LedgerUploadResult, RowError
+from app.contracts.checks import ChargeStatus, Problem
 from app.contracts.evidence import EvidenceFile, Source, storage_path
-from app.contracts.records import TERM_KINDS, Author, Record, RecordData
+from app.contracts.records import (
+    TERM_KINDS,
+    AcceptedReason,
+    Author,
+    Record,
+    RecordData,
+    SignOff,
+)
 from app.contracts.rules import check_new_record
 from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
+from app.contracts.signoff import SignOffSnapshot
+from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 from . import store
@@ -155,6 +166,38 @@ def _fill_term_date(data: dict[str, Any], now: datetime) -> dict[str, Any]:
     return data
 
 
+def _accepted_amount(
+    conn: store.Conn, grant_id: str, now: datetime, data: AcceptedReason
+) -> AcceptedReason:
+    """An accepted reason's amount is the server's: the amount over on the problem it
+    accepts, as that problem stands now (issue 83), whatever the client sent. Only the
+    award limit's over_limit problem carries one; every other acceptance gets None."""
+    if data.charge_id:
+        key: tuple[str, str | None] = ("charge", data.charge_id)
+    elif data.record_id:
+        key = ("record", data.record_id)
+    elif data.file_id:
+        key = ("file", data.file_id)
+    else:
+        key = ("grant", None)
+    status = store.statuses_as_of(conn, grant_id, now).get(key)
+    if status is None:
+        problems: tuple[Problem, ...] = ()
+    elif isinstance(status, ChargeStatus):
+        problems = status.reasons
+    else:
+        problems = status.problems
+    amount = next(
+        (
+            x.amount_cents
+            for x in problems
+            if x.check == data.reason.check and x.problem == data.reason.problem
+        ),
+        None,
+    )
+    return data.model_copy(update={"amount_cents": amount})
+
+
 def add_record(
     p: Platform, grant: Grant, user_id: str, data: dict[str, Any], replaces_id: str | None
 ) -> Record:
@@ -165,9 +208,8 @@ def add_record(
     """
     run: AgentRun | None = None
     if data.get("kind") == "sign_off":
-        # A sign-off stores the evidence report with it (decision 0022). The report
-        # route and the sign-off come with the screens' pull request (#63).
-        raise WriteRejected(["A sign-off stores the evidence report, which isn't built here yet."])
+        # A sign-off stores the evidence report with it (decision 0022): add_sign_off.
+        raise WriteRejected(["A sign-off goes through add_sign_off, which stores its report."])
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
@@ -186,6 +228,10 @@ def add_record(
             raise WriteRejected(
                 [e["msg"] + f" ({'.'.join(map(str, e['loc']))})" for e in error.errors()]
             ) from error
+        if isinstance(record.data, AcceptedReason):
+            record = record.model_copy(
+                update={"data": _accepted_amount(conn, grant.id, now, record.data)}
+            )
         records = store.list_records(conn, grant.id, now)
         problems = check_new_record(
             record,
@@ -204,7 +250,109 @@ def add_record(
         # reads this record when it starts, so it's shared (the run-order ruling, 5).
         if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
             run = queue_run(conn, grant, trigger, now)
-    if run is not None:
-        ping_run(p.pinger, run)
+        from .clock import queue_review_if_due
+
+        review = queue_review_if_due(conn, grant, now)
+    for queued in (run, review):
+        if queued is not None:
+            ping_run(p.pinger, queued)
+    ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
+    return record
+
+
+def add_message(
+    p: Platform,
+    grant: Grant,
+    user_id: str,
+    text: str,
+    *,
+    charge_id: str | None = None,
+    record_id: str | None = None,
+) -> ThreadMessage:
+    """The accountant's message in a charge's or a record's thread. It changes nothing on
+    its own, and queues a run for the agent to answer. That run goes ahead of the grant's
+    queued runs, except while the agent catches up after a clock jump."""
+    with transaction(p.pool) as conn:
+        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        message = ThreadMessage(
+            id=_new_id(),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            charge_id=charge_id,
+            record_id=record_id,
+            author=Author.USER,
+            author_user_id=user_id,
+            text=text,
+            written_at=now,
+        )
+        store.insert_messages(conn, [message])
+        run = queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
+    ping_run(p.pinger, run)
+    ping_changed(p.pinger, grant.workspace_id, grant.id, "thread")
+    return message
+
+
+# Builds the evidence report at a moment, under the grant's lock: the PDF and the snapshot
+# of what counts as a change since (decision 0022). The API provides it (app/api/report.py).
+type MakeReport = Callable[[store.Conn, Grant, datetime, str | None], tuple[bytes, SignOffSnapshot]]
+
+
+def add_sign_off(
+    p: Platform,
+    grant: Grant,
+    user_id: str,
+    note: str | None,
+    make_report: MakeReport,
+    anything_open: Callable[[store.Conn, Grant], bool],
+) -> Record:
+    """Sign off on the grant's evidence report (decision 0022).
+
+    Under the grant's lock, so nothing lands between the checks, the report and the record:
+    refuse while a run is queued or running, or without a note while anything is open,
+    build the report at the workspace's "now" with this
+    sign-off on it, store the PDF, then write the sign_off record with the report's path,
+    checksum and snapshot. The stored report is never made again.
+    """
+    with transaction(p.pool) as conn:
+        store.get_grant(conn, grant.id, lock=True)
+        if store.has_pending_run(conn, grant.id):
+            raise WriteRejected(
+                ["The agent is still working on this grant. Sign off once it's done."]
+            )
+        if not (note and note.strip()) and anything_open(conn, grant):
+            raise WriteRejected(["Something is still open, so a sign-off needs a note."])
+        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        pdf, snapshot = make_report(conn, grant, now, note)
+        record_id = _new_id()
+        path = f"{grant.workspace_id}/{grant.id}/sign-offs/{record_id}.pdf"
+        record = Record(
+            id=record_id,
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            written_at=now,
+            data=SignOff(
+                note=note,
+                report_path=path,
+                report_sha256=hashlib.sha256(pdf).hexdigest(),
+                snapshot=snapshot,
+            ),
+        )
+        problems = check_new_record(
+            record,
+            store.list_records(conn, grant.id, now),
+            store.list_charges(conn, grant.id, now),
+            store.list_files(conn, grant.id, now),
+            default_items=p.checks.default_items,
+            trigger=None,
+        )
+        if problems:
+            raise WriteRejected(problems)
+        # Stored before the record is written; if the commit then fails, the PDF is left
+        # without a record and nothing reads it.
+        p.storage.put(path, pdf, "application/pdf")
+        store.insert_records(conn, [record])
+        recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.RECORD, id=record.id))
     ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
     return record
