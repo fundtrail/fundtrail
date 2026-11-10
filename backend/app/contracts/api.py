@@ -64,7 +64,7 @@ from .records import (
 from .runs import AgentRun
 from .signoff import SignOffStateName, SnapshotChange
 from .threads import ThreadMessage
-from .workspaces import Grant
+from .workspaces import Grant, SampleChoice
 
 # Workspaces and the clock.
 
@@ -83,7 +83,11 @@ class ArrivalSource(StrEnum):
 
 
 class NextArrival(Model):
-    """The next item waiting for the clock: when, where from and its name. Not its contents."""
+    """The next item waiting for the clock: when, where from and its name. Not its contents.
+
+    Deprecated with Clock (issue 165): the timeline replaces it. `ArrivalSource` stays,
+    since a timeline event uses it.
+    """
 
     at: UtcDatetime
     source: ArrivalSource
@@ -91,7 +95,11 @@ class NextArrival(Model):
 
 
 class Clock(Model):
-    """GET and POST /workspaces/{workspace_id}/clock"""
+    """GET and POST /workspaces/{workspace_id}/clock.
+
+    Deprecated (issue 165): a sample grant's timeline replaces the workspace clock
+    (`timeline.TimelineView`). Kept until the platform (W4) removes the clock route.
+    """
 
     now: UtcDatetime
     simulated: bool  # False when the workspace runs on the real date
@@ -103,6 +111,7 @@ class ClockMove(Model):
     """POST /workspaces/{workspace_id}/clock.
 
     Nothing in `to` moves to the next arrival. The clock only moves forward.
+    Deprecated (issue 165): replaced by `timeline.TimelineMove`.
     """
 
     to: UtcDatetime | None = None
@@ -164,6 +173,62 @@ class GrantSummary(Model):
     waiting: int  # the agent's records waiting for the accountant
     bucket_counts: dict[Bucket, int]
     next_closeout: CloseoutDate | None = None
+    # Issue 165: the grant's "now" (its simulated clock on a sample grant, else the
+    # real date), sent with every grant so screens never ask the browser for the date.
+    now: UtcDatetime
+
+
+class SampleOption(Model):
+    """One choice in the Add a grant dropdown's Sample list. GET /samples returns them in order.
+
+    Names and descriptions come from the sample packs (W3).
+    """
+
+    choice: SampleChoice
+    name: Text
+    description: Text
+    needs_confirm: bool  # true for larger_live
+    available: bool
+    unavailable_reason: str | None = None  # why it can't be opened now, for example a stale prerun
+
+
+class SampleCreate(Model):
+    """POST /workspaces/{workspace_id}/samples: opens a sample grant, returning its GrantSummary.
+
+    It returns 201. The one refusal is a 409 whose `detail` is a SampleRefusal with
+    reason `needs_confirm`: the choice needs a confirm and `confirmed` is false.
+    Opening is never refused for the read-live limit, which is on moving the clock
+    (timeline.TimelineMove).
+    """
+
+    choice: SampleChoice
+    confirmed: bool = False
+
+
+class SampleRefusalReason(StrEnum):
+    NEEDS_CONFIRM = "needs_confirm"  # the larger live sample needs the user's confirm
+    # Another of the user's larger read-live samples has agent runs queued or running
+    # from a move of its clock.
+    ANOTHER_SAMPLE_WORKING = "another_sample_working"
+
+
+class SampleRefusal(Model):
+    """The 409 `detail` of POST /workspaces/{workspace_id}/samples, of
+    POST /grants/{grant_id}/timeline/start-over and of POST /grants/{grant_id}/timeline
+    (ruling 41).
+
+    Opening a sample and starting one over are refused only with `needs_confirm`.
+    The read-live limit is settled as ruling 48, a first version, and is on the clock
+    move: while one of the user's larger read-live samples has agent runs queued or
+    running from a move of its clock, moving the clock of another of the user's
+    larger read-live samples is refused with `another_sample_working`, and `grant`
+    names the one still working.
+    """
+
+    reason: SampleRefusalReason
+    message: Text  # worded by the server
+    # For another_sample_working: the larger read-live sample still working.
+    grant: GrantSummary | None = None
 
 
 class TermView(Model):
