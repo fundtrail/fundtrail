@@ -115,11 +115,13 @@ def build_record(
     data: dict[str, Any],
     replaces_id: str | None = None,
     trigger: Trigger | None = None,
+    read_through_seq: int | None = None,
 ) -> tuple[Record | None, list[str]]:
     """The agent's record, or the reasons the contract models refuse it, as plain sentences.
 
     In a run a thread message started, the record names that message, so it waits for the
-    accountant whatever its kind (the contract reads it from there).
+    accountant whatever its kind (the contract reads it from there). The record carries
+    its run's read point (call 40).
     """
     thread = trigger is not None and trigger.kind == TriggerKind.THREAD_MESSAGE
     try:
@@ -132,6 +134,7 @@ def build_record(
                 "written_at": written_at,
                 "replaces_id": replaces_id,
                 "thread_message_id": trigger.id if thread and trigger is not None else None,
+                "read_through_seq": read_through_seq,
                 "data": data,
             }
         )

@@ -98,6 +98,7 @@ def to_run_inputs(agent_input: Any) -> RunInputs:
         run_checks=checks.run_checks,
         charge_ids=charge_ids,
         thread_messages=list(agent_input.thread),
+        read_through_seq=run.read_through_seq,
     )
 
 
