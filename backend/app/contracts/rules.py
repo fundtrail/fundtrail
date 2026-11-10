@@ -37,6 +37,7 @@ from .records import (
     Author,
     Bill,
     BudgetAssignment,
+    BudgetLine,
     ChecklistItem,
     ChecklistRemoval,
     Confirmation,
@@ -576,6 +577,8 @@ def _referenced_files(new: Record) -> list[str]:
         ids.append(data.file_id)
     if isinstance(data, Duplicate):
         ids += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        ids.append(data.notice_file_id)
     return ids
 
 
@@ -921,6 +924,15 @@ def check_new_record(
                 and not state.is_current(target.replaces_id)
             ):
                 problems.append(f"record {record_id} replaces a record that's no longer current")
+
+    elif isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        # The agent's line belongs to the notice it was read from; naming another
+        # would move it to that notice's group. The accountant may name any file.
+        if agent and data.notice_file_id not in {c.file_id for c in citations(data)}:
+            problems.append(
+                f"the agent's budget line belongs to the notice it cites, "
+                f"not file {data.notice_file_id}"
+            )
 
     elif isinstance(data, Remainder):
         bill = pointed.get(data.record_id)

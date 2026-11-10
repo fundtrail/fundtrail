@@ -10,7 +10,8 @@ import styles from "./charge.module.css";
  * The answers to the questions code asked about the charge: the question, the
  * answer, the reasoning, the rule it used and its quotes, labeled with who
  * wrote it. Then the questions still open, and who answers each. With
- * `onWrite`, the accountant answers an open question or overrules an answer.
+ * `onWrite`, the accountant answers any open question, including one waiting
+ * for the agent, or overrules an answer.
  */
 export function AgentAnswers({
   answers,

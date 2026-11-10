@@ -114,9 +114,21 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._stood(data.rests_on, finding) and self._amount_held(data, finding):
+            if self._holds(data, finding):
                 return r.id
         return None
+
+    def _holds(self, data: AcceptedReason, finding: Finding) -> bool:
+        """Whether an acceptance still covers a problem as it stands.
+
+        A problem that carries an amount (the award limit's over_limit) is judged by the
+        amount alone (call 40): a new notice that raises the limit changes the records
+        the problem rests on, but the acceptance holds unless the amount over grows.
+        Every other problem holds while the records it rested on stand.
+        """
+        if finding.amount_cents is not None:
+            return self._amount_held(data, finding)
+        return self._stood(data.rests_on, finding)
 
     @staticmethod
     def _amount_held(data: AcceptedReason, finding: Finding) -> bool:
@@ -138,7 +150,7 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._stood(data.rests_on, finding) and finding.amount_cents > data.amount_cents:
+            if finding.amount_cents > data.amount_cents:
                 return data.amount_cents
         return None
 
