@@ -339,6 +339,10 @@ class _Report:
                     (0.3, 0.15, 0.15, 0.12, 0.28),
                 )
             )
+        if not limit and not rows:
+            blocks.append(
+                Para("No charges." if not self.inp.charges else "No confirmed limit or budget.")
+            )
 
         blocks.append(Heading("Charges by status", 3))
         counts: Counter[str] = Counter()
@@ -492,8 +496,13 @@ class _Report:
         if not blocks:
             blocks.append(
                 Para(
-                    "Nothing is open: every charge is ready for closeout, and there are no "
-                    "open problems on the grant, its records or files, and no held mail."
+                    (
+                        "Nothing is open: there are no charges"
+                        if not self.inp.charges
+                        else "Nothing is open: every charge is ready for closeout"
+                    )
+                    + ", and there are no open problems on the grant, its records or files, "
+                    "and no held mail."
                 )
             )
         return Section(SECTION_TITLES[1], blocks)
@@ -688,6 +697,8 @@ class _Report:
                     self.headline_reason(s),
                 )
             )
+        if not rows:
+            return Section(SECTION_TITLES[3], [Para("No charges.")])
         return Section(
             SECTION_TITLES[3],
             [
@@ -858,7 +869,7 @@ class _Report:
         blocks: list[Block] = []
         for c, is_correction in self.order:
             blocks += self.charge_section(c, is_correction)
-        return Section(SECTION_TITLES[4], blocks)
+        return Section(SECTION_TITLES[4], blocks or [Para("No charges.")])
 
     # 6. Sources
 

@@ -8,11 +8,15 @@ inputs give the same bytes.
 The font is DejaVu Sans, regular and bold, shipped in app/packet/fonts/ with
 its license (LICENSE: the Bitstream Vera Fonts license, with DejaVu's changes in
 the public domain, a permissive license that allows embedding). The files are
-DejaVu 2.37 as bundled in the matplotlib 3.11.2 wheel, matching its recorded
-checksums. It's embedded as a subset, and it covers what quoted passages hold
+DejaVu 2.35 (the version their name tables give) as bundled in the
+matplotlib 3.11.2 wheel, matching its recorded checksums; SHA256SUMS next to
+them lists the checksums. It's embedded as a subset, and it covers what quoted passages hold
 beyond the PDF's built-in fonts: curly quotes, dashes, Greek letters such as
 "μ", arrows, accented Latin letters, non-breaking hyphens and zero-width
-spaces. Checksums use the built-in Courier, which only ever prints hex digits.
+spaces. Some scripts don't print right: Chinese, Japanese and Korean show as
+empty boxes, Arabic and Hebrew print with their letters in reversed order and
+unjoined (ReportLab doesn't shape right-to-left text), and emoji show as boxes.
+Checksums use the built-in Courier, which only ever prints hex digits.
 
 Table rows may split across pages (splitInRow), so a cell longer than a page,
 such as a long note, never stops the report from being built.
@@ -45,6 +49,7 @@ from reportlab.platypus import (
 )
 from reportlab.platypus import Table as RLTable
 
+from .fmt import day
 from .view import Block, Heading, Para, Quote, ReportView, SignLines, Table
 
 FONT_DIR = Path(__file__).parent / "fonts"
@@ -250,7 +255,7 @@ def render(view: ReportView, now: datetime, author: str) -> bytes:
         _para("Evidence report", "title"),
         _para(view.award_number, "subtitle"),
         _para(view.project_title, "subtitle"),
-        _para(f"As of {view.as_of} (Coordinated Universal Time)", "subtitle"),
+        _para(f"As of {day(now)}, {now:%H:%M} Coordinated Universal Time (UTC)", "subtitle"),
         _para("Signed" if view.signed else "DRAFT: not signed", "state"),
         Spacer(1, 6),
     ]

@@ -31,7 +31,13 @@ from app.contracts.records import (
     Match,
     Record,
 )
-from app.packet import ChargeLedgerState, HeldMessage, ReportInputs, build_report
+from app.packet import (
+    ChargeLedgerState,
+    HeldMessage,
+    ReportInputs,
+    TermsInForce,
+    build_report,
+)
 from app.packet.content import SECTION_TITLES, report_view
 from app.packet.view import Heading, Para, Quote, Section, Table
 
@@ -129,7 +135,7 @@ def test_the_title_names_the_award_and_the_moment(draft_pdf: bytes):
     assert first.startswith("Evidence report")
     assert "SYN-2300117" in first
     assert "Sediment Microbiome Survey of Example Bay" in first
-    assert "As of Apr 10, 2026, 17:00 UTC" in first
+    assert "As of Apr 10, 2026, 17:00 Coordinated Universal Time (UTC)" in first
 
 
 def test_every_page_of_a_draft_is_marked_and_numbered(draft_pdf: bytes):
@@ -703,3 +709,27 @@ def test_snoozed_grant_problems_show_until_and_note():
     checks = base.checks.model_copy(update={"grants": (grant,)})
     text = texts(section(sample_inputs(records=(*base.records, snooze), checks=checks), 2))
     assert "Snoozed until Jun 1, 2026. Note: Waiting for the next notice." in text
+
+
+def test_a_grant_with_no_charges_says_so():
+    inputs = sample_inputs(
+        charges=(),
+        checks=ChecksOutput(charges=(), records=(), grants=(), questions=(), notes=()),
+        ledger=(),
+        history=(),
+        terms=TermsInForce(),
+    )
+    view = report_view(inputs)
+    assert texts(view.sections[0]).count("No charges.") == 1
+    assert texts(view.sections[1]).startswith("Nothing is open: there are no charges,")
+    assert texts(view.sections[3]) == "No charges."
+    assert texts(view.sections[4]) == "No charges."
+    pages = pdf_pages(build_report(inputs))
+    assert "Page 1 of" in flat(pages[0])
+
+
+def test_the_font_checksums_are_on_file():
+    fonts = BACKEND / "app" / "packet" / "fonts"
+    for line in (fonts / "SHA256SUMS").read_text().splitlines():
+        digest, name = line.split()
+        assert hashlib.sha256((fonts / name).read_bytes()).hexdigest() == digest
