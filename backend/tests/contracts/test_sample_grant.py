@@ -31,6 +31,7 @@ from app.contracts.records import (
     CharLocation,
     CitedDate,
     CitedMoney,
+    CitedScope,
     Judgment,
     Link,
     Notice,
@@ -40,6 +41,7 @@ from app.contracts.records import (
     cited_values,
 )
 from app.contracts.rules import RecordState, check_new_record
+from app.contracts.runs import Trigger, TriggerKind
 
 SAMPLE = load_sample_grant()
 KEY = load_sample_answer_key()
@@ -98,13 +100,28 @@ def test_every_passage_is_copied_exactly_from_its_document():
             count += 1
         for path, v in cited_values(r.data):
             assert v.citation and v.text and v.text in (v.citation.passage or ""), (r.id, path)
-            if isinstance(v, CitedDate):
+            if isinstance(v, CitedScope):
+                assert v.value == "moved_out"  # read from the clause's words
+            elif isinstance(v, CitedDate):
                 assert datetime.strptime(v.text, "%B %d, %Y").date() == v.value
             elif isinstance(v, CitedMoney):
                 assert int(Decimal(v.text.lstrip("$").replace(",", "")) * 100) == v.value
             else:
                 assert v.text == v.value
     assert count > 40
+
+
+def run_trigger(r: Record) -> Trigger | None:
+    """The trigger of the run that wrote one of the sample's records: what arrived then."""
+    if r.author != "agent":
+        return None
+    for f in SAMPLE.files:
+        if f.arrived_at == r.written_at:
+            return Trigger(kind=TriggerKind.FILE, id=f.id)
+    for c in SAMPLE.charges:
+        if c.arrived_at == r.written_at:
+            return Trigger(kind=TriggerKind.CHARGE, id=c.id)
+    raise AssertionError(f"nothing arrived when {r.id} was written")
 
 
 def test_every_record_passes_the_write_check_replayed_in_order():
@@ -114,7 +131,14 @@ def test_every_record_passes_the_write_check_replayed_in_order():
         charges = [c for c in SAMPLE.charges if c.arrived_at <= r.written_at]
         files = [f for f in SAMPLE.files if f.arrived_at <= r.written_at]
         assert (
-            check_new_record(r, written, charges, files, default_items=SAMPLE.sample_default_items)
+            check_new_record(
+                r,
+                written,
+                charges,
+                files,
+                default_items=SAMPLE.sample_default_items,
+                trigger=run_trigger(r),
+            )
             == []
         ), r.id
         written.append(r)
@@ -186,11 +210,14 @@ def test_the_ledger_file_matches_the_charges():
             for row in csv.DictReader(f)
         ]
     assert len(rows) == len(SAMPLE.charges)
+    # The seeded ledger is uploaded with the award letter, before every posting date,
+    # so the clock releases each line on its posting date (decision 0023).
+    uploaded = SAMPLE.files[0].arrived_at
     for row, charge in zip(rows, SAMPLE.charges, strict=True):
-        assert (
-            row.to_charge(id=charge.id, workspace_id=charge.workspace_id, grant_id=charge.grant_id)
-            == charge
+        made = row.to_charge(
+            id=charge.id, workspace_id=charge.workspace_id, grant_id=charge.grant_id, now=uploaded
         )
+        assert made == charge
 
 
 def norm(value: object) -> str:

@@ -240,6 +240,12 @@ def records() -> list[dict[str, Any]]:
                     "applies_to": words(award, rule, "Participant Support Costs"),
                     "approver": words(award, rule, "Program Officer"),
                     "channel": words(award, rule, "Research.gov"),
+                    "scope": value(
+                        award,
+                        rule,
+                        "may not be diverted by the awardee to other categories of expense",
+                        "moved_out",
+                    ),
                 }
             ),
         ),
@@ -565,6 +571,7 @@ def answer_key() -> dict[str, Any]:
                 applies_to="Participant Support Costs",
                 approver="Program Officer",
                 channel="Research.gov",
+                scope="moved_out",
             ),
             expect(
                 "notice",

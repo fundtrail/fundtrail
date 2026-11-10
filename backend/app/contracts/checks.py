@@ -14,13 +14,16 @@ from datetime import date
 from enum import StrEnum
 from typing import Protocol
 
-from pydantic import model_validator
+from pydantic import computed_field, model_validator
 
 from .base import Cents, Id, Model, Text, UtcDatetime
+from .buckets import Bucket
 from .charges import Charge
 from .evidence import EvidenceFile
+from .mail import SkippedFile
 from .records import Author, Period, Question, Record
 from .runs import AgentRun, Trigger
+from .signoff import ChargeSnapshot, SignOffSnapshot, SnapshotTotals
 
 # Missing evidence goes on the problem list this many days past the date an
 # item was expected. For most items that's the charge's posting date.
@@ -28,13 +31,6 @@ MISSING_EVIDENCE_DAYS = 60
 # From this many days before the grant's end date, when Berkeley sends its
 # first Notice of Expiration, every missing item is flagged, even one not due yet.
 CLOSEOUT_WINDOW_DAYS = 90
-
-
-class Bucket(StrEnum):
-    EVIDENCE_COMPLETE = "evidence_complete"
-    POSSIBLE_CONFLICT = "possible_conflict"
-    MISSING_EVIDENCE = "missing_evidence"
-    NEEDS_HUMAN = "needs_human"
 
 
 # Most serious first. A charge's bucket is the most serious among its reasons.
@@ -50,6 +46,12 @@ def most_serious(buckets: Iterable[Bucket]) -> Bucket:
     return min(buckets, key=SEVERITY.index)
 
 
+def _ready(bucket: Bucket, *, accepted: bool, reversed: bool, snoozed: bool) -> bool:
+    if snoozed:
+        return False
+    return bucket == Bucket.EVIDENCE_COMPLETE or accepted or reversed
+
+
 class Problem(Model):
     """One problem code found, with text built by code and the records it rests on."""
 
@@ -59,6 +61,8 @@ class Problem(Model):
     problem: Id
     text: Text  # built by code
     record_ids: tuple[Id, ...] = ()  # the records it rests on
+    # The accepted reason, or the confirmed dispute, that accepts it.
+    accepted_by: Id | None = None
 
 
 class Reason(Problem):
@@ -66,10 +70,10 @@ class Reason(Problem):
 
     bucket: Bucket  # the bucket this reason puts the charge in
     expected_by: date | None = None  # for a missing item: when it's expected
-    accepted_by: Id | None = None  # the accepted reason, or the confirmed dispute, that accepts it
-    offered_note_id: Id | None = (
-        None  # a reusable note offered for it: the accepted reason that holds the note
-    )
+    # A reusable note offered for it: the accepted reason that holds the note.
+    offered_note_id: Id | None = None
+    # The agent's dispute of this reason, while it waits for the accountant.
+    dispute_id: Id | None = None
 
 
 class ItemSource(StrEnum):
@@ -111,11 +115,43 @@ class ChargeStatus(Model):
     rechecking: bool = False  # the agent is answering again; the bucket keeps its last answer
     accepted: bool = False  # shows as Accepted; never counted as Evidence complete
     snoozed: bool = False  # hidden from the problem list until the snooze ends
+    # Decision 0020. The amount that counts once the lines correcting this one are
+    # netted against it; None when no correction is netted. See corrections.py.
+    net_cents: Cents | None = None
+    corrections: tuple[Id, ...] = ()  # the charges netted into this one
+    # Fully corrected: the net is zero. Shown as Reversed, off the problem list,
+    # counted on its own. It keeps the bucket the checks give it.
+    reversed: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ready_is_worked_out(cls, data: object) -> object:
+        """`ready` is worked out, never passed in. A stored status that carries it is read
+        back with it dropped and worked out again."""
+        if isinstance(data, dict) and "ready" in data:
+            kept: dict[object, object] = {
+                k: v
+                for k, v in data.items()  # pyright: ignore[reportUnknownVariableType]
+                if k != "ready"
+            }
+            return kept
+        return data  # pyright: ignore[reportUnknownVariableType]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def ready(self) -> bool:
+        """Ready for closeout (decision 0022): Evidence complete, accepted or fully
+        reversed, and not snoozed. The same rule as ready_for_closeout."""
+        return _ready(
+            self.bucket, accepted=self.accepted, reversed=self.reversed, snoozed=self.snoozed
+        )
 
     @model_validator(mode="after")
     def _bucket_is_most_serious(self):
         if self.reasons and self.bucket != most_serious([r.bucket for r in self.reasons]):
             raise ValueError("a charge's bucket is the most serious bucket among its reasons")
+        if self.reversed and self.net_cents != 0:
+            raise ValueError("a reversed charge's net is zero")
         return self
 
 
@@ -189,9 +225,12 @@ class ChecksInput(Model):
     files: tuple[EvidenceFile, ...]
     records: tuple[Record, ...]
     # The agent runs that failed after their last retry. The checks raise a
-    # problem on the file or charge that triggered each one, so it reaches the
-    # problem list.
+    # problem on the file or charge that triggered each one, or on the thread's
+    # charge or record for a run a thread message started, so it reaches the list.
     failed_runs: tuple[AgentRun, ...] = ()
+    # Files Gmail or Drive brought that weren't taken in. The checks raise one
+    # problem on the grant naming them.
+    skipped_files: tuple[SkippedFile, ...] = ()
 
 
 class ChecksOutput(Model):
@@ -200,6 +239,48 @@ class ChecksOutput(Model):
     grants: tuple[GrantStatus, ...]  # each grant with a problem of its own
     questions: tuple[OpenQuestion, ...]  # every required question without a current answer
     notes: tuple[GrantNote, ...]
+
+
+def ready_for_closeout(status: ChargeStatus) -> bool:
+    """Decision 0022: Evidence complete, accepted or fully reversed, and not snoozed.
+
+    The same as `status.ready`. The screens and the evidence report count with this.
+    """
+    return _ready(
+        status.bucket, accepted=status.accepted, reversed=status.reversed, snoozed=status.snoozed
+    )
+
+
+def snapshot_of(
+    statuses: Iterable[ChargeStatus], charges: Iterable[Charge], problem_rows: Iterable[str]
+) -> SignOffSnapshot:
+    """What a sign-off stores, and what the grant compares it with later (decision 0022).
+
+    `charges` are the grant's charges and `statuses` their statuses. `problem_rows`
+    are the keys of the rows on the grant's problem list.
+    """
+    statuses = list(statuses)
+    charges = list(charges)
+    counts: dict[Bucket, int] = {}
+    for s in statuses:
+        counts[s.bucket] = counts.get(s.bucket, 0) + 1
+    return SignOffSnapshot(
+        charges=tuple(
+            ChargeSnapshot(
+                charge_id=s.charge_id, bucket=s.bucket, accepted=s.accepted, reversed=s.reversed
+            )
+            for s in sorted(statuses, key=lambda s: s.charge_id)
+        ),
+        problem_rows=tuple(sorted(problem_rows)),
+        totals=SnapshotTotals(
+            ledger_total_cents=sum(c.amount_cents for c in charges),
+            charges_total=len(charges),
+            charges_ready=sum(ready_for_closeout(s) for s in statuses),
+            accepted=sum(s.accepted for s in statuses),
+            reversed=sum(s.reversed for s in statuses),
+            bucket_counts=counts,
+        ),
+    )
 
 
 class RunChecks(Protocol):
