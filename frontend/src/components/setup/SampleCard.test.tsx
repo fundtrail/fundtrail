@@ -63,17 +63,17 @@ describe("SampleCard", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
   });
 
-  it("shows the server's refusal message with a link to the blocking sample", async () => {
+  it("shows any refusal's message, with a link to the grant it names", async () => {
     const running = { grant: { id: "grant-running", workspace_id: "ws", funder: "NSF", award_number: "SYN-1", title: "Running sample" } } as GrantSummary;
     const refuse = vi.fn(async () => {
-      throw new SampleRefusalError({ reason: "history_reading", message: "Another larger live sample is still reading its history.", grant: running });
+      throw new SampleRefusalError({ reason: "another_sample_working", message: "Another sample is still working.", grant: running });
     });
     const { choose } = setup(refuse);
     choose("larger_live");
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     fireEvent.click(screen.getByRole("button", { name: "Start it" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Another larger live sample is still reading its history.");
+    expect(alert).toHaveTextContent("Another sample is still working.");
     expect(screen.getByRole("link", { name: "Running sample" })).toHaveAttribute("href", "/grants/grant-running");
   });
 
@@ -92,7 +92,7 @@ describe("SampleCard", () => {
 describe("readRefusal", () => {
   it("reads a SampleRefusal, and nothing else", () => {
     const grant = { grant: { id: "g", title: null, award_number: "SYN-2" } } as GrantSummary;
-    expect(readRefusal({ reason: "history_reading", message: "m", grant })).toEqual({ message: "m", blocking: { id: "g", name: "SYN-2" } });
+    expect(readRefusal({ reason: "another_sample_working", message: "m", grant })).toEqual({ message: "m", blocking: { id: "g", name: "SYN-2" } });
     expect(readRefusal({ reason: "needs_confirm", message: "m" })).toEqual({ message: "m", blocking: null });
     expect(readRefusal("Confirm first")).toBeNull();
   });

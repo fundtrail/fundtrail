@@ -9,15 +9,16 @@ import "./setup.css";
 
 // Wording here is a placeholder until the docs give it.
 
-/** The grant a refusal names: the blocking larger-live sample. */
+/** The grant a refusal names, when it names one. */
 interface BlockingGrant {
   id: Id;
   name: string;
 }
 
 /**
- * A 409's SampleRefusal (ruling 41), read from FastAPI's `detail`: the
- * server's message, and the blocking larger-live sample when it names one.
+ * A 409's SampleRefusal (rulings 41 and 48), read from FastAPI's `detail`: the
+ * server's message, and the grant it names when it names one. Opening a sample
+ * is refused only for needs_confirm, but any refusal shows the same way.
  * Null when the body isn't a refusal.
  */
 export function readRefusal(detail: unknown): { message: string; blocking: BlockingGrant | null } | null {
