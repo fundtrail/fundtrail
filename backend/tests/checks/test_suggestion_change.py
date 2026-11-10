@@ -165,3 +165,23 @@ def test_a_term_correction_reads_differently_on_each_side():
         "Materials and Supplies: $40,000.00",
         "Materials and Supplies: $41,000.00",
     )
+
+
+# Ruling 56: ledger line IDs are unique per grant.
+
+
+def test_a_correction_looks_for_the_line_it_corrects_on_its_own_grant_only():
+    """Another grant holds a line with the same ID. It isn't the line the correction
+    names, so only this grant's line decides whether the two net."""
+    correction = agent(
+        "x1", {"kind": "correction", "charge_id": "c2", "corrects_line_id": "L-1", "reason": "r"}
+    )
+    elsewhere = CHARGES[0].model_copy(update={"id": "o1", "grant_id": "g2"})
+    credit = CHARGES[1].model_copy(update={"amount_cents": -1200})
+    # Only the other grant's L-1 has the opposite sign, and it's listed first: no netting.
+    other_credit = elsewhere.model_copy(update={"amount_cents": -1200})
+    change = suggestion_change(correction, charges=[other_credit, CHARGES[0], CHARGES[1]])
+    assert change.title == "Count ledger line L-2 as correcting ledger line L-1"
+    # Only this grant's L-1 has the opposite sign, listed after the other grant's: they net.
+    change = suggestion_change(correction, charges=[elsewhere, CHARGES[0], credit])
+    assert change.title == "Count ledger line L-2 as correcting ledger line L-1, and net the two"
