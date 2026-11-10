@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from app.agent.files import describe
-from app.ingest.channel_times import reading_text, reading_view, sample_sent_date
+from app.contracts.api import ReadingView, TextSegment
+from app.ingest.channel_times import check_segments, reading_text, reading_view, sample_sent_date
 from app.ingest.checker import CheckState, check_mail
 from app.ingest.incoming import GrantRoute, IncomingFile, to_evidence_file
 from app.ingest.sources import DiskMailbox
@@ -220,3 +221,24 @@ def test_a_grant_on_the_real_date_is_one_segment() -> None:
     assert [(s.stored_start, s.reading_start, s.length) for s in view.segments] == [
         (0, 0, len(decoded))
     ]
+
+
+def test_the_view_is_the_contracts() -> None:
+    view = reading_view(GMAIL_STYLE_BYTES, SAMPLE_NOW)
+    assert isinstance(view, ReadingView)
+    assert all(isinstance(s, TextSegment) for s in view.segments)
+
+
+@pytest.mark.parametrize(
+    "spans",
+    [
+        [(0, 0, 5), (3, 10, 2)],  # overlapping in the stored text
+        [(0, 6, 5), (8, 2, 2)],  # out of order in the reading text
+        [(0, 0, 11)],  # past the end of the stored text
+        [(0, 5, 6)],  # past the end of the reading text
+        [(0, 0, 0)],  # empty
+    ],
+)
+def test_bad_segments_are_refused(spans) -> None:
+    with pytest.raises(ValueError):
+        check_segments(spans, stored_length=10, reading_length=10)

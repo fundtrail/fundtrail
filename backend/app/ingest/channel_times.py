@@ -17,8 +17,8 @@ instead. The stored original (the .eml bytes, a Drive file's bytes) is never cha
   DKIM-Signature carry Unix timestamps (`t=`). The body is the stored file's, character
   for character, and `ReadingText.stored_index` maps a position in the text back to the
   stored file, so a citation into the text still points into the original.
-- `reading_view`: the same text for the viewer, with the spans it shares with the
-  stored file as `TextSegment`s (stored start, reading start, length), in order.
+- `reading_view`: the same text for the viewer, as the contract's `ReadingView`, with
+  the spans it shares with the stored file as `TextSegment`s, in order.
 
 Drive's modified and created times are not stored or shown anywhere: the checker uses
 the modified time only to tell versions apart and to wait for a file to stop
@@ -31,6 +31,8 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from email.utils import format_datetime
+
+from app.contracts.api import ReadingView, TextSegment
 
 # The top-level headers kept as they are in the text the agent reads. Date is kept with
 # its value replaced; every other header is dropped.
@@ -142,48 +144,47 @@ def _line_ending(line: str) -> str:
     return "\n" if line.endswith("\n") else ""
 
 
-@dataclass(frozen=True)
-class TextSegment:
-    """A run of characters the reading text shares with the stored text.
-
-    Matches the contract's coming `TextSegment` (ruling 45). Positions are characters
-    of the text decoded as `open_file` decodes it: UTF-8, with errors replaced.
-    """
-
-    stored_start: int
-    reading_start: int
-    length: int
-
-
-@dataclass(frozen=True)
-class ReadingView:
-    """What the viewer shows for an email on a grant: the reading text, and the spans of
-    it that are the stored file's, in order. Text outside every segment (the grant's
-    "now" in the Date header) isn't in the stored file."""
-
-    text: str
-    segments: tuple[TextSegment, ...]
-
-
 def reading_view(stored: bytes, grant_now: datetime | None) -> ReadingView:
-    """The reading text of a stored email and its kept spans, for the viewer.
+    """The reading text of a stored email and its kept spans, for the viewer: the
+    contract's `ReadingView`, with `TextSegment`s in order.
 
-    The stored bytes are decoded as `open_file` decodes them (UTF-8, errors replaced).
-    On a grant on the real date the whole text is one segment.
+    The stored bytes are decoded as `open_file` decodes them (UTF-8, errors replaced),
+    and positions are characters of that text. On a grant on the real date the whole
+    text is one segment.
     """
     decoded = stored.decode("utf-8", errors="replace")
     reading = reading_text(decoded, grant_now)
-    segments: list[TextSegment] = []
+    spans: list[tuple[int, int, int]] = []
     stored_at = reading_at = 0
     for start, end, stored_start, stored_end in reading.replaced:
         length = stored_start - stored_at
         if length:
-            segments.append(TextSegment(stored_at, reading_at, length))
+            spans.append((stored_at, reading_at, length))
         reading_at += length + (end - start)
         stored_at = stored_end
     if len(decoded) > stored_at:
-        segments.append(TextSegment(stored_at, reading_at, len(decoded) - stored_at))
-    return ReadingView(reading.text, tuple(segments))
+        spans.append((stored_at, reading_at, len(decoded) - stored_at))
+    check_segments(spans, stored_length=len(decoded), reading_length=len(reading.text))
+    segments = tuple(TextSegment(stored_start=s, reading_start=r, length=n) for s, r, n in spans)
+    return ReadingView(text=reading.text, segments=segments)
+
+
+def check_segments(
+    spans: list[tuple[int, int, int]], *, stored_length: int, reading_length: int
+) -> None:
+    """Refuse segments that aren't in order, overlap, or reach past either text.
+
+    Each span is (stored_start, reading_start, length).
+    """
+    stored_end = reading_end = 0
+    for stored_start, reading_start, length in spans:
+        if length < 1:
+            raise ValueError("a segment is at least one character long")
+        if stored_start < stored_end or reading_start < reading_end:
+            raise ValueError("segments are in order and don't overlap")
+        stored_end, reading_end = stored_start + length, reading_start + length
+        if stored_end > stored_length or reading_end > reading_length:
+            raise ValueError("a segment lies within both texts")
 
 
 def _utc(value: datetime) -> datetime:
