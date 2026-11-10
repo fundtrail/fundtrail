@@ -82,9 +82,9 @@ def grant_lock(grant_id: str) -> str:
     return f"grant:{grant_id}"
 
 
-def log_path(run: AgentRun) -> str:
-    """Where a run's debug log is kept in private storage, next to the grant's files."""
-    return f"{run.workspace_id}/{run.grant_id}/runs/{run.id}.json"
+def log_path(run: AgentRun, attempt: int = 0) -> str:
+    """Where a try's debug log is kept in private storage, next to the grant's files."""
+    return f"{run.workspace_id}/{run.grant_id}/runs/{run.id}-{attempt + 1}.json"
 
 
 class RunConflict(Exception):
@@ -175,7 +175,9 @@ def _check_result(run: AgentRun, result: AgentResult) -> None:
             raise ValueError(f"message {m.id} isn't this run's message on its grant")
 
 
-def save_run(p: Platform, conn: Conn, run: AgentRun, result: AgentResult) -> list[OpenQuestion]:
+def save_run(
+    p: Platform, conn: Conn, run: AgentRun, result: AgentResult, attempt: int = 0
+) -> list[OpenQuestion]:
     """Save everything the run wrote, all or nothing, then rerun the checks.
 
     Takes the grant's lock, so no accountant write lands between the check and the save.
@@ -202,7 +204,7 @@ def save_run(p: Platform, conn: Conn, run: AgentRun, result: AgentResult) -> lis
     store.insert_records(conn, result.records)
     store.insert_messages(conn, result.messages)
     if result.log is not None:
-        p.storage.put(log_path(run), result.log, "application/json")
+        p.storage.put(log_path(run, attempt), result.log, "application/json")
     store.set_run(conn, run.id, RunStatus.DONE, finished=True, summary=result.summary)
     output = recheck_grant(conn, p.checks, grant, now, run.trigger)
     return output.questions
@@ -233,14 +235,13 @@ def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_P
             agent_input = _load_input(p, conn, run)
         result = p.agent.run(agent_input)
         with transaction(p.pool) as conn:
-            questions = save_run(p, conn, run, result)
+            questions = save_run(p, conn, run, result, attempt)
             # A thread run answers only for its own charge or record. Any other question
             # left for the agent gets an ordinary run.
-            if (
-                run.trigger.kind == TriggerKind.THREAD_MESSAGE
-                and agent_questions_open(questions)
-                and not store.has_pending_run(conn, run.grant_id)
-            ):
+            left_open = bool(getattr(result, "other_open_questions", None)) or (
+                run.trigger.kind == TriggerKind.THREAD_MESSAGE and agent_questions_open(questions)
+            )
+            if left_open and not store.has_pending_run(conn, run.grant_id):
                 follow_up = store.insert_run(
                     conn, run.workspace_id, run.grant_id, run.trigger, run.clock_now
                 )
@@ -254,11 +255,22 @@ def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_P
     except Exception as error:  # noqa: BLE001 - any failure fails the try, and nothing was saved
         message = f"{type(error).__name__}: {error}"[:2000]
         log.warning("agent run %s try %s failed: %s", run.id, attempt + 1, type(error).__name__)
-        _after_failure(p, run, attempt, priority, message)
+        # The agent's AgentRunFailed says whether trying again could help, and carries the
+        # try's debug log, which is kept even though nothing else is saved.
+        retryable = bool(getattr(error, "retryable", True))
+        debug_log = getattr(error, "log", None)
+        if isinstance(debug_log, bytes):
+            try:
+                p.storage.put(log_path(run, attempt), debug_log, "application/json")
+            except Exception:  # noqa: BLE001 - a lost log mustn't hide the failure
+                log.warning("debug log of run %s try %s not stored", run.id, attempt + 1)
+        _after_failure(p, run, attempt, priority, message, retryable=retryable)
 
 
-def _after_failure(p: Platform, run: AgentRun, attempt: int, priority: int, message: str) -> None:
-    if attempt < p.run_retries:
+def _after_failure(
+    p: Platform, run: AgentRun, attempt: int, priority: int, message: str, *, retryable: bool
+) -> None:
+    if retryable and attempt < p.run_retries:
         with transaction(p.pool) as conn:
             store.set_run(conn, run.id, RunStatus.QUEUED, error=message)
             at = datetime.now(UTC) + timedelta(seconds=p.run_retry_wait_seconds)
