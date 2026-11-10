@@ -22,7 +22,7 @@ from app.checks.answers import ANSWER_BUCKET
 from app.checks.findings import AGENT_RUN, APPROVAL, BILL, SAME_FILE, TERMS, Finding
 from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
-from app.checks.view import GrantView, notice_number
+from app.checks.view import GrantView, LinkInForce, notice_number
 from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket
 from app.contracts.records import (
     Answer,
@@ -93,11 +93,25 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
                     ),
                 )
             )
-        elif side < 0:
+        elif side < 0 and not _credit_on_a_credit_line(view, target, links):
             found = _unused_bill(view, r, now, total, target, ids)
             if found is not None:
                 out.append(found)
     return out
+
+
+def _credit_on_a_credit_line(view: GrantView, target: int, links: list[LinkInForce]) -> bool:
+    """A credit (a bill with a negative total) linked to a line that takes money off the grant.
+
+    Call 38 (#74): that link can't carry an amount, but the ledger shows what happened
+    to the money, so the credit isn't "money nobody charged".
+    """
+    if target >= 0:
+        return False
+    charges = {c.id: c for c in view.charges}
+    return any(
+        (c := charges.get(lk.data.charge_id)) is not None and c.amount_cents < 0 for lk in links
+    )
 
 
 def _unused_bill(
