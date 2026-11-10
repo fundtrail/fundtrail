@@ -1,0 +1,110 @@
+/* The viewer, on the design system's tokens (globals.css). */
+
+.viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .viewer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.doc {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  overflow: hidden;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scroll {
+  height: 70vh;
+  overflow: auto;
+  padding: var(--space-4);
+  background: var(--paper-sunken);
+}
+
+.text {
+  margin: 0;
+  padding: var(--space-5);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  font-family: var(--mono);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mark {
+  background: var(--needs-human-tint);
+  color: inherit;
+  outline: 2px solid var(--needs-human);
+  border-radius: 2px;
+}
+
+.page {
+  position: relative;
+  margin: 0 auto;
+}
+.page img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pdfPage {
+  margin: 0 auto var(--space-4);
+  width: max-content;
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+.box {
+  position: absolute;
+  border: 3px solid var(--needs-human);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--needs-human-tint) 35%, transparent);
+  pointer-events: none;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+}
+
+.quote {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--rule-strong);
+  background: var(--paper-sunken);
+  white-space: pre-wrap;
+}
+
+.notice {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+  font-weight: 600;
+}
