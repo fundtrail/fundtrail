@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus, GrantStatus, RecordStatus
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import CheckerProgress, HeldMail, SkippedFile
 from app.contracts.records import Record
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
@@ -825,6 +826,138 @@ def set_award_number_and_title(
         """update public.grants set award_number = %s, title = %s
            where id = %s and (award_number is distinct from %s or title is distinct from %s)""",
         (award_number, title, grant_id, award_number, title),
+    )
+
+
+# Mail held from unknown senders, skipped files and the checker's progress (decision 0025).
+
+_HELD_COLUMNS = (
+    "id, workspace_id, grant_id, sender, reason, source_ref, subject, held_at, files, skipped"
+)
+
+
+def insert_held_mail(conn: Conn, held: HeldMail) -> bool:
+    """Saves a held message. False when the grant already holds that Gmail message."""
+    dumped = held.model_dump(mode="json")
+    row = conn.execute(
+        f"""insert into public.held_mail ({_HELD_COLUMNS})
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            on conflict (grant_id, source_ref) do nothing
+            returning id""",
+        (
+            held.id,
+            held.workspace_id,
+            held.grant_id,
+            held.sender,
+            held.reason.value,
+            held.source_ref,
+            held.subject,
+            held.held_at,
+            Jsonb(dumped["files"]),
+            Jsonb(dumped["skipped"]),
+        ),
+    ).fetchone()
+    return row is not None
+
+
+def has_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether the grant already has a Gmail message, as an evidence file or as held mail:
+    the one check for both storing and holding it."""
+    row = conn.execute(
+        """select 1 from public.held_mail where grant_id = %s and source_ref = %s
+           union all
+           select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null
+           limit 1""",
+        (grant_id, message_id, grant_id, message_id),
+    ).fetchone()
+    return row is not None
+
+
+def list_held_mail(conn: Conn, workspace_id: str, now: datetime) -> list[HeldMail]:
+    """Every message held on the workspace's grants by `now`, whether or not it's still held."""
+    rows = conn.execute(
+        f"""select {_HELD_COLUMNS} from public.held_mail
+            where workspace_id = %s and held_at <= %s order by held_at, id""",
+        (workspace_id, now),
+    ).fetchall()
+    return [HeldMail.model_validate(r) for r in rows]
+
+
+def has_gmail_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether a Gmail message has arrived on the grant as an evidence file."""
+    row = conn.execute(
+        """select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null""",
+        (grant_id, message_id),
+    ).fetchone()
+    return row is not None
+
+
+def insert_skipped(conn: Conn, skipped: Sequence[SkippedFile]) -> None:
+    """Saves skipped files. One the grant already has (same source, place, name and reason)
+    isn't saved again: the problem names the set of files, so a repeat adds nothing."""
+    for s in skipped:
+        conn.execute(
+            """insert into public.skipped_files
+                 (workspace_id, grant_id, name, source, source_ref, reason, skipped_at)
+               select %s, %s, %s, %s, %s, %s, %s
+               where not exists (
+                 select 1 from public.skipped_files
+                 where grant_id = %s and source = %s and source_ref = %s and name = %s
+                   and reason = %s)""",
+            (
+                s.workspace_id,
+                s.grant_id,
+                s.name,
+                s.source,
+                s.source_ref,
+                s.reason.value,
+                s.skipped_at,
+                s.grant_id,
+                s.source,
+                s.source_ref,
+                s.name,
+                s.reason.value,
+            ),
+        )
+
+
+def list_skipped(conn: Conn, grant_id: str, now: datetime) -> list[SkippedFile]:
+    rows = conn.execute(
+        """select workspace_id, grant_id, name, source, source_ref, reason, skipped_at
+           from public.skipped_files where grant_id = %s and skipped_at <= %s
+           order by skipped_at, id""",
+        (grant_id, now),
+    ).fetchall()
+    return [SkippedFile.model_validate(r) for r in rows]
+
+
+def lock_progress(conn: Conn) -> CheckerProgress:
+    """The checker's saved progress, locked until the transaction ends. Every write the
+    checker makes takes this lock, so checking what's already taken in and saving it
+    can't interleave."""
+    conn.execute("insert into public.checker_progress (id) values (true) on conflict do nothing")
+    row = conn.execute(
+        """select mail_cursor, seen_message_ids, drive_versions, first_search_done
+           from public.checker_progress for update"""
+    ).fetchone()
+    assert row is not None
+    return CheckerProgress.model_validate(row)
+
+
+def save_progress(conn: Conn, progress: CheckerProgress) -> None:
+    dumped = progress.model_dump(mode="json")
+    conn.execute(
+        """update public.checker_progress
+           set mail_cursor = %s, seen_message_ids = %s, drive_versions = %s,
+               first_search_done = %s""",
+        (
+            progress.mail_cursor,
+            Jsonb(dumped["seen_message_ids"]),
+            Jsonb(dumped["drive_versions"]),
+            Jsonb(dumped["first_search_done"]),
+        ),
     )
 
 

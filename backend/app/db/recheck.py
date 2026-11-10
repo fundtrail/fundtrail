@@ -44,6 +44,7 @@ def recheck_grant(
             files=tuple(files),
             records=tuple(records),
             failed_runs=tuple(store.failed_runs(conn, grant.id)),
+            skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
     # The grant's award number and title follow the notices that count (issue 118).
