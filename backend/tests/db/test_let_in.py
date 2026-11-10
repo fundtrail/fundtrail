@@ -9,9 +9,11 @@ from app.api.report import report_inputs
 from app.api.views import load_snapshot, problem_rows
 from app.contracts.api import HeldMailRow
 from app.contracts.mail import HoldReason, SkippedFile, SkipReason
+from app.contracts.rules import RecordState
 from app.contracts.runs import TriggerKind
 from app.contracts.workspaces import Grant, User
 from app.db import actions, store
+from app.db.held_mail import known_senders
 from app.db.mail_sink import DbSink
 from app.db.platform import Platform
 from app.db.pool import transaction
@@ -105,7 +107,7 @@ def test_held_mail_is_a_row_and_in_the_report_until_let_in(
     held_id = _hold(platform, grant)
     assert _held_rows(platform, grant) == [held_id]
     with transaction(platform.pool) as conn:
-        inputs = report_inputs(platform, conn, grant, CLOCK, None)
+        inputs = report_inputs(platform, conn, grant, CLOCK, user_id, None)
     assert [h.id for h in inputs.held_mail] == [held_id]
     assert _mail(platform, grant) == []
 
@@ -243,3 +245,15 @@ def test_on_a_real_date_grant_a_let_in_message_keeps_its_header_date(
         files = store.list_files(conn, grant.id, datetime.max.replace(tzinfo=UTC))
     dates = {f.name: f.document_date for f in files if f.source == "gmail"}
     assert dates == {"message.txt": SENT, "invoice.txt": None}
+
+
+def test_known_senders_are_the_terms_people_and_the_members_who_can_act(
+    platform: Platform,  # noqa: F811
+) -> None:
+    grant, _ = _grant(platform)
+    with transaction(platform.pool) as conn:
+        state = RecordState(store.list_records(conn, grant.id))
+        known = known_senders(conn, grant, state)
+        sample = store.get_user(conn, store.sample_accountant_id(conn, grant.workspace_id))
+    assert "pat@university.example" in known
+    assert sample is not None and sample.email not in known

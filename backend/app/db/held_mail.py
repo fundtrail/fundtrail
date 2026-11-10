@@ -27,16 +27,13 @@ from .store import Conn
 def known_senders(conn: Conn, grant: Grant, state: RecordState) -> set[str]:
     """The grant's known senders, lower case: the people its terms that count name with an
     address (the award letter's, confirmed, and those the accountant added), and the
-    accountant's own sign-in address."""
+    sign-in addresses of the workspace's members who can act (issue 160)."""
     found = {
         r.data.email.value.strip().lower()
         for r in state.current()
         if isinstance(r.data, Person) and r.data.email is not None
     }
-    owner = store.get_user(conn, store.workspace_by_id(conn, grant.workspace_id).owner_id)
-    if owner is not None:
-        found.add(owner.email.strip().lower())
-    return found
+    return found | set(store.acting_member_emails(conn, grant.workspace_id))
 
 
 def grant_held_mail(conn: Conn, grant: Grant, now: datetime) -> list[HeldMail]:
