@@ -416,6 +416,23 @@ def records() -> list[dict[str, Any]]:
 
 
 def sample_grant() -> dict[str, Any]:
+    grant = _sample_grant_without_read_points()
+    arrivals = [
+        datetime.fromisoformat(item["arrived_at"]) for item in [*grant["files"], *grant["charges"]]
+    ]
+    for r in grant["records"]:
+        if r["author"] == "agent":
+            # Its run's read point (call 40), as if files, charges and records were
+            # numbered as they arrived or were written: everything that arrived by
+            # then, and every record written before its run.
+            at = datetime.fromisoformat(r["written_at"])
+            r["read_through_seq"] = sum(a <= at for a in arrivals) + sum(
+                datetime.fromisoformat(o["written_at"]) < at for o in grant["records"]
+            )
+    return grant
+
+
+def _sample_grant_without_read_points() -> dict[str, Any]:
     files: list[dict[str, Any]] = []
     for file_id, (name, source, media_type, arrived_at, extra) in FILES.items():
         files.append(

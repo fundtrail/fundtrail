@@ -124,6 +124,8 @@ def record_values(g: dict[str, Any], data: Any, **envelope: Any) -> dict[str, An
         "data": data,
     }
     values.update(envelope)
+    if values["author"] == "agent":
+        values.setdefault("read_through_seq", 0)  # the run's read point (call 40)
     return values
 
 
