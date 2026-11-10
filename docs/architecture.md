@@ -36,7 +36,7 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
 - **Gmail:** each grant gets its own email address on our demo account. The backend checks for new mail on a timer, every one to two minutes.
 - **Google Drive:** the connector reads folders that users share with our demo account, on the same timer. Users never connect their own Google account.
 - **Upload:** files can also be added in the app.
-- Only email from known senders is processed: our accounts, the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
+- Only email from known senders is processed: our accounts, the addresses of the workspace's members who can act ([0029](decisions/0029-workspace-members-and-one-access-check.md)), the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
 - Evidence that arrives before its ledger line waits, unlinked, until the line shows up.
 
 ### Files go to the agent as they are
@@ -57,7 +57,7 @@ the agent (our code, in backend/app/agent/)
      the backend saves everything from the run
 ```
 
-- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, whenever the accountant writes in a thread, and once per grant as closeout nears. Runs for one grant go one at a time. A question in a thread goes ahead of queued runs and waits only for the run in progress, and the thread shows that the agent is busy. Procrastinate runs these jobs: a lock per grant gives one at a time, and a priority puts the question first. In the demo, "arrives" means the clock reaches the item's arrival time.
+- **When it runs.** A background job is queued whenever a charge or an evidence file arrives, whenever one of the accountant's records leaves a question open for the agent, whenever the accountant writes in a thread, and once per grant as closeout nears. Runs for one grant go one at a time. A question in a thread goes ahead of queued runs and waits only for the run in progress, and the thread shows that the agent is busy. Procrastinate runs these jobs: a lock per grant gives one at a time, and a priority puts the question first. On a sample grant, "arrives" means the grant's clock reaches the item's arrival time.
 - **What it does.** It works in a loop of actions, like a person at a desk. It can look at anything on its grant, and code hides nothing from it. For now each grant is isolated, so it doesn't see other grants. It sees every charge with its links, every source and the facts read from it, the grant's terms, and a charge's history, including fixes the accountant rejected. It can open any file again to quote the exact part it needs. It writes facts, links, checklist items, answers to code's questions, comments, suggestions, and flags for anything no question covers, on a charge or on a record. Reading, matching and answering aren't fixed steps; it does them in whatever order it needs.
 - **Structure over memory.** The agent has no hidden memory between runs, so code hands it what needs attention instead of expecting it to remember. When a file arrives, it gets every checklist item still missing on the grant and is asked which ones the file fills. It gets the checks that are failing on the charges in the run, so it can dispute one it has evidence against. When a bill arrives, code finds the bills already on file that look like the same one, and the agent compares the saved facts first. It opens an earlier file only when the facts don't settle it, which should be rare. When it's asked a question in a thread, it gets that thread and the charge's records. Every run also gets the end date in force, which the rule on purchases close to the end date needs.
 - **Lists of saved facts.** Looking at anything on the grant can't mean reading every file again on every run. A three-year grant can have 2,000 ledger lines and 1,500 documents. So the agent gets what just arrived in full, and the rest of the grant as lists: one line per charge and one line per document, built from the facts already read and saved. It can search the lists and open any file in full, and it chooses what to look at. The saved facts are the records it wrote when each file first arrived. It reads the whole file once, every value carries its quote, and code checks each quote against the file. When the saved facts don't settle a question, it opens the file. A bill carries an optional document number, such as an invoice or order number, because the ledger line often carries it too and it's the strongest match. The agent puts anything else that identifies a document in its description: names, order numbers, and the project or award number it mentions. The limit is that the saved facts are only as good as the first read, so a detail nobody recorded is found only when the file is opened. On a small grant nothing changes, because the lists are short.
@@ -131,15 +131,17 @@ The accountant clicks a fact and the file opens at the right spot. We copy patte
 
 ## The clock
 
-- Each workspace has a clock that sets the app's "now."
+- **One clock per grant** ([0028](decisions/0028-one-clock-per-grant.md)). One place answers what time it is for a grant. A real grant's clock gives the real time. A sample grant's clock gives its simulated "now" ([0027](decisions/0027-sample-grants.md)). The clock belongs to the grant, not the workspace.
+- **Apart from the machine's own uses below, nothing asks the system for the time,** and nothing branches on whether a grant is a sample. A check in continuous integration (CI) fails new code that reads the system time anywhere else.
+- **What goes through the clock:** arrivals, the date on every record and message, a run's date, what "today" means to the checks, the dating of live email and Drive files on a sample grant, status history, report and sign-off dates, and every date a screen shows.
+- **What stays on real time,** because it belongs to the machine: the order records were stored in, background timers, logs, and sign-in expiry.
 - Every item has two dates:
   - **Its own date,** such as the date on a document or a ledger line's transaction date. The checks use this one.
   - **Its arrival date,** such as when an email arrived or when a ledger line was synced or uploaded. The clock uses this one.
-- An item counts once its arrival date is at or before "now." A ledger line's arrival date is its posting date if that's still ahead of "now", and otherwise now ([0023](decisions/0023-the-clock.md)).
-- The clock only moves forward, either to the next arrival or to a date you choose. Resetting a workspace starts it over.
-- Anything the accountant or the agent writes, and anything that arrives live, is stamped with the clock's date.
-- Workspaces that users create run on the real date.
-- How the demo uses the clock is decided later. For now we build it as a real app, with no response cache.
+- An item counts once its arrival date is at or before its grant's "now." A ledger line's arrival date is its posting date if that's still ahead of "now", and otherwise now ([0023](decisions/0023-the-clock.md)).
+- A real grant's clock is the real time, and nobody moves it. A sample grant's clock only moves forward: to the next event, or to a chosen date. Everything between plays in order ([0023](decisions/0023-the-clock.md), provisional). Starting over resets that one sample grant (first version, [0027](decisions/0027-sample-grants.md)).
+- Anything that arrives live on a sample grant arrives at the grant's "now". A live email or Drive file there is dated to the simulated time, and the stored original is unchanged. A date printed inside a document is used as written.
+- Every sample opens at the start of its timeline. Read live, the agent works on each arrival as the clock reaches it. In the prerun, the agent's work was done ahead of time: a saved run-through made with the real agent, loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live (first versions, [0027](decisions/0027-sample-grants.md)). Nothing precomputed is used on a real grant or in the read-live samples, and outside the prerun's saved run-through there's no response cache.
 
 ## Stack
 
@@ -200,8 +202,9 @@ The layout is in [CLAUDE.md](../CLAUDE.md#repo-map). The areas of the repo are i
 | What an agent run loads when it's asked a question in a thread, and how long the agent's working steps are kept | builder (W1 with W4), discussed with Alex before building |
 | The search rule for likely duplicate bills: which fields, and how wide a window of dates. A long list of candidates means the rule is too loose. Also what catches a duplicate the search misses. The closeout review could look again. | builder (W2), discussed with Alex before building |
 | How code tells that two confirmed terms disagree | builder (W2), discussed with Alex before building |
-| How scheduled release by the clock is implemented, and live arrivals while the clock is in the past | product, then W4 |
-| When the clock jumps past several arrivals at once: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item | product, then W4 with W1 |
+| How a sample grant's timeline releases its scheduled events. A live arrival on a sample grant arrives at the grant's "now" and is dated to the simulated time ([0028](decisions/0028-one-clock-per-grant.md)). | contract, then W4 |
+| When a sample grant's clock jumps past several events at once: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item. [0023](decisions/0023-the-clock.md) proposes playing everything between in order. | product, then W4 with W1 |
+| How the CI check recognizes code that reads the system time outside the grant's clock | builder (W4), through a CI config PR |
 | Grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on. For now each grant is isolated. | later |
 | Efficient sorting for matching, once accuracy is solid | builder (W1), later |
 | A regular sweep that re-checks old links, beyond the one review as closeout nears | later |

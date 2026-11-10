@@ -8,10 +8,17 @@ instead. The stored original (the .eml bytes, a Drive file's bytes) is never cha
 - `sample_sent_date`: the sent date stored on the message's evidence file
   (`document_date`), which the screens, the evidence report and the agent's file
   list show.
-- `reading_text`: the text of an email for the agent to read, with its top-level
-  `Date` header replaced by the grant's "now". Every other character is the stored
-  file's, and `ReadingText.stored_index` maps a position in the text back to the
+- `reading_text`: the text of an email for the agent to read. Of its top-level
+  headers it keeps only From, To, Cc and Subject, the MIME (Multipurpose Internet Mail
+  Extensions) headers MIME-Version, Content-Type and Content-Transfer-Encoding, which
+  carry no time and say how to read the body, and Date with its value replaced by the
+  grant's "now". Every other header is dropped, because trace headers are channel
+  times too: Received and X-Received carry the real delivery time, and ARC-Seal and
+  DKIM-Signature carry Unix timestamps (`t=`). The body is the stored file's, character
+  for character, and `ReadingText.stored_index` maps a position in the text back to the
   stored file, so a citation into the text still points into the original.
+- `reading_view`: the same text for the viewer, as the contract's `ReadingView`, with
+  the spans it shares with the stored file as `TextSegment`s, in order.
 
 Drive's modified and created times are not stored or shown anywhere: the checker uses
 the modified time only to tell versions apart and to wait for a file to stop
@@ -25,9 +32,26 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from email.utils import format_datetime
 
-# A top-level Date header line, with any folded continuation lines.
-_DATE_HEADER = re.compile(r"^Date:[^\r\n]*(?:\r?\n[ \t][^\r\n]*)*", re.IGNORECASE | re.MULTILINE)
-_HEADER_END = re.compile(r"\r?\n\r?\n")
+from app.contracts.api import ReadingView, TextSegment
+
+# The top-level headers kept as they are in the text the agent reads. Date is kept with
+# its value replaced; every other header is dropped.
+_KEPT_HEADERS = {
+    "from",
+    "to",
+    "cc",
+    "subject",
+    # They carry no time, and the agent needs them to read a multipart or encoded body.
+    "mime-version",
+    "content-type",
+    "content-transfer-encoding",
+}
+# The blank line that ends the headers: the header block runs to the end of its first
+# line ending, so each header field includes its own line ending.
+# Mail is external, so a bare CR (carriage return) ends a line too.
+_HEADER_END = re.compile(r"\r?\n(?=\r?\n)|\r(?=\r(?!\n))")
+# One line, with its line ending if it has one: CRLF, LF or a bare CR.
+_LINE = re.compile(r"[^\r\n]*(?:\r\n|\n|\r|$)")
 
 
 def sample_sent_date(grant_now: datetime) -> date:
@@ -58,33 +82,144 @@ class ReadingText:
             shift = stored_end - end
         return index + shift
 
+    def stored_range(self, start: int, end: int) -> tuple[int, int]:
+        """The stored range that the reading range `[start, end)` stands for.
+
+        The end is mapped from the last character it covers, not from `end` itself: a
+        dropped header is a zero-length span, so the position just after a kept line also
+        stands for the position after the dropped header that follows it, and mapping
+        `end` directly would pull that header (say a Received line with the real time)
+        into the citation. An end inside the replaced Date maps to the end of the
+        original Date header. An empty range maps to an empty stored range.
+        """
+        first = self.stored_index(start)
+        if end <= start:
+            return first, first
+        last = end - 1
+        for reading_start, reading_end, _, stored_end in self.replaced:
+            if reading_start <= last < reading_end:
+                return first, stored_end
+        return first, self.stored_index(last) + 1
+
+
+class _Unreadable(Exception):
+    """A header block the reading text can't be built from."""
+
 
 def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
     """The text the agent reads for an email whose stored text is `stored`.
 
     With no grant "now" (a grant on the real date) the text is the stored text. On a
-    sample grant, each top-level `Date` header becomes the grant's "now". Dates inside the
-    body, including a forwarded message's own headers, are what the sender wrote and stay.
+    sample grant, the top-level headers are cut down to From, To, Cc, Subject and the
+    three MIME headers as stored, and Date with the grant's "now" (`Date :` with a space
+    is a Date header too). Every other header is dropped as a zero-length span. The
+    body, including a forwarded message's own headers, is what the sender wrote and
+    stays.
     """
     if grant_now is None:
         return ReadingText(stored)
+    try:
+        return _reading_text(stored, grant_now)
+    except _Unreadable:
+        # A header block that can't be read: the stored text, unchanged, rather than an
+        # error on mail from outside.
+        return ReadingText(stored)
+
+
+def _reading_text(stored: str, grant_now: datetime) -> ReadingText:
     end = _HEADER_END.search(stored)
-    header_end = end.start() if end else len(stored)
-    new_line = f"Date: {format_datetime(_utc(grant_now))}"
+    header_end = end.end() if end else len(stored)
+    date_value = format_datetime(_utc(grant_now))
     parts: list[str] = []
     replaced: list[tuple[int, int, int, int]] = []
-    last = 0
     out_length = 0
-    for match in _DATE_HEADER.finditer(stored, 0, header_end):
-        kept = stored[last : match.start()]
-        parts.append(kept)
-        out_length += len(kept)
-        parts.append(new_line)
-        replaced.append((out_length, out_length + len(new_line), match.start(), match.end()))
-        out_length += len(new_line)
-        last = match.end()
-    parts.append(stored[last:])
+    for start, stop, name, line_end in _fields(stored, header_end):
+        if name in _KEPT_HEADERS:
+            parts.append(stored[start:stop])
+            out_length += stop - start
+            continue
+        new = f"Date: {date_value}{line_end}" if name == "date" else ""
+        replaced.append((out_length, out_length + len(new), start, stop))
+        parts.append(new)
+        out_length += len(new)
+    parts.append(stored[header_end:])
     return ReadingText("".join(parts), tuple(replaced))
+
+
+def _fields(stored: str, header_end: int) -> list[tuple[int, int, str | None, str]]:
+    """Each top-level header field: (start, end, lower-case name or None, line ending).
+
+    A field runs from its first line through its folded continuation lines, and includes
+    its last line ending. A line that isn't a header (no colon) is a field named None.
+    """
+    fields: list[tuple[int, int, str | None, str]] = []
+    position = 0
+    while position < header_end:
+        line = _LINE.match(stored, position, header_end)
+        if line is None:
+            raise _Unreadable
+        if line.end() == position:
+            break
+        text = line.group()
+        if text[:1] in (" ", "\t") and fields:
+            first, _, name, _ = fields[-1]
+            fields[-1] = (first, line.end(), name, _line_ending(text))
+        else:
+            head, colon, _ = text.partition(":")
+            name = head.strip().lower() if colon and head.strip() else None
+            fields.append((position, line.end(), name, _line_ending(text)))
+        position = line.end()
+    return fields
+
+
+def _line_ending(line: str) -> str:
+    for ending in ("\r\n", "\n", "\r"):
+        if line.endswith(ending):
+            return ending
+    return ""
+
+
+def reading_view(stored: bytes, grant_now: datetime | None) -> ReadingView:
+    """The reading text of a stored email and its kept spans, for the viewer: the
+    contract's `ReadingView`, with `TextSegment`s in order.
+
+    The stored bytes are decoded as `open_file` decodes them (UTF-8, errors replaced),
+    and positions are characters of that text. On a grant on the real date the whole
+    text is one segment.
+    """
+    decoded = stored.decode("utf-8", errors="replace")
+    reading = reading_text(decoded, grant_now)
+    spans: list[tuple[int, int, int]] = []
+    stored_at = reading_at = 0
+    for start, end, stored_start, stored_end in reading.replaced:
+        length = stored_start - stored_at
+        if length:
+            spans.append((stored_at, reading_at, length))
+        reading_at += length + (end - start)
+        stored_at = stored_end
+    if len(decoded) > stored_at:
+        spans.append((stored_at, reading_at, len(decoded) - stored_at))
+    check_segments(spans, stored_length=len(decoded), reading_length=len(reading.text))
+    segments = tuple(TextSegment(stored_start=s, reading_start=r, length=n) for s, r, n in spans)
+    return ReadingView(text=reading.text, segments=segments)
+
+
+def check_segments(
+    spans: list[tuple[int, int, int]], *, stored_length: int, reading_length: int
+) -> None:
+    """Refuse segments that aren't in order, overlap, or reach past either text.
+
+    Each span is (stored_start, reading_start, length).
+    """
+    stored_end = reading_end = 0
+    for stored_start, reading_start, length in spans:
+        if length < 1:
+            raise ValueError("a segment is at least one character long")
+        if stored_start < stored_end or reading_start < reading_end:
+            raise ValueError("segments are in order and don't overlap")
+        stored_end, reading_end = stored_start + length, reading_start + length
+        if stored_end > stored_length or reading_end > reading_length:
+            raise ValueError("a segment lies within both texts")
 
 
 def _utc(value: datetime) -> datetime:

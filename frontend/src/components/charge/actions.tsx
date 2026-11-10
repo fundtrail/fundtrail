@@ -162,7 +162,12 @@ export function AnswerForm({
   );
 }
 
-/** The answer form for a question still open. */
+/**
+ * The answer form for a question still open. It's offered on every open
+ * question, whichever side the server says answers it (`answer_by`): the
+ * accountant has the last word and can answer any of them themselves
+ * (product call 42, settling PR 128's choice 1).
+ */
 export function AnswerOpenQuestion({ chargeId, question, onWrite }: { chargeId: Id; question: OpenQuestion; onWrite: OnWrite }) {
   return (
     <AnswerForm

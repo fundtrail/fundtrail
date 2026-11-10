@@ -3,7 +3,11 @@
 import { useId, useState, type FormEvent } from "react";
 import type { BudgetCategory, FtRecord, RecordDataInput } from "@/lib/api";
 import { CATEGORY_LABELS } from "@/lib/format";
+import { citedFileIds, useNoticeFiles, type NoticeFiles } from "./noticeFiles";
 import { readField, SCOPE_LABELS, TERM_FIELDS, type TermField, type TermKind } from "./termFields";
+
+/** The key the form keeps a budget line's notice under, beside the term's fields. */
+const NOTICE = "notice_file_id";
 
 /** What the form starts from: the term's own value, written the way the input takes it. */
 function startingValue(field: TermField, value: unknown): string {
@@ -55,7 +59,61 @@ export function buildTypedTerm(kind: TermKind, values: Record<string, string>): 
         data[field.path] = { value: input };
     }
   }
+  if (kind === "budget_line") {
+    // A typed budget line names the notice it belongs to (issue 104, product call 42).
+    const notice = (values[NOTICE] ?? "").trim();
+    if (notice === "") problems.push("Notice is needed.");
+    else data[NOTICE] = notice;
+  }
   return problems.length > 0 ? { problems } : { data: data as unknown as RecordDataInput };
+}
+
+/** Which of the grant's notice files a budget line belongs to. Required. */
+function NoticeInput({ notices, value, onChange }: { notices: NoticeFiles; value: string; onChange: (v: string) => void }) {
+  const id = useId();
+  const { status, files, names } = notices;
+  // A saved notice that isn't offered any more still shows, by its file's name.
+  const savedElsewhere = value !== "" && !files.some((f) => f.id === value);
+  let control;
+  if (status === "loading") {
+    control = (
+      <p className="ft-caption" id={id}>
+        Loading the grant&apos;s notices…
+      </p>
+    );
+  } else if (status === "error") {
+    control = (
+      <p className="ft-error" id={id} role="alert">
+        Couldn&apos;t load the grant&apos;s notices. They reload when the window regains focus.
+      </p>
+    );
+  } else if (files.length === 0 && !savedElsewhere) {
+    control = (
+      <p className="ft-caption" id={id}>
+        No notice is on file for this grant yet.
+      </p>
+    );
+  } else {
+    control = (
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} required>
+        <option value="">Choose the notice this line is from</option>
+        {savedElsewhere && <option value={value}>{names[value] ?? "A file no longer offered"}</option>}
+        {files.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  return (
+    <div className="ft-field">
+      <label htmlFor={id} className="ft-label">
+        Notice
+      </label>
+      {control}
+    </div>
+  );
 }
 
 function FieldInput({ field, value, onChange }: { field: TermField; value: string; onChange: (v: string) => void }) {
@@ -125,14 +183,20 @@ export function TypeTermForm({
   onSave: (data: RecordDataInput) => void;
   onCancel: () => void;
 }) {
+  const notices = useNoticeFiles();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(TERM_FIELDS[kind].map((f) => [f.path, startingValue(f, readField(term, f).value)])),
   );
+  // Until the user picks, the notice starts from the line's own, or the file it
+  // was read from once the notices have loaded and it's one of them.
+  const own = term.data.kind === "budget_line" ? term.data.notice_file_id : null;
+  const readFrom = citedFileIds(term).find((id) => notices.files.some((f) => f.id === id));
+  const notice = values[NOTICE] ?? own ?? readFrom ?? "";
   const [problems, setProblems] = useState<string[]>([]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const built = buildTypedTerm(kind, values);
+    const built = buildTypedTerm(kind, kind === "budget_line" ? { ...values, [NOTICE]: notice } : values);
     if ("problems" in built) {
       setProblems(built.problems);
       return;
@@ -151,6 +215,9 @@ export function TypeTermForm({
           onChange={(v) => setValues((prev) => ({ ...prev, [field.path]: v }))}
         />
       ))}
+      {kind === "budget_line" && (
+        <NoticeInput notices={notices} value={notice} onChange={(v) => setValues((prev) => ({ ...prev, [NOTICE]: v }))} />
+      )}
       {problems.length > 0 && (
         <ul className="ft-error" role="alert">
           {problems.map((p) => (

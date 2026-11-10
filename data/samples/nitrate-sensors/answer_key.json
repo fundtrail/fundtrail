@@ -56,7 +56,8 @@
     {"line_id": "L-1958-0002", "at": "2026-11-16T18:45:00Z", "bucket": "evidence_complete"},
     {"line_id": "L-1958-0003", "at": "2026-11-16T18:45:00Z", "bucket": "evidence_complete"},
     {"line_id": "L-1958-0004", "at": "2026-11-16T18:45:00Z", "bucket": "evidence_complete"},
-    {"line_id": "L-1958-0005", "at": "2026-11-16T18:45:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-1958-0005", "at": "2026-11-16T18:45:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-1958-0005", "at": "2026-11-18T18:00:00Z", "bucket": "evidence_complete"},
     {"line_id": "L-1958-0006", "at": "2026-11-24T12:00:00Z", "bucket": "evidence_complete"},
     {"line_id": "L-1958-0007", "at": "2026-12-07T12:00:00Z", "bucket": "evidence_complete"}
   ]
