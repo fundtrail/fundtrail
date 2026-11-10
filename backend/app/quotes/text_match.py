@@ -108,8 +108,12 @@ _DATE = re.compile(
     r"\d{1,2}/\d{1,2}/\d{2,4}|\d{4}[-\x03]\d{1,2}[-\x03]\d{1,2}|\d{1,2}[-\x03]\d{1,2}[-\x03]\d{2,4}"
 )
 """A numeric date. A date has no sign, so no dash before it is a minus."""
-_AFTER_A_WORD = frozenset({"%", ")", "]", "}", LINE_HYPHEN, LINE_DASH})
-"""Besides a letter or digit, what before an attached dash makes it a hyphen ("10%-20%")."""
+_AFTER_A_WORD = frozenset({"%", ")", "]", "}"})
+"""Besides a letter or digit, what before an attached dash makes it a hyphen ("10%-20%").
+
+Not a line-end marker: a dash after one starts the next line, so it's a minus there (call 31,
+point 1), as in "450.00-" then "-$12.00 Fee".
+"""
 _QUOTES = frozenset({'"', "'"})
 """Quote marks after the clean-up (curly ones are straightened)."""
 _SIGNS = frozenset("-\u2013\u2212")
@@ -344,7 +348,7 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
 def _hyphen_after(text: str, dash: int) -> bool:
     """Whether the character before text[dash] makes an attached dash a hyphen, not a minus.
 
-    It does after a letter, a digit, "%", a closing bracket, a line-end marker, or a quote mark
+    It does after a letter, a digit, "%", a closing bracket, or a quote mark
     that itself follows one of those ("10%-20%", "(a)-$450", 'the "Gold"-$450 rate'). Anything
     else before an attached dash (a space, the start, an opening bracket, a currency symbol, a
     quote that opens, "=", ";", ",", an em dash, "*") leaves it a minus, on the safe side.

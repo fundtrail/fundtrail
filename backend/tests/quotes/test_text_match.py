@@ -521,3 +521,14 @@ def test_a_date_across_a_line_end_dash_needs_the_whole_date(page: str, value: st
     """A trailing minus before something date-shaped on the next line stays a minus."""
     assert not contains_exactly(value, clean(page).text)
     assert contains_exactly(f"{value}-", clean(page).text)
+
+
+@pytest.mark.parametrize(
+    "page",
+    ["Travel refund 450.00-\n-$12.00 Fee", "Late credit-\n-$12.00 Fee"],
+)
+def test_a_minus_starting_a_line_after_a_line_end_dash_is_a_minus(page: str) -> None:
+    """Call 31, point 1: a dash at the start of a line, attached to the amount, is a minus."""
+    text = clean(page).text
+    assert not contains_exactly("$12.00", text)
+    assert contains_exactly("-$12.00", text)

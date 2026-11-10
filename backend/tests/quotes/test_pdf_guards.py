@@ -343,6 +343,17 @@ PROBES = [
             (["Refund 1234-", "05-06 Lodging"], "1234"),
         ]
     ],
+    *[
+        Probe(
+            f"a minus starting the line after a line-end dash, value {value}",
+            [["Travel refund 450.00-", "-$12.00 Fee"]],
+            "-$12.00 Fee",
+            value,
+            "exact",
+            found,
+        )
+        for value, found in [("$12.00", False), ("-$12.00", True)]
+    ],
     Probe(
         "a date broken at its dash confirms",
         [["Travel dates 2026-", "03-04 to 2026-03-09"]],
