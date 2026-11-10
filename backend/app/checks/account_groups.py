@@ -24,7 +24,7 @@ Rules the table follows:
 - Reversals and cost transfers are not a group, and their two correction items
   (the line it corrects, a written justification) aren't in this table. Under
   decision 0020 (provisional), a line that takes money off the grant gets only
-  those two items, so `default_items` gives it no account-group items. A line
+  those two items, so `account_group_items` gives it none. A line
   that adds money gets its account group's default plus the two. Either way,
   its NSF category comes from its account.
 """
@@ -33,18 +33,17 @@ from __future__ import annotations
 
 import calendar
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from app.contracts.charges import Charge
-from app.contracts.records import BudgetCategory, DefaultItem, Period, Record
+from app.contracts.records import BudgetCategory, DefaultItem, Period
 
 
 @dataclass(frozen=True)
 class GroupItem:
     """One of a group's default checklist items, as domain.md words it.
 
-    The table's own form of an item. `default_items` turns it into the
+    The table's own form of an item. `account_group_items` turns it into the
     contract's `DefaultItem` for one charge. `key` is stable, so a link or a
     removal can name the item. `carries_charge_amount` marks the item that
     stands for the bill-like document: it carries the charge's amount, and
@@ -278,13 +277,13 @@ def _month_of(charge: Charge) -> Period:
     return Period(start=start, end=start.replace(day=last))
 
 
-def default_items(charge: Charge, records: Sequence[Record]) -> list[DefaultItem]:
-    """A charge's default checklist items from its account group.
+def account_group_items(charge: Charge) -> list[DefaultItem]:
+    """The default checklist items a charge gets from its account group, and no others.
 
-    Matches the contracts' `DefaultItems`, which the write check takes. The
-    records aren't needed yet. A line that takes money off the grant gets no
-    account-group items (decision 0020). The two correction items, and the
-    approval and pre-award items, come from the rest of the checks.
+    In the contract's `DefaultItem` form. A line that takes money off the grant
+    gets none (decision 0020). A charge's full defaults, with required
+    approvals, the pre-award item and a correcting line's two items, are
+    `default_items` in checklist.py, which calls this.
     """
     found = lookup_account(charge.account)
     if found is None or charge.amount_cents < 0:
