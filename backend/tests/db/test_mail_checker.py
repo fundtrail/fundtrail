@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from app.contracts.workspaces import Grant, User
-from app.db import actions, jobs, mail_checker, store
+from app.db import actions, jobs, mail_checker, mail_sink, store
 from app.db.platform import Platform
 from app.db.pool import transaction
 from app.ingest.sources import DiskMailbox
@@ -29,9 +29,10 @@ def _grant(p: Platform, tag: str | None, *, clock: datetime | None = None) -> Gr
     with transaction(p.pool) as conn:
         store.upsert_user(conn, User(id=user_id, email=OWNER))
         workspace = store.create_workspace(conn, user_id, "Lab")
-        if clock is not None:
-            store.set_clock(conn, workspace.id, clock)
     grant = actions.add_grant(p, workspace.id, actions.Upload("letter.txt", "text/plain", b"NSF"))
+    if clock is not None:
+        with transaction(p.pool) as conn:
+            store.set_grant_clock(conn, grant.id, clock)
     if tag is not None:
         with transaction(p.pool) as conn:
             conn.execute(
@@ -100,3 +101,24 @@ def test_a_check_brings_a_members_mail_in_and_holds_a_strangers(
 def test_the_check_is_scheduled_with_one_lock() -> None:
     task = jobs.app.tasks["check_mail_and_drive"]
     assert task.lock == "mail_checker" and task.queueing_lock == "mail_checker"
+
+
+def test_the_lock_is_held_by_an_idle_session_not_an_open_transaction(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """During the check, the session holding the checker's lock isn't idle in a
+    transaction, so an idle-transaction timeout can't drop the lock mid-check."""
+    states: list[str] = []
+
+    def check(*args: object, **kwargs: object) -> None:
+        with transaction(platform.pool) as conn:
+            rows = conn.execute(
+                """select a.state from pg_locks l join pg_stat_activity a on a.pid = l.pid
+                   where l.locktype = 'advisory' and l.granted and a.pid <> pg_backend_pid()"""
+            ).fetchall()
+        states.extend(r["state"] for r in rows)
+
+    monkeypatch.setattr(mail_sink, "check_and_save", check)
+    assert mail_checker.run(platform, mail=DiskMailbox(Path(".")), mailbox=MAILBOX)
+    assert states == ["idle"]

@@ -83,6 +83,10 @@ def run(
         row = lock_conn.execute(
             "select pg_try_advisory_lock(hashtext(%s)) as got", (LOCK_KEY,)
         ).fetchone()
+        # A session-level lock outlives its transaction: committing now leaves the
+        # connection idle, not idle in a transaction, for the whole check, so an
+        # idle-transaction timeout can't end the session and drop the lock mid-check.
+        lock_conn.commit()
         if row is None or not row["got"]:
             log.info("another mail checker is running")
             return False
@@ -92,4 +96,5 @@ def run(
             mail_sink.check_and_save(p, mail=mail, drive=drive, mailbox=mailbox or "", routes=found)
         finally:
             lock_conn.execute("select pg_advisory_unlock(hashtext(%s))", (LOCK_KEY,))
+            lock_conn.commit()
     return True
