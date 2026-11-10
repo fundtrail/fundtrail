@@ -125,3 +125,43 @@ def test_d2_only_the_record_being_checked_comes_after_everything():
     assert state.waits("j2") is True
     # The last record, not stored yet, is the one being checked.
     assert RecordState([stored(unsure, 1), supports], [*FILES, receipt(2)]).waits("j2") is False
+
+
+# Call 40: each run's read point.
+
+
+def read(record: Record, seq: int, read_point: int) -> Record:
+    return record.model_copy(update={"stored_seq": seq, "read_through_seq": read_point})
+
+
+def test_a_receipt_stored_before_the_run_read_counts_at_once():
+    """The demo move: the receipt is stored, then the run reads, then answers supports."""
+    unsure = read(agent("j1", answer("unsure")), 1, 0)
+    supports = read(agent("j2", answer("supports"), replaces_id="j1"), 3, 2)
+    assert RecordState([unsure, supports], [*FILES, receipt(2)]).waits("j2") is False
+
+
+def test_a_receipt_stored_mid_run_makes_the_supports_wait_until_the_next_run():
+    unsure = read(agent("j1", answer("unsure")), 1, 0)
+    # The run read up to 2; the receipt was stored at 3, while it ran.
+    supports = read(agent("j2", answer("supports"), replaces_id="j1"), 4, 2)
+    files = [*FILES, receipt(3)]
+    assert RecordState([unsure, supports], files).waits("j2") is True
+    # The follow-up run reads up to 4 and answers again: the receipt is new for it.
+    again = read(agent("j3", answer("supports"), replaces_id="j1"), 5, 4)
+    assert RecordState([unsure, supports, again], files).waits("j3") is False
+
+
+def test_a_term_confirmed_mid_run_isnt_new_for_that_run():
+    term = stored(agent("t1", budget_line()), 1)
+    unsure = read(agent("j1", answer("unsure")), 2, 1)
+    confirmed = stored(user("ok", confirm("t1")), 3)
+    mid_run = read(agent("j2", answer("supports"), replaces_id="j1"), 4, 2)
+    assert RecordState([term, unsure, confirmed, mid_run], FILES).waits("j2") is True
+    after = read(agent("j2", answer("supports"), replaces_id="j1"), 4, 3)
+    assert RecordState([term, unsure, confirmed, after], FILES).waits("j2") is False
+
+
+def test_only_the_agents_records_carry_a_read_point():
+    with pytest.raises(ValueError):
+        Record.model_validate(user("b1", bill()).model_dump() | {"read_through_seq": 3})

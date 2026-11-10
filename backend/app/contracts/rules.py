@@ -259,18 +259,25 @@ class RecordState:
         Something the agent links later from what was already on file doesn't count.
         `new` may be the record being checked, not stored yet, which comes after
         everything stored. A missing order otherwise never counts as new.
+        When `new` is the agent's record and carries its run's read point (call 40),
+        only what was stored up to that point counts: anything stored during the
+        run isn't new for that run's answers.
         `before` limits it to the records stored before that position.
         """
+        read_point = new.read_through_seq if new.author == Author.AGENT else None
         for f in self.files.values():
             if f.grant_id != new.grant_id:
                 continue
             after_since = f.arrived_at > since.written_at or (
                 f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
             )
-            before_new = f.arrived_at < new.written_at or (
-                f.arrived_at == new.written_at
-                and (self._is_checking(new) or _stored_after(new.stored_seq, f.stored_seq))
-            )
+            if read_point is not None:
+                before_new = f.stored_seq is not None and f.stored_seq <= read_point
+            else:
+                before_new = f.arrived_at < new.written_at or (
+                    f.arrived_at == new.written_at
+                    and (self._is_checking(new) or _stored_after(new.stored_seq, f.stored_seq))
+                )
             if after_since and before_new:
                 return True
         start = self._pos[since.id] + 1 if since.id in self._pos else 0
@@ -280,6 +287,8 @@ class RecordState:
         for r in self.records[start:stop]:
             if r.grant_id != new.grant_id or r.author != Author.USER:
                 continue
+            if read_point is not None and (r.stored_seq is None or r.stored_seq > read_point):
+                continue  # stored during the run, or its order unknown
             if r.kind in TERM_KINDS:
                 return True
             data = r.data

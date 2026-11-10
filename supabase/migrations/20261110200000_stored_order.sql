@@ -27,3 +27,15 @@ alter table public.records
 
 -- Records are read in stored order.
 create index records_grant_stored_seq_idx on public.records (grant_id, stored_seq);
+
+-- Call 40: each run records the last stored point it read when it started, and the
+-- agent's records carry their run's read point, set when the run saves them. For
+-- an agent's answer, only what was stored after its previous answer and up to that
+-- point is new evidence.
+alter table public.agent_runs
+  add column read_through_seq bigint;
+
+alter table public.records
+  add column read_through_seq bigint,
+  add constraint records_read_through_seq_only_for_agent
+    check (author = 'agent' or read_through_seq is null);
