@@ -6,9 +6,11 @@ limit, a funding notice whose totals don't add up, and a skipped amendment numbe
 An overspent budget line is a grant note, not a problem.
 
 How a funding notice's own budget lines combine with the lines already confirmed
-is the builder's (provisional). A category's budget is counted once per notice
-(the lines with the same date): the parent line's amount when the notice prints
-one, otherwise the sum of the category's lines. The sub-lines of Participant
+is the builder's (provisional). A category's budget is counted once per notice:
+the parent line's amount when the notice prints one, otherwise the sum of the
+category's lines. A line belongs to the notice whose file it's cited from (call
+36). A line the accountant typed has no citation, so nothing ties it to a
+notice; the typed lines of a category count as one group. The sub-lines of Participant
 Support Costs and of Travel carry their parent's category (contract ruling f),
 so this keeps a parent and its sub-lines from being counted twice. Then the
 notices add up. A charge's spending counts on its assigned line's category and,
@@ -18,7 +20,6 @@ category, named as NSF prints the category.
 
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import date
 
 from app.checks.findings import AGENT_RUN, BUDGET, GRANT_TERMS, NOTICE, Finding
 from app.checks.ledger_accounts import CATEGORY_NAMES, category_name
@@ -156,6 +157,15 @@ def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> lis
     return out
 
 
+def _notice_file(line: BudgetLine) -> str | None:
+    """The notice a budget line belongs to: the file its amount, or failing that its name,
+    is cited from. None for a line the accountant typed, which no file ties to a notice."""
+    for value in (line.amount, line.name):
+        if value.citation is not None:
+            return value.citation.file_id
+    return None
+
+
 def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
     """One notice's budget for a category: its parent line's amount, or its lines' sum."""
     names = {name_key(n) for n in CATEGORY_NAMES[category]}
@@ -170,11 +180,11 @@ def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
 
 def grant_notes(view: GrantView) -> list[GrantNote]:
     """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
-    by_notice: dict[tuple[BudgetCategory, date], list[Record]] = defaultdict(list)
+    by_notice: dict[tuple[BudgetCategory, str | None], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
     for r in view.budget_lines():
         assert isinstance(r.data, BudgetLine)
-        by_notice[(r.data.category, r.data.dated.value)].append(r)
+        by_notice[(r.data.category, _notice_file(r.data))].append(r)
         lines[r.data.category].append(r)
     budget: dict[BudgetCategory, int] = defaultdict(int)
     for (category, _), members in by_notice.items():

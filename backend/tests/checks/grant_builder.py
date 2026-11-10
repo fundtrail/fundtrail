@@ -173,14 +173,20 @@ class Grant:
         return self.agent(data, when)
 
     def budget_line(
-        self, name: str, amount: int, category: str, when: datetime, dated: date = date(2023, 1, 10)
+        self,
+        name: str,
+        amount: int,
+        category: str,
+        when: datetime,
+        dated: date = date(2023, 1, 10),
+        f: str = "f-letter",
     ) -> str:
         return self.agent(
             {
                 "kind": "budget_line",
-                "dated": cited(dated),
-                "name": cited(name),
-                "amount": cited(amount, f"${amount // 100:,}"),
+                "dated": cited(dated, file_id=f),
+                "name": cited(name, file_id=f),
+                "amount": cited(amount, f"${amount // 100:,}", f),
                 "category": category,
             },
             when,

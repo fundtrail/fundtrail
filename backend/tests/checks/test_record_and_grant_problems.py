@@ -250,6 +250,28 @@ def test_a_parent_line_and_its_sub_lines_count_the_budget_once() -> None:
     ]
 
 
+def test_two_notices_add_up_even_when_they_share_a_date() -> None:
+    """Lines belong to the notice whose file they're read from, not to a date."""
+    g = Grant()
+    g.standard_terms()  # the award letter: Participant Support Costs, $20,000
+    g.file("f-increment", at(2023, 6, 1))
+    more = g.budget_line(
+        "Participant Support Costs",
+        1_000_000,
+        "participant_support",
+        at(2023, 6, 1),
+        dated=date(2023, 1, 10),  # the same date as the award letter
+        f="f-increment",
+    )
+    g.confirm(more, when=at(2023, 6, 1, 13))
+    assert _stipend_overspend(g, more) == []  # $25,000 of $30,000 isn't overspent
+    g.charge("stip2", date(2024, 3, 2), 600_000, account=STIPENDS, vendor=None)
+    g.assign("stip2", more, at(2024, 3, 2))
+    assert [n.text for n in g.run(at(2024, 3, 3)).notes] == [
+        "Participant Support Costs: $31,000.00 of $30,000.00"
+    ]
+
+
 def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
     g = Grant()
     when = at(2023, 1, 12, 15)
