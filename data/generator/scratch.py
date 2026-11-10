@@ -1,14 +1,17 @@
-"""The seed pack for adding a grant from scratch (decision 0024).
+"""The small sample: a grant whose timeline starts with its award letter.
 
-A folder of files the user drops in: an award letter, a ledger, emails,
-invoices and a receipt photo. The ledger's last two lines post after the
-demo's opening date, so the clock releases them, and their invoices are
-already in the pack, waiting unlinked.
+Its first scheduled events are the award letter and then the ledger file. Each
+ledger line arrives at the later of the ledger's arrival and 00:00 UTC on its
+posting date (decision 0023), so the last two lines, posting later,
+arrive when the clock reaches them, and their invoices are already on file.
+The other evidence follows a few minutes after the ledger. Three files are
+marked for the user to deliver (ruling 44): from their date, FOR_USER_AT, each
+waits under the timeline's Now, with Get the file and Deliver for me, until the
+user delivers it. The clock never delivers it.
 
-The key assumes this script, in the demo workspace, on the opening date: the
-user uploads the award letter, confirms its terms, uploads the ledger and then
-the rest of the files. Ledger lines already past their posting date arrive
-when the ledger is uploaded (decision 0023).
+The answer key assumes the user actions in `user_actions.json`: confirm the
+award letter's terms, and deliver the three marked files by upload on their
+date. Content is a placeholder until the samples' content is decided.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from __future__ import annotations
 import random
 from datetime import date, timedelta
 
-from model import EVIDENCE_COMPLETE, Grant, at
+from model import Grant, Ordinary, at
 from ordinary import GRANTS_INBOX, Person, Trip, award_letter, trip
 from photo import photo
 from render import eml, forwarded, invoice, money, pdf, sentence, short
@@ -33,10 +36,11 @@ ELECTRONICS = (
     "invoices@electronicssupply.example",
 )
 
-UPLOAD_LETTER = at(date(2026, 11, 16), 17, 30)
+LETTER_AT = at(date(2026, 11, 16), 17, 30)
 CONFIRM = at(date(2026, 11, 16), 17, 40)
-UPLOAD_LEDGER = at(date(2026, 11, 16), 17, 45)
-UPLOAD_FILES = at(date(2026, 11, 16), 17, 50)
+LEDGER_AT = at(date(2026, 11, 16), 17, 45)
+FILES_AT = at(date(2026, 11, 16), 17, 50)
+FOR_USER_AT = at(date(2026, 11, 18), 17, 0)
 
 
 def build() -> Grant:
@@ -46,7 +50,7 @@ def build() -> Grant:
         g,
         title=TITLE,
         award_date=date(2025, 8, 12),
-        arrives=UPLOAD_LETTER,
+        arrives=LETTER_AT,
         confirm_at=CONFIRM,
         personnel=[EMERY],
         program_officer=KAI,
@@ -71,12 +75,22 @@ def build() -> Grant:
         name="award_letter.pdf",
         as_pdf=True,
     )
-    g.docs[-1].note = "The user starts a new grant by uploading its award letter."
-    g.accountant[-1]["note"] = "The user confirms every term read from the award letter."
+    g.starts_at = LETTER_AT
+    g.ledger_at = LEDGER_AT
+    g.docs[-1].note = "The award letter arrives: the sample's first scheduled event."
 
-    file_times = iter(UPLOAD_FILES + timedelta(minutes=i) for i in range(20))
+    file_times = iter(FILES_AT + timedelta(minutes=i) for i in range(20))
+    for_the_user: list[str] = []
 
-    def purchase(number: str, dated: date, posting: date, items, shipping: int, as_email: bool):
+    def purchase(
+        number: str,
+        dated: date,
+        posting: date,
+        items,
+        shipping: int,
+        as_email: bool,
+        for_user: bool = False,
+    ):
         text, total = invoice(
             vendor=ELECTRONICS[0] if number.startswith("EES") else "Example Scientific Supply",
             vendor_address=ELECTRONICS[1]
@@ -95,7 +109,8 @@ def build() -> Grant:
             po=f"PO-{dated:%y}-{rng.randint(1000, 9999)}",
         )
         vendor = ELECTRONICS[0] if number.startswith("EES") else "Example Scientific Supply"
-        arrives = next(file_times)
+        arrives = FOR_USER_AT if for_user else next(file_times)
+        deliver = "user" if for_user else None
         if as_email:
             name = f"email_invoice_{number}.eml"
             sent = at(dated, 22, 10)
@@ -123,7 +138,8 @@ def build() -> Grant:
                 ),
                 arrives,
                 "upload",
-                note=f"Invoice {number}, saved from email and uploaded.",
+                note=f"Invoice {number}, an email saved as a file.",
+                deliver=deliver,
             )
         else:
             name = f"invoice_{number}.pdf"
@@ -134,6 +150,7 @@ def build() -> Grant:
                 "upload",
                 note=sentence(f"Invoice {number} from {vendor}"),
                 text=text,
+                deliver=deliver,
             )
         desc = short(", ".join(d for d, _, _ in items))
         ln = g.line(dated, posting, total, desc, SUPPLIES, vendor=vendor, reference=number)
@@ -141,6 +158,9 @@ def build() -> Grant:
         g.link(name, ln, total)
         g.budget(ln, "Materials and Supplies")
         g.answer(ln, "allowable", "supports")
+        g.ordinary.append(Ordinary(ln, [name]))
+        if for_user:
+            for_the_user.append(name)
         return ln
 
     lines = [
@@ -206,7 +226,7 @@ def build() -> Grant:
         d.source = "upload"
         d.sender = None
         if d.name.endswith(".eml"):
-            d.note = "The airline receipt email for the field trip, saved and uploaded."
+            d.note = "The airline receipt email for the field trip, saved as a file."
 
     # A hardware store purchase on the department card: the receipt is a phone photo.
     items = [
@@ -239,11 +259,13 @@ def build() -> Grant:
     g.doc(
         photo_name,
         photo(photo_name, photo_lines, seed=2511958),
-        next(file_times),
+        FOR_USER_AT,
         "upload",
         note="A phone photo of a paper receipt for well fittings, bought on the department card.",
         text="\n".join(photo_lines),
+        deliver="user",
     )
+    for_the_user.append(photo_name)
     ln = g.line(
         date(2026, 11, 2),
         date(2026, 11, 9),
@@ -259,9 +281,10 @@ def build() -> Grant:
     g.link(photo_name, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "supports")
+    g.ordinary.append(Ordinary(ln, [photo_name]))
     lines.append(ln)
 
-    # Two orders placed before the opening date that post after it.
+    # Two orders whose lines post later in the timeline, with their invoices on file.
     lines.append(
         purchase(
             "EES-7420",
@@ -270,6 +293,7 @@ def build() -> Grant:
             [("Sensor circuit board, assembled", 10, 18500)],
             2400,
             False,
+            for_user=True,
         )
     )
     lines.append(
@@ -280,17 +304,15 @@ def build() -> Grant:
             [("Nitrate standard solution, 1000 ppm", 4, 8950)],
             1250,
             True,
+            for_user=True,
         )
     )
 
-    for ln in g.lines:
-        posting = at(ln.posting_date, 0, 0)
-        ln.arrives = max(posting, UPLOAD_LEDGER)
-        if posting > UPLOAD_LEDGER:
-            ln.note = "Posts after the opening date. The clock releases it, and its invoice is "
-            ln.note += "already on file."
-        b_at = max(ln.arrives + timedelta(hours=1), at(ln.arrives.date(), 12))
-        if b_at < UPLOAD_FILES + timedelta(minutes=20):
-            b_at = at(ln.arrives.date(), 19)
-        g.bucket(ln, b_at, EVIDENCE_COMPLETE)
+    for name in sorted(for_the_user):
+        g.deliver_file(
+            name,
+            FOR_USER_AT,
+            "The user brings in a file marked for them, by upload, on its date.",
+        )
+    g.expect_ordinary()
     return g
