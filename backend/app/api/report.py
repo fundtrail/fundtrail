@@ -26,15 +26,20 @@ _TEXT_TYPES = ("text/", "message/rfc822")
 
 
 def report_inputs(
-    p: Platform, conn: Conn, grant: Grant, now: datetime, signing: Signing | None
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    now: datetime,
+    preparer_id: str,
+    signing: Signing | None,
 ) -> ReportInputs:
     """Everything on the grant at the workspace's "now", which `now` is: the caller reads it
-    in the same transaction."""
+    in the same transaction. The preparer is the user who signs off, or for a draft the
+    user asking for it, never assumed from the workspace (issue 160)."""
     snap = load_snapshot(p, conn, grant)
     assert snap.now == now, "the report is built at the workspace's now"
-    workspace = snap.workspace
-    preparer = store.get_user(conn, workspace.owner_id) or User(
-        id=workspace.owner_id, email="unknown@university.example"
+    preparer = store.get_user(conn, preparer_id) or User(
+        id=preparer_id, email="unknown@university.example"
     )
     texts: dict[str, str] = {}
     for f in snap.files:
@@ -64,21 +69,20 @@ def report_inputs(
     )
 
 
-def draft_report(p: Platform, conn: Conn, grant: Grant, now: datetime) -> bytes:
-    """The current draft: the report as it would be signed now, with no sign-off on it."""
-    return build_report(report_inputs(p, conn, grant, now, None))
+def draft_report(p: Platform, conn: Conn, grant: Grant, now: datetime, user_id: str) -> bytes:
+    """The current draft: the report as this user would sign it now, with no sign-off on it."""
+    return build_report(report_inputs(p, conn, grant, now, user_id, None))
 
 
 def signed_report_maker(p: Platform, user_id: str):  # noqa: ANN201
     """What actions.add_sign_off calls under the grant's lock: the PDF with the sign-off on
-    it, and the snapshot it stores (decision 0022). Only the preparer signs: the workspace's
-    owner, the one person a workspace has for now."""
+    it, and the snapshot it stores (decision 0022). The user signing off is the preparer."""
 
     def make(
         conn: Conn, grant: Grant, now: datetime, note: str | None
     ) -> tuple[bytes, SignOffSnapshot]:
         signing = Signing(author_user_id=user_id, signed_at=now, note=note)
-        pdf = build_report(report_inputs(p, conn, grant, now, signing))
+        pdf = build_report(report_inputs(p, conn, grant, now, user_id, signing))
         return pdf, snapshot_now(load_snapshot(p, conn, grant))
 
     return make

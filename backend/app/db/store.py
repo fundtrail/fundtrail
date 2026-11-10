@@ -13,7 +13,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal, LiteralString
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -54,16 +54,27 @@ def upsert_user(conn: Conn, user: User) -> User:
     return user
 
 
-def list_workspaces(conn: Conn, owner_id: str) -> list[Workspace]:
+def reaches(kind: Literal["workspace", "grant"], column: LiteralString) -> LiteralString:
+    """The one access rule, as a SQL condition on `column` for a user ID parameter: whether
+    the user may reach that workspace or grant (issue 160). It asks the migration's
+    private.can_reach_workspace / private.can_reach_grant, the functions the Realtime
+    policy asks too, so a later rule changes in one place."""
+    return f"private.can_reach_{kind}({column}, %s::uuid)"
+
+
+def list_workspaces(conn: Conn, user_id: str) -> list[Workspace]:
+    """The workspaces this user may reach."""
     rows = conn.execute(
         "select id, name, owner_id, clock_now from public.workspaces"
-        " where owner_id = %s order by name, id",
-        (owner_id,),
+        f" where {reaches('workspace', 'id')} order by name, id",
+        (user_id,),
     ).fetchall()
     return [Workspace.model_validate(_clean(r)) for r in rows]
 
 
 def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
+    """A new workspace. The database adds its creator as its owner member, and its Sample
+    accountant, in the same transaction."""
     row = conn.execute(
         "insert into public.workspaces (owner_id, name) values (%s, %s)"
         " returning id, name, owner_id, clock_now",
@@ -73,12 +84,12 @@ def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
     return Workspace.model_validate(_clean(row))
 
 
-def get_workspace(conn: Conn, workspace_id: str, owner_id: str) -> Workspace | None:
-    """The workspace, only if this user owns it."""
+def get_workspace(conn: Conn, workspace_id: str, user_id: str) -> Workspace | None:
+    """The workspace, only if this user may reach it."""
     row = conn.execute(
         "select id, name, owner_id, clock_now from public.workspaces"
-        " where id = %s and owner_id = %s",
-        (workspace_id, owner_id),
+        f" where id = %s and {reaches('workspace', 'id')}",
+        (workspace_id, user_id),
     ).fetchone()
     return Workspace.model_validate(_clean(row)) if row else None
 
@@ -112,20 +123,24 @@ def list_grants(conn: Conn, workspace_id: str) -> list[Grant]:
 
 
 def get_grant(
-    conn: Conn, grant_id: str, owner_id: str | None = None, *, lock: bool = False
+    conn: Conn, grant_id: str, user_id: str | None = None, *, lock: bool = False
 ) -> Grant | None:
-    """The grant; with owner_id, only if that user owns its workspace.
+    """The grant; with user_id, only if that user may reach it.
 
     lock=True takes the grant's row lock until the transaction ends. Every write to a
     grant's records takes it, so the write check and the save see the same records.
     """
-    query = """select g.id, g.workspace_id, g.funder, g.award_number, g.title, g.address_code,
-                      g.drive_folder_id
-               from public.grants g join public.workspaces w on w.id = g.workspace_id
-               where g.id = %s and (%s::uuid is null or w.owner_id = %s::uuid)"""
+    query: LiteralString = """select g.id, g.workspace_id, g.funder, g.award_number, g.title,
+                      g.address_code, g.drive_folder_id
+               from public.grants g
+               where g.id = %s"""
+    params: tuple[str, ...] = (grant_id,)
+    if user_id is not None:
+        query += f" and {reaches('grant', 'g.id')}"
+        params += (user_id,)
     if lock:
         query += " for update of g"
-    row = conn.execute(query, (grant_id, owner_id, owner_id)).fetchone()  # pyright: ignore[reportArgumentType]
+    row = conn.execute(query, params).fetchone()
     return Grant.model_validate(row) if row else None
 
 
@@ -228,13 +243,13 @@ def list_files(conn: Conn, grant_id: str, now: datetime) -> list[EvidenceFile]:
     return [EvidenceFile.model_validate(r) for r in rows]
 
 
-def get_file(conn: Conn, file_id: str, owner_id: str) -> EvidenceFile | None:
-    """The file, only if this user owns its workspace."""
+def get_file(conn: Conn, file_id: str, user_id: str) -> EvidenceFile | None:
+    """The file, only if this user may reach its grant."""
     row = conn.execute(
         f"""select {_FILE_COLUMNS_F}, f.stored_seq
-            from public.evidence_files f join public.workspaces w on w.id = f.workspace_id
-            where f.id = %s and w.owner_id = %s::uuid""",
-        (file_id, owner_id),
+            from public.evidence_files f
+            where f.id = %s and {reaches("grant", "f.grant_id")}""",
+        (file_id, user_id),
     ).fetchone()
     return EvidenceFile.model_validate(row) if row else None
 
@@ -673,28 +688,30 @@ def status_history(
     ]
 
 
-def get_charge(conn: Conn, charge_id: str, owner_id: str) -> Charge | None:
-    """The charge, only if this user owns its workspace."""
+def get_charge(conn: Conn, charge_id: str, user_id: str) -> Charge | None:
+    """The charge, only if this user may reach its grant."""
     row = conn.execute(
         """select c.id, c.workspace_id, c.grant_id, c.ledger_line_id, c.transaction_date,
                   c.posting_date, c.arrived_at, c.amount_cents, c.description, c.account,
                   c.vendor, c.reference, c.original_line_id
-           from public.charges c join public.workspaces w on w.id = c.workspace_id
-           where c.id = %s and w.owner_id = %s::uuid""",
-        (charge_id, owner_id),
+           from public.charges c
+           where c.id = %s and """
+        + reaches("grant", "c.grant_id"),
+        (charge_id, user_id),
     ).fetchone()
     return Charge.model_validate(row) if row else None
 
 
-def get_record(conn: Conn, record_id: str, owner_id: str) -> Record | None:
-    """The record, only if this user owns its workspace."""
+def get_record(conn: Conn, record_id: str, user_id: str) -> Record | None:
+    """The record, only if this user may reach its grant."""
     row = conn.execute(
         """select r.id, r.workspace_id, r.grant_id, r.author, r.author_user_id, r.written_at,
                   r.replaces_id, r.thread_message_id, r.stored_seq,
                   r.read_through_seq, r.data
-           from public.records r join public.workspaces w on w.id = r.workspace_id
-           where r.id = %s and w.owner_id = %s::uuid""",
-        (record_id, owner_id),
+           from public.records r
+           where r.id = %s and """
+        + reaches("grant", "r.grant_id"),
+        (record_id, user_id),
     ).fetchone()
     return _record(row) if row else None
 
@@ -942,3 +959,28 @@ def save_progress(conn: Conn, progress: CheckerProgress) -> None:
             Jsonb(dumped["first_search_done"]),
         ),
     )
+
+
+def acting_member_emails(conn: Conn, workspace_id: str) -> list[str]:
+    """The sign-in addresses of the workspace's members who can act, lower case: decision
+    0025's "the accountant's own address" among a grant's known senders."""
+    rows = conn.execute(
+        """select lower(u.email) as email from public.workspace_members m
+           join public.users u on u.id = m.user_id
+           where m.workspace_id = %s and private.can_act(m.role)
+           order by 1""",
+        (workspace_id,),
+    ).fetchall()
+    return [r["email"] for r in rows]
+
+
+def sample_accountant_id(conn: Conn, workspace_id: str) -> str:
+    """The workspace's Sample accountant (issue 165): a member that can't act and that
+    nobody signs in as. A sample grant's past decisions are written as it."""
+    row = conn.execute(
+        """select user_id::text as id from public.workspace_members
+           where workspace_id = %s and role = 'sample'""",
+        (workspace_id,),
+    ).fetchone()
+    assert row is not None, "every workspace has its Sample accountant"
+    return row["id"]
