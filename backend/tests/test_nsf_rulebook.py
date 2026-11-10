@@ -185,6 +185,19 @@ def test_every_asr_citation_says_what_the_earlier_editions_say(rulebook: Ruleboo
             assert not editions, f"{rule.id} has an older editions line but no ASR citation"
 
 
+def test_older_ecfr_sources_link_to_a_dated_edition(rulebook: Rulebook) -> None:
+    for rule in rulebook.rules:
+        for line in rule.lines("- Older source:"):
+            if "ecfr.gov" in line:
+                assert re.search(r"ecfr\.gov/on/\d{4}-\d{2}-\d{2}/", line), (
+                    f"{rule.id} older eCFR source must link to a dated edition: {line}"
+                )
+
+
+def test_header_lists_the_2_cfr_comparison(rulebook: Rulebook) -> None:
+    assert "2 CFR 200 on older awards" in rulebook.header
+
+
 def test_every_quote_is_quoted_and_attributed(rulebook: Rulebook) -> None:
     for rule in rulebook.rules:
         for line in rule.lines("- Quote:"):
