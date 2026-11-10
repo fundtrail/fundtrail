@@ -63,8 +63,8 @@ export const sampleRecord = <R extends FtRecord = FtRecord>(id: Id) => find(samp
 export const sampleFile = (id: Id) => find(sample.files, id, "file");
 export const sampleCharge = (id: Id) => find(sample.charges, id, "charge");
 
-/** The workspace as the fake serves it, on the fake clock. */
-export const sampleWorkspace: Workspace = { ...sample.workspace, clock_now: FAKE_NOW };
+/** The workspace as the fake serves it. */
+export const sampleWorkspace: Workspace = { ...sample.workspace };
 
 /**
  * Mail held for the sample grant (decision 0025). The contract's sample holds
