@@ -105,3 +105,59 @@ def test_a_grant_with_no_confirmed_dates_has_nothing_from_its_period() -> None:
     g = Grant()
     g.standard_terms(confirm=False)
     assert upcoming_dates(_input(g, at(2023, 1, 13)), "g1") == []
+
+
+# From PR 181's review.
+
+
+def test_a_snooze_naming_a_missing_item_before_its_due_holds_it_back_until_it_ends() -> None:
+    """The write check lets a snooze name a reason that isn't on the list yet. The item then
+    stays hidden until the snooze ends, so that later date is when it comes up."""
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("c1", date(2024, 2, 28), 10000, posted=date(2024, 3, 1))  # due Apr 30
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.user(
+        {
+            "kind": "snooze",
+            "charge_id": "c1",
+            "until": date(2024, 6, 1),
+            "note": "Invoice promised for May.",
+            "reasons": [{"check": "checklist", "problem": "missing:bill"}],
+        },
+        at(2024, 3, 2),
+    )
+    found = upcoming_dates(_input(g, at(2024, 3, 3)), "g1")
+    assert [u.on for u in found if u.kind == "missing_flagged"] == [date(2024, 6, 1)]
+
+
+def test_a_missing_approval_before_the_window_has_no_date_but_the_other_items_do() -> None:
+    g = Grant()
+    t = g.standard_terms()  # Participant Support Costs need the Program Officer's approval
+    g.charge("stip", date(2024, 6, 1), 50000, account=STIPENDS, vendor=None)
+    g.assign("stip", t["psc"], at(2024, 6, 1))
+    found = upcoming_dates(_input(g, at(2024, 6, 2)), "g1")
+    missing = [(u.check, u.problem) for u in found if u.kind == "missing_flagged"]
+    assert ("checklist", "missing:participant_list") in missing
+    assert all(check != "approval" for check, _ in missing)  # on the list right away
+
+
+def test_a_snooze_on_a_bill_says_which_bill() -> None:
+    g = Grant()
+    g.standard_terms()
+    f = g.file("f-inv", at(2024, 3, 1))
+    bill = g.bill(10000, f, at(2024, 3, 1))
+    g.user(
+        {
+            "kind": "snooze",
+            "record_id": bill,
+            "until": date(2024, 6, 1),
+            "note": "The charge posts next month.",
+            "reasons": [{"check": "bill", "problem": "unused"}],
+        },
+        at(2024, 3, 2),
+    )
+    (ends,) = [
+        u for u in upcoming_dates(_input(g, at(2024, 3, 3)), "g1") if u.kind == "snooze_ends"
+    ]
+    assert (ends.on, ends.about_record_id, ends.charge_id) == (date(2024, 6, 1), bill, None)

@@ -10,8 +10,9 @@ wording: the screens word it. The kinds:
 - `grant_ends`: the end date in force.
 - `missing_flagged`: a missing item goes on the problem list, 60 days past the date it
   was expected or when the closeout window opens, whichever is first. It belongs to the
-  charge and the reason's check and problem. A missing approval is on the list right
-  away, so it has no such date; a fully reversed charge never goes on the list.
+  charge and the reason's check and problem. When a snooze names the reason before it's
+  due, it's the later of that date and the snooze's end. A missing approval is on the
+  list right away, so it has no such date; a fully reversed charge never goes on the list.
 
 Only dates after the grant's "now" are given, in date order.
 """
@@ -40,6 +41,8 @@ class UpcomingDate:
     charge_id: str | None = None
     record_id: str | None = None  # the snooze, for snooze_ends
     file_id: str | None = None
+    # For a snooze on a record (such as a bill): the record it's about.
+    about_record_id: str | None = None
     check: str | None = None  # for missing_flagged: the reason's check and problem
     problem: str | None = None
 
@@ -73,6 +76,7 @@ def upcoming_dates(checks_input: ChecksInput, grant_id: str) -> list[UpcomingDat
                     charge_id=data.charge_id,
                     record_id=r.id,
                     file_id=data.file_id,
+                    about_record_id=data.record_id,
                 )
             )
 
@@ -87,6 +91,14 @@ def upcoming_dates(checks_input: ChecksInput, grant_id: str) -> list[UpcomingDat
             on = reason.expected_by + timedelta(days=MISSING_EVIDENCE_DAYS)
             if window is not None:
                 on = min(on, window)
+            # A snooze can name a reason before it's due; it then stays hidden until the
+            # snooze ends, so the later of the two dates is when it reaches the list.
+            for r in dec.snoozes:
+                snooze = r.data
+                assert isinstance(snooze, Snooze)
+                names = {(x.check, x.problem) for x in snooze.reasons}
+                if snooze.charge_id == status.charge_id and (reason.check, reason.problem) in names:
+                    on = max(on, dec.snooze_ends(r))
             if on > today:
                 out.append(
                     UpcomingDate(
