@@ -767,7 +767,7 @@ class Correction(Model):
 
     kind: Literal[RecordKind.CORRECTION] = RecordKind.CORRECTION
     charge_id: Id  # the correcting line
-    corrects_line_id: Id  # the ledger line ID it corrects
+    corrects_line_id: Id  # the ledger line ID it corrects, on the same grant
     reason: Text
     quotes: tuple[Citation, ...] = ()
 

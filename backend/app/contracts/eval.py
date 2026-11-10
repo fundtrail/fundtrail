@@ -29,7 +29,7 @@ class ExpectedRecord(Model):
 
 class ExpectedLink(Model):
     file: Text  # the case file the linked fact was read from
-    line_id: Id  # the charge's ledger line ID
+    line_id: Id  # the charge's ledger line ID, on the case's grant
     amount_cents: Cents | None = None  # for a bill
 
 

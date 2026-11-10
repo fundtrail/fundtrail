@@ -96,3 +96,11 @@
   border-color: var(--ink);
   background: var(--paper-sunken);
 }
+/* The panel's tags wrap inside their column instead of running past it. */
+.ft-tl__loaded,
+.ft-tl__delivered {
+  height: auto;
+  min-height: 20px;
+  max-width: 100%;
+  white-space: normal;
+}
