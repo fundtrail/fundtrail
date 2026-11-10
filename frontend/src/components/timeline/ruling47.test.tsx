@@ -39,14 +39,24 @@ describe("skipping the human steps (ruling 47)", () => {
     expect(decisions).toEqual(["rec-confirm-award-terms"]);
   });
 
-  it("hangs the sample accountant's decisions on arrivals, so an earlier delivery doesn't come back", async () => {
+  it("lists the award-terms confirmation after Start over and a skipped Next event (ruling 55)", async () => {
+    const api = createFakeApiClient();
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    const view = await api.moveTimeline(SAMPLE_GRANT_ID, { skip_human_steps: true });
+    const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => [p.event.name, d.id]));
+    // Under the award letter, the latest event this move delivered at or before it, and only once.
+    expect(decisions).toEqual([["award_letter.txt", "rec-confirm-award-terms"]]);
+  });
+
+  it("never lists a decision under an earlier move's delivery, and lists each once", async () => {
     const api = createFakeApiClient();
     await api.startOver(SAMPLE_GRANT_ID, true);
     await api.deliverForMe(SAMPLE_GRANT_ID, "event-file-award-letter");
     const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
     expect((view.just_happened ?? []).map((p) => p.event.name)).toEqual(["invoice_1001.txt", "L-1001"]);
-    const l1001 = view.just_happened!.find((p) => p.event.name === "L-1001")!;
-    expect(l1001.scripted_decisions?.map((d) => d.id)).toEqual(["rec-confirm-award-terms"]);
+    // Nothing this move happened before the decision, so it goes under the move's first event.
+    const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => [p.event.name, d.id]));
+    expect(decisions).toEqual([["invoice_1001.txt", "rec-confirm-award-terms"]]);
   });
 
   it("credits the user only when the flag is false and the item really was delivered", async () => {

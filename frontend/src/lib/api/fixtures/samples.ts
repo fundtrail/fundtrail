@@ -163,11 +163,14 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
 /**
  * Skipping the human steps: as the clock passes them, the sample accountant
  * delivers what was the user's to deliver. Each item it delivered is listed
- * under Just happened, marked delivered_by_sample_accountant. The sample's own
- * accountant decisions hang on the arrivals this move played: the latest at or
- * before each decision, or else the move's first arrival. A move that played
- * no arrival lists no decisions. So a delivery only ever shows under the move
- * that delivered it.
+ * under Just happened, marked delivered_by_sample_accountant.
+ *
+ * Ruling 55: each of the sample's own accountant decisions is listed once,
+ * under the latest event this move played or delivered at or before the
+ * decision's time (an arrival, this move's own delivery, or a checks date),
+ * or else under the move's first event. Never under a delivery from an
+ * earlier move. A move that played and delivered nothing lists a decision
+ * under the latest arrival before it.
  *
  * The fake only lists those decisions; it doesn't carry them out. It has no
  * checks, so the grant's terms, problem list and records stay as they are.
@@ -180,11 +183,18 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
       if (!state.justHappened.includes(e.id)) state.justHappened.push(e.id);
     }
   }
-  const arrivals = events.filter((e) => e.kind !== "user_delivery" && state.justHappened.includes(e.id));
+  // This move's events, in date order: what it played and what it delivered.
+  const thisMove = events.filter((e) => state.justHappened.includes(e.id));
   const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
   for (const decision of decisions) {
-    const on = arrivals.filter((e) => time(e.at) <= time(decision.written_at)).at(-1) ?? arrivals[0];
-    if (!on) continue;
+    const before = (e: TimelineEvent) => time(e.at) <= time(decision.written_at);
+    let on: TimelineEvent | undefined = thisMove.filter(before).at(-1) ?? thisMove[0];
+    if (!on) {
+      // Nothing happened in this move: the latest arrival before it, never an earlier move's delivery.
+      on = events.filter((e) => e.kind !== "user_delivery" && state.played.has(e.id) && before(e)).at(-1);
+      if (!on) continue;
+      state.justHappened.push(on.id);
+    }
     state.scripted.set(on.id, [...(state.scripted.get(on.id) ?? []), decision]);
   }
   // In date order, as the server sends them.
