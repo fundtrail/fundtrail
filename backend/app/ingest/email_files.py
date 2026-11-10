@@ -20,7 +20,9 @@ from email.utils import parsedate_to_datetime
 
 from PIL import Image
 
-from .incoming import MAX_FILE_BYTES, IncomingFile, SkippedFile, safe_name
+from app.contracts.mail import SkipReason
+
+from .incoming import MAX_FILE_BYTES, FoundSkip, IncomingFile, safe_name
 
 # An image smaller than this many pixels (about 200 by 200) is a logo or a
 # signature mark, not evidence.
@@ -123,7 +125,7 @@ def _is_evidence_part(part: Message) -> bool:
 @dataclass(frozen=True)
 class EmailParts:
     files: list[IncomingFile]  # the message first, then its attachments
-    skipped: list[SkippedFile]  # attachments not taken in, to show the accountant
+    skipped: list[FoundSkip]  # attachments not taken in, to show the accountant
 
 
 def email_to_files(
@@ -137,7 +139,7 @@ def email_to_files(
 
 def email_parts(raw: bytes, *, message_id: str, grant_id: str, workspace_id: str) -> EmailParts:
     """The files an email becomes, and the attachments that were too large to take in."""
-    skipped: list[SkippedFile] = []
+    skipped: list[FoundSkip] = []
     parsed = parse_headers(raw)
     message_key = f"gmail:{message_id}"
     files = [
@@ -169,13 +171,13 @@ def email_parts(raw: bytes, *, message_id: str, grant_id: str, workspace_id: str
         name = safe_name(part.get_filename() or "", f"attachment-{index}{extension}")
         if len(data) > MAX_FILE_BYTES:
             skipped.append(
-                SkippedFile(
-                    grant_id=grant_id,
+                FoundSkip(
                     workspace_id=workspace_id,
+                    grant_id=grant_id,
                     name=name,
                     source="gmail",
                     source_ref=message_id,
-                    reason="too_large",
+                    reason=SkipReason.TOO_LARGE,
                 )
             )
             continue

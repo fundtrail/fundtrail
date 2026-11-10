@@ -3,22 +3,25 @@
 The timer runs on real time. What it brings in arrives at the workspace's "now",
 which the caller supplies, because the workspace clock is not this module's.
 
-Storing waits on the contract additions in issue 39: the caller passes an
-`IngestSink` that stores arrived files and held mail.
+The caller passes an `IngestSink` that stores arrived files, held mail and skipped
+files, and saves the checker's progress (the contract's `CheckerProgress`) after each
+check with `CheckState.to_progress`.
 """
 
 import asyncio
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
+
+from app.contracts.mail import CheckerProgress, DriveVersion, HoldReason, SkippedFile, SkipReason
 
 from .addresses import find_tag, grant_address
 from .authentication import GMAIL_AUTHSERV_ID, is_verified
 from .drive_files import DriveState, drive_file, files_to_take, version_of
 from .email_files import EmailParts, ParsedEmail, email_parts, parse_headers
-from .incoming import GrantRoute, HeldMail, HoldReason, IncomingFile, SkippedFile
+from .incoming import GrantRoute, IncomingFile, PendingHold, to_skipped_file
 from .sources import CannotTake, DriveSource, MailSource, RawMessage
 
 log = logging.getLogger(__name__)
@@ -28,14 +31,19 @@ CHECK_INTERVAL_SECONDS = 90
 
 
 class IngestSink(Protocol):
-    def store(self, files: list[IncomingFile]) -> None:
-        """Store arrived files. A message comes first, then its attachments."""
+    def store(self, files: list[IncomingFile], skipped: Sequence[SkippedFile] = ()) -> None:
+        """Store arrived files, a message first and then its attachments, in one write with
+        the message's skipped attachments. One write, so a message is stored once even if
+        saving its skips fails: the whole message is tried again."""
         ...
 
-    def hold(self, held: HeldMail) -> None: ...
+    def hold(self, held: PendingHold) -> None:
+        """Store a held message's files and save the contract's `HeldMail`
+        (`to_held_mail`), with its skipped files, in one write."""
+        ...
 
     def skip(self, skipped: SkippedFile) -> None:
-        """Record a file that was sent but not taken in, so the grant shows a problem."""
+        """Record a Drive file that wasn't taken in, so the grant shows a problem."""
         ...
 
 
@@ -45,12 +53,39 @@ WorkspaceNow = Callable[[str], datetime]
 
 @dataclass
 class CheckState:
-    """What the checker remembers between checks. Saved by the caller."""
+    """The checker's working copy of the contract's `CheckerProgress`.
+
+    It's loaded with `from_progress` before a check and saved with `to_progress` after.
+    """
 
     mail_cursor: str | None = None
-    started_grants: set[str] = field(default_factory=set)  # grants whose first read is done
+    # Grants whose first search of their address has finished: added only once every
+    # message it found was stored or held, so a search cut off partway is redone in full.
+    first_search_done: set[str] = field(default_factory=set)
     seen_messages: set[str] = field(default_factory=set)
     drive: DriveState = field(default_factory=DriveState)
+
+    @classmethod
+    def from_progress(cls, progress: CheckerProgress) -> "CheckState":
+        return cls(
+            mail_cursor=progress.mail_cursor,
+            first_search_done=set(progress.first_search_done),
+            seen_messages=set(progress.seen_message_ids),
+            drive=DriveState(
+                taken={(v.grant_id, v.drive_file_id): v.version for v in progress.drive_versions}
+            ),
+        )
+
+    def to_progress(self) -> CheckerProgress:
+        return CheckerProgress(
+            mail_cursor=self.mail_cursor,
+            seen_message_ids=tuple(sorted(self.seen_messages)),
+            drive_versions=tuple(
+                DriveVersion(grant_id=grant_id, drive_file_id=file_id, version=version)
+                for (grant_id, file_id), version in sorted(self.drive.taken.items())
+            ),
+            first_search_done=tuple(sorted(self.first_search_done)),
+        )
 
 
 def check_mail(
@@ -78,7 +113,7 @@ def check_mail(
     # The position is read first, so nothing delivered during the first reads is missed.
     messages, next_cursor = source.fetch_new(state.mail_cursor)
     for route in routes:
-        if route.grant_id in state.started_grants:
+        if route.grant_id in state.first_search_done:
             continue
         address = grant_address(mailbox, route.tag)
         try:
@@ -87,7 +122,7 @@ def check_mail(
             log.exception("could not read a grant's earlier mail; tried again next check")
             continue
         if all([_take(m, mailbox, by_tag, state, now, sink, authserv_id) for m in found]):
-            state.started_grants.add(route.grant_id)
+            state.first_search_done.add(route.grant_id)
     if all([_take(m, mailbox, by_tag, state, now, sink, authserv_id) for m in messages]):
         state.mail_cursor = next_cursor
 
@@ -152,35 +187,35 @@ def _arrive_or_hold(
 ) -> None:
     """Store the message, or hold it.
 
-    Skipped attachments are reported only for mail that arrives, after it's stored, so a
-    retry doesn't report them twice. Held mail keeps them, and they're reported if it's
-    let in: no check uses held mail (0025), so a stranger can't put a problem on the grant.
+    Skipped attachments are reported with mail that arrives, in the same write. Held
+    mail keeps them, and they're reported if it's let in (`let_in_skips`): no check uses
+    held mail (0025), so a stranger can't put a problem on the grant.
     """
     files = parts.files
+    skipped = [to_skipped_file(found, at) for found in parts.skipped]
     reason: HoldReason | None = None
     if parsed.sender is None:
-        reason = "unverified_sender"  # the From line isn't exactly one readable address
+        reason = HoldReason.UNVERIFIED_SENDER  # the From line isn't exactly one address
     elif parsed.sender not in route.known_senders:
-        reason = "unknown_sender"
+        reason = HoldReason.UNKNOWN_SENDER
     elif not is_verified(parsed.headers, parsed.sender, authserv_id):
         # A forwarded message is judged on the forwarder, whose address is in From.
-        reason = "unverified_sender"
+        reason = HoldReason.UNVERIFIED_SENDER
     if reason is None:
-        sink.store([f.arriving(at) for f in files])
-        for skipped in parts.skipped:
-            sink.skip(skipped.at(at))
+        sink.store([f.arriving(at) for f in files], skipped)
         return
     sink.hold(
-        HeldMail(
-            grant_id=route.grant_id,
+        PendingHold(
             workspace_id=route.workspace_id,
+            grant_id=route.grant_id,
             sender=parsed.sender,
             from_header=parsed.from_header,
             gmail_message_id=message_id,
+            subject=parsed.subject or None,
             files=tuple(files),
             held_at=at,
             reason=reason,
-            skipped=tuple(parts.skipped),
+            skipped=tuple(skipped),
         )
     )
 
@@ -236,7 +271,7 @@ def _check_folder(
                     name=entry.name,
                     source="drive",
                     source_ref=folder_id,
-                    reason=cannot.reason,
+                    reason=SkipReason(cannot.reason),
                     skipped_at=now(route.workspace_id),
                 )
             )

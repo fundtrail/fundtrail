@@ -3,9 +3,10 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.contracts.evidence import Source
+from app.contracts.mail import SkipReason
 from app.ingest import email_files
 from app.ingest.email_files import email_parts, email_to_files, is_small_image, parse_headers
-from app.ingest.incoming import safe_name, to_evidence_file
+from app.ingest.incoming import FoundSkip, safe_name, to_evidence_file, to_skipped_file
 
 from .mail_factory import (
     PDF,
@@ -111,6 +112,14 @@ def test_attachments_over_the_size_limit_are_skipped(monkeypatch) -> None:
         "too_large",
         "m1",
     )
+
+
+def test_a_skipped_file_without_a_time_is_refused() -> None:
+    found = FoundSkip("w1", "g1", "big.pdf", "gmail", "m1", SkipReason.TOO_LARGE)
+    with pytest.raises(ValueError):
+        to_skipped_file(found, None)
+    at = datetime(2026, 3, 4, tzinfo=UTC)
+    assert to_skipped_file(found, at).skipped_at == at
 
 
 def test_safe_name_is_ascii_and_keeps_the_extension() -> None:
