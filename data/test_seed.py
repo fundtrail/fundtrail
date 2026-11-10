@@ -51,6 +51,21 @@ META_FILES = {
 }
 TIMELINE_KINDS = {"file", "ledger", "ledger_line"}
 USER_ACTIONS = {"confirm_terms", "deliver_file"}
+# SampleChoice, as issue 165 settles it. When the contract code has the enum,
+# test_sample_choices_match_the_contract reads it and compares.
+SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
+WORKSPACES_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "workspaces.py"
+SAMPLE_JSON_FIELDS = {
+    "sample",
+    "award_number",
+    "starts_at",
+    "opens_at",
+    "last_event_at",
+    "ledger_lines",
+    "files",
+    "options",
+}
+OPTION_FIELDS = {"choice", "name", "description", "placeholder"}
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png"}
 CATEGORIES = ev.CATEGORIES
 ODC_SUBLINES = ev.ODC_SUBLINE_CATEGORIES
@@ -808,6 +823,172 @@ def test_account_categories_match_the_table() -> None:
     assert dict(ACCOUNT_CATEGORIES) == table_from_source(ACCOUNT_GROUPS_SOURCE)
 
 
+# ---------------------------------------------------------------- samples
+
+
+def load(folder: Path, name: str) -> dict:
+    return json.loads((folder / name).read_text(encoding="utf-8"))
+
+
+def check_no_user_decision(folder: Path, problems: list[str]) -> None:
+    """A timeline holds scheduled events only. Confirming terms, accepting a
+    suggestion or delivering a file is the user's, never a scheduled event."""
+    for i, e in enumerate(load(folder, "timeline.json")["events"]):
+        if e.get("kind") not in TIMELINE_KINDS or "action" in e:
+            problems.append(f"{folder.name}: timeline event {i} is a user decision, not a schedule")
+
+
+def check_user_actions(folder: Path, problems: list[str]) -> None:
+    """Each user action is possible at its time.
+
+    - confirm_terms: the file has arrived on the timeline, or the user brought
+      it in, before the action.
+    - deliver_file: the file is marked for the user, and the user brings it in
+      no later than the clock would.
+    """
+    events = load(folder, "timeline.json")["events"]
+    scheduled = {e["file"]: e for e in events if e.get("kind") == "file"}
+    actions = load(folder, "user_actions.json")["actions"]
+    delivered = {
+        a["file"]: ev.parse_time(a["at"]) for a in actions if a["action"] == "deliver_file"
+    }
+    for a in actions:
+        where = f"{folder.name}: user action {a['action']} {a['file']}"
+        at = ev.parse_time(a["at"])
+        event = scheduled.get(a["file"])
+        if event is None:
+            problems.append(f"{where}: its file isn't on the timeline")
+            continue
+        clock_at = ev.parse_time(event["at"])
+        if a["action"] == "deliver_file":
+            if event.get("deliver") != "user":
+                problems.append(f"{where}: the file isn't marked for the user to deliver")
+            if at > clock_at:
+                problems.append(f"{where}: comes after the clock would deliver the file")
+        else:
+            arrived = min(clock_at, delivered.get(a["file"], clock_at))
+            if at <= arrived:
+                problems.append(f"{where}: comes before its file arrives")
+
+
+def check_sample_json(folder: Path, problems: list[str]) -> list[str]:
+    """sample.json agrees with the timeline and the key, and its options are
+    SampleChoice values with a name and a description. Returns its choices."""
+    meta = load(folder, "sample.json")
+    timeline = load(folder, "timeline.json")
+    key = load(folder, "answer_key.json")
+    where = f"{folder.name}: sample.json"
+    if set(meta) != SAMPLE_JSON_FIELDS:
+        problems.append(f"{where}: fields must be exactly {sorted(SAMPLE_JSON_FIELDS)}")
+        return []
+    if meta["sample"] != folder.name or timeline["sample"] != folder.name:
+        problems.append(
+            f"{where}: sample must be the folder's name, in sample.json and the timeline"
+        )
+    if meta["award_number"] != key["award_number"]:
+        problems.append(f"{where}: award_number differs from the answer key's")
+    for field in ("starts_at", "opens_at"):
+        if meta[field] != timeline[field]:
+            problems.append(f"{where}: {field} differs from the timeline's")
+    events = timeline["events"]
+    if events and meta["starts_at"] != events[0]["at"]:
+        problems.append(f"{where}: starts_at isn't the first scheduled event")
+    if ev.parse_time(meta["opens_at"]) < ev.parse_time(meta["starts_at"]):
+        problems.append(f"{where}: opens before it starts")
+    choices = []
+    for i, option in enumerate(meta["options"]):
+        if set(option) != OPTION_FIELDS:
+            problems.append(f"{where}: option {i} must have exactly {sorted(OPTION_FIELDS)}")
+            continue
+        if option["choice"] not in SAMPLE_CHOICES:
+            problems.append(f"{where}: option {i} choice {option['choice']!r} isn't a SampleChoice")
+        for field in ("name", "description"):
+            if not (isinstance(option[field], str) and option[field].strip()):
+                problems.append(f"{where}: option {i} needs a {field}")
+        if not isinstance(option["placeholder"], bool):
+            problems.append(f"{where}: option {i} placeholder must be true or false")
+        choices.append(option["choice"])
+    return choices
+
+
+def choices_in_contract(path: Path) -> tuple[str, ...] | None:
+    """SampleChoice's values in the contract code, in order, or None before it exists."""
+    if not path.is_file():
+        return None
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ClassDef) and node.name == "SampleChoice":
+            return tuple(
+                stmt.value.value
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            )
+    return None
+
+
+def test_samples_follow_the_rule() -> None:
+    """No user decision in a timeline, every user action possible at its time,
+    and each sample.json consistent. Every SampleChoice is served by exactly one
+    sample: the small one serves small_live, the larger one the other two."""
+    problems: list[str] = []
+    served: dict[str, list[str]] = {}
+    for folder in folders():
+        check_no_user_decision(folder, problems)
+        check_user_actions(folder, problems)
+        if folder.parent == SAMPLES:
+            for choice in check_sample_json(folder, problems):
+                served.setdefault(choice, []).append(folder.name)
+    assert not problems, "\n".join(problems)
+    assert served == {
+        "small_live": [SMALL.name],
+        "larger_live": [LARGER.name],
+        "larger_prerun": [LARGER.name],
+    }, served
+
+
+def test_sample_choices_match_the_contract() -> None:
+    """Once the contract code has SampleChoice, its values are this test's."""
+    found = choices_in_contract(WORKSPACES_SOURCE)
+    assert found is None or found == SAMPLE_CHOICES, found
+
+
+def test_a_user_decision_in_a_timeline_fails() -> None:
+    """A confirmation put back into a timeline, or a delivery of an unmarked
+    file, is caught."""
+    import shutil
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / SMALL.name
+        shutil.copytree(SMALL, copy)
+        timeline = load(copy, "timeline.json")
+        timeline["events"].insert(
+            1,
+            {
+                "at": timeline["events"][0]["at"],
+                "kind": "accountant",
+                "action": "confirm_terms",
+                "file": timeline["events"][0]["file"],
+            },
+        )
+        (copy / "timeline.json").write_text(json.dumps(timeline), encoding="utf-8")
+        actions = load(copy, "user_actions.json")
+        actions["actions"].append(
+            {
+                "at": actions["actions"][0]["at"],
+                "action": "deliver_file",
+                "file": "invoice_EES-5531.pdf",
+            }
+        )
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        problems: list[str] = []
+        check_no_user_decision(copy, problems)
+        check_user_actions(copy, problems)
+    assert any("user decision" in p for p in problems), problems
+    assert any("isn't marked for the user" in p for p in problems), problems
+
+
 def test_larger_sample() -> None:
     """The larger sample opens near its end date, with arrivals after it."""
     g = gen()[LARGER]
@@ -845,6 +1026,9 @@ if __name__ == "__main__":
         test_files_and_keys,
         test_invariants_catch_false_clears,
         test_account_categories_match_the_table,
+        test_samples_follow_the_rule,
+        test_sample_choices_match_the_contract,
+        test_a_user_decision_in_a_timeline_fails,
         test_larger_sample,
         test_small_sample,
         test_line_ids_are_unique,
