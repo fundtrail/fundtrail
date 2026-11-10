@@ -1,0 +1,511 @@
+"""Cited passages to find in the fixture PDFs, with the result each should give.
+
+Each passage is written the way a citation could quote it: usually the clean text, sometimes with
+the PDF's own line breaks, hyphens or quote marks, and a few with a misread to test close matches.
+Plain data with no imports, so a throwaway script can load it to compare with other libraries.
+"""
+
+from typing import NamedTuple
+
+
+class Case(NamedTuple):
+    fixture: str
+    start_page: int
+    end_page: int
+    """Exclusive, as in the Anthropic API's page_location."""
+    passage: str
+    value: str | None
+    expect: str
+    """exact, close or not_found"""
+    page: int | None
+    value_found: bool | None
+    note: str = ""
+
+
+INVOICE = "invoice_reportlab.pdf"
+LETTER = "letter_reportlab.pdf"
+HYPHENATED = "hyphenated_reportlab.pdf"
+MEMO = "memo_chrome.pdf"
+ECFR = "ecfr_2cfr200.pdf"
+
+CASES: list[Case] = [
+    # A bill drawn line by line (reportlab).
+    Case(INVOICE, 1, 2, "Invoice number: INV-SYN-0042", "INV-SYN-0042", "exact", 1, True),
+    Case(INVOICE, 1, 2, "Total due: $12,450.00", "$12,450.00", "exact", 1, True),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Benchtop centrifuge, 24-place rotor 1 $9,850.00 $9,850.00",
+        "$9,850.00",
+        "exact",
+        1,
+        True,
+        "a table row read as one line",
+    ),
+    Case(INVOICE, 1, 2, "Invoice date: March 3, 2026", "March 3, 2026", "exact", 1, True),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Please reference the invoice number\non all remittances.",
+        None,
+        "exact",
+        1,
+        None,
+        "passage keeps the line break",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Award: SYN-2025-0117 (PI: Dr. Rowan Ellery)",
+        "SYN-2025-0117",
+        "exact",
+        1,
+        True,
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Total due: $12,450.00",
+        "$12,540.00",
+        "exact",
+        1,
+        False,
+        "the value isn't the one in the passage",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Total due:$12,450.00",
+        "$12,450.00",
+        "close",
+        1,
+        True,
+        "a space missing in the passage",
+    ),
+    Case(INVOICE, 1, 2, "TOTAL DUE: $12,450.00", "$12,450.00", "close", 1, True, "different case"),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Nitrlie gloves, size M (box of 100) 40 $14.50 $580.00",
+        "$580.00",
+        "close",
+        1,
+        True,
+        "a misread word",
+    ),
+    Case(
+        INVOICE,
+        1,
+        2,
+        "Sales tax: $1,083.15",
+        "$1,083.15",
+        "not_found",
+        None,
+        False,
+        "not in the file",
+    ),
+    # A two-page letter laid out by reportlab, justified, wrapping on its own.
+    Case(
+        LETTER,
+        1,
+        3,
+        "award SYN-2025-0117 has been made in the amount of $120,000 for the period "
+        "September 1, 2025 through August 31, 2027.",
+        "$120,000",
+        "exact",
+        1,
+        True,
+        "runs over three lines",
+    ),
+    Case(
+        LETTER,
+        1,
+        3,
+        "Participant support costs of $20,000 may not be rebudgeted into other categories "
+        "without the prior written approval of the cognizant program officer.",
+        "$20,000",
+        "exact",
+        1,
+        True,
+    ),
+    Case(
+        LETTER,
+        1,
+        2,
+        "Requests must be sent to grants-office@ssf.example at least thirty days before the "
+        "change.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        LETTER,
+        1,
+        3,
+        "recorded in the university’s property system within sixty days of receipt",
+        None,
+        "exact",
+        1,
+        None,
+        "curly apostrophe in the passage, straight on the page",
+    ),
+    Case(
+        LETTER,
+        2,
+        3,
+        "Fabricated equipment is recorded when it is placed in service",
+        None,
+        "exact",
+        2,
+        None,
+    ),
+    Case(
+        LETTER,
+        1,
+        3,
+        "such as hours of use or the number of samples processed for each project during the "
+        "award period.",
+        None,
+        "not_found",
+        None,
+        None,
+        "runs across the page break, about half on each page",
+    ),
+    Case(
+        LETTER,
+        1,
+        3,
+        "Where an item is shared with another project, the record must also show how its cost "
+        "was divided between the projects and the basis used for the division, such as hours "
+        "of use or the number of samples processed",
+        None,
+        "close",
+        1,
+        None,
+        "runs across the page break with one word on page 2",
+    ),
+    Case(
+        LETTER,
+        1,
+        2,
+        "Questions about this letter may be directed to Morgan Tate",
+        None,
+        "not_found",
+        None,
+        None,
+        "on page 2, but the range says page 1",
+    ),
+    Case(
+        LETTER,
+        1,
+        4,
+        "Questions about this letter may be directed to Morgan Tate",
+        None,
+        "exact",
+        2,
+        None,
+    ),
+    Case(
+        LETTER,
+        5,
+        6,
+        "Questions about this letter may be directed to Morgan Tate",
+        None,
+        "not_found",
+        None,
+        None,
+        "range past the end of the file",
+    ),
+    # Hand-set lines with words broken by hyphens, and a rotated, cropped page (reportlab).
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "an internal recharge rate approved by the university for each run",
+        None,
+        "exact",
+        1,
+        None,
+        "ap- / proved across a line break",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "an internal recharge rate ap-proved by the university",
+        None,
+        "exact",
+        1,
+        None,
+        "passage keeps the hyphen",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "an internal recharge rate ap- proved by the university",
+        None,
+        "exact",
+        1,
+        None,
+        "passage keeps the hyphen and a space",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "an internal recharge rate ap-\nproved by the university",
+        None,
+        "exact",
+        1,
+        None,
+        "passage keeps the hyphen and the line break",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "consistent with the university's policy on academic-year appointments",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "based on the cost-sharing quote and on prices paid in year one, adjusted for "
+        "inflation at three percent.",
+        "three percent",
+        "exact",
+        1,
+        True,
+        "a real hyphen at a line end, then a broken word",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "Travel funds support two trips to the annual meeting of the Synthetic Soil Society",
+        None,
+        "exact",
+        1,
+        None,
+        "two broken words",
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "Cost-sharing commitments are not required by the solicitation",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        HYPHENATED,
+        1,
+        2,
+        "Costsharing commitments are not required by the solicitation",
+        None,
+        "close",
+        1,
+        None,
+        "hyphen dropped where the page has one mid-line",
+    ),
+    Case(
+        HYPHENATED,
+        2,
+        3,
+        "the approved carryover amount is $4,200.00.",
+        "$4,200.00",
+        "exact",
+        2,
+        True,
+        "rotated page with a crop box",
+    ),
+    # A memo printed by headless Chrome, with automatic hyphenation (U+2010 at line ends).
+    Case(
+        MEMO,
+        1,
+        2,
+        "the program office approves the reallocation of $6,500 from participant support to "
+        "materials and supplies for award SYN-2025-0117.",
+        "$6,500",
+        "exact",
+        1,
+        True,
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        'This approval is specific to the "field sampling expansion" described in your request '
+        "of March 30, 2026.",
+        "March 30, 2026",
+        "exact",
+        1,
+        True,
+        "straight quotes",
+    ),
+    Case(MEMO, 1, 2, "It doesn't authorize any other rebudgeting", None, "exact", 1, None),
+    Case(
+        MEMO,
+        1,
+        2,
+        "To: Rowan Ellery <rellery@synthetic-u.example>",
+        "rellery@synthetic-u.example",
+        "exact",
+        1,
+        True,
+        "address broken across lines",
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        "the institution remains responsible for demonstrating that every charge is allowable, "
+        "allocable and reasonable under the applicable cost principles.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        "Specifically, the office finds the proposed configuration of fieldwork instrumentation "
+        "financially justifiable.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        "Undocumented reimbursement requests will be disallowed.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        "Materials and supplies $40,000 $46,500",
+        "$46,500",
+        "exact",
+        1,
+        True,
+        "a table row",
+    ),
+    Case(
+        MEMO,
+        1,
+        2,
+        "Please keep this memo with the award file - it will be needed at closeout.",
+        None,
+        "close",
+        1,
+        None,
+        "a hyphen where the page has an em dash",
+    ),
+    # Two printed pages of 2 CFR 200 from govinfo: two columns, heavy hyphenation.
+    Case(
+        ECFR,
+        1,
+        3,
+        "the Federal agency must report the recipient's material failure to comply with the "
+        "terms and conditions of the Federal award in SAM.gov.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        ECFR,
+        1,
+        3,
+        "A Federal agency must use the Contractor Performance Assessment Reporting System "
+        "(CPARS) to enter or amend information in SAM.gov.",
+        None,
+        "exact",
+        1,
+        None,
+        "three broken words",
+    ),
+    Case(
+        ECFR,
+        1,
+        2,
+        "Any Federal funds paid to the recipient or subrecipient in excess of the amount that "
+        "the recipient or subrecipient is determined to be entitled to under the Federal award "
+        "constitute a debt to the Federal Government.",
+        None,
+        "exact",
+        1,
+        None,
+    ),
+    Case(
+        ECFR,
+        1,
+        2,
+        "(5) Property management and disposition requirements in §§200.310 through 200.316.",
+        "§§200.310",
+        "exact",
+        1,
+        True,
+    ),
+    Case(
+        ECFR,
+        1,
+        3,
+        "(b) Executive lobbying costs. Costs incurred in attempting to improperly influence, "
+        "either directly or indirectly, an employee or officer of the executive branch of the "
+        "Federal Government to give consideration or to act regarding a Federal award or a "
+        "regulatory matter are unallowable.",
+        None,
+        "exact",
+        2,
+        None,
+    ),
+    Case(
+        ECFR,
+        2,
+        3,
+        'the common rule, "New Restrictions on Lobbying," published on February 26, 1990',
+        "February 26, 1990",
+        "close",
+        2,
+        True,
+        "GPO prints a double quote as two single quotes",
+    ),
+    Case(
+        ECFR, 2, 3, "(c) Restrictions on nonprofit organizations and IHEs.", None, "exact", 2, None
+    ),
+    Case(
+        ECFR,
+        2,
+        3,
+        "Attempts to influence the outcomes of any Federal, State, or local election, "
+        "referendum, initiative, or similar procedure through in-kind or cash contributions, "
+        "endorsements, publicity, or similar activity",
+        None,
+        "exact",
+        2,
+        None,
+    ),
+]
