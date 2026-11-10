@@ -236,3 +236,38 @@ def test_two_current_links_between_one_bill_and_one_charge_both_count() -> None:
     assert ("checklist", "bill_over_linked") in problems(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
     assert {p.problem for r in out.records for p in r.problems} == {"over_linked"}
+
+
+# From a screens review: the accountant's answer, given while the agent's waits or is
+# being rechecked, is the one in force.
+
+
+def test_the_accountants_answer_counts_while_the_agents_is_being_rechecked() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    b = _charge(g, t)
+    g.answer("c1", "unsure", at(2024, 3, 1), rests_on=[b])
+    f = g.file("f-later", at(2024, 3, 5))
+    g.link(g.note(f, at(2024, 3, 5)), "c1", at(2024, 3, 5))  # the agent's answer is out of date
+    assert g.status("c1", at(2024, 3, 5, 13)).rechecking
+    theirs = g.answer("c1", "supports", at(2024, 3, 6), author="user")
+    out = g.run(at(2024, 3, 7))
+    status = out.charges[0]
+    allowable = next(r for r in status.reasons if r.check == "allowable")
+    assert (allowable.problem, allowable.record_ids[0]) == ("supports", theirs)
+    assert not status.rechecking
+    assert out.questions == ()
+    assert status.bucket == Bucket.EVIDENCE_COMPLETE
+
+
+def test_the_accountants_answer_counts_while_the_agents_new_answer_waits() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    b = _charge(g, t)
+    g.answer("c1", "contradicts", at(2024, 3, 1), rests_on=[b])
+    waiting = g.answer("c1", "supports", at(2024, 3, 2), rests_on=[b])  # milder: it waits
+    theirs = g.answer("c1", "unsure", at(2024, 3, 3), author="user")
+    status = g.status("c1", at(2024, 3, 4))
+    allowable = next(r for r in status.reasons if r.check == "allowable")
+    assert (allowable.problem, allowable.record_ids[0]) == ("unsure", theirs)
+    assert waiting not in allowable.record_ids
