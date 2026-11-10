@@ -5,11 +5,17 @@ and the "as of" moment, and a footer with "Page x of y". The PDF's creation
 date is the workspace's "now" and ReportLab's invariant mode is on, so the same
 inputs give the same bytes.
 
-The font is Bitstream Vera Sans, which ships inside the ReportLab package
-(reportlab/fonts, under the Bitstream Vera Fonts license, a permissive license
-that allows embedding). It's embedded as a subset, and it has the curly quotes,
-dashes and other characters that quoted passages hold, which the PDF's
-built-in fonts don't all have. Checksums use the built-in Courier.
+The font is DejaVu Sans, regular and bold, shipped in app/packet/fonts/ with
+its license (LICENSE: the Bitstream Vera Fonts license, with DejaVu's changes in
+the public domain, a permissive license that allows embedding). The files are
+DejaVu 2.37 as bundled in the matplotlib 3.11.2 wheel, matching its recorded
+checksums. It's embedded as a subset, and it covers what quoted passages hold
+beyond the PDF's built-in fonts: curly quotes, dashes, Greek letters such as
+"μ", arrows, accented Latin letters, non-breaking hyphens and zero-width
+spaces. Checksums use the built-in Courier, which only ever prints hex digits.
+
+Table rows may split across pages (splitInRow), so a cell longer than a page,
+such as a long note, never stops the report from being built.
 """
 
 import re
@@ -21,7 +27,6 @@ from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
 
-import reportlab
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle
@@ -42,10 +47,9 @@ from reportlab.platypus import Table as RLTable
 
 from .view import Block, Heading, Para, Quote, ReportView, SignLines, Table
 
-FONT_DIR = Path(reportlab.__file__).parent / "fonts"
+FONT_DIR = Path(__file__).parent / "fonts"
 SANS = "ReportSans"
 SANS_BOLD = "ReportSans-Bold"
-SANS_ITALIC = "ReportSans-Italic"
 MONO = "Courier"
 
 PAGE_W, PAGE_H = LETTER
@@ -61,10 +65,11 @@ DRAFT_INK = colors.HexColor("#a4262c")
 
 @cache
 def _fonts() -> None:
-    pdfmetrics.registerFont(TTFont(SANS, str(FONT_DIR / "Vera.ttf")))
-    pdfmetrics.registerFont(TTFont(SANS_BOLD, str(FONT_DIR / "VeraBd.ttf")))
-    pdfmetrics.registerFont(TTFont(SANS_ITALIC, str(FONT_DIR / "VeraIt.ttf")))
-    pdfmetrics.registerFontFamily(SANS, normal=SANS, bold=SANS_BOLD, italic=SANS_ITALIC)
+    pdfmetrics.registerFont(TTFont(SANS, str(FONT_DIR / "DejaVuSans.ttf")))
+    pdfmetrics.registerFont(TTFont(SANS_BOLD, str(FONT_DIR / "DejaVuSans-Bold.ttf")))
+    pdfmetrics.registerFontFamily(
+        SANS, normal=SANS, bold=SANS_BOLD, italic=SANS, boldItalic=SANS_BOLD
+    )
 
 
 def _style(name: str, **kw: Any) -> ParagraphStyle:
@@ -83,7 +88,7 @@ STYLES = {
     "label": _style("label", fontName=SANS_BOLD, spaceBefore=6, spaceAfter=3),
     "quote": _style(
         "quote",
-        fontName=SANS_ITALIC,
+        fontName=SANS,
         fontSize=8.5,
         leading=11.5,
         leftIndent=14,
@@ -130,6 +135,7 @@ def _table(t: Table) -> RLTable:
         colWidths=[w * TEXT_W for w in t.widths],
         repeatRows=1 if has_head else 0,
         hAlign="LEFT",
+        splitInRow=1,
     )
     style: list[tuple[Any, ...]] = [
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -244,7 +250,7 @@ def render(view: ReportView, now: datetime, author: str) -> bytes:
         _para("Evidence report", "title"),
         _para(view.award_number, "subtitle"),
         _para(view.project_title, "subtitle"),
-        _para(f"As of {view.as_of}", "subtitle"),
+        _para(f"As of {view.as_of} (Coordinated Universal Time)", "subtitle"),
         _para("Signed" if view.signed else "DRAFT: not signed", "state"),
         Spacer(1, 6),
     ]
