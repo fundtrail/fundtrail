@@ -15,7 +15,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
-from app.contracts.charges import Charge
+from pydantic import ValidationError
+
+from app.contracts.charges import Charge, LedgerRow
 
 REQUIRED_COLUMNS = (
     "line_id",
@@ -140,30 +142,36 @@ def _build_charge(
 
     transaction_date = attempt(lambda: _date(raw("transaction_date"), "transaction_date"))
     posting_date = attempt(lambda: _date(raw("posting_date"), "posting_date"))
-    amount_cents = attempt(lambda: _cents(raw("amount")))
+    amount = attempt(lambda: _dollars(raw("amount")))
     description = attempt(lambda: _required(values, "description"))
     account = attempt(lambda: _required(values, "account"))
     if problems:
         raise _RowError(" ".join(problems))
-    assert transaction_date and posting_date and amount_cents is not None
+    assert transaction_date and posting_date and amount is not None
     assert description and account
 
-    start_of_posting_date = datetime.combine(posting_date, time(0, 0), tzinfo=UTC)
-    return Charge(
-        id=new_id(),
-        workspace_id=workspace_id,
-        grant_id=grant_id,
-        ledger_line_id=_required(values, "line_id"),
-        transaction_date=transaction_date,
-        posting_date=posting_date,
-        arrived_at=max(start_of_posting_date, now),
-        amount_cents=amount_cents,
-        description=description,
-        account=account,
-        vendor=values.get("vendor"),
-        reference=values.get("reference"),
-        original_line_id=values.get("original_line_id"),
-    )
+    try:
+        row = LedgerRow(
+            line_id=_required(values, "line_id"),
+            transaction_date=transaction_date,
+            posting_date=posting_date,
+            amount=amount,
+            description=description,
+            account=account,
+            vendor=values.get("vendor"),
+            reference=values.get("reference"),
+            original_line_id=values.get("original_line_id"),
+        )
+    except ValidationError as error:
+        raise _RowError(
+            " ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}." for e in error.errors())
+        ) from error
+    # The contract maps a row to its charge. Decision 0023 then moves the arrival to `now`
+    # when the posting date has already begun.
+    charge = row.to_charge(id=new_id(), workspace_id=workspace_id, grant_id=grant_id)
+    if now > charge.arrived_at:
+        charge = charge.model_copy(update={"arrived_at": now})
+    return charge
 
 
 def _read_header(cells: Sequence[Cell]) -> dict[str, int]:
@@ -256,7 +264,7 @@ def _date(cell: Cell, name: str) -> date:
         raise _RowError(f"{name} {text!r} isn't a real date.") from error
 
 
-def _cents(cell: Cell) -> int:
+def _dollars(cell: Cell) -> Decimal:
     if isinstance(cell, bool):
         raise _RowError(f"amount {cell!r} isn't a number.")
     if isinstance(cell, float):
@@ -269,4 +277,4 @@ def _cents(cell: Cell) -> int:
         raise _RowError("amount is empty.")
     if not _AMOUNT_PATTERN.fullmatch(text):
         raise _RowError(f"amount {text!r} isn't dollars with up to two decimals, such as -1240.00.")
-    return int(Decimal(text) * 100)
+    return Decimal(text)

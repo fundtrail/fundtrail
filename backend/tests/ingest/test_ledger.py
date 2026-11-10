@@ -5,11 +5,12 @@ import re
 import zipfile
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 from openpyxl import Workbook
 
-from app.contracts.charges import Charge
+from app.contracts.charges import Charge, LedgerRow
 from app.contracts.fixtures import LEDGER_FILE, load_sample_grant
 from app.ingest.ledger import (
     LedgerFileError,
@@ -409,3 +410,24 @@ def test_digits_from_other_scripts_are_rejected(transaction_date: str, amount: s
     assert result.charges == []
     [rejected] = result.rejected
     assert rejected.reason.startswith(problem)
+
+
+def test_each_charge_is_the_contracts_mapping_of_its_row():
+    now = datetime(2025, 12, 1, 9, 30, tzinfo=UTC)
+    [first, second] = _read(SAMPLE_CSV, now=now).charges
+    row = LedgerRow(
+        line_id="L-1002",
+        transaction_date=date(2026, 2, 20),
+        posting_date=date(2026, 2, 24),
+        amount=Decimal("2180.00"),
+        description="Sediment DNA sequencing run 7",
+        account="59009 Recharge-Other Expenses",
+        vendor="Example Sequencing Core",
+        reference="SEQ-0207",
+    )
+    assert second == row.to_charge(id="charge-2", workspace_id=WORKSPACE, grant_id=GRANT)
+    # Once the posting date has begun, only the arrival differs from the contract's mapping.
+    assert first.model_dump(exclude={"arrived_at"}) == EXPECTED_SAMPLE[0].model_dump(
+        exclude={"arrived_at"}
+    )
+    assert first.arrived_at == now
