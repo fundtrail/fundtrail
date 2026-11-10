@@ -87,6 +87,18 @@ describe("answering and overruling", () => {
     expect(onWrite.mock.calls[0][0]).toMatchObject({ data: { kind: "judgment", question: "allowable", answer: "contradicts" }, replaces_id: "r-ans" });
   });
 
+  it("keeps the file an answer is about when overruling it", async () => {
+    const aboutFile = record("r-file-flag", "agent", { kind: "judgment", file_id: "f-scan", question: "flag", text: "Can't read this file.", answer: "unsure", reasoning: "Blurry." });
+    const onWrite = writer();
+    render(<AgentAnswers answers={[{ judgment: aboutFile, out_of_date: false, rule: null }] as unknown as AnswerView[]} questions={[]} rechecking={false} files={{}} chargeId="c" onWrite={onWrite} />);
+    fireEvent.click(screen.getByRole("button", { name: "Answer the flag" }));
+    fireEvent.click(screen.getByLabelText("Supports"));
+    fireEvent.change(screen.getByLabelText("Your reasoning"), { target: { value: "Readable in the original." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+    await waitFor(() => expect(onWrite).toHaveBeenCalledTimes(1));
+    expect(onWrite.mock.calls[0][0]).toMatchObject({ data: { file_id: "f-scan", question: "flag" }, replaces_id: "r-file-flag" });
+  });
+
   it("asks for an answer and reasoning before writing", () => {
     const onWrite = writer();
     render(<AgentAnswers answers={answers} questions={[]} rechecking={false} files={{}} chargeId="c" onWrite={onWrite} />);
@@ -221,6 +233,32 @@ describe("accepting a reason, and snoozing", () => {
     );
     fireEvent.click(within(offer).getByRole("button", { name: "This and similar charges" }));
     await waitFor(() => expect(onWrite).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ reusable: true, reuses_id: "r-note" }) })));
+  });
+
+  it("without the offered note's text, offers no one-click buttons and writes the note out with reuses_id", async () => {
+    const onWrite = writer();
+    render(<StatusReasons status={status([reason({ offered_note_id: "r-note" })])} records={{}} onWrite={onWrite} />);
+    const offer = screen.getByTestId("offered-note");
+    expect(within(offer).queryByRole("button", { name: "Just this charge" })).toBeNull();
+    fireEvent.click(within(offer).getByRole("button", { name: "Accept the same way, with a note" }));
+    fireEvent.click(within(offer).getByRole("button", { name: "Accept" }));
+    expect(within(offer).getByText("Write a note.")).toBeInTheDocument();
+    expect(onWrite).not.toHaveBeenCalled();
+    fireEvent.change(within(offer).getByLabelText("Note"), { target: { value: "Facility fee, no invoice." } });
+    fireEvent.click(within(offer).getByRole("button", { name: "Accept" }));
+    await waitFor(() =>
+      expect(onWrite).toHaveBeenCalledWith({
+        data: {
+          kind: "accepted_reason",
+          charge_id: "c",
+          reason: { check: "checklist", problem: "missing_item" },
+          note: "Facility fee, no invoice.",
+          reusable: false,
+          reuses_id: "r-note",
+          rests_on: ["r-item"],
+        },
+      }),
+    );
   });
 
   it("reopens a one-off acceptance on this charge with a retraction", async () => {

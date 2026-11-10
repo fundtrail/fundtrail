@@ -123,7 +123,17 @@ export function AnswerForm({
             return;
           }
           const ok = await write.run({
-            data: { kind: "judgment", charge_id: chargeId, question, record_id: recordId ?? null, text, answer, reasoning: reasoning.trim() },
+            data: {
+              kind: "judgment",
+              charge_id: chargeId || null,
+              question,
+              record_id: recordId ?? null,
+              // An answer about a file keeps naming it when overruled.
+              ...(field<Id | null>(replaces, "file_id") ? { file_id: field<Id>(replaces, "file_id") } : {}),
+              text,
+              answer,
+              reasoning: reasoning.trim(),
+            },
             replaces_id: replaces?.id ?? null,
           });
           if (ok) close();
@@ -286,14 +296,27 @@ export function RemoveChecklistItem({ chargeId, entry, onWrite }: { chargeId: Id
  * default; a reusable note applies on its own to similar charges inside the
  * limits code checks (product.md, The problem list).
  */
-export function AcceptReason({ chargeId, reason, onWrite }: { chargeId: Id; reason: Reason; onWrite: OnWrite }) {
+export function AcceptReason({
+  chargeId,
+  reason,
+  onWrite,
+  reusesId = null,
+  label = "Accept with a note",
+}: {
+  chargeId: Id;
+  reason: Reason;
+  onWrite: OnWrite;
+  /** The offered note this acceptance reuses, when the accountant takes an offer by writing the note out. */
+  reusesId?: Id | null;
+  label?: string;
+}) {
   const write = useWrite(onWrite);
   const [note, setNote] = useState("");
   const [reusable, setReusable] = useState(false);
   const [missing, setMissing] = useState(false);
-  const id = `accept-${reason.check}-${reason.problem}`;
+  const id = `accept-${reason.check}-${reason.problem}${reusesId ? "-reuse" : ""}`;
   return (
-    <Opener label="Accept with a note">
+    <Opener label={label}>
       {(close) => {
         async function submit(event: FormEvent) {
           event.preventDefault();
@@ -305,13 +328,14 @@ export function AcceptReason({ chargeId, reason, onWrite }: { chargeId: Id; reas
               reason: { check: reason.check, problem: reason.problem },
               note: note.trim(),
               reusable,
+              ...(reusesId ? { reuses_id: reusesId } : {}),
               rests_on: reason.record_ids ?? [],
             },
           });
           if (ok) close();
         }
         return (
-          <form className={styles.form} onSubmit={submit} aria-label={`Accept: ${reason.text}`}>
+          <form className={styles.form} onSubmit={submit} aria-label={`${label}: ${reason.text}`}>
             <label className="ft-label" htmlFor={id}>
               Note
             </label>
@@ -338,20 +362,34 @@ export function AcceptReason({ chargeId, reason, onWrite }: { chargeId: Id; reas
 /**
  * The note code offers on a similar charge: one click accepts the same way,
  * for just this charge (the suggested default, which leaves the note's amount
- * limit alone) or for this and similar charges (which raises it).
+ * limit alone) or for this and similar charges (which raises it). Without the
+ * note's text there's nothing to copy, and a note can't be empty, so the
+ * accountant writes it out in the accept form, which still reuses the note.
  */
 export function OfferedNote({ chargeId, reason, note, onWrite }: { chargeId: Id; reason: Reason; note: FtRecord | null; onWrite: OnWrite }) {
   const write = useWrite(onWrite);
-  const text = note ? field<string>(note, "note") : undefined;
+  const text = note ? field<string>(note, "note")?.trim() : undefined;
+  const offeredId = reason.offered_note_id ?? null;
+  if (!text) {
+    return (
+      <div className={styles.offer} data-testid="offered-note">
+        <p>
+          <span className="ft-label">Your earlier note</span> A note you accepted on a similar charge is offered. Its text isn&apos;t on this page.
+        </p>
+        <AcceptReason chargeId={chargeId} reason={reason} onWrite={onWrite} reusesId={offeredId} label="Accept the same way, with a note" />
+      </div>
+    );
+  }
+  const noteText = text;
   async function accept(reusable: boolean) {
     await write.run({
       data: {
         kind: "accepted_reason",
         charge_id: chargeId,
         reason: { check: reason.check, problem: reason.problem },
-        note: text ?? "",
+        note: noteText,
         reusable,
-        reuses_id: reason.offered_note_id ?? null,
+        reuses_id: offeredId,
         rests_on: reason.record_ids ?? [],
       },
     });
@@ -359,7 +397,7 @@ export function OfferedNote({ chargeId, reason, note, onWrite }: { chargeId: Id;
   return (
     <div className={styles.offer} data-testid="offered-note">
       <p>
-        <span className="ft-label">Your earlier note</span> {text ?? "A note you accepted on a similar charge."}
+        <span className="ft-label">Your earlier note</span> {noteText}
       </p>
       <p className="ft-caption">Accept this the same way?</p>
       <div className={styles.actions}>
