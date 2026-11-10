@@ -36,11 +36,18 @@ _CATEGORY_BY_LINE: dict[tuple[str, str | None], BudgetCategory] = {
 }
 
 
-def _category(line: account_groups.NsfLine) -> BudgetCategory:
-    try:
-        return _CATEGORY_BY_LINE[(line.name, line.parent)]
-    except KeyError:
-        raise ValueError(f"the account groups table names an unknown NSF line: {line}") from None
+def _category(line: object) -> BudgetCategory:
+    """The contract's category for one of the table's NSF lines.
+
+    Accepts the contract's own BudgetCategory too, which the table is moving to.
+    """
+    if isinstance(line, BudgetCategory):
+        return line
+    key = (getattr(line, "name", None), getattr(line, "parent", None))
+    found = _CATEGORY_BY_LINE.get(key)  # type: ignore[arg-type]
+    if found is None:
+        raise ValueError(f"the account groups table names an unknown NSF line: {line}")
+    return found
 
 
 @dataclass(frozen=True)
