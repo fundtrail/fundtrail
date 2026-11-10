@@ -8,16 +8,16 @@ Each rule below was checked against its source on the date it shows. A rule goes
 
 - 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200), the federal Uniform Guidance, as published on the Electronic Code of Federal Regulations (eCFR), current as of November 6, 2026.
 - NSF's Grant General Conditions (GC-1), the edition dated July 31, 2026. GC-1 numbers its parts "Term and Condition No.". An award notice states which conditions govern it and their date.
-- NSF's Proposal and Award Policies and Procedures Guide (PAPPG), NSF 24-1, and its Supplement 1 (NSF 26-200, effective December 8, 2025).
+- NSF's Proposal and Award Policies and Procedures Guide (PAPPG), NSF 24-1, with Supplement 1 (NSF 26-200, for awards made on or after December 8, 2025) and Supplement 2 (NSF 26-202, for awards made on or after January 22, 2026, on public access and data sharing).
 
 Where a rule says "the university", it means the recipient of the award.
 
-**How a rule's kind decides the answer.** Each rule sits under one of three kinds, and each rule repeats its kind on a `- Kind:` line. A not-allowed rule gives contradicts when the documents show that kind of cost, unless they show the exception the rule states. An allowed-under-a-condition rule gives supports when a document shows the condition is met and contradicts when it doesn't. A judgment rule gives a flag, not contradicts, unless the rule itself names a comparison that gives contradicts.
+**How a rule's kind decides the answer.** Each rule sits under one of three kinds, and each rule repeats its kind on a `- Kind:` line. A not-allowed rule gives contradicts when the documents show that kind of cost, unless they show the exception the rule states. An allowed-under-a-condition rule gives supports when a document shows the condition is met, and contradicts when no document does. A judgment rule gives a flag, not contradicts, unless the rule itself names a comparison that gives contradicts.
 
 **This rulebook is not complete.** It holds the rules checked so far. These sources are still unread:
 
 - 2 CFR 200 Subpart E: 200.400 to 200.402, 200.404 to 200.412, 200.414 to 200.419, 200.427, 200.428, 200.436, 200.440, 200.443, 200.452, 200.457, 200.460, 200.462, 200.468, 200.474 and 200.476, and most of 200.430. Parts of 200.431, 200.435, 200.446, 200.449, 200.450, 200.464, 200.465 and 200.470 are unread too. Every section from 200.420 to 200.476 was searched for "unallowable" and "not allowable", and each hit was read.
-- NSF PAPPG 24-1 Chapters VI, VII, VIII and XI, and Chapter II outside II.D.2.f(v) and II.D.2.f(xiii).
+- NSF PAPPG 24-1: every chapter except Chapter X and Chapter II.D.2.f(v) and II.D.2.f(xiii) is unread, including Chapter VI.D.3.c on further extensions. Of Supplement 1, only its list of changes and items 4 and 13 were read. Supplement 2 was read in full.
 - NSF GC-1 beyond Term and Condition Nos. 1 to 12.
 - NSF's Prior Approval Matrix, and the Research Terms and Conditions that govern awards made before October 1, 2024.
 
@@ -45,7 +45,7 @@ Air travel to, from, between or within countries other than the U.S. paid with N
 
 ### NSF-MEALS-NOT-TRAVELING
 
-Travel, meal and hotel costs of university employees who are not on travel status are not allowed. The policy guide also says no funds may be requested for meals or coffee breaks at internal meetings of the university or its parts, such as labs, departments and centers; that is worded for proposals, but when an award notice restates it as a condition of the award, it is one of the grant's terms.
+Travel, meal and hotel costs of university employees who are not on travel status are not allowed. The policy guide also says no funds may be requested for meals or coffee breaks at internal meetings of the university or its parts, such as labs, departments and centers; that is proposal guidance and doesn't on its own make such a meal contradicts, unless the award notice restates it as a condition of the award, which makes it one of the grant's terms.
 
 - Kind: allowed under a condition
 - Source: [NSF PAPPG 24-1, Chapter X.C.3](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
@@ -59,7 +59,9 @@ Page charges, article processing charges and open access fees are allowed only w
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.461(b)](https://www.ecfr.gov/current/title-2/part-200/section-200.461#p-200.461(b))
-- Source: [NSF PAPPG 24-1, Chapter X.A.2, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
+- Source: [NSF PAPPG 24-1, Chapter X.A.2.c, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
+- Source: [NSF PAPPG 24-1, Supplement 2 (NSF 26-202), item 1, revising Chapter XI.D.2.c](https://www.nsf.gov/policies/document/pappg24-1-supplement-2)
+- Quote: "Special fees for the purpose of making published versions of record (VORs) publicly accessible are allowable costs but such payments are not required for deposits of AAMs in PAR." (PAPPG 24-1 Supplement 2)
 - Checked: 2026-11-10
 
 ### NSF-POST-END-COMMITMENTS
@@ -67,8 +69,8 @@ Page charges, article processing charges and open access fees are allowed only w
 NSF funds may not be spent after the award's end date, except to pay valid commitments made on or before the end date, such as a contractor's or subrecipient's services during the award period that were billed after it ended. Equipment or materials and supplies ordered after the end date generally may not be charged; the agent cites this rule when it disputes the date check with proof that the order or commitment was made by the end date.
 
 - Kind: allowed under a condition
-- Source: [NSF PAPPG 24-1, Chapter X.A.2, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
-- Quote: "NSF funds may not be expended subsequent to the end date of the award, except to liquidate valid commitments that were made on or before the end date" (PAPPG X.A.2)
+- Source: [NSF PAPPG 24-1, Chapter X.A.2.c, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
+- Quote: "NSF funds may not be expended subsequent to the end date of the award, except to liquidate valid commitments that were made on or before the end date" (PAPPG X.A.2.c)
 - Checked: 2026-11-10
 
 ### NSF-CONSULTANTS
@@ -154,10 +156,10 @@ Organized fundraising, such as financial campaigns, endowment drives and solicit
 
 ### NSF-NEVER-LOBBYING
 
-Lobbying is not allowed: trying to influence elections, legislation or a federal award decision by improper means, and membership in organizations whose main purpose is lobbying. Technical and factual presentations on the award's topic made at a documented request of a legislature are an exception.
+Lobbying is not allowed: any attempt to influence elections or legislation, any attempt to improperly influence a federal award decision, and membership in organizations whose main purpose is lobbying. Technical and factual presentations on the award's topic made at a documented request of a legislature are one of the listed exceptions, but their travel, lodging and meals stay unallowable unless they are for testimony at a regularly scheduled Congressional hearing on the written request of the committee's Chairman or Ranking Minority Member.
 
 - Kind: not allowed
-- Source: [2 CFR 200.450](https://www.ecfr.gov/current/title-2/part-200/section-200.450)
+- Source: [2 CFR 200.450(b), (c)(1) and (c)(2)(i)](https://www.ecfr.gov/current/title-2/part-200/section-200.450)
 - Source: [2 CFR 200.454(e)](https://www.ecfr.gov/current/title-2/part-200/section-200.454#p-200.454(e))
 - Checked: 2026-11-10
 
@@ -229,10 +231,11 @@ On or after December 22, 2025, NSF funds may not buy drones (unmanned aircraft s
 
 ### NSF-NEVER-EXEMPT-TAXES
 
-Taxes the university could have been exempted from, directly or through the federal government's exemption, are not allowed, and neither are federal income taxes or special assessments on land for capital improvements.
+Taxes the university could have been exempted from are not allowed: an exemption available to it directly, or one based on the federal government's exemption when the federal agency makes the needed exemption certificates available. Federal income taxes and special assessments on land for capital improvements are not allowed either.
 
 - Kind: not allowed
 - Source: [2 CFR 200.470(b)(1)](https://www.ecfr.gov/current/title-2/part-200/section-200.470#p-200.470(b)(1))
+- Quote: "Taxes for which exemptions are available to the recipient or subrecipient directly or which are available to the recipient or subrecipient based on an exemption afforded the Federal Government and, in the latter case, when the Federal agency makes available the necessary exemption certificates" (2 CFR 200.470(b)(1)(i))
 - Checked: 2026-11-10
 
 ### NSF-NEVER-AFFILIATED-RENTAL
@@ -259,8 +262,8 @@ Costs over income on any other award are not allowed, and neither are costs move
 The university typically should not buy equipment or computing devices, or restock materials and supplies, to use up remaining funds when little or no time is left before the end date to use them in the project. NSF names no number of days and doesn't call this unallowable, so the agent flags such a charge rather than answering contradicts.
 
 - Kind: judgment
-- Source: [NSF PAPPG 24-1, Chapter X.A.2, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
-- Quote: "the recipient typically should not purchase items of equipment, computing devices, or restocking of materials and supplies" (PAPPG X.A.2)
+- Source: [NSF PAPPG 24-1, Chapter X.A.2.c, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
+- Quote: "the recipient typically should not purchase items of equipment, computing devices, or restocking of materials and supplies" (PAPPG X.A.2.c)
 - Checked: 2026-11-10
 
 ### NSF-PARTICIPANT-NOT-STAFF
@@ -275,10 +278,10 @@ Participant support costs are for participants, such as trainees, students or co
 
 ### NSF-LATE-EXTENSION
 
-The university may extend the end date once, by up to 12 months, on its own, but it must notify NSF through Research.gov, with its reasons and the new period, at least ten calendar days before the end date. A notice filed later than that, or a further extension, needs NSF's approval. The one-time extension may not be used merely to spend the remaining balance, and an award with a zero balance can't be extended; the agent flags a notice that shows any of these.
+The university may extend the end date once, by up to 12 months, on its own, but it must notify NSF through Research.gov, with its reasons and the new period, at least ten calendar days before the end date. Extensions beyond that authority follow the procedures in PAPPG Chapter VI.D.3.c (GC-1 No. 6.c), which this rulebook hasn't read, so a notice filed later than ten days, or a further extension, is flagged rather than judged. The one-time extension may not be used merely to spend the remaining balance, and an award with a zero balance can't be extended; the agent flags a notice that shows any of these.
 
 - Kind: judgment
-- Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 6 and its footnote 4](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
+- Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 6.a to 6.c and footnote 4](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Source: [2 CFR 200.308(g)(2)](https://www.ecfr.gov/current/title-2/part-200/section-200.308#p-200.308(g)(2))
 - Quote: "this one-time extension may not be exercised merely for the purpose of using any unliquidated balances" (GC-1 No. 6.a)
 - Quote: "The recipient is not authorized to extend an award that contains a zero balance." (GC-1 No. 6, footnote 4)
