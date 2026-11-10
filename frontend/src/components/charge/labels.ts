@@ -1,7 +1,7 @@
 // Plain words for the charge page. Status text and reasons come from the server
 // as they are; these only name things the bodies carry as codes.
 
-import type { Author, Citation, EvidenceFile, FtRecord, Id } from "@/lib/api";
+import type { Author, ChecklistEntry, Citation, EvidenceFile, FtRecord, Id } from "@/lib/api";
 import { recordKindLabel } from "@/lib/format";
 
 /** Who wrote something, as the thread and the page label it. */
@@ -10,9 +10,26 @@ export const AUTHOR_LABELS: Record<Author, string> = { agent: "Agent", user: "Ac
 /** Who added a checklist item. */
 export const ADDED_BY_LABELS = {
   default: "Account default",
+  rule: "Added by the approval rule",
   agent: "Added by the agent",
   user: "Added by the accountant",
 } as const;
+
+/**
+ * Who added a checklist item, naming the approval rule for an item a rule added
+ * (issue 115): "Added by the approval rule: Participant Support Costs, approved
+ * by Program Officer through Research.gov", from the rule's own cited words.
+ * When the body doesn't carry the rule, the label alone.
+ */
+export function addedByLabel(entry: ChecklistEntry, records: Record<Id, FtRecord>): string {
+  if (entry.added_by !== "rule") return ADDED_BY_LABELS[entry.added_by];
+  const rule = entry.rule_id ? records[entry.rule_id] : undefined;
+  const appliesTo = citedValue<string>(rule, "applies_to");
+  if (!appliesTo) return ADDED_BY_LABELS.rule;
+  const approver = citedValue<string>(rule, "approver");
+  const channel = citedValue<string>(rule, "channel");
+  return `${ADDED_BY_LABELS.rule}: ${appliesTo}${approver ? `, approved by ${approver}` : ""}${channel ? ` through ${channel}` : ""}`;
+}
 
 /** The questions code asks, as product.md words them. */
 export const QUESTION_LABELS: Record<string, string> = {
