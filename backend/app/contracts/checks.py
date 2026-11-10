@@ -67,6 +67,10 @@ class Problem(Model):
     # the checks. An acceptance holds while the amount over is no larger than the
     # amount it accepted. None for every other problem.
     amount_cents: Cents | None = Field(default=None, ge=0)
+    # Ruling 61: for a recalculation that doesn't match, such as a benefit charge
+    # against its rate times its salary lines, the amount code expected. The rate
+    # term goes in record_ids and the text names the salary lines. None otherwise.
+    expected_cents: Cents | None = None
 
 
 class Reason(Problem):
@@ -105,6 +109,12 @@ class ChecklistEntry(Model):
     # For an item an approval rule added (added_by "rule"): the approval_rule term's
     # record ID, so the screen can say which rule added it.
     rule_id: Id | None = None
+    # Ruling 61: for an item code fills by recalculating, such as a benefit charge's
+    # rate times its salary lines, what it was recalculated from: the rate term and
+    # the salary lines' charges. Such an item is filled by the recalculation, not by
+    # links, so it has no link_ids.
+    rate_id: Id | None = None
+    charge_ids: tuple[Id, ...] = ()
 
     @model_validator(mode="after")
     def _one_item(self):
@@ -115,6 +125,11 @@ class ChecklistEntry(Model):
             raise ValueError("items code adds aren't stored and have a key, and only they do")
         if (self.added_by == ItemSource.RULE) != (self.rule_id is not None):
             raise ValueError("an item an approval rule added names the rule, and only it does")
+        recalculated = self.rate_id is not None or bool(self.charge_ids)
+        if recalculated and self.link_ids:
+            raise ValueError("an item code recalculates is filled by the recalculation, not links")
+        if self.filled and recalculated and (self.rate_id is None or not self.charge_ids):
+            raise ValueError("a filled recalculation names its rate term and its salary lines")
         return self
 
 

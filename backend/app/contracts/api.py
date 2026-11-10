@@ -288,6 +288,10 @@ class ChargeProblemRow(Model):
     kind: Literal["charge"] = "charge"
     charge: Charge
     status: ChargeStatus
+    # Ruling 62: the benefit charges whose only problem is that they wait on this
+    # salary line. They show with this row instead of as rows of their own, and
+    # clear when this row clears. Empty for every other row.
+    waiting_charge_ids: tuple[Id, ...] = ()
 
 
 class HeldMailRow(Model):
