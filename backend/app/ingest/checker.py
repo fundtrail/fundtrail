@@ -17,7 +17,7 @@ from typing import Protocol
 from .addresses import find_tag, grant_address
 from .authentication import GMAIL_AUTHSERV_ID, is_verified
 from .drive_files import DriveState, drive_file, files_to_take, version_of
-from .email_files import ParsedEmail, email_parts, parse_headers
+from .email_files import EmailParts, ParsedEmail, email_parts, parse_headers
 from .incoming import GrantRoute, HeldMail, HoldReason, IncomingFile, SkippedFile
 from .sources import CannotTake, DriveSource, MailSource, RawMessage
 
@@ -137,13 +137,7 @@ def _store_or_hold(
         grant_id=route.grant_id,
         workspace_id=route.workspace_id,
     )
-    files = parts.files
-    at = now(route.workspace_id)
-    _arrive_or_hold(parsed, route, message.id, files, at, sink, authserv_id)
-    # Reported whether the message arrives or is held: either way the accountant sent it.
-    # Reported after the message is stored, so a retry doesn't report it twice.
-    for skipped in parts.skipped:
-        sink.skip(skipped.at(at))
+    _arrive_or_hold(parsed, route, message.id, parts, now(route.workspace_id), sink, authserv_id)
     return True
 
 
@@ -151,11 +145,18 @@ def _arrive_or_hold(
     parsed: ParsedEmail,
     route: GrantRoute,
     message_id: str,
-    files: list[IncomingFile],
+    parts: EmailParts,
     at: datetime,
     sink: IngestSink,
     authserv_id: str,
 ) -> None:
+    """Store the message, or hold it.
+
+    Skipped attachments are reported only for mail that arrives, after it's stored, so a
+    retry doesn't report them twice. Held mail keeps them, and they're reported if it's
+    let in: no check uses held mail (0025), so a stranger can't put a problem on the grant.
+    """
+    files = parts.files
     reason: HoldReason | None = None
     if parsed.sender is None:
         reason = "unverified_sender"  # the From line isn't exactly one readable address
@@ -166,6 +167,8 @@ def _arrive_or_hold(
         reason = "unverified_sender"
     if reason is None:
         sink.store([f.arriving(at) for f in files])
+        for skipped in parts.skipped:
+            sink.skip(skipped.at(at))
         return
     sink.hold(
         HeldMail(
@@ -177,6 +180,7 @@ def _arrive_or_hold(
             files=tuple(files),
             held_at=at,
             reason=reason,
+            skipped=tuple(parts.skipped),
         )
     )
 
@@ -231,9 +235,8 @@ def _check_folder(
                     workspace_id=route.workspace_id,
                     name=entry.name,
                     source="drive",
-                    message_or_folder=folder_id,
+                    source_ref=folder_id,
                     reason=cannot.reason,
-                    source_ref=entry.id,
                     skipped_at=now(route.workspace_id),
                 )
             )

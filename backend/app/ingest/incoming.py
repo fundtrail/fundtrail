@@ -113,27 +113,6 @@ class GrantRoute:
 HoldReason = Literal["unknown_sender", "unverified_sender"]
 
 
-@dataclass(frozen=True)
-class HeldMail:
-    """Mail held for the accountant: stored, not read by the agent, not used by checks.
-
-    The accountant can still let it in.
-    """
-
-    grant_id: str
-    workspace_id: str
-    sender: str | None  # the From address, when it reads as exactly one address
-    from_header: str  # the From line as written, to show the accountant
-    gmail_message_id: str
-    files: tuple[IncomingFile, ...]  # the message first, then its attachments; not arrived
-    held_at: datetime  # the workspace's "now" when it was held
-    reason: HoldReason = "unknown_sender"
-
-    def let_in(self, now: datetime) -> list[IncomingFile]:
-        """A message that's let in arrives at that moment (0025)."""
-        return [f.arriving(now) for f in self.files]
-
-
 # Why a file the accountant sent wasn't taken in:
 # - "too_large": over MAX_FILE_BYTES, or a Google export over Drive's 10 MB limit.
 # - "not_exportable": a Google file with no PDF export, such as a Form or a Site.
@@ -144,23 +123,55 @@ SkipReason = Literal["too_large", "not_exportable"]
 class SkippedFile:
     """A file that was sent but not taken in, so the grant can show it as a problem.
 
-    The contracts add this as `SkippedFile` (issue 39). Very small images and signature
-    parts aren't reported: 0025 skips them on purpose.
+    Its fields are the contract's `SkippedFile` (PR 61, `app/contracts/mail.py`), which
+    isn't on main yet. Very small images and signature parts aren't reported: 0025
+    skips them on purpose.
+    """
+
+    workspace_id: str
+    grant_id: str
+    name: str
+    source: Literal["gmail", "drive"]
+    source_ref: str  # the Gmail message ID, or the grant's Drive folder ID
+    reason: SkipReason
+    skipped_at: datetime | None = None  # the workspace's "now"; set when it's reported
+
+    def at(self, now: datetime) -> "SkippedFile":
+        return replace(self, skipped_at=now)
+
+
+@dataclass(frozen=True)
+class LetIn:
+    """What a held message brings when it's let in."""
+
+    files: list[IncomingFile]  # arrived at that moment
+    skipped: list[SkippedFile]  # attachments that weren't taken in, reported at that moment
+
+
+@dataclass(frozen=True)
+class HeldMail:
+    """Mail held for the accountant: stored, not read by the agent, not used by checks.
+
+    Its skipped attachments are kept here and reported only if it's let in, because no
+    check uses held mail (0025). The accountant can still let it in.
     """
 
     grant_id: str
     workspace_id: str
-    name: str
-    source: IncomingSource
-    # Where it came from: the Gmail message ID for an attachment, the grant's Drive
-    # folder ID for a Drive file.
-    message_or_folder: str
-    reason: SkipReason
-    source_ref: str | None = None  # the Drive file ID; None for an attachment
-    skipped_at: datetime | None = None  # the workspace's "now" when it was skipped
+    sender: str | None  # the From address, when it reads as exactly one address
+    from_header: str  # the From line as written, to show the accountant
+    gmail_message_id: str
+    files: tuple[IncomingFile, ...]  # the message first, then its attachments; not arrived
+    held_at: datetime  # the workspace's "now" when it was held
+    reason: HoldReason = "unknown_sender"
+    skipped: tuple[SkippedFile, ...] = ()  # not reported while held
 
-    def at(self, now: datetime) -> "SkippedFile":
-        return replace(self, skipped_at=now)
+    def let_in(self, now: datetime) -> LetIn:
+        """A message that's let in arrives at that moment (0025), and so do its skips."""
+        return LetIn(
+            files=[f.arriving(now) for f in self.files],
+            skipped=[s.at(now) for s in self.skipped],
+        )
 
 
 def to_evidence_file(

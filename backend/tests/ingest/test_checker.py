@@ -174,7 +174,7 @@ def test_unknown_sender_is_held_and_arrives_when_let_in(mailbox) -> None:
     assert held.reason == "unknown_sender"
     assert all(f.arrived_at is None for f in held.files)
     later = WORKSPACE_NOW + timedelta(days=2)
-    assert {f.arrived_at for f in held.let_in(later)} == {later}
+    assert {f.arrived_at for f in held.let_in(later).files} == {later}
 
 
 # Drive
@@ -383,12 +383,11 @@ def test_google_files_that_cant_be_exported_are_skipped_once(tmp_path: Path) -> 
     ]
     assert all(
         s.source == "drive"
-        and s.message_or_folder == "grant-g1"
+        and s.source_ref == "grant-g1"
         and s.skipped_at == WORKSPACE_NOW
         and s.grant_id == "g1"
         for s in sink.skipped
     )
-    assert {s.source_ref for s in sink.skipped} == {"grant-g1/Huge.gdoc", "grant-g1/Survey.gform"}
 
 
 def test_drive_files_over_the_size_limit_are_skipped(tmp_path: Path, monkeypatch) -> None:
@@ -400,18 +399,32 @@ def test_drive_files_over_the_size_limit_are_skipped(tmp_path: Path, monkeypatch
     assert [(s.name, s.reason) for s in sink.skipped] == [("big.pdf", "too_large")]
 
 
-@pytest.mark.parametrize("sender", [PI, STRANGER])
-def test_a_too_large_attachment_is_reported_whether_the_mail_arrives_or_is_held(
-    mailbox, monkeypatch, sender
-) -> None:
+def test_a_too_large_attachment_is_reported_when_the_mail_arrives(mailbox, monkeypatch) -> None:
     monkeypatch.setattr(email_files, "MAX_FILE_BYTES", 10)
     source, folder, state = mailbox
-    write_mail(folder, "001", with_attachments(email(sender=sender)))
+    write_mail(folder, "001", with_attachments(email()))
     sink = check(source, state)
-    assert [(s.name, s.reason, s.source, s.message_or_folder) for s in sink.skipped] == [
+    assert [(s.name, s.reason, s.source, s.source_ref) for s in sink.skipped] == [
         ("invoice_1001.pdf", "too_large", "gmail", "001")
     ]
     assert sink.skipped[0].skipped_at == WORKSPACE_NOW
+
+
+@pytest.mark.parametrize("auth", ["pass", "fail"])  # a stranger, and an unverified known sender
+def test_held_mail_never_reports_a_skipped_file_until_let_in(mailbox, monkeypatch, auth) -> None:
+    monkeypatch.setattr(email_files, "MAX_FILE_BYTES", 10)
+    source, folder, state = mailbox
+    sender = STRANGER if auth == "pass" else PI
+    write_mail(folder, "001", with_attachments(email(sender=sender, auth=auth)))
+    sink = check(source, state)
+    assert sink.skipped == [] and sink.stored == []
+    (held,) = sink.held
+    assert [(s.name, s.source_ref, s.skipped_at) for s in held.skipped] == [
+        ("invoice_1001.pdf", "001", None)
+    ]
+    later = WORKSPACE_NOW + timedelta(days=1)
+    let_in = held.let_in(later)
+    assert [(s.name, s.skipped_at) for s in let_in.skipped] == [("invoice_1001.pdf", later)]
 
 
 def test_disk_drive_refuses_paths_outside_its_root(tmp_path: Path) -> None:

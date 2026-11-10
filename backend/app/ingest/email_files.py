@@ -174,7 +174,7 @@ def email_parts(raw: bytes, *, message_id: str, grant_id: str, workspace_id: str
                     workspace_id=workspace_id,
                     name=name,
                     source="gmail",
-                    message_or_folder=message_id,
+                    source_ref=message_id,
                     reason="too_large",
                 )
             )

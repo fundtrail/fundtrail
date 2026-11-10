@@ -106,7 +106,7 @@ def test_attachments_over_the_size_limit_are_skipped(monkeypatch) -> None:
     assert [f.name for f in files_of(msg)] == ["Approval for sequencing, award SYN-2401.eml"]
     parts = email_parts(msg.as_bytes(), message_id="m1", grant_id="g1", workspace_id="w1")
     (skipped,) = parts.skipped  # the small logo isn't reported: 0025 skips it on purpose
-    assert (skipped.name, skipped.reason, skipped.message_or_folder) == (
+    assert (skipped.name, skipped.reason, skipped.source_ref) == (
         "invoice_1001.pdf",
         "too_large",
         "m1",
