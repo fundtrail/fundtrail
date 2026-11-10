@@ -42,6 +42,22 @@ class Coverage(StrEnum):
     OFFERED = "offered"  # the same problem and account, outside the vendor or amount limit
 
 
+def _later(charge: Charge, note: Record) -> bool:
+    """Whether a charge is "a later charge" than a reusable note (call 36, ruling 3).
+
+    It arrived after the note was written, or at the same time and was stored after it.
+    The demo clock stands still between moves, so equal times are common. Unknown
+    stored order isn't "after".
+    """
+    if charge.arrived_at != note.written_at:
+        return charge.arrived_at > note.written_at
+    return (
+        charge.stored_seq is not None
+        and note.stored_seq is not None
+        and charge.stored_seq > note.stored_seq
+    )
+
+
 @dataclass(frozen=True)
 class SubjectKey:
     charge_id: str | None = None
@@ -98,9 +114,21 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._stood(data.rests_on, finding) and self._amount_held(data, finding):
+            if self._holds(data, finding):
                 return r.id
         return None
+
+    def _holds(self, data: AcceptedReason, finding: Finding) -> bool:
+        """Whether an acceptance still covers a problem as it stands.
+
+        A problem that carries an amount (the award limit's over_limit) is judged by the
+        amount alone (call 40): a new notice that raises the limit changes the records
+        the problem rests on, but the acceptance holds unless the amount over grows.
+        Every other problem holds while the records it rested on stand.
+        """
+        if finding.amount_cents is not None:
+            return self._amount_held(data, finding)
+        return self._stood(data.rests_on, finding)
 
     @staticmethod
     def _amount_held(data: AcceptedReason, finding: Finding) -> bool:
@@ -122,7 +150,7 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._stood(data.rests_on, finding) and finding.amount_cents > data.amount_cents:
+            if finding.amount_cents > data.amount_cents:
                 return data.amount_cents
         return None
 
@@ -169,7 +197,7 @@ class Decisions:
         if (data.reason.check, data.reason.problem) != (check, problem):
             return None
         noted = self.charges[data.charge_id]
-        if noted.account != charge.account or charge.arrived_at <= note.written_at:
+        if noted.account != charge.account or not _later(charge, note):
             return None
         same_vendor = (
             charge.vendor is not None

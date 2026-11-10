@@ -213,6 +213,8 @@ export interface BudgetLine {
   name: CitedText;
   amount: CitedMoney;
   category: BudgetCategory;
+  /** The evidence file of the notice (award letter or amendment) the line belongs to (issue 104). */
+  notice_file_id?: Id | null;
 }
 export interface Person {
   kind: "person";
@@ -243,6 +245,8 @@ export interface Notice {
   amendment_type: CitedText;
   obligated_by_amendment?: CitedMoney | null;
   obligated_to_date?: CitedMoney | null;
+  award_number?: CitedText | null;
+  title?: CitedText | null;
 }
 export interface OtherTerm {
   kind: "other_term";
@@ -389,6 +393,8 @@ export interface AcceptedReason {
   reusable?: boolean;
   reuses_id?: Id | null;
   rests_on?: Id[];
+  /** For the award limit's over_limit problem: the amount over that was accepted. */
+  amount_cents?: Cents | null;
 }
 export interface Snooze {
   kind: "snooze";
@@ -475,6 +481,8 @@ export interface Problem {
   record_ids?: Id[];
   /** The accepted reason, or the confirmed dispute, that accepts it. */
   accepted_by?: Id | null;
+  /** For the award limit's over_limit problem: the amount over. Null for every other problem. */
+  amount_cents?: Cents | null;
 }
 
 export interface Reason extends Problem {

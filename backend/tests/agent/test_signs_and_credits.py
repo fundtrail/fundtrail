@@ -290,11 +290,6 @@ def test_a_non_breaking_space_after_the_dash_still_asks_where_the_sign_came_from
     assert "sign" in (link.data.reason or "")
 
 
-@pytest.mark.xfail(
-    reason="The checks don't net a charge against its credit line yet (decision 0020; "
-    "app/checks/checklist.py says that part waits for its contract shapes).",
-    strict=False,
-)
 def test_the_ledgers_credit_line_brings_the_charge_back():
     result, charges, files = memo_run("- $248.00", -24800)
     credit_line = SAMPLE.charges[0].model_copy(

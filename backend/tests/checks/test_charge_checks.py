@@ -161,7 +161,7 @@ def test_bills_under_the_item_are_missing_evidence_and_over_is_needs_a_human() -
     for cid, linked in (("under", 6000), ("over", 12000)):
         g.charge(cid, date(2024, 3, 1), 10000)
         f = g.file(f"f-{cid}", at(2024, 3, 1))
-        b = g.bill(12000, f, at(2024, 3, 1))
+        b = g.bill(linked, f, at(2024, 3, 1))  # the whole bill, so no part needs a basis
         g.link(b, cid, at(2024, 3, 1), amount=linked, default="bill")
         g.assign(cid, t["ms"], at(2024, 3, 1))
         g.answer(cid, "supports", at(2024, 3, 1), rests_on=[b])

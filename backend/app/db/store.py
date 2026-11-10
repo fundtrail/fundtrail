@@ -732,9 +732,12 @@ def set_clock(conn: Conn, workspace_id: str, now: datetime) -> None:
     conn.execute("update public.workspaces set clock_now = %s where id = %s", (now, workspace_id))
 
 
-def real_time_workspace_ids(conn: Conn) -> list[str]:
-    rows = conn.execute("select id from public.workspaces where clock_now is null").fetchall()
-    return [r["id"] for r in rows]
+def all_grants(conn: Conn) -> list[Grant]:
+    rows = conn.execute(
+        "select id, workspace_id, funder, award_number, title, address_code, drive_folder_id"
+        " from public.grants order by id"
+    ).fetchall()
+    return [Grant.model_validate(r) for r in rows]
 
 
 END_OF_TIME = datetime.max.replace(tzinfo=UTC)
@@ -797,13 +800,6 @@ def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:
     )
 
 
-def snapshot_now(conn: Conn) -> datetime:
-    """The database's "now" for the current transaction: when its snapshot was taken."""
-    row = conn.execute("select now() as now").fetchone()
-    assert row is not None
-    return row["now"]
-
-
 def set_award_number_and_title(
     conn: Conn, grant_id: str, award_number: str | None, title: str | None
 ) -> None:
@@ -847,10 +843,16 @@ def insert_held_mail(conn: Conn, held: HeldMail) -> bool:
     return row is not None
 
 
-def has_held_mail(conn: Conn, grant_id: str, message_id: str) -> bool:
+def has_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether the grant already has a Gmail message, as an evidence file or as held mail:
+    the one check for both storing and holding it."""
     row = conn.execute(
-        "select 1 from public.held_mail where grant_id = %s and source_ref = %s",
-        (grant_id, message_id),
+        """select 1 from public.held_mail where grant_id = %s and source_ref = %s
+           union all
+           select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null
+           limit 1""",
+        (grant_id, message_id, grant_id, message_id),
     ).fetchone()
     return row is not None
 

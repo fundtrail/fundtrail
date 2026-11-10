@@ -212,14 +212,23 @@ def _cited_file(line: BudgetLine) -> str | None:
 def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
     """Which notice a budget line belongs to (call 36).
 
-    The file it's cited from. A line the accountant typed has no citation: when it
-    corrects a cited line, it belongs to that line's file, followed back through the
-    corrections. A typed line with no cited line behind it is keyed by its date here,
-    and _notice_keys() then puts it with the one cited notice of that date, if exactly
-    one exists (#84).
+    The notice the line names (`notice_file_id`, call 42), when it names one: that cures
+    both of #104's false notes, since a typed line no longer has to be placed by its
+    date. Otherwise, the fallback: the file it's cited from. A line the accountant typed
+    has no citation: when it corrects a cited line, it belongs to that line's file,
+    followed back through the corrections. A typed line with no cited line behind it is
+    keyed by its date here, and _notice_keys() then puts it with the one cited notice of
+    that date, if exactly one exists (#84).
     """
     seen: set[str] = set()
     r: Record | None = record
+    while r is not None and r.id not in seen:
+        seen.add(r.id)
+        if isinstance(r.data, BudgetLine) and r.data.notice_file_id is not None:
+            return ("file", r.data.notice_file_id)
+        r = view.state.by_id.get(r.replaces_id) if r.replaces_id else None
+    seen.clear()
+    r = record
     while r is not None and r.id not in seen:
         seen.add(r.id)
         if isinstance(r.data, BudgetLine):
@@ -266,10 +275,17 @@ def _notice_keys(view: GrantView, lines: list[Record]) -> dict[str, tuple[str, s
 def _notice_budget(category: BudgetCategory, members: list[Record], typed: bool = False) -> int:
     """One notice's budget for a category: its parent line's amount, or its lines' sum.
 
-    In a group of typed lines (grouped by date because nothing ties them to a notice),
-    each typed parent line may be a different notice's, so every parent counts (#104).
-    Counting them all can only raise the budget, so it can miss a note but never give
-    a false one.
+    In a group of typed lines (grouped by date because they name no notice), each typed
+    parent line may be a different notice's, so every parent counts (#104). Counting
+    them all can only raise the budget, so this rule can miss a note but doesn't make a
+    false one. A typed line that names its notice (`notice_file_id`, call 42) goes with
+    that notice and never lands here. For typed lines that name none, two false notes
+    are still possible (#104):
+    - an increment's typed sub-line that shares the award letter's date joins the
+      letter (see _notice_keys), and its amount drops out;
+    - in a group of typed lines, one notice's typed parent and another notice's typed
+      sub-line with the same date: the sub-line drops out, because a group with a
+      parent counts only parents.
     """
     parents = [
         r for r in members if isinstance(r.data, BudgetLine) and _is_parent(category, r.data)
@@ -313,6 +329,11 @@ class CategoryFigure:
 class BudgetFigures:
     lines: tuple[LineFigure, ...]
     categories: tuple[CategoryFigure, ...]
+    # The award's limit: the Total Amount Obligated to Date on the latest confirmed
+    # notice that prints one, and that notice. None when no confirmed notice prints one.
+    limit_cents: int | None
+    limit_notice_id: str | None
+    spent_cents: int  # the sum of every charge on the grant's ledger, as the limit compares
 
 
 def _figures(view: GrantView) -> BudgetFigures:
@@ -361,7 +382,14 @@ def _figures(view: GrantView) -> BudgetFigures:
         )
         for category, amount in budget.items()
     )
-    return BudgetFigures(lines=tuple(line_figures), categories=category_figures)
+    limit = _limit(view)
+    return BudgetFigures(
+        lines=tuple(line_figures),
+        categories=category_figures,
+        limit_cents=limit[0] if limit is not None else None,
+        limit_notice_id=limit[1].id if limit is not None else None,
+        spent_cents=sum(c.amount_cents for c in view.charges),
+    )
 
 
 def budget_figures(

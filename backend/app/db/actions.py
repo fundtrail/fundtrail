@@ -32,12 +32,12 @@ from app.contracts.signoff import SignOffSnapshot
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
-from . import store
+from . import clock, store
 from .held_mail import let_in_released
 from .jobs import agent_questions_open, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
-from .pool import transaction, workspace_now
+from .pool import transaction
 from .recheck import recheck_grant
 
 
@@ -86,7 +86,7 @@ def _store_file(
 def _arrive_file(
     p: Platform, conn: store.Conn, grant: Grant, upload: Upload
 ) -> tuple[EvidenceFile, AgentRun]:
-    now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+    now = clock.grant_now(conn, grant.id)
     store.get_grant(conn, grant.id, lock=True)
     f = _store_file(p, conn, grant, upload, now)
     trigger = Trigger(kind=TriggerKind.FILE, id=f.id)
@@ -122,7 +122,7 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
     runs: list[AgentRun] = []
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = clock.grant_now(conn, grant.id)
         try:
             read = read_ledger_file(
                 content,
@@ -213,7 +213,7 @@ def add_record(
         raise WriteRejected(["A sign-off goes through add_sign_off, which stores its report."])
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = clock.grant_now(conn, grant.id)
         try:
             record = Record(
                 id=_new_id(),
@@ -256,9 +256,7 @@ def add_record(
         if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
             run = queue_run(conn, grant, trigger, now)
         arrival_runs = [queue_run(conn, grant, file_triggers[f.id], now) for f in arrived]
-        from .clock import queue_review_if_due
-
-        review = queue_review_if_due(conn, grant, now)
+        review = clock.queue_review_if_due(conn, grant, now)
     for queued in (run, review, *arrival_runs):
         if queued is not None:
             ping_run(p.pinger, queued)
@@ -280,7 +278,7 @@ def add_message(
     its own, and queues a run for the agent to answer. That run goes ahead of the grant's
     queued runs, except while the agent catches up after a clock jump."""
     with transaction(p.pool) as conn:
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = clock.grant_now(conn, grant.id)
         message = ThreadMessage(
             id=_new_id(),
             workspace_id=grant.workspace_id,
@@ -328,7 +326,7 @@ def add_sign_off(
             )
         if not (note and note.strip()) and anything_open(conn, grant):
             raise WriteRejected(["Something is still open, so a sign-off needs a note."])
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = clock.grant_now(conn, grant.id)
         pdf, snapshot = make_report(conn, grant, now, note)
         record_id = _new_id()
         path = f"{grant.workspace_id}/{grant.id}/sign-offs/{record_id}.pdf"

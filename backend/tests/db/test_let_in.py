@@ -3,7 +3,7 @@ rules.still_held says it's held; once it isn't, its files arrive at the grant's 
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.api.report import report_inputs
 from app.api.views import load_snapshot, problem_rows
@@ -25,6 +25,7 @@ from tests.db.platform_fixtures import (  # noqa: F401 - fixtures
 STRANGER = "billing@vendor.example"
 CLOCK = datetime(2026, 4, 10, 17, tzinfo=UTC)
 HELD_AT = datetime(2026, 4, 2, 9, tzinfo=UTC)
+SENT = date(2026, 3, 30)
 
 
 def _grant(p: Platform) -> tuple[Grant, str]:
@@ -47,6 +48,8 @@ def _hold(p: Platform, grant: Grant, message_id: str = "m1") -> str:
             name=name,
             media_type="text/plain",
             data=data,
+            # The message carries its Date header's date; an attachment carries none.
+            document_date=None if parent else SENT,
             sender=STRANGER,
             source_ref=message_id,
             parent_key=parent,
@@ -172,3 +175,44 @@ def test_making_the_sender_known_lets_their_mail_in(platform: Platform) -> None:
         None,
     )
     assert len(_mail(platform, grant)) == 2
+
+
+def test_a_let_in_message_keeps_its_sent_date(platform: Platform) -> None:  # noqa: F811
+    grant, user_id = _grant(platform)
+    held_id = _hold(platform, grant)
+    actions.add_record(
+        platform,
+        grant,
+        user_id,
+        {"kind": "mail_action", "held_mail_id": held_id, "action": "let_in"},
+        None,
+    )
+    with transaction(platform.pool) as conn:
+        files = store.list_files(conn, grant.id, CLOCK)
+    dates = {f.name: f.document_date for f in files if f.source == "gmail"}
+    assert dates == {"message.txt": SENT, "invoice.txt": None}
+
+
+def test_dismissed_beats_a_sender_becoming_known(platform: Platform) -> None:  # noqa: F811
+    grant, user_id = _grant(platform)
+    held_id = _hold(platform, grant)
+    actions.add_record(
+        platform,
+        grant,
+        user_id,
+        {"kind": "mail_action", "held_mail_id": held_id, "action": "dismiss"},
+        None,
+    )
+    actions.add_record(
+        platform,
+        grant,
+        user_id,
+        {
+            "kind": "person",
+            "name": {"value": "Vendor billing"},
+            "email": {"value": STRANGER},
+            "role": {"value": "Vendor"},
+        },
+        None,
+    )
+    assert _mail(platform, grant) == []

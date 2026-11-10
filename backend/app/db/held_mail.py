@@ -61,7 +61,9 @@ def _dismissed(held: HeldMail, state: RecordState) -> bool:
 
 def let_in_released(p: Platform, conn: Conn, grant: Grant, now: datetime) -> list[EvidenceFile]:
     """Every held message on the grant no longer held, not dismissed, and not arrived yet
-    arrives now: its files become evidence files, the message before its attachments,
+    arrives now. Dismissed beats a sender becoming known: a message the accountant
+    dismissed stays out even once its sender is known. Its files become evidence files,
+    the message before its attachments, each keeping its held sent date,
     and the attachments it skipped are reported at this moment (`let_in_skips`). The
     caller holds the grant's lock, rechecks and queues the runs."""
     state = RecordState(
@@ -86,6 +88,9 @@ def let_in_released(p: Platform, conn: Conn, grant: Grant, now: datetime) -> lis
                 media_type=held_file.media_type,
                 storage_path=storage_path(grant.workspace_id, grant.id, file_id, held_file.name),
                 sha256=held_file.sha256,
+                # Ruling 43: the sent date the file was held with (the Date header's date;
+                # on a sample grant, the sample's sent date).
+                document_date=held_file.document_date,
                 arrived_at=now,
                 sender=held.sender,
                 source_ref=held.source_ref,

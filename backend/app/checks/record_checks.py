@@ -24,6 +24,7 @@ from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
 from app.checks.view import GrantView, LinkInForce, notice_number
 from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket
+from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     Answer,
     ApprovalRule,
@@ -63,7 +64,8 @@ def over_linked_bills(view: GrantView) -> set[str]:
     out: set[str] = set()
     for r in view.current:
         if isinstance(r.data, Bill) and not view.is_copy(r):
-            total = sum(lk.data.amount_cents or 0 for lk in view.links_to_fact.get(r.id, []))
+            links = view.using_links(r.id)
+            total = sum(lk.data.amount_cents or 0 for lk in links)
             if compare(total, r.data.total.value) > 0:
                 out.add(r.id)
     return out
@@ -75,7 +77,12 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
         bill = r.data
         if not isinstance(bill, Bill) or view.is_copy(r):
             continue
-        links = view.links_to_fact.get(r.id, [])
+        all_links = view.links_to_fact.get(r.id, [])
+        links = view.using_links(r.id)
+        # Links to a fully reversed charge don't use up the total (it's free to be linked
+        # again), but the ledger shows what happened to that money, so it's accounted
+        # for when asking whether any of the bill is money nobody charged (decision 0020).
+        freed = sum(lk.data.amount_cents or 0 for lk in all_links if lk not in links)
         total = sum(lk.data.amount_cents or 0 for lk in links)
         target = bill.total.value
         side = compare(total, target)
@@ -93,8 +100,14 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
                     ),
                 )
             )
-        elif side < 0 and not _credit_on_a_credit_line(view, target, links):
-            found = _unused_bill(view, r, now, total, target, ids)
+        # A remainder record that counts says where the rest went (0021).
+        elif (
+            side < 0
+            and compare(total + freed, target) < 0
+            and not view.has_remainder(r.id)
+            and not _credit_on_a_credit_line(view, target, links)
+        ):
+            found = _unused_bill(view, r, now, total + freed, target, ids)
             if found is not None:
                 out.append(found)
     return out
@@ -230,7 +243,14 @@ def record_problems(
             )
 
     by_hash: dict[str, list[str]] = defaultdict(list)
-    for f in sorted(view.files.values(), key=lambda f: (f.arrived_at, f.id)):
+
+    # The first to arrive is the original. Equal arrival times go by stored order
+    # (call 36, ruling 4); a file not stored yet comes after, and ID only breaks
+    # what's left.
+    def arrival(f: EvidenceFile) -> tuple[datetime, bool, int, str]:
+        return (f.arrived_at, f.stored_seq is None, f.stored_seq or 0, f.id)
+
+    for f in sorted(view.files.values(), key=arrival):
         by_hash[f.sha256].append(f.id)
     for ids in by_hash.values():
         first = view.files[ids[0]]
