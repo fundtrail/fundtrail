@@ -72,8 +72,8 @@ def list_workspaces(conn: Conn, user_id: str) -> list[Workspace]:
 
 
 def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
-    """A new workspace. The database adds its creator as its owner member, in the same
-    transaction."""
+    """A new workspace. The database adds its creator as its owner member, and its Sample
+    accountant, in the same transaction."""
     row = conn.execute(
         "insert into public.workspaces (owner_id, name) values (%s, %s)"
         " returning id, name, owner_id, clock_now",
@@ -843,3 +843,15 @@ def acting_member_emails(conn: Conn, workspace_id: str) -> list[str]:
         (workspace_id,),
     ).fetchall()
     return [r["email"] for r in rows]
+
+
+def sample_accountant_id(conn: Conn, workspace_id: str) -> str:
+    """The workspace's Sample accountant (issue 165): a member that can't act and that
+    nobody signs in as. A sample grant's past decisions are written as it."""
+    row = conn.execute(
+        """select user_id::text as id from public.workspace_members
+           where workspace_id = %s and role = 'sample'""",
+        (workspace_id,),
+    ).fetchone()
+    assert row is not None, "every workspace has its Sample accountant"
+    return row["id"]

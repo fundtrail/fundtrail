@@ -2,9 +2,9 @@
 -- grant. Nothing a user sees changes: each workspace still has one member who can act.
 -- workspaces.owner_id stays as who created it; it no longer decides access.
 
--- Who belongs to a workspace, and as what. "owner" can act. "sample" is for a
--- workspace's sample accountant, which can't act; it's built later with the sample
--- design.
+-- Who belongs to a workspace, and as what. "owner" can act. "sample" is the workspace's
+-- Sample accountant (issue 165): it can't act, and nobody signs in as it. A sample
+-- grant's past decisions are written as it.
 create table public.workspace_members (
   workspace_id text not null references public.workspaces (id) on delete cascade,
   user_id uuid not null references public.users (id) on delete cascade,
@@ -12,15 +12,48 @@ create table public.workspace_members (
   primary key (workspace_id, user_id)
 );
 create index workspace_members_user_id_idx on public.workspace_members (user_id);
+-- One Sample accountant per workspace.
+create unique index workspace_members_one_sample on public.workspace_members (workspace_id)
+  where role = 'sample';
 alter table public.workspace_members enable row level security;
 
--- Backfill: the creator of each existing workspace is its owner.
+-- A workspace's Sample accountant: an auth user nobody can sign in as (no email, no
+-- phone, no password, no identity, and banned where the auth schema has the column),
+-- its users row, and its membership.
+create function private.add_sample_accountant(target_workspace_id text) returns uuid
+  language plpgsql
+  security definer
+  set search_path = ''
+as $$
+declare
+  sample_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (id) values (sample_id);
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'auth' and table_name = 'users' and column_name = 'banned_until'
+  ) then
+    execute 'update auth.users set banned_until = ''infinity'' where id = $1' using sample_id;
+  end if;
+  insert into public.users (id, email, name)
+  values (sample_id, 'sample-accountant+' || target_workspace_id || '@fundtrail.example',
+          'Sample accountant');
+  insert into public.workspace_members (workspace_id, user_id, role)
+  values (target_workspace_id, sample_id, 'sample');
+  return sample_id;
+end;
+$$;
+revoke all on function private.add_sample_accountant(text) from public;
+
+-- Backfill: the creator of each existing workspace is its owner, and each gets its
+-- Sample accountant.
 insert into public.workspace_members (workspace_id, user_id, role)
 select id, owner_id, 'owner' from public.workspaces
 on conflict do nothing;
+select private.add_sample_accountant(id) from public.workspaces;
 
--- Creating a workspace adds its creator as owner, in the same transaction, whatever
--- writes the row (the app, a seed or a test).
+-- Creating a workspace adds its creator as owner and its Sample accountant, in the same
+-- transaction, whatever writes the row (the app, a seed or a test).
 create function private.add_workspace_creator() returns trigger
   language plpgsql
   security definer
@@ -30,6 +63,7 @@ begin
   insert into public.workspace_members (workspace_id, user_id, role)
   values (new.id, new.owner_id, 'owner')
   on conflict do nothing;
+  perform private.add_sample_accountant(new.id);
   return new;
 end;
 $$;
