@@ -1,0 +1,12 @@
+SYNTHETIC DEMO DOCUMENT. Not issued by any company. Created for the FundTrail sample grant.
+
+Example Lab Supply Co.
+INVOICE
+Invoice Number: INV-1001
+Invoice Date: November 12, 2025
+Bill To: Dr. Robin Example, Example State University
+Award: SYN-2300117
+
+Sediment core liners, 50 count: $1,240.00
+
+Total Due: $1,240.00

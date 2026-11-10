@@ -1,0 +1,48 @@
+SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail sample grant.
+
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: Example State University
+Address: 1 Example Way, Example City, EX 00000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: January 10, 2023
+Amendment Description: This amendment funds the new project described below. Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2300117
+Award Instrument: Standard Grant
+Award Date: January 10, 2023
+Period of Performance Start Date: February 1, 2023
+Period of Performance End Date: January 31, 2026
+Project Title: Sediment Microbiome Survey of Example Bay
+Funding Opportunity: Unsolicited proposal under the NSF Proposal and Award Policies and Procedures Guide
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $120,000
+Total Intended Award Amount: $120,000
+Cost Share: $0
+Total Amount Obligated to Date: $120,000
+Expenditure Limitation: None
+
+PROJECT PERSONNEL
+Principal Investigator: Dr. Robin Example, robin.example@university.example, Example State University
+
+NSF CONTACT INFORMATION
+Program Officer: Dr. Jesse Sample, jesse.sample@funder.example
+Grants Officer: Casey Placeholder, casey.placeholder@funder.example
+
+GENERAL TERMS AND CONDITIONS
+This award is subject to the Research Terms and Conditions and the NSF Agency Specific Requirements in effect on the award date.
+
+BUDGET
+Only lines with funds are shown.
+F. Participant Support Costs                              $20,000
+G. Other Direct Costs                                    $100,000
+   1. Materials and Supplies                              $40,000
+   6. Other                                               $60,000
+H. Total Direct Costs (A through G)                      $120,000

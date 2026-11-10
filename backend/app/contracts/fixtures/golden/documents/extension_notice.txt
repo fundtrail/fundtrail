@@ -1,0 +1,18 @@
+SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail sample grant.
+
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: Example State University
+
+AMENDMENT INFORMATION
+Amendment Type: No Cost Extensions
+Amendment Date: January 15, 2026
+Amendment Description: This amendment extends the end date from January 31, 2026 to January 31, 2027. No additional funds are provided.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2300117
+Project Title: Sediment Microbiome Survey of Example Bay
+
+Except as modified by this amendment, the award conditions remain unchanged.
