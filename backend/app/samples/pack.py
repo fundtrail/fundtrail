@@ -400,9 +400,28 @@ def _check(pack: SamplePack, where: str) -> None:
         if e.name in seen_files:
             raise PackError(f"{where}: {e.name} is scheduled twice.")
         seen_files.add(e.name)
+    posted = _posting_midnights(pack)
+    for e in pack.events:
+        if e.kind is EventKind.LEDGER_LINE and e.at < posted[e.name]:
+            raise PackError(f"{where}: line {e.name} arrives before its posting date.")
     if seen_lines and any(e.kind is EventKind.LEDGER for e in pack.events):
         raise PackError(f"{where}: a timeline has a ledger event or ledger_line events, not both.")
     _check_script(pack, where)
+
+
+def _posting_midnights(pack: SamplePack) -> dict[str, datetime]:
+    """00:00 UTC on each ledger line's posting date: the earliest it can arrive."""
+    header, rows = pack._ledger_rows  # pyright: ignore[reportPrivateUsage]
+    if "posting_date" not in header:
+        raise PackError(f"{pack.files_folder}: {LEDGER_FILE} has no posting_date header.")
+    column = header.index("posting_date")
+    out: dict[str, datetime] = {}
+    for line_id, row in rows.items():
+        try:
+            out[line_id] = datetime.combine(date.fromisoformat(row[column]), time(), tzinfo=UTC)
+        except (IndexError, ValueError) as error:
+            raise PackError(f"{pack.files_folder}: {line_id} has no posting date.") from error
+    return out
 
 
 def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
@@ -411,15 +430,7 @@ def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
     out = {e.name: e.at for e in pack.events if e.kind is EventKind.LEDGER_LINE}
     ledger = next((e for e in pack.events if e.kind is EventKind.LEDGER), None)
     if ledger is not None:
-        header, rows = pack._ledger_rows  # pyright: ignore[reportPrivateUsage]
-        if "posting_date" not in header:
-            raise PackError(f"{pack.files_folder}: {LEDGER_FILE} has no posting_date header.")
-        column = header.index("posting_date")
-        for line_id, row in rows.items():
-            try:
-                posting = datetime.combine(date.fromisoformat(row[column]), time(), tzinfo=UTC)
-            except (IndexError, ValueError) as error:
-                raise PackError(f"{pack.files_folder}: {line_id} has no posting date.") from error
+        for line_id, posting in _posting_midnights(pack).items():
             out[line_id] = max(posting, ledger.at)
     return out
 

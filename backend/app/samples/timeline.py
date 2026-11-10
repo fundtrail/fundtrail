@@ -17,10 +17,10 @@ out (a snooze ending, the closeout window opening), which the caller passes in.
   waits for the user, whatever moves come after, until it's delivered. It counts as
   delivered once a file with the same sha256 arrives by any channel (an upload, Drive, or an
   email's attachment), or, for an email file, once an email with the same Message-ID does.
-- **The read-live limit (ruling 46, first version).** While one of the user's larger
-  samples read live still has agent runs queued or running from a move of its clock,
-  opening or starting over another one is refused, naming it. `still_reading` is the one
-  place that says when.
+- **The read-live limit (ruling 48, first version).** It's on a move of the clock only:
+  while one of the user's larger read-live samples still has agent runs queued or running
+  from a move of its clock, moving another one's clock is refused, naming it. Opening and
+  starting over are never refused for it. `still_reading` is the one place that says when.
 """
 
 from __future__ import annotations
@@ -269,7 +269,8 @@ def finished(items: Sequence[TimelineItem], now: datetime) -> bool:
 
 
 def still_reading(catch_up_runs_pending: int) -> bool:
-    """The read-live limit (ruling 46, first version): a larger sample read live blocks
-    opening or starting over another one while agent runs from a move of its clock (its
-    catch-up runs) are still queued or running."""
+    """The read-live limit (ruling 48, first version): whether a larger read-live sample
+    holds a move of another one's clock, because agent runs from a move of its own clock
+    (its catch-up runs) are still queued or running. Only a move is held: never opening
+    or starting over."""
     return catch_up_runs_pending > 0

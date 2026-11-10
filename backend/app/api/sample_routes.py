@@ -106,6 +106,8 @@ def move_timeline(
         player.move(platform, user.id, grant, body.to)
     except MoveRefused as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    except player.SampleError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, [str(error)]) from error
     except player.AnotherSampleWorking as busy:
         name = busy.grant.award_number or "another larger sample"
         return _refused(  # pyright: ignore[reportReturnType]

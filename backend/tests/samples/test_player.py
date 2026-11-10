@@ -277,3 +277,57 @@ def test_options_are_in_the_contracts_order() -> None:
         "larger_live",
         "larger_prerun",
     ]
+
+
+def test_a_ledger_uploaded_early_doesnt_stop_the_timeline(api: Api) -> None:
+    """Decision 0027: nothing is blocked. The user uploads the sample's ledger before its
+    event; the event then reads it as an upload does, and skips the lines on file."""
+    grant_id = _open(api)
+    ledger = player.pack_for("nitrate-sensors").ledger_bytes()
+    uploaded = api.client.post(
+        f"/grants/{grant_id}/ledger",
+        files={"file": ("ledger.csv", ledger, "text/csv")},
+        headers=api.headers,
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    timeline = _move(api, grant_id, "2026-11-17T00:00:00Z")
+    assert "ledger.csv" in _names(timeline["just_happened"])
+    with transaction(api.platform.pool) as conn:
+        charges = store.list_charges(conn, grant_id, store.END_OF_TIME)
+    assert len(charges) == 7  # each line once, as the user's upload brought it
+    first = next(c for c in charges if c.ledger_line_id == "L-1958-0001")
+    assert first.arrived_at == SMALL_START
+
+
+def _blocked(api: Api, take: Any) -> bool:
+    """Whether `take(conn)` waits for a lock another transaction holds."""
+    from psycopg.errors import LockNotAvailable
+
+    with api.platform.pool.connection() as conn:
+        conn.execute("set lock_timeout = '200ms'")
+        try:
+            take(conn)
+        except LockNotAvailable:
+            conn.rollback()
+            return True
+        conn.rollback()
+        return False
+
+
+def test_one_move_at_a_time_per_user(api: Api) -> None:
+    from app.db import sample_store
+
+    with transaction(api.platform.pool) as held:
+        sample_store.lock_users_moves(held, api.user_id)
+        assert _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
+        assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, "someone-else"))
+    assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
+
+
+def test_two_opens_in_one_workspace_take_turns(api: Api) -> None:
+    from app.db import sample_store
+
+    workspace_id = _workspace(api)
+    with transaction(api.platform.pool) as held:
+        sample_store.lock_workspace(held, workspace_id)
+        assert _blocked(api, lambda conn: sample_store.lock_workspace(conn, workspace_id))

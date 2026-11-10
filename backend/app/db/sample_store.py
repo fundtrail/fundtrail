@@ -44,6 +44,19 @@ def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     return SampleMove(row["moved_from"], row["moved_to"]) if row else None
 
 
+def lock_workspace(conn: Conn, workspace_id: str) -> None:
+    """Take the workspace's row lock until the transaction ends."""
+    conn.execute("select 1 from public.workspaces where id = %s for update", (workspace_id,))
+
+
+def lock_users_moves(conn: Conn, user_id: str) -> None:
+    """Take this user's sample-move lock until the transaction ends: one move of the user's
+    sample clocks at a time, so the read-live limit sees every earlier move's runs."""
+    conn.execute(
+        "select pg_advisory_xact_lock(hashtextextended('read-live:' || %s, 0))", (user_id,)
+    )
+
+
 def users_sample_grants(conn: Conn, user_id: str) -> list[Grant]:
     """Every sample grant in the workspaces this user may reach."""
     return [

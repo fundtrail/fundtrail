@@ -301,6 +301,16 @@ def test_a_step_on_a_users_file_comes_after_the_script_brings_it_in(tmp_path: Pa
         load_folder(write_pack(tmp_path / "t", actions=[bring, {**confirm, "at": bring["at"]}]))
 
 
+def test_refuses_a_ledger_line_before_its_posting_date(tmp_path: Path) -> None:
+    # L-9001-0002 posts on Nov 24.
+    early = {"at": "2026-11-20T00:00:00Z", "kind": "ledger_line", "line_id": "L-9001-0002"}
+    with pytest.raises(PackError, match="before its posting date"):
+        load_folder(write_pack(tmp_path / "s", events=[EVENTS[0], early], actions=[]))
+    on_time = {**early, "at": "2026-11-24T00:00:00Z"}
+    pack = load_folder(write_pack(tmp_path / "t", events=[EVENTS[0], on_time], actions=[]))
+    assert [e.name for e in pack.events] == ["award_letter.txt", "L-9001-0002"]
+
+
 def test_suggestion_kinds_are_record_kinds() -> None:
     assert {RecordKind(k) for k in SUGGESTION_KINDS} == set(SUGGESTION_KINDS)
 

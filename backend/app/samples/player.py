@@ -193,6 +193,8 @@ def _incoming(grant: Grant, pack: SamplePack, event_id: str) -> list[IncomingFil
 
 
 def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime) -> None:
+    """Read the ledger as an upload reads it, at the event's time: a line already on file,
+    such as one the user uploaded early, is skipped (decision 0027: nothing is blocked)."""
     read = read_ledger_file(
         content,
         workspace_id=grant.workspace_id,
@@ -200,11 +202,9 @@ def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime)
         existing_line_ids=store.ledger_line_ids(conn, grant.workspace_id),
         now=at,
     )
-    if read.rejected or read.skipped_line_ids:
-        raise SampleError(
-            "The sample's ledger lines are already on file in this workspace, so they can't "
-            "arrive again."
-        )
+    if read.rejected:
+        rows = ", ".join(f"row {r.row}: {r.reason}" for r in read.rejected)
+        raise SampleError(f"The sample's ledger can't be read ({rows}).")
     store.insert_charges(conn, read.charges)
 
 
@@ -237,7 +237,9 @@ def open_sample(p: Platform, workspace_id: str, choice: SampleChoice) -> Grant:
     move = plan_start(items, pack.starts_at)
     with transaction(p.pool) as conn:
         # First version, pending a product answer: ledger line IDs are unique in a
-        # workspace, so a second copy of a sample there couldn't take its ledger in.
+        # workspace, so a second copy of a sample there couldn't take its ledger in. The
+        # workspace's row lock keeps two opens from both passing the check.
+        sample_store.lock_workspace(conn, workspace_id)
         if any(
             g.sample and g.sample.sample == sample for g in store.list_grants(conn, workspace_id)
         ):
@@ -274,6 +276,9 @@ def move(p: Platform, user_id: str, grant: Grant, to: datetime | None) -> None:
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     with transaction(p.pool) as conn:
+        # One move at a time per user, so two moves can't both pass the read-live limit
+        # before either has queued its runs. Taken before the grant's lock.
+        sample_store.lock_users_moves(conn, user_id)
         locked = store.get_grant(conn, grant.id, lock=True)
         assert locked is not None
         check_read_live_limit(conn, user_id, locked)
@@ -337,10 +342,24 @@ def _on_grant(
     by_message_id: dict[str, datetime] = {}
     for f in sorted(files, key=lambda f: f.arrived_at):
         if f.media_type == "message/rfc822" or f.name.lower().endswith(".eml"):
-            found = message_id_of(p.storage.get(f.storage_path))
+            found = _message_id(p, f)
             if found is not None:
                 by_message_id.setdefault(found, f.arrived_at)
     return OnGrant(by_sha=by_sha, by_message_id=by_message_id)
+
+
+# An email's Message-ID by its bytes' sha256. Stored files never change, so a file is read
+# from storage once per process, not on every view.
+_MESSAGE_IDS: dict[str, str | None] = {}
+_MESSAGE_IDS_MAX = 10_000
+
+
+def _message_id(p: Platform, f: EvidenceFile) -> str | None:
+    if f.sha256 not in _MESSAGE_IDS:
+        if len(_MESSAGE_IDS) >= _MESSAGE_IDS_MAX:
+            _MESSAGE_IDS.clear()
+        _MESSAGE_IDS[f.sha256] = message_id_of(p.storage.get(f.storage_path))
+    return _MESSAGE_IDS[f.sha256]
 
 
 def _event(
