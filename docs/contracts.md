@@ -182,7 +182,7 @@ New with [0011](decisions/0011-evidence-checklist.md). Every charge has a checkl
 - **Defaults hang on groups of accounts** ([0016](decisions/0016-default-checklists-by-account-group.md)). A small table in the code says which account codes belong to which group, and gives each group its default list and its NSF budget category. It covers Berkeley's accounts first, and the starting lists are in [domain.md](domain.md#default-checklists-by-account-group). An account in no group gets only the items the agent adds.
 - **A required approval is a default item too.** Code adds it when one of the grant's approval rules applies to the charge. "NSF approval" also goes on the checklist when the agent recognizes something on NSF's standing list.
 - **A cost dated up to 90 days before the start date** gets an item for the university's own pre-award approval.
-- **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account, in place of its account group's default. The line's NSF category still comes from its account's group. Check 6 is these two items and nothing more. It has no reason of its own: the checklist check reports each item as filled or missing.
+- **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account. A line that takes money off the grant gets only these two. A line that adds money to the grant keeps its account group's default and gets these two as well ([0020](decisions/0020-reversals-and-cost-transfers.md)). The line's NSF category still comes from its account's group. Check 6 is these two items and nothing more. It has no reason of its own: the checklist check reports each item as filled or missing.
 - **An added item is a record** on the charge: what's needed, and who added it. It takes effect right away.
 - **Removing an item** is a record too. The agent's removal waits for the accountant. The accountant's takes effect right away.
 - **An item can carry an amount.** Either the bills linked to it add up to that amount, or the amount comes from a rate: a quantity times a rate, both cited, with the math re-checked by code. The rate has to come from a file on the grant or from a confirmed rate term.
@@ -244,7 +244,7 @@ One charge comes from one ledger line, read by code. The agent never writes char
 | `ledger_line_id` | Unique within a workspace. The same line twice adds nothing. |
 | `transaction_date` | When the cost happened. The checks use this one. |
 | `posting_date` | When the ledger recorded it. The 60 days for missing evidence count from here. |
-| `arrived_at` | When it reached FundTrail. The clock uses this one. For an uploaded ledger file, 00:00 UTC on the posting date. |
+| `arrived_at` | When it reached FundTrail. The clock uses this one. For an uploaded ledger file, 00:00 UTC on the posting date if that's still ahead of the workspace's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). |
 | `amount_cents` | Negative for a reversal, a transfer out or a credit |
 | `description`, `account`, `vendor`, `reference` | As the ledger gives them. `account` is the ledger's own expense category. |
 | `original_line_id` | For a reversal or cost transfer: the `ledger_line_id` of the line it undoes or moves. It's a line ID, not a charge ID, because the original may be on another grant or arrive later. |
@@ -392,7 +392,7 @@ CSV or Excel, one file per grant. In the hackathon build, a seeded grant's file 
 | `reference` | No | An invoice or document number |
 | `original_line_id` | No | For a reversal or cost transfer, the line it corrects |
 
-An empty cell is a missing value. Each row becomes one charge: `line_id` becomes `ledger_line_id`, `amount` becomes `amount_cents`, and `arrived_at` is 00:00 UTC on the posting date. A row whose `line_id` is already on file is skipped. Mapping another system's column names is a later addition.
+An empty cell is a missing value. Each row becomes one charge: `line_id` becomes `ledger_line_id`, `amount` becomes `amount_cents`, and `arrived_at` is 00:00 UTC on the posting date if that's still ahead of the workspace's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). A row whose `line_id` is already on file is skipped. Mapping another system's column names is a later addition.
 
 ## 14. Eval answer key
 

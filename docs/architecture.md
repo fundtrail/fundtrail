@@ -135,7 +135,7 @@ The accountant clicks a fact and the file opens at the right spot. We copy patte
 - Every item has two dates:
   - **Its own date,** such as the date on a document or a ledger line's transaction date. The checks use this one.
   - **Its arrival date,** such as when an email arrived or when a ledger line was synced or uploaded. The clock uses this one.
-- An item counts once its arrival date is at or before "now." For the demo ledger file, a line's arrival date is its posting date.
+- An item counts once its arrival date is at or before "now." A ledger line's arrival date is its posting date if that's still ahead of "now", and otherwise now ([0023](decisions/0023-the-clock.md)).
 - The clock only moves forward, either to the next arrival or to a date you choose. Resetting a workspace starts it over.
 - Anything the accountant or the agent writes, and anything that arrives live, is stamped with the clock's date.
 - Workspaces that users create run on the real date.
