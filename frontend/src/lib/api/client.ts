@@ -78,10 +78,18 @@ export interface ApiClient {
   /** Opens a sample grant. A refusal (409) throws SampleRefusalError. */
   createSample(workspaceId: Id, body: SampleCreate): Promise<GrantSummary>;
   getTimeline(grantId: Id): Promise<TimelineView>;
-  /** No `to` plays to the next event. Forward only: earlier is a 409. */
+  /**
+   * No `to` plays to the next event. Forward only: earlier is a 409. A move
+   * refused while another larger read-live sample is still working throws
+   * SampleRefusalError.
+   */
   moveTimeline(grantId: Id, move: TimelineMove): Promise<TimelineView>;
-  /** Starts the one grant over. A refusal (409) throws SampleRefusalError. */
-  startOver(grantId: Id): Promise<TimelineView>;
+  /**
+   * Starts the one grant over. `confirmed` must be true: only call it after the
+   * user has confirmed in the panel's confirm step. A refusal (409) throws
+   * SampleRefusalError.
+   */
+  startOver(grantId: Id, confirmed: true): Promise<TimelineView>;
   /** "Deliver for me": brings in an item the user was to deliver. */
   deliverForMe(grantId: Id, eventId: Id): Promise<TimelineView>;
   /** "Get the file": a short-lived link to an item the user was to deliver. */
@@ -106,7 +114,7 @@ export class ApiError extends Error {
   }
 }
 
-/** A 409 refusing to open a sample or start one over, with the server's reason (ruling 41). */
+/** A 409 refusing to open a sample or move its clock, with the server's reason (ruling 41). */
 export class SampleRefusalError extends ApiError {
   constructor(readonly refusal: SampleRefusal) {
     super(409, refusal);
@@ -266,10 +274,10 @@ export class HttpApiClient implements ApiClient {
     return this.get<TimelineView>(`/grants/${e(grantId)}/timeline`);
   }
   moveTimeline(grantId: Id, move: TimelineMove) {
-    return this.post<TimelineView>(`/grants/${e(grantId)}/timeline`, move);
+    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline`, move));
   }
-  startOver(grantId: Id) {
-    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline/start-over`, { confirmed: true }));
+  startOver(grantId: Id, confirmed: true) {
+    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline/start-over`, { confirmed }));
   }
   deliverForMe(grantId: Id, eventId: Id) {
     return this.post<TimelineView>(`/grants/${e(grantId)}/timeline/deliveries/${e(eventId)}`);

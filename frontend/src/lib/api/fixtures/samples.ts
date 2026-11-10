@@ -203,7 +203,8 @@ export function samplesFake(hooks: {
       playTo(events, state, to);
       return show(grantId);
     },
-    startOver: (grantId) => {
+    startOver: (grantId, confirmed) => {
+      if (confirmed !== true) return Promise.reject(new ApiError(422, "Starting over needs the user's confirmation."));
       const timeline = timelines.get(grantId);
       if (!timeline) return notASample();
       timeline.state = startState(events);
