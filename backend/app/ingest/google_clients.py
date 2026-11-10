@@ -5,9 +5,11 @@ credentials are an authorized-user file made once by `python -m app.ingest.googl
 found through the `GOOGLE_TOKEN_FILE` environment variable. Nothing here prints them.
 
 Gmail: the first check records the mailbox's current history ID, and later checks
-read the messages added since, with `users.history.list`. If that history has
-expired, the check falls back to the last week of the inbox, and the checker's
-list of messages it has seen keeps them from arriving twice.
+read the messages added since, with `users.history.list`. Starting from "now" is safe
+only because a grant's code doesn't exist before its grant does: each grant's first
+check searches for everything delivered to its address since the address was made.
+If the history has expired, the check falls back to the last week of the inbox, and
+the checker's list of messages it has seen keeps them from arriving twice.
 https://developers.google.com/workspace/gmail/api/guides/sync
 
 Drive: the folder and the folders inside it are listed on every check with
@@ -88,20 +90,23 @@ class GmailMailbox:
             if not token:
                 return ids, latest
 
-    def _recent(self) -> list[str]:
+    def _search(self, query: str) -> list[str]:
         ids: list[str] = []
         token = None
         while True:
-            page = (
-                self._users()
-                .messages()
-                .list(userId="me", q=_FALLBACK_QUERY, pageToken=token)
-                .execute()
-            )
+            page = self._users().messages().list(userId="me", q=query, pageToken=token).execute()
             ids.extend(m["id"] for m in page.get("messages", []))
             token = page.get("nextPageToken")
             if not token:
                 return list(reversed(ids))  # oldest first
+
+    def fetch_delivered_to(self, address: str, since: datetime | None) -> list[RawMessage]:
+        # Gmail's `deliveredto:` search operator, and `after:` with seconds since 1970:
+        # https://support.google.com/mail/answer/7190
+        query = f'deliveredto:"{address}"'
+        if since is not None:
+            query += f" after:{int(since.timestamp())}"
+        return [m for m in (self._raw(i) for i in self._search(query)) if m is not None]
 
     def fetch_new(self, cursor: str | None) -> tuple[list[RawMessage], str]:
         if not cursor:
@@ -111,7 +116,7 @@ class GmailMailbox:
         except HttpError as error:
             if error.resp.status != 404:
                 raise
-            ids, latest = self._recent(), self._history_id()  # the history expired
+            ids, latest = self._search(_FALLBACK_QUERY), self._history_id()  # the history expired
         messages = [m for m in (self._raw(i) for i in dict.fromkeys(ids)) if m is not None]
         return messages, latest
 

@@ -67,11 +67,24 @@ class GrantRoute:
     # Known senders (0025): people in the award letter with a confirmed term, anyone the
     # accountant added, and the accountant's own sign-in address. Lower case.
     known_senders: frozenset[str] = frozenset()
+    # When the grant's address was made. Its first check takes in everything delivered
+    # to the address since then.
+    address_created_at: datetime | None = None
+
+
+# Why a message is held:
+# - "unknown_sender": the From address isn't a known sender.
+# - "unverified_sender": the From address is a known sender, but the mailbox couldn't
+#   verify that the message really came from that address.
+HoldReason = Literal["unknown_sender", "unverified_sender"]
 
 
 @dataclass(frozen=True)
 class HeldMail:
-    """Mail from someone who isn't a known sender: stored, not read, not used by checks."""
+    """Mail held for the accountant: stored, not read by the agent, not used by checks.
+
+    The accountant can still let it in.
+    """
 
     grant_id: str
     workspace_id: str
@@ -79,6 +92,7 @@ class HeldMail:
     gmail_message_id: str
     files: tuple[IncomingFile, ...]  # the message first, then its attachments; not arrived
     held_at: datetime  # the workspace's "now" when it was held
+    reason: HoldReason = "unknown_sender"
 
     def let_in(self, now: datetime) -> list[IncomingFile]:
         """A message that's let in arrives at that moment (0025)."""

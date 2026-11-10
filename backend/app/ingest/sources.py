@@ -10,6 +10,8 @@ import hashlib
 import mimetypes
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email import message_from_bytes, policy
+from email.utils import getaddresses, parsedate_to_datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -39,8 +41,15 @@ class MailSource(Protocol):
     def fetch_new(self, cursor: str | None) -> tuple[list[RawMessage], str]:
         """Messages that arrived after `cursor`, oldest first, and the cursor to pass next time.
 
-        With no cursor, the first check starts from now and returns nothing older.
+        With no cursor, the first check starts from now and returns nothing older. That
+        is safe because a grant's address doesn't exist before its grant does, and each
+        grant's first check reads its own address's mail with `fetch_delivered_to`.
         """
+        ...
+
+    def fetch_delivered_to(self, address: str, since: datetime | None) -> list[RawMessage]:
+        """Every message delivered to `address` since `since` (all of them if None), oldest
+        first."""
         ...
 
 
@@ -59,6 +68,9 @@ class DriveSource(Protocol):
 class DiskMailbox:
     """A folder of `.eml` files. A message's ID is its file name without the suffix.
 
+    Each file is the message as the mailbox holds it, so it carries the mailbox's own
+    `Delivered-To` and `Authentication-Results` headers.
+
     Files are read in name order, and the cursor is the last name read.
     """
 
@@ -72,6 +84,23 @@ class DiskMailbox:
         new = [n for n in names if n > cursor]
         messages = [RawMessage(n, (self.folder / f"{n}.eml").read_bytes()) for n in new]
         return messages, new[-1] if new else cursor
+
+    def fetch_delivered_to(self, address: str, since: datetime | None) -> list[RawMessage]:
+        found = []
+        for path in sorted(self.folder.glob("*.eml")):
+            raw = path.read_bytes()
+            msg = message_from_bytes(raw, policy=policy.default)
+            fields = [str(v) for h in _ADDRESS_HEADERS for v in msg.get_all(h, [])]
+            if address.lower() not in {a.lower() for _, a in getaddresses(fields)}:
+                continue
+            if since is not None and msg["date"]:
+                if parsedate_to_datetime(str(msg["date"])) < since:
+                    continue
+            found.append(RawMessage(path.stem, raw))
+        return found
+
+
+_ADDRESS_HEADERS = ("delivered-to", "x-original-to", "to", "cc")
 
 
 # On disk, a Google file is stood in for by a file with one of these suffixes. Its bytes

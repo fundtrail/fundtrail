@@ -14,11 +14,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
-from .addresses import find_tag
+from .addresses import find_tag, grant_address
+from .authentication import GMAIL_AUTHSERV_ID, is_verified
 from .drive_files import DriveState, drive_file, files_to_take, version_of
 from .email_files import email_to_files, parse_headers
-from .incoming import GrantRoute, HeldMail, IncomingFile
-from .sources import DriveSource, MailSource
+from .incoming import GrantRoute, HeldMail, HoldReason, IncomingFile
+from .sources import DriveSource, MailSource, RawMessage
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class CheckState:
     """What the checker remembers between checks. Saved by the caller."""
 
     mail_cursor: str | None = None
+    started_grants: set[str] = field(default_factory=set)  # grants whose first read is done
     seen_messages: set[str] = field(default_factory=set)
     drive: DriveState = field(default_factory=DriveState)
 
@@ -55,39 +57,74 @@ def check_mail(
     state: CheckState,
     now: WorkspaceNow,
     sink: IngestSink,
+    authserv_id: str = GMAIL_AUTHSERV_ID,
 ) -> None:
+    """Take in new mail for every grant.
+
+    A grant's first check reads everything delivered to its address since the address
+    was made. After that, the mailbox's saved position finds what's new. Mail never
+    sent to a grant's address is never taken in; the accountant forwards it.
+    """
+    routes = list(routes)
     by_tag = {route.tag.lower(): route for route in routes}
+    # The position is read first, so nothing delivered during the first reads is missed.
     messages, state.mail_cursor = source.fetch_new(state.mail_cursor)
+    for route in routes:
+        if route.grant_id in state.started_grants:
+            continue
+        address = grant_address(mailbox, route.tag)
+        for message in source.fetch_delivered_to(address, route.address_created_at):
+            _take(message, mailbox, by_tag, state, now, sink, authserv_id)
+        state.started_grants.add(route.grant_id)
     for message in messages:
-        if message.id in state.seen_messages:
-            continue
-        state.seen_messages.add(message.id)
-        parsed = parse_headers(message.raw)
-        tag = find_tag(parsed.headers, mailbox)
-        route = by_tag.get(tag) if tag else None
-        if route is None:
-            log.info("ignored a message with no tag or an unknown one")
-            continue
-        files = email_to_files(
-            message.raw,
-            message_id=message.id,
+        _take(message, mailbox, by_tag, state, now, sink, authserv_id)
+
+
+def _take(
+    message: RawMessage,
+    mailbox: str,
+    by_tag: dict[str, GrantRoute],
+    state: CheckState,
+    now: WorkspaceNow,
+    sink: IngestSink,
+    authserv_id: str,
+) -> None:
+    if message.id in state.seen_messages:
+        return
+    state.seen_messages.add(message.id)
+    parsed = parse_headers(message.raw)
+    tag = find_tag(parsed.headers, mailbox)
+    route = by_tag.get(tag) if tag else None
+    if route is None:
+        log.info("ignored a message with no tag or an unknown one")
+        return
+    files = email_to_files(
+        message.raw,
+        message_id=message.id,
+        grant_id=route.grant_id,
+        workspace_id=route.workspace_id,
+    )
+    at = now(route.workspace_id)
+    reason: HoldReason | None = None
+    if not parsed.sender or parsed.sender not in route.known_senders:
+        reason = "unknown_sender"
+    elif not is_verified(parsed.headers, parsed.sender, authserv_id):
+        # A forwarded message is judged on the forwarder, whose address is in From.
+        reason = "unverified_sender"
+    if reason is None:
+        sink.store([f.arriving(at) for f in files])
+        return
+    sink.hold(
+        HeldMail(
             grant_id=route.grant_id,
             workspace_id=route.workspace_id,
+            sender=parsed.sender,
+            gmail_message_id=message.id,
+            files=tuple(files),
+            held_at=at,
+            reason=reason,
         )
-        at = now(route.workspace_id)
-        if parsed.sender and parsed.sender in route.known_senders:
-            sink.store([f.arriving(at) for f in files])
-        else:
-            sink.hold(
-                HeldMail(
-                    grant_id=route.grant_id,
-                    workspace_id=route.workspace_id,
-                    sender=parsed.sender,
-                    gmail_message_id=message.id,
-                    files=tuple(files),
-                    held_at=at,
-                )
-            )
+    )
 
 
 def check_drive(
