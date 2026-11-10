@@ -6,7 +6,7 @@ from app.checks.account_groups import (
     ACCOUNT_GROUPS,
     NOT_IN_ANY_GROUP,
     account_code,
-    default_items,
+    account_group_items,
     lookup_account,
 )
 from app.contracts.charges import Charge
@@ -94,7 +94,7 @@ def test_berkeley_accounts_land_in_their_group(account: str, expected: str) -> N
 )
 def test_account_in_no_group(account: str) -> None:
     assert lookup_account(account) is None
-    assert default_items(charge(account), []) == []
+    assert account_group_items(charge(account)) == []
 
 
 def test_fee_remission_is_tuition_not_benefits() -> None:
@@ -126,7 +126,7 @@ def test_sample_grant_defaults_match_the_fixture() -> None:
     # contracts.md section 15: L-1001 on 55016, L-1002 on 59009.
     sample = load_sample_grant()
     for c in sample.charges:
-        assert default_items(c, sample.records) == list(sample.default_items[c.ledger_line_id])
+        assert account_group_items(c) == list(sample.default_items[c.ledger_line_id])
 
 
 def test_sample_grant_passes_the_write_check_with_these_defaults() -> None:
@@ -135,7 +135,12 @@ def test_sample_grant_passes_the_write_check_with_these_defaults() -> None:
     for r in sample.records:
         charges = [c for c in sample.charges if c.arrived_at <= r.written_at]
         files = [f for f in sample.files if f.arrived_at <= r.written_at]
-        assert check_new_record(r, written, charges, files, default_items=default_items) == [], r.id
+        assert (
+            check_new_record(
+                r, written, charges, files, default_items=lambda c, _records: account_group_items(c)
+            )
+            == []
+        ), r.id
         written.append(r)
 
 
@@ -187,7 +192,7 @@ def test_group_categories() -> None:
 
 
 def test_salary_items_name_the_charge_month() -> None:
-    items = default_items(charge("50200", day=date(2024, 2, 10)), [])
+    items = account_group_items(charge("50200", day=date(2024, 2, 10)))
     assert [i.key for i in items] == ["appointment_letter", "effort_report"]
     assert items[0].period is None
     assert items[1].period == Period(start=date(2024, 2, 1), end=date(2024, 2, 29))
@@ -195,12 +200,12 @@ def test_salary_items_name_the_charge_month() -> None:
 
 
 def test_amount_goes_on_the_bill_like_item_only() -> None:
-    items = default_items(charge("56712", amount_cents=50000), [])
+    items = account_group_items(charge("56712", amount_cents=50000))
     assert [(i.key, i.amount_cents) for i in items] == [
         ("participant_list", None),
         ("payment_record", 50000),
     ]
-    items = default_items(charge("57811", amount_cents=900000), [])
+    items = account_group_items(charge("57811", amount_cents=900000))
     assert [(i.key, i.amount_cents) for i in items] == [
         ("partner_invoice", 900000),
         ("professor_approval", None),
@@ -210,12 +215,12 @@ def test_amount_goes_on_the_bill_like_item_only() -> None:
 
 def test_line_taking_money_off_gets_no_group_items() -> None:
     # Decision 0020: such a line gets only the two correction items.
-    assert default_items(charge("55016", amount_cents=-1240), []) == []
+    assert account_group_items(charge("55016", amount_cents=-1240)) == []
 
 
 def test_line_adding_money_keeps_its_group_items() -> None:
     moved_on = charge("55016", amount_cents=1240).model_copy(update={"original_line_id": "L-9"})
-    assert [i.key for i in default_items(moved_on, [])] == ["bill"]
+    assert [i.key for i in account_group_items(moved_on)] == ["bill"]
 
 
 def test_reversals_are_not_a_group() -> None:
