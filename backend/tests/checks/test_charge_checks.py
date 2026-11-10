@@ -599,3 +599,8 @@ def test_a_link_of_the_opposite_sign_puts_the_item_over() -> None:
     status = g.status("c1", at(2024, 3, 2))
     assert ("checklist", "over:bill") in problems(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
+    over = next(r for r in status.reasons if r.problem == "over:bill")
+    assert over.text == (
+        "A bill that adds up to the charge: the bills linked add up to -$100.00, "
+        "the opposite sign of the $100.00 it needs."
+    )
