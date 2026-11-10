@@ -509,7 +509,8 @@ def _check_applies_to(ctx: RunContext, applies_to: str) -> str:
     Refused twice with the reason; on the third try it's saved, since an approval rule code
     can't match still sends every charge to the accountant, and the agent is told to flag it.
     """
-    if applies_to_is_matchable(applies_to, ctx.records):
+    i = ctx.inputs
+    if applies_to_is_matchable(applies_to, ctx.records, i.files, i.grant.id):
         return ""
     key = ("applies_to", applies_to)
     ctx.uncited_refusals[key] += 1
@@ -519,7 +520,9 @@ def _check_applies_to(ctx: RunContext, applies_to: str) -> str:
             "NSF's budget categories. Cite the narrowest words that name the budget line or "
             "category, as printed, such as 'Participant Support Costs' inside 'Funds budgeted "
             "for Participant Support Costs may not be diverted ...'; the clause stays the "
-            "citation"
+            "citation. If the clause names something narrower than any line or category, such "
+            "as one kind of travel, don't widen it to the line: write it as it is and flag the "
+            "term"
         )
     return (
         f" Code can't match '{applies_to}' to a budget line or category, so every charge will "
@@ -825,7 +828,8 @@ TOOLS: dict[str, tuple[type[_In], Handler, str]] = {
         "number. A condition that says who must approve what is one approval_rule, with its "
         "channel when stated; its applies_to is the narrowest words that name the budget line "
         'or NSF category, as printed ("Participant Support Costs", not "Funds budgeted for '
-        'Participant Support Costs"), cited from the clause. other_term holds only what no '
+        'Participant Support Costs"), cited from the clause; when the clause names something '
+        "narrower than any line, don't widen it: flag the term. other_term holds only what no "
         "other kind holds. The fields of "
         "each kind:\n" + TERM_FIELDS,
     ),
