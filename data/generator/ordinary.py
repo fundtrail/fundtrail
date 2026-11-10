@@ -104,7 +104,7 @@ def award_letter(
         conditions=conditions,
         budget=[(b[0], b[1], [(s[0], s[1]) for s in b[3]]) for b in budget],
     )
-    note = "The accountant adds the grant with its award letter."
+    note = "The award letter arrives: the grant's first scheduled event."
     if as_pdf:
         g.doc(
             name,
@@ -116,7 +116,7 @@ def award_letter(
         )
     else:
         g.doc(name, text, arrives, source, note=note)
-    g.confirm(name, confirm_at, "The accountant confirms every term read from the award letter.")
+    g.confirm(name, confirm_at, "The user confirms every term read from the award letter.")
     dated = award_date.isoformat()
     g.record(
         "period_of_performance", name, start=g.start.isoformat(), end=g.end.isoformat(), dated=dated
