@@ -39,6 +39,10 @@ class TimelineEvent(Model):
     note: str | None = None
     charge_id: Id | None = None  # once played: the charge a ledger line became
     file_id: Id | None = None  # once played or on file: the evidence file
+    # Ruling 58: a short label marking the event as one of the sample's highlights,
+    # shown in Coming up and Just happened. The panel's "Next highlight" moves the
+    # clock to the next one with the human steps skipped. None for an ordinary event.
+    highlight: str | None = None
 
 
 class PlayedEvent(Model):
