@@ -1,0 +1,5 @@
+# PDF.js's WebAssembly image decoders (JBIG2, JPEG 2000) and their licenses,
+# copied from the pinned pdfjs-dist package by `pnpm pdfjs:wasm`, which runs
+# before `pnpm dev` and `pnpm build`. Generated, so not committed.
+*
+!.gitignore

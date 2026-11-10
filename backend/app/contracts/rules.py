@@ -48,6 +48,7 @@ from .records import (
     MailAction,
     MailDecision,
     Note,
+    Notice,
     Question,
     Record,
     RecordKind,
@@ -1024,3 +1025,21 @@ def still_held(held: HeldMail, state: RecordState, known_senders: Collection[str
     if held.reason == HoldReason.UNKNOWN_SENDER and held.sender is not None:
         return held.sender.lower() not in {s.lower() for s in known_senders}
     return True
+
+
+def award_number_and_title(state: RecordState) -> tuple[str | None, str | None]:
+    """The grant's award number and title, from the notices that count (issue 118).
+
+    Read from the current `notice` records, so the agent's count once the accountant
+    confirms them. The latest notice by its own date that prints a value wins; on the
+    same date, the one stored later. None while no notice that counts prints it.
+    """
+    notices = [
+        (r.data.dated.value, i, r.data)
+        for i, r in enumerate(state.records)
+        if isinstance(r.data, Notice) and state.is_current(r.id)
+    ]
+    notices.sort(key=lambda n: (n[0], n[1]), reverse=True)
+    number = next((n.award_number.value for _, _, n in notices if n.award_number), None)
+    title = next((n.title.value for _, _, n in notices if n.title), None)
+    return number, title
