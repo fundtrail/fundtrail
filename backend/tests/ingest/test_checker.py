@@ -79,7 +79,7 @@ def stored_hold(pending: PendingHold) -> HeldMail:
     return to_held_mail(pending, held_id="h1", files=files)
 
 
-def now(_workspace_id: str) -> datetime:
+def now(_grant_id: str) -> datetime:
     return WORKSPACE_NOW
 
 
@@ -534,3 +534,60 @@ def test_mail_that_arrives_before_its_grants_route_is_known_isnt_lost(mailbox) -
     sink = check(source, state, routes=(ROUTE, ROUTE_2))  # g2's first read finds it
     assert [(f.grant_id, f.name) for f in sink.stored] == [("g2", "Early.eml")]
     assert check(source, state, routes=(ROUTE, ROUTE_2)).stored == []
+
+
+# One clock per grant
+
+
+G1_NOW = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+G2_NOW = datetime(2026, 9, 15, 17, 30, tzinfo=UTC)
+
+
+def grant_now(grant_id: str) -> datetime:
+    """Two grants in the same workspace whose clocks stand at different times."""
+    return {"g1": G1_NOW, "g2": G2_NOW}[grant_id]
+
+
+def test_mail_takes_each_grants_own_now_and_keeps_its_original(tmp_path: Path) -> None:
+    folder = tmp_path / "mail"
+    folder.mkdir()
+    to_g1 = email(subject="For one")
+    to_g2 = email(to="fundtrail-demo+g2tag234@mail.example", subject="For two")
+    held = email(to="fundtrail-demo+g2tag234@mail.example", sender=STRANGER)
+    write_mail(folder, "001", to_g1)
+    write_mail(folder, "002", to_g2)
+    write_mail(folder, "003", held)
+    g2 = GrantRoute("w1", "g2", "g2tag234", known_senders=frozenset({PI}))
+    sink = MemorySink()
+    check_mail(
+        DiskMailbox(folder),
+        mailbox=MAILBOX,
+        routes=[ROUTE, g2],
+        state=CheckState(),
+        now=grant_now,
+        sink=sink,
+    )
+    by_name = {f.name: f for f in sink.stored}
+    assert by_name["For one.eml"].arrived_at == G1_NOW
+    assert by_name["For two.eml"].arrived_at == G2_NOW
+    # The stored original is the message as it arrived, whatever the grant's clock says.
+    assert by_name["For one.eml"].data == to_g1.as_bytes()
+    assert by_name["For two.eml"].data == to_g2.as_bytes()
+    (on_hold,) = sink.held
+    assert on_hold.grant_id == "g2" and on_hold.held_at == G2_NOW
+
+
+def test_drive_files_and_skips_take_each_grants_own_now(tmp_path: Path) -> None:
+    touch(tmp_path / "grant-g1" / "quote.pdf", b"%PDF one", OLD)
+    touch(tmp_path / "grant-g2" / "quote.pdf", b"%PDF two", OLD)
+    touch(tmp_path / "grant-g2" / "Survey.gform", b"", OLD)
+    g2 = GrantRoute("w1", "g2", "g2tag234", drive_folder_id="grant-g2")
+    sink = MemorySink()
+    check_drive(
+        DiskDrive(tmp_path), routes=[ROUTE, g2], state=CheckState(), now=grant_now, sink=sink
+    )
+    assert {(f.grant_id, f.arrived_at, f.data) for f in sink.stored} == {
+        ("g1", G1_NOW, b"%PDF one"),
+        ("g2", G2_NOW, b"%PDF two"),
+    }
+    assert [(s.grant_id, s.skipped_at) for s in sink.skipped] == [("g2", G2_NOW)]
