@@ -1,7 +1,9 @@
 """A sample grant's live email is read with its Date header as the grant's now (issue 165, point 4).
 
-The agent reads the text with the Date header replaced, and every citation into it maps back to
-the stored .eml, which is never changed. A grant on the real date reads the email as stored.
+The agent reads `reading_text`: the top-level headers cut down to From, To, Cc, Subject and the
+MIME headers, and Date as the grant's now when the email arrived. Every citation into it maps
+back to the stored .eml with `stored_range`; the stored file is never changed. A grant on the
+real date reads the email as stored.
 """
 
 from datetime import datetime
@@ -61,11 +63,11 @@ def test_a_quote_on_the_date_line_lands_on_the_stored_date_header():
     date_line = "Date: Sun, 01 Mar 2026 12:00:00 +0000"
     c = resolve_citation("Sun, 01 Mar 2026", [_cite(sent, date_line)], [opened.document])
     loc = c["location"]
-    assert (
-        STORED[loc["start_char_index"] : loc["end_char_index"]]
-        == "Date: Sat, 21 Feb 2026 09:30:00 -0800"
-    )
-    assert c["passage"] == "Date: Sat, 21 Feb 2026 09:30:00 -0800"
+    # The whole stored Date header, through its line ending: stored_range maps an end inside
+    # the replaced header to the stored header's end.
+    stored_date = STORED[loc["start_char_index"] : loc["end_char_index"]]
+    assert stored_date == "Date: Sat, 21 Feb 2026 09:30:00 -0800\n"
+    assert c["passage"] == stored_date
 
 
 def test_a_quote_after_the_date_line_lands_on_the_right_stored_bytes():
@@ -76,16 +78,18 @@ def test_a_quote_after_the_date_line_lands_on_the_right_stored_bytes():
     opened = open_file(SAMPLE_EMAIL, stored.encode(), reading_now(_inputs(True), SAMPLE_EMAIL))
     assert opened.document is not None
     sent = _sent(opened)
-    assert len(stored) - len(sent) == len(" (PST)")
+    assert "Message-ID" not in sent  # dropped from the reading text, still in the stored file
+    assert len(sent) < len(stored)
     date_line = "Date: Sun, 01 Mar 2026 12:00:00 +0000"
     c = resolve_citation("Sun, 01 Mar 2026", [_cite(sent, date_line)], [opened.document])
     loc = c["location"]
     assert stored[loc["start_char_index"] : loc["end_char_index"]] == (
-        "Date: Sat, 21 Feb 2026 09:30:00 -0800 (PST)"
+        "Date: Sat, 21 Feb 2026 09:30:00 -0800 (PST)\n"
     )
     for chunk, value in [
         ("Total: $2,180.00", "$2,180.00"),
-        ("Message-ID: <synthetic-0001@university.example>", "synthetic-0001@university.example"),
+        # A kept header after the replaced Date and the dropped Message-ID line.
+        ("Content-Type: text/plain; charset=utf-8", "text/plain"),
     ]:
         c = resolve_citation(value, [_cite(sent, chunk)], [opened.document])
         loc = c["location"]
@@ -116,3 +120,16 @@ def test_only_an_email_is_read_with_the_grants_now():
     opened = open_file(invoice, stored, GRANT_NOW)
     assert opened.document is not None and opened.document.reading is None
     assert _sent(opened) == stored.decode()
+
+
+def test_a_quote_that_ends_at_a_kept_line_doesnt_take_in_the_dropped_header_after_it():
+    """stored_range maps the end from the last character covered: a range ending right after
+    the Date line ends there in the stored file, not after the dropped Message-ID line."""
+    opened = open_file(SAMPLE_EMAIL, STORED.encode(), reading_now(_inputs(True), SAMPLE_EMAIL))
+    assert opened.document is not None and opened.document.reading is not None
+    sent = _sent(opened)
+    start = sent.index("Subject:")
+    end = sent.index("Date:") + len("Date: Sun, 01 Mar 2026 12:00:00 +0000\n")
+    stored_start, stored_end = opened.document.reading.stored_range(start, end)
+    assert "Message-ID" not in STORED[stored_start:stored_end]
+    assert STORED[stored_start:stored_end].endswith("Date: Sat, 21 Feb 2026 09:30:00 -0800\n")
