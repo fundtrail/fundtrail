@@ -216,6 +216,18 @@ def test_older_answer_rests_on_a_quoted_dated_older_wording(rulebook: Rulebook) 
         assert quotes, f"{rule.id} answers from an older wording but doesn't quote it"
 
 
+def test_every_pappg_edition_a_rule_names_is_cited(rulebook: Rulebook) -> None:
+    """A rule that names a PAPPG edition, such as NSF 19-1, cites that edition as a source."""
+    for rule in rulebook.rules:
+        text = " ".join(rule.text)
+        named: set[str] = set()
+        for group in re.findall(r"NSF ((?:\d\d-1(?:, | and | or )?)+)", text):
+            named.update(re.findall(r"\d\d-1", group))
+        sources = " ".join(rule.lines("- Source:") + rule.lines("- Older source:"))
+        missing = sorted(e for e in named if f"PAPPG {e}" not in sources)
+        assert not missing, f"{rule.id} names PAPPG editions it doesn't cite: {missing}"
+
+
 def test_every_quote_is_quoted_and_attributed(rulebook: Rulebook) -> None:
     for rule in rulebook.rules:
         for line in rule.lines("- Quote:"):
