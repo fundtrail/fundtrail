@@ -147,3 +147,13 @@ def test_skipping_the_human_steps_and_the_run_through():
     assert live.on_run_through is None  # a sample read live
     prerun = TimelineView(now=now, finished=False, catching_up=False, on_run_through=True)
     assert prerun.on_run_through is True
+
+
+def test_a_played_delivery_says_whether_the_sample_accountant_delivered_it():
+    """Ruling 52: false by default, so a user's own delivery reads as the user's."""
+    delivery = TimelineEvent(
+        id="d1", at=at(1), kind=TimelineEventKind.USER_DELIVERY, name="Signed quote"
+    )
+    assert PlayedEvent(event=delivery).delivered_by_sample_accountant is False
+    skipped = PlayedEvent(event=delivery, delivered_by_sample_accountant=True)
+    assert PlayedEvent.model_validate_json(skipped.model_dump_json()) == skipped
