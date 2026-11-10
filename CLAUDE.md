@@ -73,4 +73,35 @@ This is the target layout, one repo with no monorepo tool. None of it is built y
 
 ## Running things
 
-Nothing runs yet. The repo holds only the docs. This section gets the backend, frontend and test commands once there's code to run.
+Tools: uv and Python 3.12, Node 24 and pnpm, Docker for the local Supabase stack. Copy `.env.example` to `.env` at the repo root and fill it in when a part needs a key; the checks below need none.
+
+Backend, from `backend/`:
+
+```
+uv sync                   # install
+uv run fastapi dev        # start on http://localhost:8000 (GET /health)
+uv run ruff check         # lint
+uv run ruff format        # format (CI runs ruff format --check)
+uv run pyright            # type check
+uv run pytest             # tests
+```
+
+Frontend, from `frontend/`:
+
+```
+pnpm install              # install
+pnpm dev                  # start on http://localhost:3000
+pnpm lint                 # ESLint
+pnpm typecheck            # TypeScript, no output files
+pnpm build                # production build
+```
+
+Database, from the repo root:
+
+```
+npx supabase start        # local Supabase in Docker; prints the local URLs and keys
+npx supabase db reset     # rebuild from supabase/migrations/ and supabase/seed.sql
+npx supabase stop         # stop it
+```
+
+Continuous integration (CI) in `.github/workflows/ci.yml` runs the backend and frontend checks above on every pull request and on every push to main.
