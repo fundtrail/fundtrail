@@ -259,7 +259,8 @@ def test_the_script_keeps_every_reference(tmp_path: Path) -> None:
         ),
         # Ruling 51: the seed's own rules.
         ({**SCRIPT[2], "answer": "yes"}, "an answer is one of"),
-        ({**SCRIPT[1], "suggestion": "bill"}, "suggestion 'bill' isn't one of"),
+        # The kinds print as plain values, not enum reprs.
+        ({**SCRIPT[1], "suggestion": "bill"}, r"'bill' isn't one of \['checklist_removal', 'corr"),
         ({**SCRIPT[1], "suggestion": "confirmation"}, "isn't one of"),
         ({**SCRIPT[2], "line_id": "L-0000-0000"}, "has no line L-0000-0000"),
         ({**SCRIPT[1], "line_id": None, "file": "nope.txt"}, "isn't on the timeline"),
@@ -298,6 +299,16 @@ def test_a_step_on_a_users_file_comes_after_the_script_brings_it_in(tmp_path: Pa
     assert len(load_folder(write_pack(tmp_path / "s", actions=[bring, confirm])).actions) == 2
     with pytest.raises(PackError, match="before receipt_R-3.txt arrives"):
         load_folder(write_pack(tmp_path / "t", actions=[bring, {**confirm, "at": bring["at"]}]))
+
+
+def test_refuses_a_ledger_line_before_its_posting_date(tmp_path: Path) -> None:
+    # L-9001-0002 posts on Nov 24.
+    early = {"at": "2026-11-20T00:00:00Z", "kind": "ledger_line", "line_id": "L-9001-0002"}
+    with pytest.raises(PackError, match="before its posting date"):
+        load_folder(write_pack(tmp_path / "s", events=[EVENTS[0], early], actions=[]))
+    on_time = {**early, "at": "2026-11-24T00:00:00Z"}
+    pack = load_folder(write_pack(tmp_path / "t", events=[EVENTS[0], on_time], actions=[]))
+    assert [e.name for e in pack.events] == ["award_letter.txt", "L-9001-0002"]
 
 
 def test_suggestion_kinds_are_record_kinds() -> None:

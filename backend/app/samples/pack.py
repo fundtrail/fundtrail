@@ -161,11 +161,7 @@ class SamplePack:
         """An email file's Message-ID header, without its angle brackets, if it has one."""
         if not name.lower().endswith(".eml"):
             return None
-        headers = BytesParser(policy=policy.default).parsebytes(
-            self.file_bytes(name), headersonly=True
-        )
-        value = str(headers.get("Message-ID") or "").strip().strip("<>").strip()
-        return value or None
+        return message_id_of(self.file_bytes(name))
 
     def sha256(self, name: str) -> str:
         return self._hashes[name] if name in self._hashes else _sha256(self.file_bytes(name))
@@ -211,6 +207,13 @@ def event_id(kind: EventKind, name: str) -> str:
     key = "line" if kind is EventKind.LEDGER_LINE else kind.value
     digest = hashlib.sha256(f"{key}/{name}".encode()).hexdigest()[:16]
     return f"{key}-{digest}"
+
+
+def message_id_of(raw: bytes) -> str | None:
+    """An email's Message-ID header, without its angle brackets, if it has one."""
+    headers = BytesParser(policy=policy.default).parsebytes(raw, headersonly=True)
+    value = str(headers.get("Message-ID") or "").strip().strip("<>").strip()
+    return value or None
 
 
 def _sha256(data: bytes) -> str:
@@ -314,7 +317,7 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
         if raw["suggestion"] not in SUGGESTION_KINDS:
             raise PackError(
                 f"{where}: suggestion {raw['suggestion']!r} isn't one of "
-                f"{sorted(SUGGESTION_KINDS)}."
+                f"{sorted(k.value for k in SUGGESTION_KINDS)}."
             )
     if action == "answer_flag" and raw["answer"] not in ANSWERS:
         raise PackError(f"{where}: an answer is one of {sorted(ANSWERS)}.")
@@ -397,9 +400,28 @@ def _check(pack: SamplePack, where: str) -> None:
         if e.name in seen_files:
             raise PackError(f"{where}: {e.name} is scheduled twice.")
         seen_files.add(e.name)
+    posted = _posting_midnights(pack)
+    for e in pack.events:
+        if e.kind is EventKind.LEDGER_LINE and e.at < posted[e.name]:
+            raise PackError(f"{where}: line {e.name} arrives before its posting date.")
     if seen_lines and any(e.kind is EventKind.LEDGER for e in pack.events):
         raise PackError(f"{where}: a timeline has a ledger event or ledger_line events, not both.")
     _check_script(pack, where)
+
+
+def _posting_midnights(pack: SamplePack) -> dict[str, datetime]:
+    """00:00 UTC on each ledger line's posting date: the earliest it can arrive."""
+    header, rows = pack._ledger_rows  # pyright: ignore[reportPrivateUsage]
+    if "posting_date" not in header:
+        raise PackError(f"{pack.files_folder}: {LEDGER_FILE} has no posting_date header.")
+    column = header.index("posting_date")
+    out: dict[str, datetime] = {}
+    for line_id, row in rows.items():
+        try:
+            out[line_id] = datetime.combine(date.fromisoformat(row[column]), time(), tzinfo=UTC)
+        except (IndexError, ValueError) as error:
+            raise PackError(f"{pack.files_folder}: {line_id} has no posting date.") from error
+    return out
 
 
 def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
@@ -408,15 +430,7 @@ def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
     out = {e.name: e.at for e in pack.events if e.kind is EventKind.LEDGER_LINE}
     ledger = next((e for e in pack.events if e.kind is EventKind.LEDGER), None)
     if ledger is not None:
-        header, rows = pack._ledger_rows  # pyright: ignore[reportPrivateUsage]
-        if "posting_date" not in header:
-            raise PackError(f"{pack.files_folder}: {LEDGER_FILE} has no posting_date header.")
-        column = header.index("posting_date")
-        for line_id, row in rows.items():
-            try:
-                posting = datetime.combine(date.fromisoformat(row[column]), time(), tzinfo=UTC)
-            except (IndexError, ValueError) as error:
-                raise PackError(f"{pack.files_folder}: {line_id} has no posting date.") from error
+        for line_id, posting in _posting_midnights(pack).items():
             out[line_id] = max(posting, ledger.at)
     return out
 
