@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime
 
 from app.contracts.checks import Bucket, ChecksOutput
+from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 
 from .grant_builder import STIPENDS, Grant, at, problems
@@ -145,18 +146,58 @@ def test_an_accepted_record_problem_leaves_the_list() -> None:
     )
     (status,) = g.run(at(2024, 3, 4)).records
     assert status.accepted and not status.flagged
+    assert status.problems[0].accepted_by is not None
 
 
-def _failed(trigger: Trigger) -> AgentRun:
+def test_skipped_files_are_one_problem_on_the_grant_naming_them() -> None:
+    g = Grant()
+    g.standard_terms()
+    when = at(2024, 3, 1)
+    g.skipped_files = [
+        SkippedFile(
+            workspace_id="w",
+            grant_id="g1",
+            name="scan.pdf",
+            source="gmail",
+            source_ref="m-1",
+            reason=SkipReason.TOO_LARGE,
+            skipped_at=when,
+        ),
+        SkippedFile(
+            workspace_id="w",
+            grant_id="g1",
+            name="Budget sheet",
+            source="drive",
+            source_ref="d-1",
+            reason=SkipReason.NOT_EXPORTABLE,
+            skipped_at=when,
+        ),
+    ]
+    out = g.run(at(2024, 3, 2))
+    assert grant_problems(out) == {"skipped"}
+    assert out.grants[0].problems[0].text == (
+        "These files weren't taken in: scan.pdf (too large); "
+        "Budget sheet (couldn't be exported to a PDF)."
+    )
+
+
+def _failed(
+    trigger: Trigger,
+    run_id: str = "run-1",
+    thread_charge_id: str | None = None,
+    thread_record_id: str | None = None,
+) -> AgentRun:
     t = datetime(2024, 3, 1, tzinfo=UTC)
     return AgentRun(
-        id="run-1",
+        id=run_id,
         workspace_id="w",
         grant_id="g1",
         trigger=trigger,
         status=RunStatus.FAILED,
         clock_now=t,
         queued_at=t,
+        thread_charge_id=thread_charge_id,
+        thread_record_id=thread_record_id,
     )
 
 
@@ -243,6 +284,28 @@ def test_a_parent_line_and_its_sub_lines_count_the_budget_once() -> None:
     ]
 
 
+def test_two_notices_add_up_even_when_they_share_a_date() -> None:
+    """Lines belong to the notice whose file they're read from, not to a date."""
+    g = Grant()
+    g.standard_terms()  # the award letter: Participant Support Costs, $20,000
+    g.file("f-increment", at(2023, 6, 1))
+    more = g.budget_line(
+        "Participant Support Costs",
+        1_000_000,
+        "participant_support",
+        at(2023, 6, 1),
+        dated=date(2023, 1, 10),  # the same date as the award letter
+        f="f-increment",
+    )
+    g.confirm(more, when=at(2023, 6, 1, 13))
+    assert _stipend_overspend(g, more) == []  # $25,000 of $30,000 isn't overspent
+    g.charge("stip2", date(2024, 3, 2), 600_000, account=STIPENDS, vendor=None)
+    g.assign("stip2", more, at(2024, 3, 2))
+    assert [n.text for n in g.run(at(2024, 3, 3)).notes] == [
+        "Participant Support Costs: $31,000.00 of $30,000.00"
+    ]
+
+
 def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
     g = Grant()
     when = at(2023, 1, 12, 15)
@@ -254,13 +317,28 @@ def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
     ]
 
 
-def test_a_failed_thread_message_run_waits_on_the_grant() -> None:
-    """Until #39 gives the run its thread's subject."""
+def test_a_failed_thread_message_run_goes_on_its_threads_charge_or_record() -> None:
     g = Grant()
-    g.standard_terms()
-    g.failed_runs = [_failed(Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1"))]
+    t = g.standard_terms()
+    g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
+    message = Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1")
+    g.failed_runs = [
+        _failed(message, "run-1", thread_charge_id="c1"),
+        _failed(message, "run-2", thread_record_id=t["period"]),
+    ]
     out = g.run(at(2024, 3, 2))
-    assert grant_problems(out) == {"failed:run-1"}
-    assert out.grants[0].problems[0].text == (
-        "The agent couldn't finish answering a message in a thread."
-    )
+    assert out.grants == ()
+    status = out.charges[0]
+    assert problems(status) == {("agent_run", "failed:run-1")}
+    assert status.bucket == Bucket.NEEDS_HUMAN and status.flagged
+    assert record_problems(out) == {t["period"]: {"failed:run-2"}}
+
+
+def test_a_failed_open_question_run_goes_on_the_charge_whose_question_is_open() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
+    g.failed_runs = [_failed(Trigger(kind=TriggerKind.OPEN_QUESTION, id="c1"))]
+    out = g.run(at(2024, 3, 2))
+    assert problems(out.charges[0]) == {("agent_run", "failed:run-1")}
+    assert out.records == () and out.grants == ()

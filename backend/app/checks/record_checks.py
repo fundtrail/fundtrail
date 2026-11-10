@@ -261,25 +261,33 @@ def record_problems(
         )
 
     for run in failed_runs:
-        # A charge's run is on the charge, and the clock's on the grant. A thread
-        # message's run waits on the grant (grant_checks.py) until the run carries
-        # its thread's subject (#39); then it moves here, onto that record.
+        # A charge's run is a reason on the charge (charge_checks.py), and the
+        # clock's is on the grant (grant_checks.py). Here: a file's or a record's run,
+        # a thread run on the record its thread is about, and an open question's run
+        # on the record whose question is open.
+        kind = run.trigger.kind
         subject: Subject | None = None
-        if run.trigger.kind == TriggerKind.FILE and run.trigger.id in view.files:
+        text = "The agent couldn't finish reading this."
+        record_id: str | None = None
+        if kind == TriggerKind.FILE and run.trigger.id in view.files:
             subject = Subject(file_id=run.trigger.id)
-        elif run.trigger.kind == TriggerKind.RECORD and run.trigger.id in view.state.by_id:
-            if view.state.by_id[run.trigger.id].grant_id == view.grant_id:
-                subject = Subject(record_id=run.trigger.id)
+        elif kind == TriggerKind.RECORD:
+            record_id = run.trigger.id
+        elif kind == TriggerKind.THREAD_MESSAGE and run.thread_record_id is not None:
+            record_id = run.thread_record_id
+            text = "The agent couldn't finish answering a message in this record's thread."
+        elif kind == TriggerKind.OPEN_QUESTION:
+            record_id = run.trigger.id
+            text = "The agent couldn't finish answering an open question on this record."
+        if record_id is not None:
+            found = view.state.by_id.get(record_id)
+            if found is not None and found.grant_id == view.grant_id:
+                subject = Subject(record_id=record_id)
         if subject is not None:
             out.append(
                 SubjectFinding(
                     subject,
-                    Finding(
-                        AGENT_RUN,
-                        f"failed:{run.id}",
-                        Bucket.NEEDS_HUMAN,
-                        "The agent couldn't finish reading this.",
-                    ),
+                    Finding(AGENT_RUN, f"failed:{run.id}", Bucket.NEEDS_HUMAN, text),
                 )
             )
     return out

@@ -7,9 +7,16 @@ yet"). Provisional rule:
 1. applies_to is compared with the names of the grant's budget lines, then with
    NSF's own category names, after dropping case, punctuation, a leading line
    letter ("F. ") and a trailing "Costs". It has to name exactly one category.
-2. A rule applies when either side says so (contracts.md section 2): the
-   assigned line is the rule's category or sits inside it, or one of the ledger
-   account's categories is the rule's category or sits inside it.
+2. Which charges a rule applies to depends on its scope (39-rulings.md item 8):
+   - `every_charge`: when either side says so (contracts.md section 2): the
+     assigned line is the rule's category or sits inside it, or one of the
+     ledger account's categories is the rule's category or sits inside it.
+   - `moved_out`: only when the ledger files the charge under the rule's
+     category and its assigned line, confirmed, is somewhere else, such as a
+     laptop on a participant support account. A charge both sides agree is in
+     the category isn't covered, so an ordinary stipend needs no approval.
+   - No scope (the clause doesn't say clearly, and the agent flags the term):
+     `every_charge`, the side that asks for more approvals.
 3. A confirmed rule that names no category code can recognize can't be applied
    safely, so every charge on the grant gets a Needs a human reason for it.
 """
@@ -24,6 +31,7 @@ from app.contracts.charges import Charge
 from app.contracts.records import (
     CATEGORY_PARENT,
     ApprovalRule,
+    ApprovalScope,
     BudgetCategory,
     BudgetLine,
     Record,
@@ -66,14 +74,28 @@ def _within(category: BudgetCategory, rule_category: BudgetCategory) -> bool:
     return category == rule_category or CATEGORY_PARENT.get(category) == rule_category
 
 
-def rule_applies(view: GrantView, charge: Charge, category: BudgetCategory) -> bool:
+def _scope(rule: Record) -> ApprovalScope:
+    assert isinstance(rule.data, ApprovalRule)
+    scope = rule.data.scope
+    return scope.value if scope is not None else ApprovalScope.EVERY_CHARGE
+
+
+def rule_applies(
+    view: GrantView,
+    charge: Charge,
+    category: BudgetCategory,
+    scope: ApprovalScope = ApprovalScope.EVERY_CHARGE,
+) -> bool:
     assigned = view.assigned_line(charge.id)
+    line_category: BudgetCategory | None = None
     if assigned is not None and assigned[1] is not None:
         line = assigned[1].data
         assert isinstance(line, BudgetLine)
-        if _within(line.category, category):
-            return True
-    return any(_within(c, category) for c in categories(charge.account))
+        line_category = line.category
+    filed_under = any(_within(c, category) for c in categories(charge.account))
+    if scope == ApprovalScope.MOVED_OUT:
+        return filed_under and line_category is not None and not _within(line_category, category)
+    return filed_under or (line_category is not None and _within(line_category, category))
 
 
 @dataclass(frozen=True)
@@ -90,7 +112,7 @@ def rules_for(view: GrantView, charge: Charge) -> RulesForCharge:
         category = rule_category(view, rule)
         if category is None:
             unmatched.append(rule)
-        elif rule_applies(view, charge, category):
+        elif rule_applies(view, charge, category, _scope(rule)):
             applying.append(rule)
     waiting: list[Record] = []
     for rule in view.waiting_terms:
@@ -99,6 +121,6 @@ def rules_for(view: GrantView, charge: Charge) -> RulesForCharge:
         if rule.replaces_id is not None and view.state.is_current(rule.replaces_id):
             continue  # a correction waits, and the older confirmed rule stays in force
         category = rule_category(view, rule)
-        if category is not None and rule_applies(view, charge, category):
+        if category is not None and rule_applies(view, charge, category, _scope(rule)):
             waiting.append(rule)
     return RulesForCharge(applying, unmatched, waiting)

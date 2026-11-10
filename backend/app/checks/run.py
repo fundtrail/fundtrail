@@ -41,13 +41,18 @@ def _reason(m: Marked) -> Reason:
         expected_by=f.expected_by,
         accepted_by=m.accepted_by,
         offered_note_id=m.offered_note_id,
+        dispute_id=f.dispute_id,
     )
 
 
 def _problem(m: Marked) -> Problem:
     f = m.finding
     return Problem(
-        check=f.check, problem=f.problem, text=f.text, record_ids=tuple(dict.fromkeys(f.record_ids))
+        check=f.check,
+        problem=f.problem,
+        text=f.text,
+        record_ids=tuple(dict.fromkeys(f.record_ids)),
+        accepted_by=m.accepted_by,
     )
 
 
@@ -64,6 +69,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
             [c.grant_id for c in ci.charges]
             + [f.grant_id for f in ci.files]
             + [r.grant_id for r in ci.records]
+            + [s.grant_id for s in ci.skipped_files]
         )
     )
     views = {g: GrantView(g, state, ci.charges, ci.files) for g in grant_ids}
@@ -127,7 +133,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
                     snoozed=snoozed,
                 )
             )
-        found = grant_problems(view, ci.failed_runs)
+        found = grant_problems(view, ci.failed_runs, ci.skipped_files)
         if found:
             key = SubjectKey()
             marked = dec.mark_other(key, found)

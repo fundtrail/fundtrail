@@ -9,7 +9,9 @@ from app.checks.run import run_checks
 from app.checks.view import period_in_force
 from app.contracts.checks import Bucket, ChecksInput, ChecksOutput
 from app.contracts.fixtures import load_sample_grant
+from app.contracts.records import Author, Record
 from app.contracts.rules import check_new_record
+from app.contracts.runs import Trigger, TriggerKind
 
 NOV_14 = datetime(2025, 11, 14, 12, tzinfo=UTC)
 FEB_24 = datetime(2026, 2, 24, 12, tzinfo=UTC)
@@ -97,15 +99,37 @@ def test_the_waiting_extension_is_a_problem_on_its_record_until_confirmed() -> N
     assert run_at(APR_10).records == ()
 
 
+def _run_trigger(record: Record) -> Trigger | None:
+    """The trigger of the agent run that wrote a sample record: what arrived at that moment.
+
+    None for the accountant's records, which no run writes.
+    """
+    s = load_sample_grant()
+    if record.author != Author.AGENT:
+        return None
+    for f in s.files:
+        if f.arrived_at == record.written_at:
+            return Trigger(kind=TriggerKind.FILE, id=f.id)
+    for c in s.charges:
+        if c.arrived_at == record.written_at:
+            return Trigger(kind=TriggerKind.CHARGE, id=c.id)
+    raise AssertionError(f"nothing arrived when {record.id} was written")
+
+
 def test_default_items_satisfy_the_write_check_for_every_sample_record() -> None:
     s = load_sample_grant()
     for i, record in enumerate(s.records):
         visible = [f for f in s.files if f.arrived_at <= record.written_at]
         charges = [c for c in s.charges if c.arrived_at <= record.written_at]
-        assert (
-            check_new_record(record, s.records[:i], charges, visible, default_items=default_items)
-            == []
+        found = check_new_record(
+            record,
+            s.records[:i],
+            charges,
+            visible,
+            default_items=default_items,
+            trigger=_run_trigger(record),
         )
+        assert found == []
 
 
 def test_default_items_match_the_samples_stand_in() -> None:

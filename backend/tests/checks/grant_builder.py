@@ -12,6 +12,7 @@ from app.checks.run import run_checks
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus, ChecksInput, ChecksOutput, Reason
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import SkippedFile
 from app.contracts.records import Record
 from app.contracts.runs import AgentRun
 
@@ -59,6 +60,7 @@ class Grant:
         self.files: list[EvidenceFile] = []
         self.charges: list[Charge] = []
         self.failed_runs: list[AgentRun] = []
+        self.skipped_files: list[SkippedFile] = []
         self._n = 0
         self.file("f-letter", at(2023, 1, 12))
 
@@ -173,14 +175,20 @@ class Grant:
         return self.agent(data, when)
 
     def budget_line(
-        self, name: str, amount: int, category: str, when: datetime, dated: date = date(2023, 1, 10)
+        self,
+        name: str,
+        amount: int,
+        category: str,
+        when: datetime,
+        dated: date = date(2023, 1, 10),
+        f: str = "f-letter",
     ) -> str:
         return self.agent(
             {
                 "kind": "budget_line",
-                "dated": cited(dated),
-                "name": cited(name),
-                "amount": cited(amount, f"${amount // 100:,}"),
+                "dated": cited(dated, file_id=f),
+                "name": cited(name, file_id=f),
+                "amount": cited(amount, f"${amount // 100:,}", f),
                 "category": category,
             },
             when,
@@ -214,8 +222,12 @@ class Grant:
         }
         if channel:
             data["channel"] = cited(channel)
-        if scope is not None:  # every_charge or moved_out, once #39 adds it
-            data["scope"] = scope
+        if scope is not None:  # every_charge or moved_out, a CitedScope from the clause
+            words = {
+                "moved_out": "may not be diverted to other categories of expense",
+                "every_charge": "requires the prior approval of",
+            }
+            data["scope"] = cited(scope, words[scope])
         return self.agent(data, when)
 
     def notice(
@@ -411,6 +423,7 @@ class Grant:
                 files=tuple(f for f in self.files if f.arrived_at <= now),
                 records=tuple(r for r in self.records if r.written_at <= now),
                 failed_runs=tuple(self.failed_runs),
+                skipped_files=tuple(self.skipped_files),
             )
         )
 
