@@ -14,9 +14,51 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
 
-A file event marked `"deliver": "user"` is one the user is expected to bring in. Its time is its date: from then it waits under the timeline's Now until the user delivers it, and the clock never delivers it (ruling 44). The full description of the samples, the timeline and the two plays comes with the static checks (issue 165, step 2).
+## The two samples
 
-## The grants
+| Sample | From | Its clock | Lines | Files |
+|---|---|---|---|---|
+| `salt-marsh-carbon` (larger) | Grant A, SYN-2401835, Feb 1, 2024 to Jan 31, 2027 | Starts with its award letter, 2024-01-18T17:00Z, and runs into its 90-day closeout window and past its end date. | 65 | 45 |
+| `nitrate-sensors` (small) | SYN-2511958, Sep 1, 2025 to Aug 31, 2028 | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
+
+There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
+
+The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`, marked `"placeholder": true` until the docs give the words.
+
+## The timeline
+
+`timeline.json` holds scheduled events only, in time order. Each sample has its own simulated "now", and every file arrives at that "now", with its own date as written. No scheduled event depends on what the user does. Its event kinds:
+
+| Kind | What arrives | When |
+|---|---|---|
+| `file` | One document, with its `source` (`upload`, `gmail` or `drive`) and, for Gmail, its sender | At its `at` |
+| `ledger` | The whole ledger file | At its `at`. Each line arrives at the later of that and 00:00 UTC on its posting date (decision 0023). The small sample uses it. |
+| `ledger_line` | One seeded ledger line | At 00:00 UTC on its posting date. The larger sample uses these. |
+
+**Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is its date. From then it waits under the timeline's Now, with Get the file and Deliver for me, until the user delivers it. The clock never delivers it (ruling 44). The small sample marks three, dated 2026-11-18T17:00Z: `hardware_receipt.jpg`, `email_invoice_ESS-32410.eml` and `invoice_EES-7420.pdf`. The larger sample marks none.
+
+## The accountant script and the two plays
+
+`user_actions.json` is the answer key's accountant script (ruling 47): every accountant step the key assumes, and no more, each with its time. When the user skips the human steps, the workspace's sample accountant performs these as the clock passes each one. A scripted step whose target isn't there, because the live agent did otherwise, is left for the user. Confirming terms is always a person's decision, so it lives here and never in a timeline.
+
+Each step names its target by stable references: a ledger line ID, a file name, a record kind, and the expected decision or values. It never uses a record ID.
+
+| Action | Fields besides `at` and an optional `note` | In the samples |
+|---|---|---|
+| `confirm_terms` | `file` | The award letter, in both samples |
+| `deliver_file` | `file`, a file marked for the user, delivered by upload on or after its date, so its date stays as written | The small sample's three marked files, each on its date |
+| `decide_suggestion` | `suggestion` (the record kind suggested, such as `checklist_removal`, `dispute`, `duplicate` or `link`), `decision` (`accept` or `reject`), and a `line_id` or a `file` | None: neither key rests on one |
+| `answer_flag` | `line_id`, `answer` | None: neither key expects a flag |
+| `enter_share` | `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021) | None: the larger sample's key expects S3c to stay Needs a human |
+
+Two plays use these files. Both are W4's, in `backend/tests/samples/`:
+
+- **Doing nothing.** No user action. Every scheduled event plays through to the end without an error. Charges are expected to wait, so no bucket is asserted.
+- **Doing everything expected.** Every scripted step, at its time. Then the key's buckets hold at the key's times. A checks-only version runs in CI, on hand-written agent records (`agent_records.json`, a later step). The live-agent version runs on demand, like the eval.
+
+## The seed grants
+
+Grants B and C stay in `data/demo/` in the same format, unused until the samples' content is decided. Every seed grant, A included:
 
 | Folder | Award | Period | Where the story is | Lines | Files |
 |---|---|---|---|---|---|
@@ -28,22 +70,22 @@ Each grant has an award letter laid out like a real NSF award notice ([domain.md
 
 ## The situations
 
-From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples). Each charge's `note` in `arrivals.json` names its situation.
+From [product.md, "Demo data (examples)"](../docs/product.md#demo-data-examples). Each charge's `note` in its `timeline.json` names its situation. Only S3a and S3c are on the larger sample. The small sample's two later lines, whose invoices are already on file, tell S4's story too.
 
 | Situation | Grant | What happens | Expected bucket |
 |---|---|---|---|
 | S1. The professor's own conference fee on participant support | B | A $650 registration for the principal investigator (PI) posts to 56714 Participant Support-Other on March 17, 2026. On November 24, the PI forwards her own March email saying "Approved". | Possible conflict at both times. The Allowable answer is contradicts, because the person paid is named on the grant, and the approval comes from the wrong person through the wrong channel. |
-| S2. Work after the end date, then an extension | C | $3,150 of boat time in September 2026 posts on October 6, after the award letter's end date. On November 20 the no-cost extension, dated August 14, 2026, 17 days before the old end date, turns up in Drive. The accountant confirms it on November 23. | Possible conflict, still Possible conflict after the notice arrives, then Evidence complete after the confirmation. The grant's other lines dated after August 31 follow the same path. |
+| S2. Work after the end date, then an extension | C | $3,150 of boat time in September 2026 posts on October 6, after the award letter's end date. On November 20 the no-cost extension, dated August 14, 2026, 17 days before the old end date, turns up in Drive. In the key's play, the user confirms it on November 23. | Possible conflict, still Possible conflict after the notice arrives, then Evidence complete after the confirmation. The grant's other lines dated after August 31 follow the same path. |
 | S3a. A shared cost, split on an email's basis | A and B | A $10,000 invoice for one 96-reaction kit. Harper Fixture, PI on A and co-PI on B, emails that 56 of the 96 samples are for Grant A and 40 for Grant B. A is charged $5,833.33 and B $4,166.67. Each grant holds its own copy of the invoice and the email. | Evidence complete on both, with the invoice and the email linked |
 | S3b. A shared cost, split on the invoice's own lines | B and C | One $2,430 invoice itemized by award: $1,450 for C and $980 for B | Evidence complete on both |
 | S3c. A shared cost with nothing that gives the basis | A and C | A $1,500 invoice that names both awards. A is charged $900 and C $600, and nothing on file says why. | Needs a human on both ([0021](../docs/decisions/0021-a-cost-shared-by-two-grants.md)) |
 | Participant support money moved out | B | $1,172.00 of lab reagents posts to 56714 Participant Support-Other on September 22, 2026. The agent assigns it to Materials and Supplies, so money leaves participant support, and no approval is on file. This exercises the award letter's approval rule. | Needs a human: the ledger's account disagrees with the budget line, and the Program Officer's approval is missing |
 | S4. A bill before its ledger line | B | An invoice arrives by email on November 19. Its ledger line posts on December 2. | Evidence complete once the line arrives |
-| A grant from scratch | Pack | See [from-scratch/README.md](from-scratch/README.md) | Evidence complete on every line |
+| The small sample | `nitrate-sensors` | Its award letter, then its ledger, then its evidence. Three files wait for the user from their date. Two lines post later, with their invoices already on file. | Evidence complete on every line once its evidence is on file. The hardware store line is Missing evidence until its photo arrives. |
 
 ## The answer keys
 
-Each key follows [contracts.md section 14](../docs/contracts.md#14-eval-answer-key) and the eval cases in `eval/cases/`. Ordinary charges get a bucket when their line arrives and again after each file or confirmation that changes it. A salary line stays Missing evidence until the effort report for its half year arrives, which is after that half year ends.
+Each key follows [contracts.md section 14](../docs/contracts.md#14-eval-answer-key) and the eval cases in `eval/cases/`, and its times assume the play in `user_actions.json`. Ordinary charges get a bucket when their line arrives and again after each file or confirmation that changes it. A salary line stays Missing evidence until the effort report for its half year arrives, which is after that half year ends.
 
 **Participant support.** Grant B's award letter says participant support funds can't be moved to other categories without the Program Officer's prior written approval. Following the main coordinator's provisional ruling, that rule applies only to a charge that moves money out of participant support, and the key marks it with `scope: "moved_out"` on the `approval_rule` record (the field the contracts are adding in issue 39, whose other value is `every_charge`). So the workshop's eight stipends, each paid to a participant with its participant list and payment record on file, are Evidence complete with no approval item. The reagents filed on participant support but assigned to Materials and Supplies are the one charge that moves money out, and they wait for a human.
 
@@ -61,7 +103,7 @@ Where an expected result depends on something the docs and the provisional decis
 
 ## Choices the docs left to the builder
 
-- The seed is laid out like the eval cases, so the eval's runner can score it.
+- Each sample is laid out like an eval case, with `timeline.json` and `user_actions.json` in place of the eval's `arrivals.json`.
 - Ledger line IDs are `L-<last four digits of the award>-<sequence>`, unique in the workspace (contracts.md section 6).
 - Every Gmail arrival comes from a person named on its grant, forwarding what a vendor sent. How mail from unknown senders is held is still open.
 - Emails carry no attachments: a forwarded invoice is in the email's body.
@@ -70,7 +112,7 @@ Where an expected result depends on something the docs and the provisional decis
 - Award letters dated before May 20, 2024 name the policy guide in force then, NSF 23-1. Later ones name NSF 24-1.
 - Airports and cities in the travel documents are made up, such as "EXC" for Example City.
 
-The grants, people, amounts and dates are this build's picks. Demo data specifics are the product owner's to settle ([product.md](../docs/product.md#not-decided-yet)), so all of it is open to change in `generator/demo.py`.
+The grants, people, amounts and dates are this build's picks, and the samples use them as placeholders. The samples' content is the product owner's to settle, so all of it is open to change in `generator/demo.py` and `generator/scratch.py`.
 
 ## Making it again
 
@@ -81,4 +123,4 @@ python3 data/test_seed.py
 
 The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, the synthetic-data rule, and what 0024 asks of the seed. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.

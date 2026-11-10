@@ -13,7 +13,7 @@ check with `CheckState.to_progress`.
 import asyncio
 import logging
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -21,6 +21,7 @@ from app.contracts.mail import CheckerProgress, DriveVersion, HoldReason, Skippe
 
 from .addresses import find_tag, grant_address
 from .authentication import GMAIL_AUTHSERV_ID, is_verified
+from .channel_times import sample_sent_date
 from .drive_files import DriveState, drive_file, files_to_take, version_of
 from .email_files import EmailParts, ParsedEmail, email_parts, parse_headers
 from .incoming import GrantRoute, IncomingFile, PendingHold, to_skipped_file
@@ -195,6 +196,13 @@ def _arrive_or_hold(
     held mail (0025), so a stranger can't put a problem on the grant.
     """
     files = parts.files
+    if route.channel_times_from_grant_now:
+        # A sample grant: the sent date stored with the message is the grant's "now",
+        # not the Date header's. The stored bytes stay as they arrived.
+        files = [
+            replace(f, document_date=sample_sent_date(at)) if f.parent_key is None else f
+            for f in files
+        ]
     skipped = [to_skipped_file(found, at) for found in parts.skipped]
     reason: HoldReason | None = None
     if parsed.sender is None:
