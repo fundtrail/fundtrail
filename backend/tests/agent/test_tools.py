@@ -7,7 +7,6 @@ from anthropic.types import CitationCharLocation
 
 from app.agent.citations import LabelLine
 from app.agent.context import REPEAT_LIMIT, RunContext
-from app.agent.inputs import batch_charge_ids
 from app.agent.rulebook import load_rulebook, parse_rulebook
 from app.agent.tools import run_tool, tool_definitions
 from app.contracts.fixtures import load_sample_grant
@@ -366,12 +365,6 @@ def test_bad_input_comes_back_as_a_tool_error():
     assert error and "doesn't fit" in result
     result, error = run_tool(ctx, "no_such_tool", {})
     assert error
-
-
-def test_charges_that_arrive_together_are_batched():
-    """Answer 8: one run, or batches on a large upload, each its own run."""
-    assert batch_charge_ids(["a", "b", "c"], 2) == [["a", "b"], ["c"]]
-    assert batch_charge_ids([f"c{i}" for i in range(5)]) == [[f"c{i}" for i in range(5)]]
 
 
 def test_the_rulebook_gives_each_rules_kind():

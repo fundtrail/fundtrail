@@ -310,7 +310,7 @@ def recheck_before_save(result: RunSaved, inputs: RunInputs) -> list[str]:
     return problems
 
 
-def run_agent(inputs: RunInputs, model: ModelClient | None = None) -> RunResult:
+def run_once(inputs: RunInputs, model: ModelClient | None = None) -> RunResult:
     """Run the agent once: the records to save, or a failure. Saving and queuing are W4's."""
     ctx = RunContext(inputs=inputs, rulebook=load_rulebook(inputs.funder))
     graph = build_graph(model or AnthropicModel())

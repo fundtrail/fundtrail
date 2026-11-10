@@ -7,7 +7,7 @@ import anthropic
 import httpx2
 import pytest
 
-from app.agent import RunFailed, RunSaved, run_agent
+from app.agent import RunFailed, RunSaved, run_once
 from app.agent.adapter import debug_log_path
 from app.agent.graph import MAX_GATE_RETURNS
 from app.agent.model import MODEL, AnthropicModel, ModelRequest
@@ -70,7 +70,7 @@ def test_a_run_ends_only_when_no_question_waits_for_the_agent():
             lambda r: calls(answer_l1001(), tool("finish", summary="Linked and answered.")),
         ]
     )
-    result = run_agent(charge_inputs(), model)
+    result = run_once(charge_inputs(), model)
     assert isinstance(result, RunSaved)
     assert [r.kind for r in result.records] == ["link", "judgment"]
     assert result.summary == "Linked and answered."
@@ -80,7 +80,7 @@ def test_a_run_ends_only_when_no_question_waits_for_the_agent():
 
 def test_a_turn_with_no_tool_call_and_no_labels_counts_as_done():
     model = FakeModel([lambda r: message(text("Nothing to do here."))])
-    result = run_agent(charge_inputs(), model)
+    result = run_once(charge_inputs(), model)
     assert isinstance(result, RunSaved) and result.records == []
 
 
@@ -102,7 +102,7 @@ def test_label_lines_get_codes_reply_and_the_run_goes_on():
         trigger=Trigger(kind="file", id="file-invoice-1001"),  # pyright: ignore[reportArgumentType]
         records=records_until("rec-bill-inv-1001"),
     )
-    result = run_agent(inputs, FakeModel([read, write]))
+    result = run_once(inputs, FakeModel([read, write]))
     assert isinstance(result, RunSaved) and [r.kind for r in result.records] == ["bill"]
 
 
@@ -114,7 +114,7 @@ def test_a_file_run_hands_over_the_file_and_the_award_notice_guidance():
         trigger=Trigger(kind="file", id="file-invoice-1001"),  # pyright: ignore[reportArgumentType]
         records=records_until("rec-link-l-1001"),
     )
-    run_agent(inputs, model)
+    run_once(inputs, model)
     first = model.requests[0].messages[0]["content"]
     joined = " ".join(b.get("text", "") for b in first)
     assert (
@@ -158,7 +158,7 @@ def test_a_thread_runs_gate_covers_only_its_charge():
             )
         ]
     )
-    result = run_agent(inputs, model)
+    result = run_once(inputs, model)
     assert isinstance(result, RunSaved)
     assert [q.charge_id for q in result.other_open_questions] == ["chg-l-1002"]
     assert [m.text for m in result.messages] == ["Yes: INV-1001 matches the ledger reference."]
@@ -168,7 +168,7 @@ def test_a_thread_runs_gate_covers_only_its_charge():
 def test_a_refusal_fails_the_run_with_no_other_model():
     """Answer 4."""
     model = FakeModel([lambda r: message(text(""), stop="refusal")])
-    result = run_agent(charge_inputs(), model)
+    result = run_once(charge_inputs(), model)
     assert isinstance(result, RunFailed) and not result.retryable and "refusal" in result.error
 
 
@@ -181,7 +181,7 @@ def test_a_run_that_fails_saves_nothing_and_says_whether_to_retry():
         )
 
     model = FakeModel([lambda r: calls(link_l1001()), boom])
-    result = run_agent(charge_inputs(), model)
+    result = run_once(charge_inputs(), model)
     assert isinstance(result, RunFailed) and result.retryable
     assert result.trigger.id == "chg-l-1001"
     assert not hasattr(result, "records")
@@ -193,7 +193,7 @@ def test_a_run_that_fails_saves_nothing_and_says_whether_to_retry():
             body=None,
         )
 
-    result = run_agent(charge_inputs(), FakeModel([bad]))
+    result = run_once(charge_inputs(), FakeModel([bad]))
     assert isinstance(result, RunFailed) and not result.retryable
 
 
@@ -202,7 +202,7 @@ def test_the_gate_sends_the_model_back_only_so_many_times():
         [lambda r: calls(link_l1001(), tool("finish", summary="x"))]
         + [lambda r: calls(tool("finish", summary="x"))] * MAX_GATE_RETURNS
     )
-    result = run_agent(charge_inputs(), model)
+    result = run_once(charge_inputs(), model)
     assert isinstance(result, RunFailed) and "open questions" in result.error
 
 
@@ -210,15 +210,15 @@ def test_a_turn_cut_off_at_the_output_limit_is_asked_again_once():
     model = FakeModel(
         [lambda r: message(text("..."), stop="max_tokens"), lambda r: message(text("Done."))]
     )
-    assert isinstance(run_agent(charge_inputs(), model), RunSaved)
+    assert isinstance(run_once(charge_inputs(), model), RunSaved)
     assert model.requests[1].max_tokens > model.requests[0].max_tokens
     model = FakeModel([lambda r: message(text("..."), stop="max_tokens")] * 2)
-    assert isinstance(run_agent(charge_inputs(), model), RunFailed)
+    assert isinstance(run_once(charge_inputs(), model), RunFailed)
 
 
 def test_each_run_keeps_one_debug_log():
     """Answer 5: one log per run, for private storage, referenced from the run."""
-    result = run_agent(
+    result = run_once(
         charge_inputs(),
         FakeModel([lambda r: calls(link_l1001()), lambda r: message(text("Done?"))]),
     )
@@ -298,6 +298,6 @@ def test_charges_that_arrive_together_come_in_one_run(charges: list[str]):
         charge_ids=charges,
     )
     model = FakeModel([lambda r: message(text("Done."))])
-    run_agent(inputs, model)
+    run_once(inputs, model)
     trigger_text = model.requests[0].messages[0]["content"][-1]["text"]
     assert "2 charge(s)" in trigger_text and "L-1001" in trigger_text and "L-1002" in trigger_text

@@ -48,6 +48,7 @@ from .desk import (
     record_summary,
     search_lines,
 )
+from .fields import FACT_FIELDS, TERM_FIELDS
 from .files import CantOpen, open_file
 
 
@@ -785,13 +786,19 @@ TOOLS: dict[str, tuple[type[_In], Handler, str]] = {
     "write_fact": (
         WriteFact,
         t_write_fact,
-        "Write a bill, approval or note read from a file. Values name your @label lines.",
+        "Write a bill, approval or note read from a file. Each value names its field and the "
+        "@label line that cites it. The fields of each kind:\n" + FACT_FIELDS,
     ),
     "write_term": (
         WriteTerm,
         t_write_term,
-        "Write a grant term read from an award notice, amendment or solicitation. "
-        "Every term waits for the accountant.",
+        "Write a grant term read from an award notice, amendment or solicitation. Every term "
+        "waits for the accountant. Each value names its field and the @label line that cites "
+        "it. Every term's dated is the date the document gives itself, such as an amendment's "
+        "date. A budget_line's name is the line's name as printed, without its letter or "
+        "number. A condition that says who must approve what is one approval_rule, with its "
+        "channel when stated; other_term holds only what no other kind holds. The fields of "
+        "each kind:\n" + TERM_FIELDS,
     ),
     "link": (
         LinkIn,

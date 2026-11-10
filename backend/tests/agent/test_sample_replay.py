@@ -9,7 +9,7 @@ sample's own, citations included: the line narrowing reproduces the sample's one
 from datetime import datetime
 from typing import Any
 
-from app.agent import RunSaved, run_agent
+from app.agent import RunSaved, run_once
 from app.agent.model import ModelRequest
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import Author, Record, cited_values
@@ -85,7 +85,7 @@ def file_run(file_id: str, record_ids: list[str], now: str, db: list[Record]) ->
         return calls(*[_write(r) for r in expected], tool("finish", summary=f"Read {file_id}."))
 
     model = FakeModel([read, write])
-    result = run_agent(
+    result = run_once(
         sample_inputs(
             now=datetime.fromisoformat(now),
             trigger=Trigger(kind="file", id=file_id),  # pyright: ignore[reportArgumentType]
@@ -143,7 +143,7 @@ def charge_run(line: str, now: str, db: list[Record]) -> RunSaved:
         )
 
     charge_id = f"chg-{key}"
-    result = run_agent(
+    result = run_once(
         sample_inputs(
             now=datetime.fromisoformat(now),
             trigger=Trigger(kind="charge", id=charge_id),  # pyright: ignore[reportArgumentType]

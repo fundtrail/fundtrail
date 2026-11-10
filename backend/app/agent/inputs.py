@@ -1,8 +1,7 @@
-"""What a run is handed, and what it gives back.
+"""What a run is handed, and what it gives back, in the agent's own terms.
 
-The agent exposes one function, `run_agent(inputs)` in graph.py. W4 loads the inputs from the
-database, calls it, and saves the result in one transaction (or records the failure). The agent
-never touches the database.
+`run_once(inputs)` in graph.py takes these. The platform calls `run_agent` in platform.py, which
+builds them from its AgentInput. The agent never touches the database.
 """
 
 import uuid
@@ -25,14 +24,9 @@ from .adapter import (
 from .citations import SecondLook
 
 # Charges that arrive together on one grant are handled in one run, or in batches of this many on
-# a large upload, each batch its own run saved on its own (answer 8). Provisional.
+# a large upload, each batch its own run saved on its own (answer 8, and the coordinator's
+# ruling; see platform.charges_for_run). The size is provisional.
 CHARGE_BATCH_SIZE = 25
-
-
-def batch_charge_ids(charge_ids: Sequence[str], size: int = CHARGE_BATCH_SIZE) -> list[list[str]]:
-    """Split charges that arrived together into the batches W4 queues as runs, in arrival order."""
-    ids = list(charge_ids)
-    return [ids[i : i + size] for i in range(0, len(ids), size)]
 
 
 # Finds the bills on file that look like the same one as a new bill. W2 owns the search rule;

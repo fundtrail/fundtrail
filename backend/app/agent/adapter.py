@@ -182,3 +182,18 @@ TRIGGER_CHARGE = TriggerKind.CHARGE
 TRIGGER_RECORD = TriggerKind.RECORD
 TRIGGER_THREAD = TriggerKind.THREAD_MESSAGE
 TRIGGER_CLOCK = TriggerKind.CLOCK
+
+
+def _record_models(*names: str) -> dict[str, Any]:
+    from app.contracts import records
+
+    return {
+        getattr(records, n).model_fields["kind"].default.value: getattr(records, n) for n in names
+    }
+
+
+# The record kinds the agent writes with write_term and write_fact, by kind.
+TERM_RECORD_MODELS = _record_models(
+    "PeriodOfPerformance", "BudgetLine", "Person", "ApprovalRule", "Rate", "Notice", "OtherTerm"
+)
+FACT_RECORD_MODELS = _record_models("Bill", "Approval", "Note")
