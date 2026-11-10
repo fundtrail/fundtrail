@@ -167,5 +167,90 @@ def test_with_an_answer_on_the_cost_the_extension_clears_the_charge_with_no_agen
 def test_the_prompt_keeps_the_date_out_of_the_allowable_answer():
     flat = " ".join(SYSTEM_PROMPT.split())
     assert "A charge's date against the period of performance isn't part of it" in flat
-    assert "don't add a checklist item or a flag about it" in flat
+    assert "don't add a checklist item or a flag about where the date falls" in flat
     assert "dispute the check (NSF-POST-END-COMMITMENTS is for that dispute)" in flat
+    assert "the flag on a purchase close to the end date (NSF-END-DATE-PURCHASES)" in flat
+    assert "a Covers answer on a pre-award approval, which rests on the start date" in flat
+
+
+def test_the_end_date_purchases_flag_still_saves_and_sends_the_charge_to_a_person():
+    """Decision 0015: a purchase close to the end date is the agent's flag, resting on the period."""
+    from app.contracts.records import Link
+
+    l1001 = SAMPLE.charges[0]
+    late = l1001.model_copy(
+        update={
+            "id": "chg-late",
+            "ledger_line_id": "L-1009",
+            "transaction_date": datetime(2026, 1, 20).date(),
+            "posting_date": datetime(2026, 1, 22).date(),
+            "arrived_at": datetime.fromisoformat("2026-01-22T00:00:00+00:00"),
+            "amount_cents": 380000,
+            "description": "Laptop",
+        }
+    )
+    from dataclasses import replace
+
+    db = records_until("rec-bill-seq-0207")
+    inputs = replace(
+        sample_inputs(
+            now=datetime.fromisoformat("2026-01-22T00:00:00+00:00"),
+            trigger=Trigger(kind=TriggerKind.CHARGE, id="chg-late"),
+            records=db,
+            charge_ids=["chg-late"],
+        ),
+        charges=[l1001, late],
+        run_checks=run_checks,
+        default_items=default_items,
+    )
+    flag = tool(
+        "flag",
+        charge_id="chg-late",
+        question="A $3,800 laptop bought 11 days before the end date: was it used in the project?",
+        reasoning="NSF says the university typically shouldn't buy a computing device this close to the end.",
+        rule="NSF-END-DATE-PURCHASES",
+        rests_on=["rec-period"],
+    )
+    assign = tool(
+        "assign_budget_line",
+        charge_id="chg-late",
+        budget_line_id="rec-budget-materials-and-supplies",
+        reason="A computer for the lab.",
+    )
+    result = run_once(
+        inputs, FakeModel([lambda r: calls(assign, flag, tool("finish", summary="Flagged."))])
+    )
+    assert isinstance(result, RunSaved), getattr(result, "error", result)
+    saved = result.records[-1].data
+    assert isinstance(saved, Judgment) and saved.rule == "NSF-END-DATE-PURCHASES"
+    assert not any(isinstance(r.data, Link) for r in result.records)
+    out = run_checks(
+        ChecksInput(
+            now=datetime.fromisoformat("2026-01-22T12:00:00+00:00"),
+            charges=(l1001, late),
+            files=tuple(SAMPLE.files[:2]),
+            records=(*db, *result.records),
+        )
+    )
+    assert next(s for s in out.charges if s.charge_id == "chg-late").bucket == Bucket.NEEDS_HUMAN
+
+
+def test_the_period_check_is_for_the_allowable_question_only():
+    """A Covers answer on a pre-award approval keeps its start date: no period refusal for it."""
+    from app.agent.context import RunContext
+    from app.agent.rulebook import load_rulebook
+    from app.agent.tools import run_tool
+
+    ctx = RunContext(inputs=l1002_inputs(), rulebook=load_rulebook())
+    covers = {
+        "charge_id": "chg-l-1002",
+        "question": "covers",
+        "record_id": "rec-bill-seq-0207",
+        "answer": "supports",
+        "reasoning": "The approval predates the start date by 30 days.",
+        "rests_on": ["rec-period"],
+    }
+    result, error = run_tool(ctx, "answer", covers)
+    assert error and "period of performance" not in result  # refused for other reasons only
+    result, error = run_tool(ctx, "answer", {**covers, "question": "allowable", "record_id": None})
+    assert error and "rests on the period of performance" in result
