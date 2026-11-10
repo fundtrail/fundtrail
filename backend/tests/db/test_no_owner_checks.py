@@ -22,7 +22,8 @@ REPO = Path(__file__).resolve().parents[3]
 
 SQL_COMPARED = [
     re.compile(
-        r"\bowner_id\b(?:\s*\)|\s*::\s*\w+)*\s*(?:=|<>|!=|\bin\b|\bis\b|\blike\b)", re.IGNORECASE
+        r"\bowner_id\b\"?(?:\s*\)|\s*::\s*\w+)*\s*(?:=|<>|!=|\bin\b|\bis\b|\blike\b)",
+        re.IGNORECASE,
     ),
     re.compile(r"(?:=|<>|!=)\s*\(?\s*[\w.\"]*\bowner_id\b", re.IGNORECASE),
     re.compile(r"\busing\s*\([^)]*\bowner_id\b", re.IGNORECASE),
@@ -32,7 +33,8 @@ REPLACED = {"supabase/migrations/20261110220000_held_mail_and_progress.sql": 2}
 
 
 def sql_hits(sql: str) -> int:
-    text = " ".join(re.sub(r"--[^\n]*", "", sql).split())
+    text = re.sub(r"/\*.*?\*/", " ", re.sub(r"--[^\n]*", "", sql), flags=re.DOTALL)
+    text = " ".join(text.split())
     return sum(len(p.findall(text)) for p in SQL_COMPARED)
 
 
@@ -64,7 +66,10 @@ def python_hits(source: str) -> int:
                 isinstance(a, ast.Constant) and a.value == "owner_id" for a in node.args
             ):
                 found += 1
-            elif name in ("eq", "ne", "__eq__", "__ne__") and any(_mentions(a) for a in node.args):
+            elif name in ("eq", "ne", "__eq__", "__ne__") and (
+                any(_mentions(a) for a in node.args)
+                or (isinstance(func, ast.Attribute) and _mentions(func.value))
+            ):
                 found += 1
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             found += sql_hits(node.value)
@@ -97,6 +102,8 @@ SQL_DODGES = [
     "where w.owner_id in (select 1)",
     "w.owner_id is not distinct from auth.uid()",
     "where w.owner_id like %s",
+    'where w."owner_id" = %s',
+    "where /* who */ w.owner_id /* made it */ = %s",
 ]
 SQL_FINE = [
     "insert into public.workspaces (owner_id, name) values (%s, %s)",
@@ -104,6 +111,7 @@ SQL_FINE = [
     "select id, owner_id, 'owner' from public.workspaces",
     "select id, name, owner_id from public.workspaces where id = %s",
     "-- where owner_id = %s\nselect 1",
+    "/* where owner_id = %s */ select 1",
 ]
 PYTHON_DODGES = [
     "if workspace.owner_id == user.id:\n    pass",
@@ -111,6 +119,7 @@ PYTHON_DODGES = [
     "ok = getattr(ws, 'owner_id') == uid",
     "x = getattr(ws, 'owner_id')",
     "import operator\nok = operator.eq(w.owner_id, uid)",
+    "ok = w.owner_id.__eq__(uid)",
     "ok = uid in {w.owner_id}",
     "q = 'where w.owner_id=%s'",
     "q = '''select 1\n  where w.owner_id\n  = %s'''",
