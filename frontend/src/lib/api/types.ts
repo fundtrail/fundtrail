@@ -64,6 +64,8 @@ export interface Charge {
   vendor?: string | null;
   reference?: string | null;
   original_line_id?: string | null;
+  /** The order it was stored in, from one sequence shared by records, charges and files. Never the clock. Null until stored. */
+  stored_seq?: number | null;
 }
 
 export type Source = "gmail" | "drive" | "upload";
@@ -84,6 +86,8 @@ export interface EvidenceFile {
   parent_id?: string | null;
   /** The Google type a stored PDF was exported from (decision 0025). */
   exported_from?: string | null;
+  /** The order it was stored in, from one sequence shared by records, charges and files. Never the clock. Null until stored. */
+  stored_seq?: number | null;
 }
 
 // --- records.py: citations ---
@@ -452,6 +456,10 @@ export interface FtRecord<D extends RecordData = RecordData> {
   written_at: IsoDatetime;
   replaces_id?: Id | null;
   thread_message_id?: Id | null;
+  /** The order it was stored in, from one sequence shared by records, charges and files. Never the clock. Null until stored. */
+  stored_seq?: number | null;
+  /** On the agent's records only: the read point of the run that wrote it (AgentRun.read_through_seq). */
+  read_through_seq?: number | null;
   data: D;
 }
 
@@ -573,6 +581,8 @@ export interface AgentRun {
   summary?: string | null;
   error?: string | null;
   log_path?: string | null;
+  /** The highest stored_seq the run could see when it started. Null until it starts. */
+  read_through_seq?: number | null;
   thread_charge_id?: Id | null;
   thread_record_id?: Id | null;
 }
