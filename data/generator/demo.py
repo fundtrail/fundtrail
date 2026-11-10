@@ -620,8 +620,8 @@ def conference_fee(g: Grant) -> None:
     )
     body = (
         "Sam,\n\n"
-        "You asked whether the registration charge on participant support was\n"
-        "approved. Here is my approval from March.\n\n"
+        "For the files on the registration charge on participant support, here\n"
+        "is my approval from March.\n\n"
         "Kendall\n\n"
         + forwarded(
             sender=(KENDALL.name, KENDALL.email),

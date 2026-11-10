@@ -1,0 +1,23 @@
+{
+  "sample": "salt-marsh-carbon",
+  "award_number": "SYN-2401835",
+  "starts_at": "2024-01-18T17:00:00Z",
+  "opens_at": "2026-11-16T17:00:00Z",
+  "last_event_at": "2027-03-07T20:20:00Z",
+  "ledger_lines": 65,
+  "files": 45,
+  "options": [
+    {
+      "choice": "larger_live",
+      "name": "Placeholder: a grant near closeout, read live",
+      "description": "Placeholder until the docs give the words. A three-year grant that opens near its end date. The agent reads its past while you watch.",
+      "placeholder": true
+    },
+    {
+      "choice": "larger_prerun",
+      "name": "Placeholder: a grant near closeout, already read",
+      "description": "Placeholder until the docs give the words. The same grant, with its past already read, so it opens at once.",
+      "placeholder": true
+    }
+  ]
+}
