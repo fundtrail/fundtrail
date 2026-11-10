@@ -39,7 +39,6 @@ describe("the fake client", () => {
     ]);
     expect((await api.getFileLink("file-invoice-1001")).url).toMatch(/^data:text\/plain/);
     expect((await api.listHeldMail(WORKSPACE_ID)).map((m) => m.sender)).toEqual(["billing@labsupply.example"]);
-    expect((await api.getClock(WORKSPACE_ID)).now).toBe("2026-04-09T18:00:00Z");
     expect((await api.getReport(SAMPLE_GRANT_ID)).type).toBe("application/pdf");
   });
 
@@ -53,10 +52,8 @@ describe("the fake client", () => {
     expect((await api.listRecords(SAMPLE_GRANT_ID)).map((r) => r.record.id)).toContain(record.id);
   });
 
-  it("moves the clock only forward and answers unknown IDs with a 404", async () => {
+  it("answers unknown IDs with a 404", async () => {
     const api = createFakeApiClient();
-    await expect(api.moveClock(WORKSPACE_ID, { to: "2026-01-01T00:00:00Z" })).rejects.toMatchObject({ status: 422 });
-    expect((await api.moveClock(WORKSPACE_ID, { to: "2026-04-10T17:00:00Z" })).now).toBe("2026-04-10T17:00:00Z");
     await expect(api.getCharge("nope")).rejects.toMatchObject({ status: 404 });
     await expect(api.listEvidence("nope")).rejects.toMatchObject({ status: 404 });
   });

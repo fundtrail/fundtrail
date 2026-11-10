@@ -86,10 +86,12 @@ interface TimelineState {
   delivered: Map<Id, IsoDatetime>;
   justHappened: Id[];
   stoppedOn: Id | null;
+  /** The sample accountant's decisions in the last move, by the event they follow. */
+  scripted: Map<Id, FtRecord[]>;
 }
 
 function emptyState(at: IsoDatetime): TimelineState {
-  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null };
+  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null, scripted: new Map() };
 }
 
 /** A sample at the start of its timeline: its first event played. */
@@ -125,7 +127,7 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     .map((event) => ({ event, delivered: false, delivered_at: null }));
   const comingUp = events.filter((e) => !state.played.has(e.id));
   return {
-    just_happened: state.justHappened.map((id) => played(byId.get(id)!)),
+    just_happened: state.justHappened.map((id) => ({ ...played(byId.get(id)!), scripted_decisions: state.scripted.get(id) ?? [], loaded: false })),
     now: {
       now: state.now,
       stopped_on: state.stoppedOn ? byId.get(state.stoppedOn) ?? null : null,
@@ -136,6 +138,8 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     coming_up: comingUp,
     finished: comingUp.length === 0 && deliveries.length === 0,
     catching_up: false,
+    // The fake's samples are read live, so there's no run-through.
+    on_run_through: null,
   };
 }
 
@@ -146,6 +150,25 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
   state.justHappened = reached.filter((e) => e.kind !== "user_delivery").map((e) => e.id);
   state.stoppedOn = reached.filter((e) => time(e.at) === time(to)).at(-1)?.id ?? null;
   state.now = to;
+  state.scripted = new Map();
+}
+
+/**
+ * Skipping the human steps: as the clock passes them, the sample accountant
+ * delivers what was the user's to deliver, and makes the sample's own
+ * accountant decisions. Each decision is listed under the event it follows.
+ */
+function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: IsoDatetime) {
+  for (const e of events) {
+    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) state.delivered.set(e.id, e.at);
+  }
+  const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
+  for (const decision of decisions) {
+    const after = events.filter((e) => state.played.has(e.id) && time(e.at) <= time(decision.written_at)).at(-1);
+    if (!after) continue;
+    if (!state.justHappened.includes(after.id)) state.justHappened.push(after.id);
+    state.scripted.set(after.id, [...(state.scripted.get(after.id) ?? []), decision]);
+  }
 }
 
 function dataUrl(text: string, mediaType: string): string {
@@ -200,7 +223,9 @@ export function samplesFake(hooks: {
       const to = move.to ?? events.find((e) => !state.played.has(e.id))?.at;
       if (!to) return Promise.reject(new ApiError(409, "Nothing is coming up."));
       if (time(to) < time(state.now)) return Promise.reject(new ApiError(409, "The timeline only moves forward."));
+      const from = state.now;
       playTo(events, state, to);
+      if (move.skip_human_steps) skipHumanSteps(events, state, from);
       return show(grantId);
     },
     startOver: (grantId, confirmed) => {
