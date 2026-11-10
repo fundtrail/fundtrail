@@ -4,13 +4,15 @@ import pytest
 
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import Record
-from app.contracts.rules import RecordState, check_new_record
+from app.contracts.rules import RecordState, check_new_record, read_by_run, run_read_point
 from app.contracts.runs import Trigger, TriggerKind
 from tests.contracts.factory import (
+    CHARGE,
     CHARGES,
     FILES,
     agent,
     answer,
+    at,
     bill,
     budget_line,
     confirm,
@@ -228,3 +230,77 @@ def test_the_agents_record_without_a_read_point_is_refused():
         trigger=Trigger(kind=TriggerKind.CLOCK),
     )
     assert any("read point" in p for p in found)
+
+
+# What a run read (the third review and the main coordinator): stored by its read point
+# AND arrived or written by its clock. Seeded-style numbering: the seed's files are
+# stored at reset, first, with arrival dates in the future; records come later.
+
+
+def seeded_receipt(arrives: float) -> EvidenceFile:
+    return file("f9", arrived_hours=arrives).model_copy(update={"stored_seq": 3})
+
+
+def run_answer(
+    id: str, data: dict[str, object], clock: float, seq: int, read_point: int, **kw: str
+) -> Record:
+    return agent(id, data, clock, **kw).model_copy(
+        update={"stored_seq": seq, "read_through_seq": read_point}
+    )
+
+
+def test_the_clock_releases_a_seeded_receipt_and_the_next_runs_supports_counts():
+    unsure = run_answer("j1", answer("unsure"), 0, 51, 50)
+    supports = run_answer("j2", answer("supports"), 5, 61, 60, replaces_id="j1")
+    files = [*FILES, seeded_receipt(arrives=5)]
+    assert RecordState([unsure, supports], files).waits("j2") is False
+
+
+def test_a_supports_from_a_run_before_the_receipt_arrives_doesnt_count_on_it():
+    unsure = run_answer("j1", answer("unsure"), 0, 51, 50)
+    early = run_answer("j2", answer("supports"), 4, 61, 60, replaces_id="j1")
+    files = [*FILES, seeded_receipt(arrives=5)]
+    assert RecordState([unsure, early], files).waits("j2") is True
+
+
+def test_a_replay_run_at_an_earlier_clock_doesnt_read_a_later_confirmation():
+    """Case A: a high read point alone doesn't make a later confirmation read."""
+    term = stored(agent("t1", budget_line(), -1), 5)
+    unsure = run_answer("j1", answer("unsure"), 0, 11, 10)
+    confirmed = stored(user("ok", confirm("t1"), 3), 20)
+    replay = run_answer("j2", answer("supports"), 2, 31, 30, replaces_id="j1")
+    assert RecordState([term, unsure, confirmed, replay], FILES).waits("j2") is True
+    caught_up = run_answer("j2", answer("supports"), 3, 31, 30, replaces_id="j1")
+    assert RecordState([term, unsure, confirmed, caught_up], FILES).waits("j2") is False
+
+
+def test_a_seeded_file_arriving_after_the_new_record_doesnt_reopen_a_rejection():
+    """The fallback's unsafe case: the window starts at the accountant's rejection, and a
+    seeded file stored early but arriving later isn't read by the new run."""
+    b = stored(agent("b1", bill()), 10)
+    original = stored(agent("l1", link()), 11)
+    fix = stored(agent("l2", link(amount=600), replaces_id="l1"), 12)
+    rejected = stored(user("no", confirm("l2", decision="rejected"), 1), 13)
+    again = agent("l3", link(amount=600), 2, replaces_id="l1").model_copy(
+        update={"read_through_seq": 100}
+    )
+    written = [b, original, fix, rejected]
+    later = [*FILES, seeded_receipt(arrives=5)]
+    assert any("rejected the same suggestion" in p for p in problems(again, written, later))
+    arrived = [*FILES, seeded_receipt(arrives=1.5)]
+    assert problems(again, written, arrived) == []
+
+
+def test_the_read_point_and_read_by_run_helpers():
+    b = stored(agent("b1", bill()), 7)
+    seeded = seeded_receipt(arrives=5)
+    charge = CHARGE.model_copy(update={"stored_seq": 9})
+    assert run_read_point([b], [charge], [seeded]) == 9
+    assert run_read_point() == 0
+    assert read_by_run(b, read_through_seq=9, clock_now=at(0))
+    assert not read_by_run(b, read_through_seq=6, clock_now=at(0))
+    assert not read_by_run(seeded, read_through_seq=9, clock_now=at(4))  # not arrived yet
+    assert read_by_run(seeded, read_through_seq=9, clock_now=at(5))
+    assert read_by_run(charge, read_through_seq=9, clock_now=at(0))
+    unstored = agent("b2", bill())
+    assert not read_by_run(unstored, read_through_seq=9, clock_now=at(0))

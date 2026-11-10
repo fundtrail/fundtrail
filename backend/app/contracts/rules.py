@@ -19,6 +19,7 @@ before it. A record against a record uses stored order, never clock dates.
 """
 
 from collections.abc import Collection, Iterable, Sequence
+from datetime import datetime
 
 from .buckets import Bucket
 from .charges import Charge
@@ -270,6 +271,8 @@ class RecordState:
         answer with its own run's read point, the window runs from that read point to
         this one: new evidence is what the earlier run didn't read and this one did,
         wherever the earlier answer was stored (the main coordinator's ruling on N3).
+        What a run read is `read_by_run`: stored at or below its read point, and
+        arrived or written by its clock.
         `before` limits it to the records stored before that position.
         """
         read_point = new.read_through_seq if new.author == Author.AGENT else None
@@ -278,18 +281,32 @@ class RecordState:
             if read_point is not None and since.author == Author.AGENT
             else None
         )
+
+        def read_by_new(item: Record | EvidenceFile) -> bool:
+            return read_point is not None and read_by_run(
+                item, read_through_seq=read_point, clock_now=new.written_at
+            )
+
+        def read_by_since(item: Record | EvidenceFile) -> bool:
+            return lower is not None and read_by_run(
+                item, read_through_seq=lower, clock_now=since.written_at
+            )
+
         for f in self.files.values():
             if f.grant_id != new.grant_id:
                 continue
-            if lower is not None:
-                if f.stored_seq is not None and lower < f.stored_seq <= (read_point or 0):
-                    return True
-                continue
+            if read_point is not None:
+                if not read_by_new(f):
+                    continue  # this run didn't read it
+                if lower is not None:
+                    if not read_by_since(f):
+                        return True  # this run read it and the earlier run didn't
+                    continue
             after_since = f.arrived_at > since.written_at or (
                 f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
             )
             if read_point is not None:
-                before_new = f.stored_seq is not None and f.stored_seq <= read_point
+                before_new = True  # read by this run, checked above
             else:
                 before_new = f.arrived_at < new.written_at or (
                     f.arrived_at == new.written_at
@@ -299,16 +316,16 @@ class RecordState:
                 return True
         start = self._pos[since.id] + 1 if since.id in self._pos else 0
         if lower is not None:
-            start = 0  # the window is by read points, not where `since` was stored
+            start = 0  # the window is what the runs read, not where `since` was stored
         stop = self._pos[new.id] if new.id in self._pos else len(self.records)
         if before is not None:
             stop = min(stop, before)
         for r in self.records[start:stop]:
             if r.grant_id != new.grant_id or r.author != Author.USER:
                 continue
-            if read_point is not None and (r.stored_seq is None or r.stored_seq > read_point):
-                continue  # stored during the run, or its order unknown
-            if lower is not None and (r.stored_seq or 0) <= lower:
+            if read_point is not None and not read_by_new(r):
+                continue  # this run didn't read it: stored during the run, or written later
+            if read_by_since(r):
                 continue  # the earlier run had read it
             if r.kind in TERM_KINDS:
                 return True
@@ -452,6 +469,27 @@ class RecordState:
             if other_bill is not None and other_bill.id == bill.id:
                 return True
         return False
+
+
+def run_read_point(*stored: Iterable[Record | Charge | EvidenceFile]) -> int:
+    """A run's read point (call 40): the highest stored order among what it was given.
+
+    The platform (W4) calls it with the records, charges and files it hands the run
+    when the run starts, and stores the result as AgentRun.read_through_seq.
+    """
+    return max((item.stored_seq or 0 for items in stored for item in items), default=0)
+
+
+def read_by_run(
+    item: Record | Charge | EvidenceFile, *, read_through_seq: int, clock_now: datetime
+) -> bool:
+    """Whether a run read an item: stored at or below the run's read point, and arrived (a
+    file or a charge) or written (a record) by the run's clock. A file stored at a reset
+    with a future arrival date isn't read until it arrives."""
+    if item.stored_seq is None or item.stored_seq > read_through_seq:
+        return False
+    when = item.written_at if isinstance(item, Record) else item.arrived_at
+    return when <= clock_now
 
 
 def _stored_after(a: int | None, b: int | None) -> bool:
