@@ -89,3 +89,23 @@ export function useProblemList(grantId: Id) {
 export function useCharges(grantId: Id) {
   return useResource(["charges", grantId], (api) => api.listCharges(grantId));
 }
+
+export function useRecords(grantId: Id) {
+  return useResource(["records", grantId], (api) => api.listRecords(grantId));
+}
+
+export function useEvidence(grantId: Id) {
+  return useResource(["evidence", grantId], (api) => api.listEvidence(grantId));
+}
+
+export function useCharge(chargeId: Id) {
+  return useResource(["charge", chargeId], (api) => api.getCharge(chargeId));
+}
+
+export function useChargeThread(chargeId: Id) {
+  return useResource(["charge-thread", chargeId], (api) => api.getChargeThread(chargeId));
+}
+
+export function useRecordThread(recordId: Id) {
+  return useResource(["record-thread", recordId], (api) => api.getRecordThread(recordId));
+}

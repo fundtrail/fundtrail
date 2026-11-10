@@ -14,7 +14,7 @@ from datetime import date
 from enum import StrEnum
 from typing import Protocol
 
-from pydantic import computed_field, model_validator
+from pydantic import Field, computed_field, model_validator
 
 from .base import Cents, Id, Model, Text, UtcDatetime
 from .buckets import Bucket
@@ -63,6 +63,10 @@ class Problem(Model):
     record_ids: tuple[Id, ...] = ()  # the records it rests on
     # The accepted reason, or the confirmed dispute, that accepts it.
     accepted_by: Id | None = None
+    # Issue 83: for the award limit's over_limit problem, the amount over, filled by
+    # the checks. An acceptance holds while the amount over is no larger than the
+    # amount it accepted. None for every other problem.
+    amount_cents: Cents | None = Field(default=None, ge=0)
 
 
 class Reason(Problem):
