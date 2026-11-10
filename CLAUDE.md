@@ -47,7 +47,7 @@ data/             synthetic seed packs                     W3 Alex
 docs/, CLAUDE.md  docs                                     shared
 ```
 
-This is the target layout, one repo with no monorepo tool. The skeleton task creates it. Until then only `backend/app/contracts/`, the first migration and the docs exist. The frontend may use a `src/` folder.
+This is the target layout, one repo with no monorepo tool. None of it is built yet: the repo holds only the docs ([decisions/0014](docs/decisions/0014-contracts-are-a-document-first.md)). The frontend may use a `src/` folder.
 
 ## Working rules
 
@@ -57,7 +57,7 @@ This is the target layout, one repo with no monorepo tool. The skeleton task cre
 4. Change files only in your workstream's directories. If you need something changed outside them, comment on the issue or open one for that owner. Don't edit it yourself.
 5. Shared files change only in a PR that both Alex and Grant approve: contracts, migrations, docs, this file, CI config.
 6. Keep PRs small and merge them often. Rebase on main before opening one. Main stays green: CI runs lint, type checks and tests on every PR.
-7. Build against the contracts and the golden fixture, never against another workstream's unfinished code.
+7. Build against the contracts in [docs/contracts.md](docs/contracts.md), never against another workstream's unfinished code.
 8. Never make a product decision or change direction. If you think the plan is wrong, say so in the issue and stop.
 9. Before opening a PR, check `docs/decisions/` for new files and follow them.
 10. Write commit messages and PR descriptions that say what changed and why.
@@ -73,11 +73,4 @@ This is the target layout, one repo with no monorepo tool. The skeleton task cre
 
 ## Running things
 
-Right now only the contract tests run:
-
-```bash
-cd backend
-uv run pytest
-```
-
-The skeleton task replaces this section with the backend, frontend and test commands.
+Nothing runs yet. The repo holds only the docs. This section gets the backend, frontend and test commands once there's code to run.

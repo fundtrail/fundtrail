@@ -35,7 +35,7 @@ Defaults plus the agent's items combines the third and fifth options: code sets 
 
 ## Consequences
 
-- The contracts add a checklist item record, links that name the item they fill, and a default checklist per ledger account (see [contracts.md](../contracts.md#13-agreed-changes-not-yet-in-the-code)).
+- The contracts add a checklist item record, links that name the item they fill, and a default checklist per ledger account (see [contracts.md](../contracts.md)).
 - The default table covers Berkeley's account names for now. Other universities name accounts differently.
 - An account with no default rests on the agent alone. That's the weak spot.
 - The eval gets a case for each kind of nuance: a quarterly report, a per diem, a misfiled charge, a real exception.
