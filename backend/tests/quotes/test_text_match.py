@@ -476,3 +476,48 @@ def test_a_line_end_hyphen_is_not_a_word_edge() -> None:
     assert contains_exactly("Smithson", page)
     room = clean("Moved to Room-\n450 for the setup").text
     assert not contains_exactly("450", room)
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        'The ledger line reads "-$450.00" for the refund',
+        "The ledger line reads '-$450.00' for the refund",
+        "Balance=-$450.00 after the refund",
+        "Credits;-$450.00 after the refund",
+        "Adjustments,-$450.00 after the refund",
+        "Total / -$450.00 after the refund",
+        "Total \u2014-$450.00 after the refund",
+        "Item *-$450.00 refund",
+    ],
+)
+def test_an_attached_dash_after_other_punctuation_is_a_minus(page: str) -> None:
+    """Only a letter, digit, "%", closing bracket, or a quote after one of those makes a hyphen."""
+    assert not contains_exactly("$450.00", clean(page).text)
+    assert contains_exactly("-$450.00", clean(page).text)
+
+
+@pytest.mark.parametrize(
+    ("page", "value"),
+    [
+        ("Effort of 10%-20% on the award", "20%"),
+        ("Option (a)-$450 per night", "$450"),
+        ("Option [b]-$450 per night", "$450"),
+        ('the "Gold"-$450 rate', "$450"),
+    ],
+)
+def test_an_attached_dash_after_a_word_end_is_a_range(page: str, value: str) -> None:
+    assert contains_exactly(value, clean(page).text)
+
+
+@pytest.mark.parametrize(
+    ("page", "value"),
+    [
+        ("Refund $12-\n3-15 Fee waived", "$12"),
+        ("Refund 1234-\n05-06 Lodging", "1234"),
+    ],
+)
+def test_a_date_across_a_line_end_dash_needs_the_whole_date(page: str, value: str) -> None:
+    """A trailing minus before something date-shaped on the next line stays a minus."""
+    assert not contains_exactly(value, clean(page).text)
+    assert contains_exactly(f"{value}-", clean(page).text)

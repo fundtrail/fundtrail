@@ -108,11 +108,10 @@ _DATE = re.compile(
     r"\d{1,2}/\d{1,2}/\d{2,4}|\d{4}[-\x03]\d{1,2}[-\x03]\d{1,2}|\d{1,2}[-\x03]\d{1,2}[-\x03]\d{2,4}"
 )
 """A numeric date. A date has no sign, so no dash before it is a minus."""
-_BEFORE_ATTACHED_MINUS = frozenset({"", " ", "(", "[", "{", ":"})
-"""What may come before an attached hyphen or en dash for it to be a minus (call 31, plus ":").
-
-The empty string is the start of the text. A currency symbol counts too ("$-450.00").
-"""
+_AFTER_A_WORD = frozenset({"%", ")", "]", "}", LINE_HYPHEN, LINE_DASH})
+"""Besides a letter or digit, what before an attached dash makes it a hyphen ("10%-20%")."""
+_QUOTES = frozenset({'"', "'"})
+"""Quote marks after the clean-up (curly ones are straightened)."""
 _SIGNS = frozenset("-\u2013\u2212")
 """Read as a minus next to a number: hyphen, en dash, minus sign. Not the em dash."""
 _CURRENCY = frozenset("$\u20ac\u00a3\u00a5")
@@ -342,6 +341,26 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
     return True
 
 
+def _hyphen_after(text: str, dash: int) -> bool:
+    """Whether the character before text[dash] makes an attached dash a hyphen, not a minus.
+
+    It does after a letter, a digit, "%", a closing bracket, a line-end marker, or a quote mark
+    that itself follows one of those ("10%-20%", "(a)-$450", 'the "Gold"-$450 rate'). Anything
+    else before an attached dash (a space, the start, an opening bracket, a currency symbol, a
+    quote that opens, "=", ";", ",", an em dash, "*") leaves it a minus, on the safe side.
+    """
+    if dash == 0:
+        return False
+    before = text[dash - 1]
+    if _ends_a_word(before):
+        return True
+    return before in _QUOTES and dash > 1 and _ends_a_word(text[dash - 2])
+
+
+def _ends_a_word(ch: str) -> bool:
+    return ch.isalnum() or ch in _AFTER_A_WORD
+
+
 def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str:
     """How the text signs the number text[first:end]: NEGATIVE, POSITIVE or EITHER.
 
@@ -350,12 +369,14 @@ def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str
 
     `covered_until` is the end of the value or span being checked. A LINE_DASH after the number
     with the next number also inside it ("10-" then "20", checked as "10-20") is the hyphen the
-    reader took it for, not a trailing minus.
+    reader took it for, not a trailing minus. Likewise a date broken at a line-end dash counts as
+    a date only when the value or span covers the whole date ("2026-" then "03-04" checked as
+    "2026-03-04"); otherwise "$12-" then "3-15" would hide a trailing minus.
 
     - NEGATIVE, clearly:
-      - a hyphen or en dash attached to the amount, with a space, the start of the text, an
-        opening bracket, a currency symbol or a colon before the dash ("-$450.00", "$-450.00",
-        "(-$450.00)", ":-$450.00");
+      - a hyphen or en dash attached to the amount, unless the character before the dash makes
+        it a hyphen (`_hyphen_after`): "-$450.00", "$-450.00", "(-$450.00)", ":-$450.00",
+        '"-$450.00"', "=-$450.00", ";-$450.00";
       - the true minus U+2212, attached or with a space;
       - a trailing minus ("$450.00-", or a dash that ended the line right after the number,
         LINE_DASH) or "CR";
@@ -364,12 +385,14 @@ def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str
     - EITHER: a hyphen or en dash with a space between it and the amount ("Airfare \u2013
       $450.00", "Year 2 - $50,000", "$400 \u2013 $500", "- $450.00").
     - Never a sign, so POSITIVE unless something else applies: an em dash; a dash directly after
-      a letter or digit ("$400-$500", "Year 2-$50,000", "10-20", "SYN-2026"), or after other
-      punctuation than the above ("10%-20%", "(a)-$450"), read as a range; a trailing dash
+      a letter, a digit, "%", a closing bracket, or a quote mark that follows one of those
+      ("$400-$500", "Year 2-$50,000", "10-20", "SYN-2026", "10%-20%", "(a)-$450"), read as a
+      hyphen or a range; a trailing dash
       followed by a letter, digit or currency-and-digit (a range, "$450-$500"); any dash before
       a date ("09/01/2025 - 08/31/2027"), since a date has no sign.
     """
-    if _DATE.match(text, first):
+    date = _DATE.match(text, first)
+    if date and (LINE_DASH not in date.group() or date.end() <= covered_until):
         return POSITIVE
     k = first
     while k > 0 and text[k - 1] in _CURRENCY:
@@ -377,11 +400,11 @@ def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str
     leading = POSITIVE
     if k > 0:
         c = text[k - 1]
-        before = text[k - 2] if k > 1 else ""
         if c == _MINUS:
             return NEGATIVE
-        if c in _DASHES and (before in _BEFORE_ATTACHED_MINUS or before in _CURRENCY):
+        if c in _DASHES and not _hyphen_after(text, k - 1):
             return NEGATIVE
+        before = text[k - 2] if k > 1 else ""
         if c == " " and before == _MINUS:
             return NEGATIVE
         if c == " " and before in _DASHES:
