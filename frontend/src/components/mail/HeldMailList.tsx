@@ -1,19 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { HeldMail, HoldReason, MailAction, SkipReason } from "@/lib/api";
-import { date } from "@/lib/format";
+import type { HeldMail, MailAction, SkipReason } from "@/lib/api";
+import { date, HOLD_REASON_LABELS } from "@/lib/format";
 import { useWrite, WriteProblems } from "../setup/useWrite";
 import "../setup/setup.css";
-
-/**
- * Why a message is held, worded from the contract's own comments (mail.py).
- * The server sends only the reason's name.
- */
-export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
-  unknown_sender: "The sender isn't a known sender.",
-  unverified_sender: "The address is a known sender's, but it couldn't be verified as really theirs.",
-};
 
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
   too_large: "too large",
