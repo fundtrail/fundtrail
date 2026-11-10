@@ -165,3 +165,5 @@ def test_an_event_can_be_one_of_the_samples_highlights():
     assert ordinary.highlight is None
     marked = ordinary.model_copy(update={"highlight": "A credit memo arrives"})
     assert TimelineEvent.model_validate_json(marked.model_dump_json()) == marked
+    with pytest.raises(ValidationError):  # an empty label is refused
+        TimelineEvent.model_validate({**ordinary.model_dump(), "highlight": ""})
