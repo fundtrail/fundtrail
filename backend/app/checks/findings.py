@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from app.contracts.checks import Bucket
+from app.contracts.records import OVER_LIMIT_CHECK, OVER_LIMIT_PROBLEM
 
 
 @dataclass
@@ -20,6 +21,8 @@ class Finding:
     # the charge there as its own row.
     shown_on_term: bool = False
     dispute_id: str | None = None  # the agent's dispute of it, while it waits
+    # Issue 83: the award limit's over_limit problem carries the amount over.
+    amount_cents: int | None = None
 
     @property
     def failing(self) -> bool:
@@ -36,7 +39,7 @@ PERIOD = "period_of_performance"  # 1
 CHECKLIST = "checklist"  # 2
 APPROVAL = "approval"  # 3
 VALUES = "values_confirmed"  # 5
-BUDGET = "budget"  # 4, on the grant
+BUDGET = OVER_LIMIT_CHECK  # 4, on the grant: "budget"
 # Reasons on a charge that belong to none of the numbered checks.
 BUDGET_LINE = "budget_line"  # the ledger account's category against the assigned line
 SUGGESTION = "suggestion"  # one of the agent's suggestions waits for the accountant
@@ -47,4 +50,7 @@ BILL = "bill"
 SAME_FILE = "same_file"
 NOTICE = "notice"
 GRANT_TERMS = "grant_terms"
+# The award limit's problem (issue 83), under the budget check: the contract's IDs,
+# so the evidence report and the screens can import them from here.
+OVER_LIMIT = OVER_LIMIT_PROBLEM
 SKIPPED_FILES = "skipped_files"
