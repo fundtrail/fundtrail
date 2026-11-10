@@ -28,12 +28,19 @@ as $$
 declare
   sample_id uuid := gen_random_uuid();
 begin
+  -- Only the ID is set. With instance_id and aud null, the row is outside GoTrue's
+  -- instance, so GoTrue never loads it: no sign-in, admin call or token reaches it. That's
+  -- deliberate.
   insert into auth.users (id) values (sample_id);
+  -- Banned as well, where the column exists. A finite far date, not 'infinity': GoTrue
+  -- can't read 'infinity', and if the row ever entered its instance, its admin user list
+  -- would fail for every user.
   if exists (
     select 1 from information_schema.columns
     where table_schema = 'auth' and table_name = 'users' and column_name = 'banned_until'
   ) then
-    execute 'update auth.users set banned_until = ''infinity'' where id = $1' using sample_id;
+    execute 'update auth.users set banned_until = ''9999-12-31 00:00:00+00'' where id = $1'
+      using sample_id;
   end if;
   insert into public.users (id, email, name)
   values (sample_id, 'sample-accountant+' || target_workspace_id || '@fundtrail.example',
