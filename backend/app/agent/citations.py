@@ -159,23 +159,6 @@ def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[i
     return (lines[0][0], lines[-1][1]) if lines else (start, end)
 
 
-def _stored_span(reading: ReadingText, start: int, end: int) -> tuple[int, int]:
-    """A span of the text sent mapped back to the stored file.
-
-    The start maps with `stored_index`. The end is exclusive, so it maps through the last
-    character it covers: a span ending inside a replaced Date header ends where the stored
-    header ends.
-    """
-    stored_start = reading.stored_index(start)
-    if end <= start:
-        return stored_start, stored_start
-    last = end - 1
-    for sent_start, sent_end, _, header_end in reading.replaced:
-        if sent_start <= last < sent_end:
-            return stored_start, header_end
-    return stored_start, reading.stored_index(last) + 1
-
-
 def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.text is not None
     sent = doc.reading.text if doc.reading is not None else doc.text
@@ -191,7 +174,7 @@ def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
             match = "not_found"
     if doc.reading is not None and match == "exact":
         # Cited in the text the agent read; checked and stored against the original file.
-        start, end = _stored_span(doc.reading, start, end)
+        start, end = doc.reading.stored_range(start, end)
         passage = doc.text[start:end]
     lines = value_lines(doc.text, start, end, value_text) if match == "exact" else []
     return char_citation(doc.file_id, passage, start, end, match, lines)
