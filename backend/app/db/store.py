@@ -250,14 +250,15 @@ def _record(row: dict[str, Any]) -> Record:
     )
 
 
-def list_records(conn: Conn, grant_id: str, now: datetime) -> list[Record]:
-    """Every record on the grant written by now, replaced, waiting and rejected ones
-    included, in the order written."""
+def list_records(conn: Conn, grant_id: str, now: datetime | None = None) -> list[Record]:
+    """The grant's records, replaced, waiting and rejected ones included, in the order they
+    were stored. A record's date never orders records (the run-order ruling); `now`, when
+    given, leaves out records dated after it."""
     rows = conn.execute(
         """select id, workspace_id, grant_id, author, author_user_id, written_at, replaces_id, data
-           from public.records where grant_id = %s and written_at <= %s
-           order by written_at, created_at, id""",
-        (grant_id, now),
+           from public.records where grant_id = %s and (%s::timestamptz is null or written_at <= %s)
+           order by created_at, id""",
+        (grant_id, now, now),
     ).fetchall()
     return [_record(r) for r in rows]
 
@@ -347,15 +348,17 @@ def set_run(
     summary: str | None = None,
     error: str | None = None,
     log_path: str | None = None,
+    clock_now: datetime | None = None,
 ) -> None:
     conn.execute(
         """update public.agent_runs set status = %s,
-             started_at = case when %s then now() else started_at end,
+             started_at = case when %s and started_at is null then now() else started_at end,
              finished_at = case when %s then now() else finished_at end,
              summary = coalesce(%s, summary), error = %s,
-             log_path = coalesce(%s, log_path)
+             log_path = coalesce(%s, log_path),
+             clock_now = coalesce(%s, clock_now)
            where id = %s""",
-        (status.value, started, finished, summary, error, log_path, run_id),
+        (status.value, started, finished, summary, error, log_path, clock_now, run_id),
     )
 
 
@@ -365,6 +368,16 @@ def other_running_runs(conn: Conn, grant_id: str, run_id: str) -> list[str]:
         (grant_id, run_id),
     ).fetchall()
     return [r["id"] for r in rows]
+
+
+def has_queued_run(conn: Conn, grant_id: str) -> bool:
+    """Whether a run on the grant is queued and hasn't started: it will read everything
+    stored when it starts, so a new record can share it."""
+    row = conn.execute(
+        "select 1 from public.agent_runs where grant_id = %s and status = 'queued' limit 1",
+        (grant_id,),
+    ).fetchone()
+    return row is not None
 
 
 def has_pending_run(conn: Conn, grant_id: str) -> bool:

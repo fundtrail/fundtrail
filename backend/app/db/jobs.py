@@ -27,7 +27,7 @@ from psycopg.types.json import Jsonb
 
 from app.contracts.charges import Charge
 from app.contracts.checks import OpenQuestion
-from app.contracts.records import Author, Record
+from app.contracts.records import Author
 from app.contracts.rules import check_new_record
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 from app.contracts.workspaces import Grant
@@ -47,6 +47,11 @@ TASK_NAME = "run_agent"
 NORMAL_PRIORITY = 0
 THREAD_PRIORITY = 10  # a question in a thread goes ahead of queued runs
 
+
+# A refused save starts the run over from a fresh read this many times, then it fails.
+REDOS = 2
+# At most this many follow-up runs after one thread run.
+MAX_FOLLOW_UPS = 10
 
 # A run triggered by a charge covers every charge on its grant that arrived at the same
 # moment, in batches of at most this many, each batch its own run.
@@ -91,8 +96,8 @@ def log_path(run: AgentRun, attempt: int = 0) -> str:
 
 class RetryRun(Exception):
     """Raised out of a job to have Procrastinate try the same job again. A retried job keeps
-    its ID, so it keeps its place in the grant's queue: a catch-up stays in arrival order,
-    and a thread question queued meanwhile still waits behind it."""
+    its ID, so among jobs of the same priority it keeps its place in the grant's queue. A
+    higher-priority job, such as a thread question, can run while the retry waits."""
 
 
 class _RunRetry(BaseRetryStrategy):
@@ -159,6 +164,8 @@ def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
             thread = store.list_thread(
                 conn, charge_id=message.charge_id, record_id=message.record_id
             )
+    # Everything stored on the grant, whatever its date; only arrivals the clock hasn't
+    # released by the run's time are hidden (the run-order ruling, 2).
     charges = store.list_charges(conn, grant.id, run.clock_now)
     covers = (
         [c.id for c in batch_for(run.trigger.id, charges)]
@@ -171,7 +178,7 @@ def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
         charge_ids=covers,
         charges=charges,
         files=store.list_files(conn, grant.id, run.clock_now),
-        records=store.list_records(conn, grant.id, run.clock_now),
+        records=store.list_records(conn, grant.id),
         thread=thread,
         read_file=lambda f: p.storage.get(f.storage_path),
         checks=p.checks,
@@ -198,14 +205,17 @@ def save_run(
 ) -> Sequence[OpenQuestion]:
     """Save everything the run wrote, all or nothing, then rerun the checks.
 
-    Takes the grant's lock, so no accountant write lands between the check and the save.
-    Raises RunConflict when a record no longer passes the write check.
+    The run's records are checked in the order they'll be stored, against everything stored
+    on the grant by then (the run-order ruling, 3). The grant's row lock is held from the
+    check through the insert, and every write to the grant takes it, so nothing lands
+    between them. Raises RunConflict when the check refuses a record; a record that only
+    waits is saved, waiting.
     """
     _check_result(run, result)
     grant = store.get_grant(conn, run.grant_id, lock=True)
     assert grant is not None
     now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
-    records = store.list_records(conn, grant.id, now)
+    records = store.list_records(conn, grant.id)
     charges = store.list_charges(conn, grant.id, now)
     files = store.list_files(conn, grant.id, now)
     problems: list[str] = []
@@ -217,6 +227,10 @@ def save_run(
             )
         ]
         records.append(r)
+    on_grant = {c.id for c in charges} | {r.id for r in records}
+    for m in result.messages:
+        if (m.charge_id or m.record_id) not in on_grant:
+            problems.append(f"message {m.id} is about something not on the run's grant")
     if problems:
         raise RunConflict(problems)
     store.insert_records(conn, result.records)
@@ -232,9 +246,7 @@ def save_run(
     return output.questions
 
 
-def follow_up_triggers(
-    run: AgentRun, open_questions: Sequence[OpenQuestion], saved: Sequence[Record] = ()
-) -> list[Trigger]:
+def follow_up_triggers(open_questions: Sequence[OpenQuestion]) -> list[Trigger]:
     """The triggers of the ordinary runs for the questions a thread run left open: one run per
     charge whose question is open, with trigger kind `open_question` naming that charge, so
     its history line names the real cause (the main coordinator's ruling). #39 adds the kind,
@@ -255,12 +267,13 @@ def _follow_ups(conn: Conn, run: AgentRun, triggers: Sequence[Trigger]) -> list[
     return runs
 
 
-def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_PRIORITY) -> None:
-    """One try of one run. The Procrastinate task calls this."""
+def _start(p: Platform, run_id: str) -> AgentRun | None:
+    """Mark the run running and fix its clock time (the run-order ruling, 1): a run works as
+    of the workspace's "now" when it first starts, not when it was queued."""
     with transaction(p.pool) as conn:
         run = store.get_run(conn, run_id, lock=True)
         if run is None or run.status in (RunStatus.DONE, RunStatus.FAILED):
-            return
+            return None
         # The lock means no other run of this grant is in progress. A row still marked
         # running belongs to a worker that stopped mid-run and whose job moved on.
         for other in store.other_running_runs(conn, run.grant_id, run.id):
@@ -271,64 +284,107 @@ def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_P
                 finished=True,
                 error="the worker stopped during the run",
             )
-        store.set_run(conn, run.id, RunStatus.RUNNING, started=True)
-        run = run.model_copy(update={"status": RunStatus.RUNNING})
-    ping_run(p.pinger, run)
+        clock_now = run.clock_now
+        if run.started_at is None:
+            clock_now = workspace_now(store.workspace_by_id(conn, run.workspace_id))
+        store.set_run(conn, run.id, RunStatus.RUNNING, started=True, clock_now=clock_now)
+        return run.model_copy(update={"status": RunStatus.RUNNING, "clock_now": clock_now})
 
-    try:
+
+def _attempt(p: Platform, run: AgentRun, attempt: int) -> None:
+    """One try: read, run the agent, save. A save the write check refuses starts over from a
+    fresh read, up to REDOS times (the run-order ruling, 4); that isn't a failure retry."""
+    for redo in range(REDOS + 1):
         with transaction(p.pool) as conn:
             agent_input = _load_input(p, conn, run)
         result = p.agent.run(agent_input)
-        with transaction(p.pool) as conn:
-            questions = save_run(p, conn, run, result, attempt)
-            # A thread run replies and suggests; it isn't responsible for code's open
-            # questions. Any it leaves get an ordinary run right away, at normal priority,
-            # so nothing is left unanswered and the reply isn't held up.
-            open_questions = list(getattr(result, "other_open_questions", ()))
-            if run.trigger.kind == TriggerKind.THREAD_MESSAGE:
-                open_questions += [q for q in questions if q.answer_by == Author.AGENT]
-            follow_ups = _follow_ups(
-                conn, run, follow_up_triggers(run, open_questions, result.records)
-            )
+        try:
+            with transaction(p.pool) as conn:
+                questions = save_run(p, conn, run, result, attempt)
+                follow_ups = _follow_ups(conn, run, _open_questions(run, result, questions))
+        except RunConflict as conflict:
+            if redo < REDOS:
+                log.info("run %s redoes after a refused save: %s", run.id, conflict)
+                continue
+            raise RunFailed(f"RunConflict: {conflict}", retryable=False) from conflict
         ping_run(p.pinger, run.model_copy(update={"status": RunStatus.DONE}))
         for follow_up in follow_ups:
             ping_run(p.pinger, follow_up)
         ping_changed(p.pinger, run.workspace_id, run.grant_id, "records", "statuses", "thread")
-    except Exception as error:  # noqa: BLE001 - any failure fails the try, and nothing was saved
-        message = f"{type(error).__name__}: {error}"[:2000]
-        log.warning("agent run %s try %s failed: %s", run.id, attempt + 1, type(error).__name__)
-        # The agent's AgentRunFailed says whether trying again could help, and carries the
-        # try's debug log, which is kept even though nothing else is saved.
-        retryable = bool(getattr(error, "retryable", True))
-        debug_log = getattr(error, "log", None)
-        stored_log = None
-        if isinstance(debug_log, bytes):
-            try:
-                p.storage.put(log_path(run, attempt), debug_log, "application/json")
-                stored_log = log_path(run, attempt)
-            except Exception:  # noqa: BLE001 - a lost log mustn't hide the failure
-                log.warning("debug log of run %s try %s not stored", run.id, attempt + 1)
-        _after_failure(
-            p, run, attempt, priority, message, retryable=retryable, stored_log=stored_log
-        )
+        return
 
 
-def _after_failure(
-    p: Platform,
-    run: AgentRun,
-    attempt: int,
-    priority: int,
-    message: str,
-    *,
-    retryable: bool,
-    stored_log: str | None = None,
-) -> None:
+def _open_questions(
+    run: AgentRun, result: AgentResult, questions: Sequence[OpenQuestion]
+) -> list[Trigger]:
+    """Follow-ups only after a thread run: it replies and suggests and isn't responsible for
+    code's open questions, so any it leaves get an ordinary run right away."""
+    if run.trigger.kind != TriggerKind.THREAD_MESSAGE:
+        return []
+    open_questions = [*getattr(result, "other_open_questions", ())]
+    open_questions += [q for q in questions if q.answer_by == Author.AGENT]
+    return follow_up_triggers(open_questions)[:MAX_FOLLOW_UPS]
+
+
+class RunFailed(Exception):
+    def __init__(self, message: str, *, retryable: bool, log: bytes | None = None):
+        super().__init__(message)
+        self.retryable = retryable
+        self.log = log
+
+
+def execute_run(p: Platform, run_id: str, attempt: int) -> None:
+    """One try of one run. The Procrastinate task calls this.
+
+    Whatever goes wrong ends in one of two ways: a retry of the same job, or the run marked
+    failed with the usual problem raised by the checks. That includes an error before the
+    try starts and an error while recording a failure.
+    """
+    try:
+        run = _start(p, run_id)
+        if run is None:
+            return
+        ping_run(p.pinger, run)
+        try:
+            _attempt(p, run, attempt)
+        except Exception as error:  # noqa: BLE001 - any failure fails the try; nothing was saved
+            _after_failure(p, run, attempt, error)
+    except RetryRun:
+        raise
+    except Exception as error:  # noqa: BLE001 - the run must not stay queued or running
+        log.warning("agent run %s ended by an error: %s", run_id, type(error).__name__)
+        _fail_for_good(p, run_id, f"{type(error).__name__}: {error}"[:2000], None)
+
+
+def _after_failure(p: Platform, run: AgentRun, attempt: int, error: Exception) -> None:
+    message = f"{type(error).__name__}: {error}"[:2000]
+    log.warning("agent run %s try %s failed: %s", run.id, attempt + 1, type(error).__name__)
+    # The agent's AgentRunFailed says whether trying again could help, and carries the
+    # try's debug log, which is kept even though nothing else is saved.
+    retryable = bool(getattr(error, "retryable", True))
+    debug_log = getattr(error, "log", None)
+    stored_log = None
+    if isinstance(debug_log, bytes):
+        try:
+            p.storage.put(log_path(run, attempt), debug_log, "application/json")
+            stored_log = log_path(run, attempt)
+        except Exception:  # noqa: BLE001 - a lost log mustn't hide the failure
+            log.warning("debug log of run %s try %s not stored", run.id, attempt + 1)
     if retryable and attempt < p.run_retries:
         with transaction(p.pool) as conn:
             store.set_run(conn, run.id, RunStatus.QUEUED, error=message, log_path=stored_log)
         ping_run(p.pinger, run.model_copy(update={"status": RunStatus.QUEUED}))
         raise RetryRun(message)
+    _fail_for_good(p, run.id, message, stored_log)
+
+
+def _fail_for_good(p: Platform, run_id: str, message: str, stored_log: str | None) -> None:
+    """Mark the run failed and rerun the checks with it in failed_runs, so they raise the
+    usual problem where its trigger points."""
     with transaction(p.pool) as conn:
+        run = store.get_run(conn, run_id, lock=True)
+        if run is None or run.status in (RunStatus.DONE, RunStatus.FAILED):
+            return
         store.set_run(
             conn, run.id, RunStatus.FAILED, finished=True, error=message, log_path=stored_log
         )
@@ -352,8 +408,10 @@ def run_agent(
     attempt: int = 0,
     priority: int = NORMAL_PRIORITY,
 ) -> None:
-    """One try of one run. The try number is the job's own count of earlier attempts."""
-    execute_run(get_platform(), run_id, context.job.attempts, priority)
+    """One try of one run. The try number is the job's own count of earlier attempts.
+    `attempt` and `priority` are in the job's arguments for reading the queue; the job's own
+    attempts count is what's used."""
+    execute_run(get_platform(), run_id, context.job.attempts)
 
 
 @app.periodic(cron="* * * * *", periodic_id="retry_stalled")

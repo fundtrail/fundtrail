@@ -195,7 +195,9 @@ def add_record(
         store.insert_records(conn, [record])
         trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
         output = recheck_grant(conn, p.checks, grant, now, trigger)
-        if agent_questions_open(output.questions) and not store.has_pending_run(conn, grant.id):
+        # Queued whether or not a run is in progress; a queued run that hasn't started
+        # reads this record when it starts, so it's shared (the run-order ruling, 5).
+        if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
             run = queue_run(conn, grant, trigger, now)
     if run is not None:
         ping_run(p.pinger, run)
