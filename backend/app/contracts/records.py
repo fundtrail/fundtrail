@@ -441,12 +441,15 @@ class Notice(_Term):
     kind: Literal[RecordKind.NOTICE] = RecordKind.NOTICE
     amendment_number: CitedText  # for example "000" for the new project
     amendment_type: CitedText  # for example "New Project", "Increment" or "No Cost Extensions"
-    obligated_by_amendment: CitedMoney | None = (
-        None  # "Amount Obligated by this Amendment": what it adds
-    )
-    obligated_to_date: CitedMoney | None = (
-        None  # "Total Amount Obligated to Date": the award's limit
-    )
+    # "Amount Obligated by this Amendment": what it adds.
+    obligated_by_amendment: CitedMoney | None = None
+    # "Total Amount Obligated to Date": the award's limit.
+    obligated_to_date: CitedMoney | None = None
+    # The award number and the project title as the notice prints them (issue 118).
+    # Once the notice counts, the platform copies them onto the grant's award_number
+    # and title: see rules.award_number_and_title.
+    award_number: CitedText | None = None
+    title: CitedText | None = None
 
 
 class OtherTerm(_Term):

@@ -794,3 +794,22 @@ def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:
         "update public.agent_runs set read_through_seq = %s where id = %s",
         (read_through_seq, run_id),
     )
+
+
+def snapshot_now(conn: Conn) -> datetime:
+    """The database's "now" for the current transaction: when its snapshot was taken."""
+    row = conn.execute("select now() as now").fetchone()
+    assert row is not None
+    return row["now"]
+
+
+def set_award_number_and_title(
+    conn: Conn, grant_id: str, award_number: str | None, title: str | None
+) -> None:
+    """The grant's award number and title, as the notices that count print them. A grant row
+    is updated only when they change."""
+    conn.execute(
+        """update public.grants set award_number = %s, title = %s
+           where id = %s and (award_number is distinct from %s or title is distinct from %s)""",
+        (award_number, title, grant_id, award_number, title),
+    )

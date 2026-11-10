@@ -726,6 +726,34 @@
             },
             "match": "exact"
           }
+        },
+        "award_number": {
+          "value": "SYN-2300117",
+          "text": "SYN-2300117",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Award Number (FAIN): SYN-2300117",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 677,
+              "end_char_index": 709
+            },
+            "match": "exact"
+          }
+        },
+        "title": {
+          "value": "Sediment Microbiome Survey of Example Bay",
+          "text": "Sediment Microbiome Survey of Example Bay",
+          "citation": {
+            "file_id": "file-award-letter",
+            "passage": "Project Title: Sediment Microbiome Survey of Example Bay",
+            "location": {
+              "type": "char_location",
+              "start_char_index": 872,
+              "end_char_index": 928
+            },
+            "match": "exact"
+          }
         }
       },
       "read_through_seq": 1

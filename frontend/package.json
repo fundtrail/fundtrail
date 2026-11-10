@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "pnpm pdfjs:wasm && next dev",
+    "build": "pnpm pdfjs:wasm && next build",
+    "pdfjs:wasm": "node -e \"require('node:fs').cpSync('node_modules/pdfjs-dist/wasm', 'public/pdfjs/wasm', { recursive: true, filter: (f) => !f.includes('quickjs') && !f.endsWith('.js') })\"",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
@@ -13,8 +14,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
     "next": "16.4.5",
+    "pdfjs-dist": "6.3.289",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-pdf": "11.0.0",
     "swr": "^2.5.1"
   },
   "devDependencies": {

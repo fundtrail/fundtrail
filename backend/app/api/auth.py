@@ -41,8 +41,11 @@ def _user(claims: dict[str, Any]) -> User:
 
 
 # The sign-in methods in a Supabase session token's `amr` claim that mean an email
-# sign-in: a password, a one-time code or link, or an email invite or recovery link.
-EMAIL_METHODS = frozenset({"password", "otp", "magiclink", "email/signup", "invite", "recovery"})
+# sign-in: a password, a one-time code or link, or an email invite, recovery or
+# email-change link.
+EMAIL_METHODS = frozenset(
+    {"password", "otp", "magiclink", "email/signup", "email_change", "invite", "recovery"}
+)
 
 
 def _email_session(claims: dict[str, Any]) -> bool:
