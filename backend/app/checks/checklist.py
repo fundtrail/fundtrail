@@ -335,7 +335,11 @@ def evaluate_item(
                         f"over:{spec.stable}",
                         Bucket.NEEDS_HUMAN,
                         f"{spec.needed}: the bills linked add up to {money(total)}, "
-                        f"more than {money(spec.amount_cents)}.",
+                        + (
+                            f"the opposite sign of the {money(spec.amount_cents)} it needs."
+                            if (total > 0) != (spec.amount_cents > 0) and spec.amount_cents != 0
+                            else f"more than {money(spec.amount_cents)}."
+                        ),
                         facts + own,
                     )
                 )
