@@ -37,6 +37,7 @@ from .adapter import (
     Judgment,
     OpenQuestion,
     Question,
+    agent_has_answered,
     agent_questions,
     check_write,
 )
@@ -336,9 +337,19 @@ def split_questions(ctx: RunContext) -> tuple[list[OpenQuestion], list[OpenQuest
     replies and suggests, and covers none (the main coordinator's ruling, replacing answer 3):
     every open question, the thread's own charge included, goes back to the platform, which
     queues an ordinary run, and the reply isn't held up.
+
+    A question the agent has answered, with an answer that's saved (counting or waiting for the
+    accountant) and fresh, isn't the agent's any more, even while the checks list it as open
+    because the answer waits (issue #136).
     """
-    questions = agent_questions(ctx.checks())
-    if ctx.inputs.trigger.kind == TRIGGER_THREAD:
+    i = ctx.inputs
+    records = ctx.records
+    questions = [
+        q
+        for q in agent_questions(ctx.checks())
+        if not agent_has_answered(q, records, i.charges, i.files, i.grant.id)
+    ]
+    if i.trigger.kind == TRIGGER_THREAD:
         return [], questions
     return questions, []
 
