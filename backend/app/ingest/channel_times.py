@@ -86,8 +86,9 @@ def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
     With no grant "now" (a grant on the real date) the text is the stored text. On a
     sample grant, the top-level headers are cut down to From, To, Cc, Subject and the
     three MIME headers as stored, and Date with the grant's "now" (`Date :` with a space
-    is a Date header too). Every other header is dropped as a zero-length span. The body, including a
-    forwarded message's own headers, is what the sender wrote and stays.
+    is a Date header too). Every other header is dropped as a zero-length span. The
+    body, including a forwarded message's own headers, is what the sender wrote and
+    stays.
     """
     if grant_now is None:
         return ReadingText(stored)
