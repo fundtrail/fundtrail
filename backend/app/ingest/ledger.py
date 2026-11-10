@@ -1,4 +1,4 @@
-"""Read a grant's ledger file (CSV or Excel) into charges.
+"""Read a grant's ledger file (CSV, comma-separated values, or Excel) into charges.
 
 Follows docs/contracts.md section 13 (the file) and section 6 (the charge), and decision 0023
 for when a line arrives. This is a pure function: it never touches the database. Storing the
@@ -34,6 +34,9 @@ KNOWN_COLUMNS = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
 _AMOUNT_PATTERN = re.compile(r"-?[0-9]+(\.[0-9]{1,2})?")
 _DATE_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _XLSX_MAGIC = b"PK\x03\x04"
+# Columns read as free text, which are checked for NUL characters. The dates and the amount
+# have patterns of their own.
+_TEXT_COLUMNS = ("line_id", "description", "account", "vendor", "reference", "original_line_id")
 
 type Cell = str | int | float | Decimal | date | datetime | bool | None
 
@@ -76,8 +79,8 @@ def read_ledger_file(
     with its row number and a plain reason, and the rest still load. Raises `LedgerFileError`
     when the file as a whole can't be read.
 
-    `now` is the workspace's "now". A line arrives at 00:00 UTC on its posting date if that's
-    still ahead of `now`, and otherwise at `now` (decision 0023).
+    `now` is the workspace's "now". A line arrives at 00:00 UTC (Coordinated Universal Time) on
+    its posting date if that's still ahead of `now`, and otherwise at `now` (decision 0023).
     """
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware.")
@@ -98,19 +101,27 @@ def read_ledger_file(
         values = {name: _text(cells[i]) if i < len(cells) else None for name, i in columns.items()}
         if all(v is None for v in values.values()):
             continue  # A blank row, such as a trailing line, isn't a ledger line.
-        try:
-            line_id = _required(values, "line_id")
-            if line_id in on_file:
+        problems = [
+            f"{name} contains a NUL (null) character."
+            for name in _TEXT_COLUMNS
+            if "\x00" in (values.get(name) or "")
+        ]
+        line_id = values["line_id"]
+        if line_id is not None and line_id in on_file and not problems:
+            if line_id not in skipped:
                 skipped.append(line_id)
-                continue
-            if line_id in first_seen_at:
-                raise _RowError(
-                    f"line_id {line_id} already appears in this file at row "
-                    f"{first_seen_at[line_id]}."
-                )
+            continue
+        if line_id is None:
+            problems.append("line_id is empty.")
+        elif line_id in first_seen_at:
+            problems.append(
+                f"line_id {line_id} already appears in this file at row {first_seen_at[line_id]}."
+            )
+        else:
             first_seen_at[line_id] = row_number
+        try:
             charges.append(
-                _build_charge(values, cells, columns, workspace_id, grant_id, now, new_id)
+                _build_charge(values, cells, columns, problems, workspace_id, grant_id, now, new_id)
             )
         except _RowError as error:
             rejected.append(RejectedRow(row=row_number, reason=str(error)))
@@ -122,12 +133,13 @@ def _build_charge(
     values: dict[str, str | None],
     cells: Sequence[Cell],
     columns: dict[str, int],
+    problems: list[str],
     workspace_id: str,
     grant_id: str,
     now: datetime,
     new_id: Callable[[], str],
 ) -> Charge:
-    problems: list[str] = []
+    """The row's charge, or a `_RowError` listing every problem, including those passed in."""
 
     def attempt[T](read: Callable[[], T]) -> T | None:
         try:
@@ -147,12 +159,13 @@ def _build_charge(
     account = attempt(lambda: _required(values, "account"))
     if problems:
         raise _RowError(" ".join(problems))
-    assert transaction_date and posting_date and amount is not None
+    line_id = values["line_id"]
+    assert line_id and transaction_date and posting_date and amount is not None
     assert description and account
 
     try:
         row = LedgerRow(
-            line_id=_required(values, "line_id"),
+            line_id=line_id,
             transaction_date=transaction_date,
             posting_date=posting_date,
             amount=amount,
@@ -193,9 +206,12 @@ def _csv_rows(content: bytes) -> Iterator[list[Cell]]:
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError as error:
-        raise LedgerFileError("The file isn't an Excel file or a UTF-8 CSV file.") from error
+        raise LedgerFileError(
+            "The file isn't an Excel file or a UTF-8 CSV (comma-separated values) file."
+        ) from error
     try:
-        rows: list[list[Cell]] = [list(row) for row in csv.reader(io.StringIO(text, newline=""))]
+        reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+        rows: list[list[Cell]] = [list(row) for row in reader]
     except csv.Error as error:
         raise LedgerFileError(f"The CSV file can't be read: {error}.") from error
     return iter(rows)

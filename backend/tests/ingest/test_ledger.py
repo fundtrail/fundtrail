@@ -348,20 +348,23 @@ def test_now_without_a_timezone_is_refused():
         _read(SAMPLE_CSV, now=datetime(2025, 11, 14))
 
 
-def _with_dimension(content: bytes, ref: str) -> bytes:
-    """The same workbook, with the first sheet claiming the size `ref`."""
+def _patch_sheet(content: bytes, pattern: bytes, replacement: bytes) -> bytes:
+    """The same workbook, with one substitution made in the first sheet's stored XML."""
     source = zipfile.ZipFile(io.BytesIO(content))
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
         for item in source.infolist():
             data = source.read(item.filename)
             if item.filename == "xl/worksheets/sheet1.xml":
-                data, count = re.subn(
-                    rb'<dimension ref="[^"]*"', f'<dimension ref="{ref}"'.encode(), data
-                )
+                data, count = re.subn(pattern, replacement, data)
                 assert count == 1
             target.writestr(item, data)
     return buffer.getvalue()
+
+
+def _with_dimension(content: bytes, ref: str) -> bytes:
+    """The same workbook, with the first sheet claiming the size `ref`."""
+    return _patch_sheet(content, rb'<dimension ref="[^"]*"', f'<dimension ref="{ref}"'.encode())
 
 
 def test_excel_sheet_that_understates_its_size_is_read_in_full():
@@ -431,3 +434,55 @@ def test_each_charge_is_the_contracts_mapping_of_its_row():
         exclude={"arrived_at"}
     )
     assert first.arrived_at == now
+
+
+def test_every_problem_is_listed_even_when_the_line_id_is_empty_or_repeated():
+    content = "\n".join(
+        [
+            HEADER,
+            ",2025-01-01,2025-01-02,ten,No line ID,55016,,,",
+            "L-1,2025-01-01,2025-01-02,10.00,First,55016,,,",
+            "L-1,2025-13-01,2025-01-02,10.00,,55016,,,",
+        ]
+    )
+    result = _read(content)
+    assert [c.ledger_line_id for c in result.charges] == ["L-1"]
+    assert result.rejected == [
+        RejectedRow(
+            row=2,
+            reason="line_id is empty. amount 'ten' isn't dollars with up to two decimals, "
+            "such as -1240.00.",
+        ),
+        RejectedRow(
+            row=4,
+            reason="line_id L-1 already appears in this file at row 3. transaction_date "
+            "'2025-13-01' isn't a real date. description is empty.",
+        ),
+    ]
+
+
+def test_a_line_on_file_that_repeats_in_the_file_is_listed_as_skipped_once():
+    content = SAMPLE_CSV + "\n" + SAMPLE_CSV.splitlines()[1]
+    result = _read(content, existing=("L-1001",))
+    assert result.skipped_line_ids == ["L-1001"]
+    assert [c.ledger_line_id for c in result.charges] == ["L-1002"]
+
+
+def test_nul_characters_in_a_cell_are_rejected():
+    content = HEADER + "\nL-1,2025-01-01,2025-01-02,10.00,Bad\x00text,55016,,,\n"
+    [rejected] = _read(content).rejected
+    assert rejected == RejectedRow(row=2, reason="description contains a NUL (null) character.")
+
+
+def test_unclosed_quote_rejects_the_file():
+    content = HEADER + '\nL-1,2025-01-01,2025-01-02,10.00,"Unclosed,55016,,,\n'
+    with pytest.raises(LedgerFileError, match="CSV file can't be read"):
+        _read(content)
+
+
+def test_excel_float_leftovers_are_rejected_as_more_than_two_decimals():
+    # openpyxl writes 0.3, but Excel can store the float sum 0.1 + 0.2 in full.
+    content = _xlsx([HEADER.split(","), ["L-1", "2025-01-01", "2025-01-02", 0.3, "T", "1"]])
+    content = _patch_sheet(content, rb"<v>0.3</v>", b"<v>0.30000000000000004</v>")
+    [rejected] = _read(content).rejected
+    assert rejected.reason.startswith("amount '0.30000000000000004'")
