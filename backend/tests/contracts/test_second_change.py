@@ -880,3 +880,20 @@ def test_r3_2_flags_assignments_and_facts_are_matched_too():
     read = [from_thread(agent("b1", bill())), user("no", confirm("b1", decision="rejected"), 1)]
     assert any("rejected the same suggestion" in p for p in problems(agent("b2", bill(), 2), read))
     assert problems(agent("b3", bill(1300, "$13.00"), 2), read) == []  # a different reading
+
+
+def test_a_held_file_keeps_the_sent_date_it_takes_when_let_in():
+    """Ruling 43: the sent date the evidence file takes as its document date."""
+    from datetime import date
+
+    from app.contracts.mail import HeldFile
+
+    f = HeldFile(
+        name="message.eml",
+        media_type="message/rfc822",
+        storage_path="w/g/held/m1/message.eml",
+        sha256="0" * 64,
+        document_date=date(2026, 2, 21),
+    )
+    assert HeldFile.model_validate_json(f.model_dump_json()).document_date == date(2026, 2, 21)
+    assert held().files[0].document_date is None  # none given
