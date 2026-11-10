@@ -47,6 +47,17 @@ def test_budget_figures_give_each_line_and_category_as_the_notes_compute_them() 
     ]
 
 
+def test_budget_figures_give_the_award_limit_and_total_spending() -> None:
+    g = Grant()
+    t = g.standard_terms()  # $120,000 obligated to date on amendment 000
+    g.supplies_charge("c1", date(2024, 3, 1), 4_200_000, at(2024, 3, 1), line=t["ms"])
+    g.charge("c2", date(2024, 3, 2), 100_000)  # no budget line assigned yet
+    figures = budget_figures("g1", g.records, g.charges)
+    assert (figures.limit_cents, figures.limit_notice_id) == (12_000_000, t["notice"])
+    assert figures.spent_cents == 4_300_000  # every charge, as the limit compares
+    assert budget_figures("g1", [], []).limit_cents is None
+
+
 def test_budget_figures_count_a_parent_and_its_sub_lines_once() -> None:
     g = Grant()
     g.standard_terms()  # Participant Support Costs, $20,000
