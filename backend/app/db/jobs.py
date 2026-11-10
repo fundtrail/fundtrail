@@ -49,7 +49,9 @@ THREAD_PRIORITY = 10  # a question in a thread goes ahead of queued runs
 
 # A refused save starts the run over from a fresh read this many times, then it fails.
 REDOS = 2
-# At most this many follow-up runs after one thread run.
+# At most this many follow-up runs after one thread run. Safe because any ordinary run
+# answers every question open for the agent on its grant before it can finish
+# (contracts.md section 9), so the first follow-up covers the rest.
 MAX_FOLLOW_UPS = 10
 
 
@@ -279,6 +281,13 @@ def _attempt(p: Platform, run: AgentRun, attempt: int) -> None:
                 questions = save_run(p, conn, run, result, attempt)
                 follow_ups = _follow_ups(conn, run, _open_questions(run, result, questions))
         except RunConflict as conflict:
+            if result.log is not None:
+                # A refused try's debug log is kept too, beside the try's own.
+                path = log_path(run, attempt).removesuffix(".json") + f"-refused-{redo + 1}.json"
+                try:
+                    p.storage.put(path, result.log, "application/json")
+                except Exception:  # noqa: BLE001 - a lost log mustn't stop the redo
+                    log.warning("debug log of run %s's refused save not stored", run.id)
             if redo < REDOS:
                 log.info("run %s redoes after a refused save: %s", run.id, conflict)
                 continue
@@ -355,8 +364,11 @@ def _after_failure(p: Platform, run: AgentRun, attempt: int, error: Exception) -
 
 
 def _fail_for_good(p: Platform, run_id: str, message: str, stored_log: str | None) -> None:
-    """Mark the run failed and rerun the checks with it in failed_runs, so they raise the
-    usual problem where its trigger points."""
+    """Mark the run failed, then rerun the checks with it in failed_runs, so they raise the
+    usual problem where its trigger points.
+
+    Two transactions: the run ends `failed` even when the checks themselves raise, which is
+    logged; the next recheck on the grant raises the problem then."""
     with transaction(p.pool) as conn:
         run = store.get_run(conn, run_id, lock=True)
         if run is None or run.status in (RunStatus.DONE, RunStatus.FAILED):
@@ -364,11 +376,16 @@ def _fail_for_good(p: Platform, run_id: str, message: str, stored_log: str | Non
         store.set_run(
             conn, run.id, RunStatus.FAILED, finished=True, error=message, log_path=stored_log
         )
-        grant = store.get_grant(conn, run.grant_id, lock=True)
-        assert grant is not None
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
-        recheck_grant(conn, p.checks, grant, now, run.trigger)
     ping_run(p.pinger, run.model_copy(update={"status": RunStatus.FAILED}))
+    try:
+        with transaction(p.pool) as conn:
+            grant = store.get_grant(conn, run.grant_id, lock=True)
+            assert grant is not None
+            now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+            recheck_grant(conn, p.checks, grant, now, run.trigger)
+    except Exception as error:  # noqa: BLE001 - the run is failed already; say so and go on
+        log.warning("checks after run %s failed for good raised %s", run.id, type(error).__name__)
+        return
     ping_changed(p.pinger, run.workspace_id, run.grant_id, "statuses")
 
 

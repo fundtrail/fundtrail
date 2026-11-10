@@ -629,3 +629,64 @@ def test_an_error_while_recording_a_failure_still_ends_the_run_failed(
     run_worker_until_idle(str(platform.pool.conninfo))
     [run] = _runs(platform, grant)
     assert run.status == RunStatus.FAILED and run.error and "ConnectionError" in run.error
+
+
+def test_a_record_sharing_a_queued_run_is_read_by_it_even_as_the_run_starts(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reviewer's hold: the record's write is held just after it decided to share the
+    queued run, while the run starts. The run's start waits for the write, then reads it."""
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    checks = platform.checks
+    assert isinstance(checks, FakeChecks)
+    grant = _grant(platform)  # queues the award letter's run, not started
+    _charge(platform, grant)
+    checks.agent_questions = True
+    real = store.has_queued_run
+    worker: list[threading.Thread] = []
+
+    def held(conn: object, grant_id: str) -> bool:
+        shared = real(conn, grant_id)  # pyright: ignore[reportArgumentType]
+        thread = threading.Thread(target=run_worker_until_idle, args=(str(platform.pool.conninfo),))
+        thread.start()
+        worker.append(thread)
+        time.sleep(0.5)  # the run tries to start while the record isn't committed
+        return shared
+
+    monkeypatch.setattr(store, "has_queued_run", held)
+    actions.add_record(
+        platform,
+        grant,
+        _user_id(platform, grant),
+        {"kind": "other_term", "label": "Note", "statement": {"value": "Look again."}},
+        None,
+    )
+    monkeypatch.setattr(store, "has_queued_run", real)
+    worker[0].join(timeout=30)
+    [first] = agent.inputs[:1]
+    assert any(r.kind == "other_term" for r in first.records)
+
+
+def test_a_run_ends_failed_even_when_the_checks_raise(
+    platform: Platform,  # noqa: F811
+) -> None:
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    checks = platform.checks
+    assert isinstance(checks, FakeChecks)
+
+    def behave(i: AgentInput) -> AgentResult:
+        raise _RunFailed("refused", retryable=False, log=b"{}")
+
+    agent.behave = behave
+    grant = _grant(platform)
+
+    def broken(*_: object) -> None:
+        raise RuntimeError("a bug in the checks")
+
+    checks.run_checks = broken  # pyright: ignore[reportAttributeAccessIssue]
+    run_worker_until_idle(str(platform.pool.conninfo))
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.FAILED and run.error and "refused" in run.error

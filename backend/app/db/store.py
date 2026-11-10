@@ -396,9 +396,14 @@ def other_running_runs(conn: Conn, grant_id: str, run_id: str) -> list[str]:
 
 def has_queued_run(conn: Conn, grant_id: str) -> bool:
     """Whether a run on the grant is queued and hasn't started: it will read everything
-    stored when it starts, so a new record can share it."""
+    stored when it starts, so a new record can share it.
+
+    The queued run's row is locked until the caller's transaction ends. A run's start
+    takes the same row lock, so it waits for the record to commit and then reads it.
+    """
     row = conn.execute(
-        "select 1 from public.agent_runs where grant_id = %s and status = 'queued' limit 1",
+        """select id from public.agent_runs where grant_id = %s and status = 'queued'
+           limit 1 for update""",
         (grant_id,),
     ).fetchone()
     return row is not None
