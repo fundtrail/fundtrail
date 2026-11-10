@@ -23,6 +23,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import math
 import re
 import sys
 from datetime import date, datetime, timedelta
@@ -431,7 +432,7 @@ def typed_share(action: dict) -> tuple[float, float] | None:
         share, whole = float(str(action["share"])), float(str(action["out_of"]))
     except ValueError:
         return None
-    if not (whole > 0 and 0 <= share <= whole):
+    if not (math.isfinite(share) and math.isfinite(whole) and whole > 0 and 0 <= share <= whole):
         return None
     return share, whole
 
@@ -1315,6 +1316,18 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
     problems, not tracebacks: a share typed where a basis is on file (S3a), a
     confirmation of an invoice, a suggestion that isn't a record kind, a share
     that isn't a number or is out of 0, and a line that isn't in the ledger."""
+    # A share the loader would refuse: not a number, infinite, or out of nothing.
+    for share, whole in (
+        ("many", "96"),
+        ("Infinity", "Infinity"),
+        ("56", "inf"),
+        ("1", "0"),
+        ("NaN", "96"),
+        ("97", "96"),
+    ):
+        assert typed_share({"share": share, "out_of": whole}) is None, (share, whole)
+    assert typed_share({"share": "56", "out_of": "96"}) == (56.0, 96.0)
+
     import shutil
     import tempfile
 

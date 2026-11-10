@@ -11,8 +11,8 @@ from collections.abc import Iterable
 
 from app.checks.findings import BUDGET
 from app.checks.history import describe_trigger
+from app.contracts.api import ReadingView, TermView
 from app.contracts.api import RecordState as TermState
-from app.contracts.api import TermView
 from app.contracts.charges import Charge
 from app.contracts.checks import (
     Bucket,
@@ -61,6 +61,7 @@ from app.contracts.records import (
 )
 from app.contracts.rules import RecordState
 from app.contracts.runs import TriggerKind
+from app.ingest.channel_times import reading_view
 
 from . import fmt
 from .inputs import ReportInputs
@@ -138,6 +139,7 @@ class _Report:
         self.charges = {c.id: c for c in inp.charges}
         self.status = {s.charge_id: s for s in inp.checks.charges}
         self.messages = {m.id: m for m in inp.thread_messages}
+        self._readings: dict[str, ReadingView] = {}
         self.order = self._charge_order()
 
     # Charges, and how they're grouped.
@@ -227,7 +229,18 @@ class _Report:
         return f.name if f else (file_id or "")
 
     def place(self, c: Citation, value_text: str | None = None) -> str:
-        return fmt.place(c, self.files, self.inp.file_texts, value_text)
+        return fmt.place(c, self.files, self.inp.file_texts, value_text, self.reading(c.file_id))
+
+    def reading(self, file_id: str) -> ReadingView | None:
+        """The text the agent read for an email on a grant with a stored clock (ruling 50)."""
+        clock = self.inp.grant.clock_now
+        f = self.files.get(file_id)
+        text = self.inp.file_texts.get(file_id)
+        if clock is None or f is None or text is None or f.media_type != "message/rfc822":
+            return None
+        if file_id not in self._readings:
+            self._readings[file_id] = reading_view(text.encode("utf-8"), clock)
+        return self._readings[file_id]
 
     def quotes(self, cs: Iterable[Citation]) -> list[Block]:
         out: list[Block] = []

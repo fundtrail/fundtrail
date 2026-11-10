@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 
+from app.contracts.api import ReadingView
 from app.contracts.checks import Bucket
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
@@ -50,15 +51,34 @@ def line_number(text: str, char_index: int) -> int:
     return text.count("\n", 0, char_index) + 1
 
 
+def reading_position(reading: ReadingView, stored_at: int) -> int:
+    """Where a stored character position sits in the text the agent reads (ruling 50).
+
+    Inside a kept span it moves with the span. Inside a gap (a header replaced or
+    dropped) it lands where the gap starts in the reading text: the replaced Date
+    line, or the next kept line when the header was only dropped.
+    """
+    gap_at = 0
+    for s in reading.segments:
+        if s.stored_start <= stored_at < s.stored_start + s.length:
+            return s.reading_start + (stored_at - s.stored_start)
+        if s.stored_start + s.length <= stored_at:
+            gap_at = s.reading_start + s.length
+    return gap_at
+
+
 def place(
     citation: Citation,
     files: dict[str, EvidenceFile],
     file_texts: dict[str, str],
     value_text: str | None = None,
+    reading: ReadingView | None = None,
 ) -> str:
     """Where a citation points: the file's name and the place inside it.
 
-    Text and email give the line number when the file's text is at hand. A photo
+    Text and email give the line number when the file's text is at hand. For an
+    email on a grant with a stored clock, `reading` is the text the agent read, and
+    the line is counted there (ruling 50), so dropped headers don't count. A photo
     or a scan gives the page and the value as read (decision 0022's agreed answers).
     """
     f = files.get(citation.file_id)
@@ -75,6 +95,9 @@ def place(
     if isinstance(loc, CharLocation):
         text = file_texts.get(citation.file_id)
         if text is not None and loc.start_char_index <= len(text):
+            if reading is not None:
+                at = reading_position(reading, loc.start_char_index)
+                return f"{name}, line {line_number(reading.text, at)}"
             return f"{name}, line {line_number(text, loc.start_char_index)}"
         return name
     if isinstance(loc, ContentBlockLocation):
