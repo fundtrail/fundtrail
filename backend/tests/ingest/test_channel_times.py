@@ -7,6 +7,7 @@ import pytest
 
 from app.agent.files import describe
 from app.contracts.api import ReadingView, TextSegment
+from app.ingest import channel_times
 from app.ingest.channel_times import check_segments, reading_text, reading_view, sample_sent_date
 from app.ingest.checker import CheckState, check_mail
 from app.ingest.incoming import GrantRoute, IncomingFile, to_evidence_file
@@ -242,3 +243,69 @@ def test_the_view_is_the_contracts() -> None:
 def test_bad_segments_are_refused(spans) -> None:
     with pytest.raises(ValueError):
         check_segments(spans, stored_length=10, reading_length=10)
+
+
+# A citation's end, and mail with bare CR line endings (recheck of PR 168)
+
+SUBJECT_THEN_RECEIVED = (
+    "From: Pat <pat.rivera@university.example>\r\n"
+    "Subject: Approval for SYN-2401\r\n"
+    "Received: by 2002:a05:6a10:1234 with SMTP id abc;\r\n"
+    "        Wed, 11 Nov 2026 08:14:03 -0800 (PST)\r\n"
+    "Date: Tue, 12 Mar 2019 10:00:00 -0800\r\n"
+    "\r\n"
+    "Approved. Pat\r\n"
+)
+
+
+def test_a_citation_ending_at_a_kept_line_doesnt_pull_in_the_dropped_header_after_it() -> None:
+    reading = reading_text(SUBJECT_THEN_RECEIVED, SAMPLE_NOW)
+    quote = "Subject: Approval for SYN-2401\r\n"
+    start = reading.text.index(quote)
+    end = start + len(quote)
+    # Mapping the end position itself lands after the dropped Received line.
+    assert "2026" in SUBJECT_THEN_RECEIVED[reading.stored_index(start) : reading.stored_index(end)]
+    stored_start, stored_end = reading.stored_range(start, end)
+    assert SUBJECT_THEN_RECEIVED[stored_start:stored_end] == quote
+
+
+def test_stored_range_handles_empty_ranges_and_the_replaced_date() -> None:
+    reading = reading_text(SUBJECT_THEN_RECEIVED, SAMPLE_NOW)
+    at = reading.text.index("Approved")
+    assert reading.stored_range(at, at) == (reading.stored_index(at),) * 2
+    date_at = reading.text.index("Date: ")
+    date_end = reading.text.index("\r\n", date_at) + 2
+    stored_start, stored_end = reading.stored_range(date_at, date_end)
+    assert SUBJECT_THEN_RECEIVED[stored_start:stored_end] == (
+        "Date: Tue, 12 Mar 2019 10:00:00 -0800\r\n"
+    )
+    body = "Approved. Pat"
+    stored_start, stored_end = reading.stored_range(at, at + len(body))
+    assert SUBJECT_THEN_RECEIVED[stored_start:stored_end] == body
+
+
+def test_bare_cr_line_endings_are_read_and_map_exactly() -> None:
+    stored = SUBJECT_THEN_RECEIVED.replace("\r\n", "\r")
+    reading = reading_text(stored, SAMPLE_NOW)
+    assert "2026 08:14" not in reading.text and "2019" not in reading.text
+    assert reading.text.startswith("From: Pat")
+    assert "Date: Tue, 02 Jun 2026 15:30:00 +0000\r" in reading.text
+    body = "Approved. Pat"
+    at = reading.text.index(body)
+    stored_start, stored_end = reading.stored_range(at, at + len(body))
+    assert stored[stored_start:stored_end] == body
+
+
+def test_a_lone_cr_inside_a_header_doesnt_raise() -> None:
+    stored = SUBJECT_THEN_RECEIVED.replace("Approval for", "Approval\rfor", 1)
+    reading = reading_text(stored, SAMPLE_NOW)  # no AssertionError
+    assert "Approved. Pat" in reading.text
+    assert "2026 08:14" not in reading.text
+
+
+def test_an_unreadable_header_block_falls_back_to_the_stored_text(monkeypatch) -> None:
+    def unreadable(stored: str, header_end: int):
+        raise channel_times._Unreadable  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.setattr(channel_times, "_fields", unreadable)
+    assert reading_text(SUBJECT_THEN_RECEIVED, SAMPLE_NOW).text == SUBJECT_THEN_RECEIVED

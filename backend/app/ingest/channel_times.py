@@ -48,9 +48,10 @@ _KEPT_HEADERS = {
 }
 # The blank line that ends the headers: the header block runs to the end of its first
 # line ending, so each header field includes its own line ending.
-_HEADER_END = re.compile(r"\r?\n(?=\r?\n)")
-# One line, with its line ending if it has one.
-_LINE = re.compile(r"[^\r\n]*(?:\r?\n|$)")
+# Mail is external, so a bare CR (carriage return) ends a line too.
+_HEADER_END = re.compile(r"\r?\n(?=\r?\n)|\r(?=\r(?!\n))")
+# One line, with its line ending if it has one: CRLF, LF or a bare CR.
+_LINE = re.compile(r"[^\r\n]*(?:\r\n|\n|\r|$)")
 
 
 def sample_sent_date(grant_now: datetime) -> date:
@@ -81,6 +82,29 @@ class ReadingText:
             shift = stored_end - end
         return index + shift
 
+    def stored_range(self, start: int, end: int) -> tuple[int, int]:
+        """The stored range that the reading range `[start, end)` stands for.
+
+        The end is mapped from the last character it covers, not from `end` itself: a
+        dropped header is a zero-length span, so the position just after a kept line also
+        stands for the position after the dropped header that follows it, and mapping
+        `end` directly would pull that header (say a Received line with the real time)
+        into the citation. An end inside the replaced Date maps to the end of the
+        original Date header. An empty range maps to an empty stored range.
+        """
+        first = self.stored_index(start)
+        if end <= start:
+            return first, first
+        last = end - 1
+        for reading_start, reading_end, _, stored_end in self.replaced:
+            if reading_start <= last < reading_end:
+                return first, stored_end
+        return first, self.stored_index(last) + 1
+
+
+class _Unreadable(Exception):
+    """A header block the reading text can't be built from."""
+
 
 def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
     """The text the agent reads for an email whose stored text is `stored`.
@@ -94,6 +118,15 @@ def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
     """
     if grant_now is None:
         return ReadingText(stored)
+    try:
+        return _reading_text(stored, grant_now)
+    except _Unreadable:
+        # A header block that can't be read: the stored text, unchanged, rather than an
+        # error on mail from outside.
+        return ReadingText(stored)
+
+
+def _reading_text(stored: str, grant_now: datetime) -> ReadingText:
     end = _HEADER_END.search(stored)
     header_end = end.end() if end else len(stored)
     date_value = format_datetime(_utc(grant_now))
@@ -123,7 +156,8 @@ def _fields(stored: str, header_end: int) -> list[tuple[int, int, str | None, st
     position = 0
     while position < header_end:
         line = _LINE.match(stored, position, header_end)
-        assert line is not None  # _LINE matches the empty string
+        if line is None:
+            raise _Unreadable
         if line.end() == position:
             break
         text = line.group()
@@ -139,9 +173,10 @@ def _fields(stored: str, header_end: int) -> list[tuple[int, int, str | None, st
 
 
 def _line_ending(line: str) -> str:
-    if line.endswith("\r\n"):
-        return "\r\n"
-    return "\n" if line.endswith("\n") else ""
+    for ending in ("\r\n", "\n", "\r"):
+        if line.endswith(ending):
+            return ending
+    return ""
 
 
 def reading_view(stored: bytes, grant_now: datetime | None) -> ReadingView:
