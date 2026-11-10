@@ -35,6 +35,7 @@ from .adapter import (
 from .citations import (
     CitationProblem,
     image_box,
+    money_sign_agrees,
     parse_date,
     parse_decimal,
     parse_money,
@@ -410,6 +411,15 @@ def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
         citation = resolve_citation(line.text, line.citations, ctx.documents)
     except CitationProblem as error:
         raise WriteProblem(f"{v.field}: {error}") from error
+    passage = citation.get("passage")
+    money = _leaf(v.field) in MONEY_FIELDS
+    if money and passage and not money_sign_agrees(value, passage, line.text):
+        # Code's reading of the money and the quote finder's reading of the page disagree on
+        # the sign (PR 105's review): neither is taken on trust.
+        raise WriteProblem(
+            f"{v.field}: '{line.text}' reads as {value} cents, but the file signs that amount the "
+            "other way. Cite the amount with the sign the file gives it"
+        )
     return {"value": value, "text": line.text, "citation": citation}
 
 

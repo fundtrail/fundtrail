@@ -102,6 +102,11 @@ MEMO = (
         ("Credit- $248.00", "$248.00"),
         ("Hotel- $612.40", "$612.40"),
         ("Year 2-\u00a0$50,000", "$50,000"),
+        # A currency code between a spaced dash and the amount (ruling 3, the coordinator's call).
+        ("Hotel \u2013 USD 612.40", "612.40"),
+        ("Hotel - US$612.40", "612.40"),
+        ("Credit amount \u2013 USD 248.00", "\u2013 USD 248.00"),
+        ("Credit amount \u2013 usd 248.00", "248.00"),
     ],
 )
 def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
@@ -118,13 +123,11 @@ def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
         ("Total:\u00a0($450.00)", "($450.00)"),
         ("Total Due: $1,240.00", "$1,240.00"),
         ("Year 2-$50,000", "$50,000"),  # a hyphen after a digit
-        # The finder reads these one way, so they no longer ask for a reason: brackets in
-        # prose still read as a minus until the follow-up on prose brackets lands, and a
-        # currency code or a line break between the dash and the amount ends the dash's reach.
+        # The finder reads these one way, so they don't ask for a reason: brackets in prose
+        # still read as a minus until the follow-up on prose brackets lands, and a line break
+        # between the dash and the amount ends the dash's reach.
         ("the fee ($450.00) was paid", "($450.00)"),
         ("the fee, ($450.00), was paid", "($450.00)"),
-        ("Hotel \u2013 USD 612.40", "612.40"),
-        ("Hotel - US$612.40", "612.40"),
         ("Credit amount -\n$248.00", "248.00"),
     ],
 )
@@ -442,3 +445,39 @@ def test_a_per_diem_filled_only_by_rate_math_leaves_evidence_complete_when_flagg
     )
     assert isinstance(result, RunSaved), getattr(result, "error", result)
     assert bucket("chg-diem", [*db, *result.records], [charge], files, now) == Bucket.NEEDS_HUMAN
+
+
+# Code's reading of the money and the finder's reading of the page agree on the sign.
+
+
+@pytest.mark.parametrize(("text", "cents"), [("\u2013 USD 248.00", -24800), ("USD 248.00", 24800)])
+def test_a_code_after_a_spaced_dash_takes_either_sign_and_asks_for_the_reason(
+    text: str, cents: int
+):
+    """PR 105's review: "Credit amount \u2013 USD 248.00" cited as "\u2013 USD 248.00" parsed as
+    -$248.00 while the finder read it positive, and was saved with no reason. Now the finder reads
+    it either way: both signs are saved, and the link asks where the sign came from."""
+    line = "Credit amount \u2013 USD 248.00"
+    memo = MEMO.replace("Credit amount - $248.00", line)
+    result, _, _ = memo_run(text, cents, chunk=line, memo=memo)
+    bill, link, _ = result.records
+    assert isinstance(bill.data, Bill) and isinstance(link.data, Link)
+    assert bill.data.total.value == cents
+    assert "sign" in (link.data.reason or "")
+
+
+def test_money_whose_sign_disagrees_with_the_finder_is_refused(monkeypatch: pytest.MonkeyPatch):
+    """Positive needs at least 0 and negative needs less than 0; either way allows both."""
+    from app.agent import citations
+    from app.quotes.text_match import EITHER, NEGATIVE, POSITIVE
+
+    for sign, cents, agrees in [
+        (POSITIVE, 24800, True),
+        (POSITIVE, -24800, False),
+        (NEGATIVE, -24800, True),
+        (NEGATIVE, 24800, False),
+        (EITHER, 24800, True),
+        (EITHER, -24800, True),
+    ]:
+        monkeypatch.setattr(citations, "amount_sign", lambda *a, s=sign: s)  # pyright: ignore[reportUnknownLambdaType]
+        assert citations.money_sign_agrees(cents, "Total: $248.00", "$248.00") is agrees
