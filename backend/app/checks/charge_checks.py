@@ -36,6 +36,7 @@ from app.contracts.records import (
     Author,
     Bill,
     BudgetLine,
+    Correction,
     Dispute,
     Duplicate,
     Judgment,
@@ -632,6 +633,11 @@ def suggestions_by_charge(view: GrantView) -> dict[str, list[Record]]:
             if old.charge_id is not None:
                 touched.add(old.charge_id)
             touched.update(lk.data.charge_id for lk in view.links_to_fact.get(old.id, []))
+        if isinstance(r.data, Correction):
+            # Accepting it nets the line it names, which can reverse that line.
+            touched.update(
+                c.id for c in view.charges if c.ledger_line_id == r.data.corrects_line_id
+            )
         if r.kind == RecordKind.DUPLICATE:
             assert isinstance(r.data, Duplicate)
             files = {r.data.copy_file_id, r.data.original_file_id}

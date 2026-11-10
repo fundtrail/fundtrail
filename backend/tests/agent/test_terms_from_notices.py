@@ -105,3 +105,64 @@ def test_the_guidance_says_to_cite_the_narrowest_words():
     write_term = next(t for t in tool_definitions() if t["name"] == "write_term")
     flat = " ".join(write_term["description"].split())
     assert 'not "Funds budgeted for Participant Support Costs"' in flat
+
+
+def _line(record_id: str, name: str) -> dict[str, object]:
+    passage = "6. Other                                               $60,000"
+    start = AWARD.find(passage)
+    cite = {
+        "file_id": "file-award-letter",
+        "passage": passage,
+        "location": {
+            "type": "char_location",
+            "start_char_index": start,
+            "end_char_index": start + len(passage),
+        },
+        "match": "exact",
+    }
+    return {
+        "id": record_id,
+        "workspace_id": SAMPLE.workspace.id,
+        "grant_id": SAMPLE.grant.id,
+        "author": "agent",
+        "written_at": "2023-01-12T15:00:00+00:00",
+        "data": {
+            "kind": "budget_line",
+            "dated": {"value": "2023-01-10", "text": "Other", "citation": cite},
+            "name": {"value": name, "text": "Other", "citation": cite},
+            "amount": {"value": 6000000, "text": "Other", "citation": cite},
+            "category": "other_direct_costs_other",
+        },
+    }
+
+
+def test_only_budget_lines_in_force_or_waiting_count():
+    """PR 127's review: the checks' own matcher, so a rejected line doesn't count."""
+    from app.agent.adapter import applies_to_is_matchable
+    from app.contracts.records import Record
+
+    line = Record.model_validate(_line("rec-line-field", "Field Work"))
+    files = SAMPLE.files
+    assert applies_to_is_matchable("Field Work", [line], files, SAMPLE.grant.id)  # waiting
+    reject = Record.model_validate(
+        {
+            "id": "rec-reject-field",
+            "workspace_id": SAMPLE.workspace.id,
+            "grant_id": SAMPLE.grant.id,
+            "author": "user",
+            "author_user_id": SAMPLE.user.id,
+            "written_at": "2023-01-12T16:00:00+00:00",
+            "data": {
+                "kind": "confirmation",
+                "record_ids": ["rec-line-field"],
+                "decision": "rejected",
+            },
+        }
+    )
+    assert not applies_to_is_matchable("Field Work", [line, reject], files, SAMPLE.grant.id)
+
+
+def test_the_guidance_says_to_flag_a_narrower_clause_rather_than_widen_it():
+    write_term = next(t for t in tool_definitions() if t["name"] == "write_term")
+    flat = " ".join(write_term["description"].split())
+    assert "names something narrower than any line, don't widen it: flag the term" in flat

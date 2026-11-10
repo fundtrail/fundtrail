@@ -82,6 +82,18 @@ describe("the fake client", () => {
     expect(detail.reusable_notes?.map((n) => n.note.id)).toEqual(["rec-note-usage-statement"]);
   });
 
+  it("doesn't show a withdrawn sign-off as signed", async () => {
+    const api = createFakeApiClient();
+    const first = await api.writeRecord(SAMPLE_GRANT_ID, { data: { kind: "sign_off", note: "First." } });
+    await api.writeRecord(SAMPLE_GRANT_ID, { data: { kind: "retraction", reason: "Signed too early." }, replaces_id: first.id });
+    expect((await api.getGrant(SAMPLE_GRANT_ID)).sign_off.state).toBe("not_signed");
+
+    const second = await api.writeRecord(SAMPLE_GRANT_ID, { data: { kind: "sign_off", note: "Second." } });
+    const { sign_off } = await api.getGrant(SAMPLE_GRANT_ID);
+    expect(sign_off.state).toBe("signed");
+    expect(sign_off.sign_off?.id).toBe(second.id);
+  });
+
   it("shows a sign-off stored in fake mode as signed, filled in like the server", async () => {
     const api = createFakeApiClient();
     expect((await api.getGrant(SAMPLE_GRANT_ID)).sign_off.state).toBe("not_signed");

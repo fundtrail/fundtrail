@@ -99,6 +99,8 @@ function grantDetail(): GrantDetail {
  * checksum that say they're fake, and a snapshot of the grant as served.
  */
 function storedSignOff(grantId: Id, detail: GrantDetail, problems: ProblemList, charges: ChargeRow[], note: string | null | undefined): SignOff {
+  // Keys each row the way the server's snapshot does: api.problem_row_key in
+  // backend/app/contracts/api.py. Keep the two the same.
   const rowKey = (row: ProblemList["rows"][number]): string => {
     switch (row.kind) {
       case "grant":
@@ -235,7 +237,11 @@ export function grantFake(): Pick<
       const detail = isSample(grantId) ? grantDetail() : grant ? newGrantDetail(grant) : undefined;
       // The latest sign-off stored in fake mode shows as signed. The fake has no
       // checks, so nothing changes after it.
-      const signed = records.filter((r) => r.record.grant_id === grantId && r.record.data.kind === "sign_off").at(-1);
+      // A sign-off that a later record replaces, such as a retraction, is withdrawn.
+      const replaced = new Set(records.map((r) => r.record.replaces_id).filter(Boolean));
+      const signed = records
+        .filter((r) => r.record.grant_id === grantId && r.record.data.kind === "sign_off" && !replaced.has(r.record.id))
+        .at(-1);
       if (detail && signed) detail.sign_off = { state: "signed", sign_off: signed.record as FtRecord<SignOff>, changes: [] };
       return served(detail);
     },

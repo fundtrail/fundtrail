@@ -42,6 +42,7 @@ from app.contracts.records import (
     Author,
     ChecklistItem,
     ChecklistRemoval,
+    Correction,
     DefaultItem,
     Note,
     Period,
@@ -121,7 +122,15 @@ def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
     specs: list[ItemSpec] = []
     # The account group's items, with the table's due dates. The table applies
     # decision 0020's sign rule, so a line that takes money off gets none here.
-    for item in group_items(charge):
+    # Call 42 (provisional, likely to change: decision 0020 isn't reviewed yet): a line
+    # that adds money and names the reversing line itself cancels that reversal. It nets
+    # into it, so the original counts in full again with its bills where they are, and
+    # the cancelling line gets only the two correction items, no amounts to add up. A
+    # line that adds money and names the original, or nothing, is a re-post and keeps
+    # its account group's default, as decision 0020 says.
+    found = view.nets.get(charge.id)
+    cancels_a_reversal = found is not None and found.nets_into is not None
+    for item in () if cancels_a_reversal else group_items(charge):
         specs.append(
             ItemSpec(
                 item.needed,
@@ -312,7 +321,12 @@ def evaluate_item(
     if spec.kind == "reversal" and spec.default_key == "corrected_line":
         # Decision 0020: filled when the ledger names a line on this grant, or a current
         # correction record names one. Until then nothing is netted.
-        if corrected_line(charge, view.charges, view.state) is not None:
+        named = corrected_line(charge, view.charges, view.state) is not None or any(
+            isinstance(r.data, Correction) and r.data.charge_id == charge.id for r in view.current
+        )
+        if named:
+            # Netting still needs a line on this grant; a correction record naming a line
+            # on another fund fills this item and nets nothing (decision 0020).
             result.filled = True
             return result
         missing_text = (
@@ -423,6 +437,20 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
     # A fully reversed charge's sums are no longer checked (decision 0020); otherwise the
     # amounts add up to the charge's net amount.
     target = net_of(view, charge)
+    if target != 0 and (target > 0) != (charge.amount_cents > 0):
+        # More was taken off than was charged: never a valid state, so never complete.
+        netted = view.nets[charge.id].corrections
+        lines = ", ".join(c.ledger_line_id for c in view.charges if c.id in netted)
+        findings.append(
+            Finding(
+                CHECKLIST,
+                "over_corrected",
+                Bucket.NEEDS_HUMAN,
+                f"The lines correcting this charge ({lines}) take off "
+                f"{money(charge.amount_cents - target)}, more than its "
+                f"{money(charge.amount_cents)}.",
+            )
+        )
     reversed_ = is_reversed(view, charge)
     amounts = [s.amount_cents for s in specs if s.amount_cents is not None and not reversed_]
     if amounts:
