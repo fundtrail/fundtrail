@@ -28,13 +28,13 @@ Each area gets a link to its decision file here once the file is written. Whoeve
 
 | Provisional area | Its open items are in | Provisional decision file |
 |---|---|---|
-| Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
-| A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
-| The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
-| The clock | [product.md](product.md#not-decided-yet), [architecture.md](architecture.md#not-decided-yet) | Not written yet |
-| The seeded demo workspace and its data | [product.md](product.md#not-decided-yet), and below | Not written yet |
-| Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
-| The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | Not written yet |
+| Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0020](decisions/0020-reversals-and-cost-transfers.md) |
+| A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0021](decisions/0021-a-cost-shared-by-two-grants.md) |
+| The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0022](decisions/0022-evidence-report-and-sign-off.md) |
+| The clock | [product.md](product.md#not-decided-yet), [architecture.md](architecture.md#not-decided-yet) | [0023](decisions/0023-the-clock.md) |
+| The seeded demo workspace and its data | [product.md](product.md#not-decided-yet), and below | [0024](decisions/0024-the-seeded-demo-workspace.md) |
+| Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0025](decisions/0025-gmail-and-drive.md) |
+| The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | [0026](decisions/0026-eval-scoring-and-the-blind-test.md) |
 
 ### Work in parallel
 
