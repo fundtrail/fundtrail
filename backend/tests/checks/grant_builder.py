@@ -220,8 +220,12 @@ class Grant:
         }
         if channel:
             data["channel"] = cited(channel)
-        if scope is not None:  # every_charge or moved_out, once #39 adds it
-            data["scope"] = scope
+        if scope is not None:  # every_charge or moved_out, a CitedScope from the clause
+            words = {
+                "moved_out": "may not be diverted to other categories of expense",
+                "every_charge": "requires the prior approval of",
+            }
+            data["scope"] = cited(scope, words[scope])
         return self.agent(data, when)
 
     def notice(

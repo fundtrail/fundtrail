@@ -1,16 +1,11 @@
-"""Behavior pinned on purpose, and the approval rule scope cases waiting for #39.
+"""Behavior pinned on purpose, and an approval rule's scope (39-rulings.md item 8).
 
 The pins keep two edge cases as they are (main coordinator's ruling), so a
 later change to them has to be deliberate. Both are open questions for Alex.
-The scope tests are expected to fail until #39 adds `approval_rule.scope` and
-the checks read it; `strict=True` makes them fail loudly once they pass, so
-the follow-up has to turn them into ordinary tests.
 """
 
 from datetime import date
 from decimal import Decimal
-
-import pytest
 
 from app.contracts.checks import Bucket
 
@@ -62,11 +57,7 @@ def test_a_charge_filled_only_by_rate_math_reaches_evidence_complete_with_no_ans
     assert out.questions == ()
 
 
-# Approval rule scope (#39), not built yet.
-
-_PENDING = pytest.mark.xfail(
-    strict=True, reason="approval_rule.scope arrives with #39; the follow-up builds it"
-)
+# Approval rule scope.
 
 
 def _rule(g: Grant, applies_to: str, approver: str, scope: str) -> str:
@@ -75,7 +66,6 @@ def _rule(g: Grant, applies_to: str, approver: str, scope: str) -> str:
     return rule
 
 
-@_PENDING
 def test_moved_out_doesnt_cover_an_ordinary_stipend() -> None:
     g = Grant()
     t = g.standard_terms(with_rule=False)
@@ -88,7 +78,6 @@ def test_moved_out_doesnt_cover_an_ordinary_stipend() -> None:
     assert failing(status) == []
 
 
-@_PENDING
 def test_moved_out_covers_a_laptop_on_a_participant_support_account() -> None:
     g = Grant()
     t = g.standard_terms(with_rule=False)
@@ -98,7 +87,6 @@ def test_moved_out_covers_a_laptop_on_a_participant_support_account() -> None:
     assert f"approval:{rule}" in [e.default_item for e in status.checklist]
 
 
-@_PENDING
 def test_every_charge_covers_equipment_on_its_line() -> None:
     g = Grant()
     g.standard_terms(with_rule=False)
