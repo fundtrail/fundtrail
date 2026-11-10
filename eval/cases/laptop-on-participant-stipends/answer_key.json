@@ -1,0 +1,35 @@
+{
+  "case": "laptop-on-participant-stipends",
+  "award_number": "SYN-2509518",
+  "records": [
+    {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2025-08-01", "end": "2028-07-31", "dated": "2025-07-15"}},
+    {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "7500000", "obligated_to_date": "7500000", "dated": "2025-07-15"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Participant Support Costs", "category": "participant_support", "amount": "4000000", "dated": "2025-07-15"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Stipends", "category": "participant_support", "amount": "4000000", "dated": "2025-07-15"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "3500000", "dated": "2025-07-15"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "3500000", "dated": "2025-07-15"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Riley Sample", "email": "riley.sample@university.example", "role": "Principal Investigator", "dated": "2025-07-15"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Avery Ledger", "email": "avery.ledger@funder.example", "role": "Managing Grants Official", "dated": "2025-07-15"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Morgan Signet", "email": "morgan.signet@funder.example", "role": "Awarding Official", "dated": "2025-07-15"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jamie Program", "email": "jamie.program@funder.example", "role": "Managing Program Officer", "dated": "2025-07-15"}},
+    {"kind": "bill", "file": "invoice_10422.txt", "fields": {"total": "64000", "dated": "2026-02-03", "vendor": "Example Lab Supply Co.", "items[0].description": "Field sensor batteries, lithium, 24 count", "items[0].amount": "64000"}},
+    {"kind": "bill", "file": "invoice_88231.txt", "fields": {"total": "150000", "dated": "2026-03-11", "vendor": "Example Computer Supply", "items[0].description": "Laptop computer, 14-inch, 16 GB memory, 512 GB storage", "items[0].amount": "150000"}}
+  ],
+  "links": [
+    {"file": "invoice_10422.txt", "line_id": "L-6101", "amount_cents": 64000},
+    {"file": "invoice_88231.txt", "line_id": "L-6102", "amount_cents": 150000}
+  ],
+  "budget_lines": [
+    {"line_id": "L-6101", "budget_line": "Materials and Supplies"},
+    {"line_id": "L-6102", "budget_line": "Materials and Supplies"}
+  ],
+  "answers": [
+    {"line_id": "L-6101", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-6102", "question": "allowable", "answer": "supports"}
+  ],
+  "buckets": [
+    {"line_id": "L-6101", "at": "2026-02-10T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-6102", "at": "2026-03-18T12:00:00Z", "bucket": "needs_human"},
+    {"line_id": "L-6102", "at": "2026-06-01T12:00:00Z", "bucket": "needs_human"}
+  ]
+}

@@ -1,0 +1,59 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: October 6, 2025
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project runs a two-day workshop each spring
+on coastal sensor data for early-career researchers.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2510664
+Award Instrument: Standard Grant
+Award Date: October 6, 2025
+Period of Performance Start Date: November 1, 2025
+Period of Performance End Date: October 31, 2027
+Project Title: Example Coastal Data Workshop
+Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $30,000
+Total Intended Award Amount: $30,000
+Cost Share: $0
+Total Amount Obligated to Date: $30,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Drew Specimen, Principal Investigator
+  Email: drew.specimen@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the NSF Grant General Conditions (GC-1) effective
+October 1, 2024, and to the terms of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+F. Participant Support Costs                         $25,000
+     Stipends                                        $10,000
+     Subsistence                                     $15,000
+G. Other Direct Costs                                 $5,000
+     Materials and Supplies                           $5,000
+H. Total Direct Costs                                $30,000
+
+Except as modified by this amendment, the award conditions remain unchanged.

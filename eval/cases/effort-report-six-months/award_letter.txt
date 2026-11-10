@@ -1,0 +1,59 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: August 20, 2025
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project supports a postdoctoral scholar who
+will analyze stream sediment cores collected under the award.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2508341
+Award Instrument: Standard Grant
+Award Date: August 20, 2025
+Period of Performance Start Date: September 1, 2025
+Period of Performance End Date: August 31, 2028
+Project Title: Sediment Transport in Example Valley Headwater Streams
+Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $150,000
+Total Intended Award Amount: $150,000
+Cost Share: $0
+Total Amount Obligated to Date: $150,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Taylor Example, Principal Investigator
+  Email: taylor.example@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the NSF Grant General Conditions (GC-1) effective
+October 1, 2024, and to the terms of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+B. Other Personnel                                   $96,000
+     Post Doctoral Scholars                          $96,000
+C. Fringe Benefits                                   $24,000
+G. Other Direct Costs                                $30,000
+     Materials and Supplies                          $30,000
+H. Total Direct Costs                               $150,000
+
+Except as modified by this amendment, the award conditions remain unchanged.

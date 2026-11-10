@@ -1,0 +1,3 @@
+line_id,transaction_date,posting_date,amount,description,account,vendor,reference,original_line_id
+L-6101,2026-02-03,2026-02-10,640.00,Field sensor batteries,55016 Lab Instruments and Supplies,Example Lab Supply Co.,INV-10422,
+L-6102,2026-03-11,2026-03-18,1500.00,Laptop computer,56712 Participant Support-Stipends,Example Computer Supply,INV-88231,

@@ -1,0 +1,10 @@
+{
+  "case": "guest-speaker-stipend",
+  "events": [
+    {"at": "2025-10-08T16:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
+    {"at": "2025-10-09T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2026-03-02T18:05:00Z", "kind": "file", "file": "honorarium_letter.eml", "source": "gmail", "sender": "drew.specimen@university.example", "note": "The principal investigator's invitation, offering the guest speaker a $500 honorarium, copied to the grants inbox."},
+    {"at": "2026-04-27T17:00:00Z", "kind": "file", "file": "honorarium_receipt.txt", "source": "upload", "note": "The speaker's signed receipt for the honorarium."},
+    {"at": "2026-04-29T00:00:00Z", "kind": "ledger_line", "line_id": "L-7101", "note": "The stipend posts to 56712 Participant Support-Stipends. There is no participant list, because the payee is one guest speaker."}
+  ]
+}

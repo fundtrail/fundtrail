@@ -1,0 +1,32 @@
+{
+  "case": "guest-speaker-stipend",
+  "award_number": "SYN-2510664",
+  "records": [
+    {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2025-11-01", "end": "2027-10-31", "dated": "2025-10-06"}},
+    {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "3000000", "obligated_to_date": "3000000", "dated": "2025-10-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Participant Support Costs", "category": "participant_support", "amount": "2500000", "dated": "2025-10-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Stipends", "category": "participant_support", "amount": "1000000", "dated": "2025-10-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Subsistence", "category": "participant_support", "amount": "1500000", "dated": "2025-10-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "500000", "dated": "2025-10-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "500000", "dated": "2025-10-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Drew Specimen", "email": "drew.specimen@university.example", "role": "Principal Investigator", "dated": "2025-10-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Avery Ledger", "email": "avery.ledger@funder.example", "role": "Managing Grants Official", "dated": "2025-10-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Morgan Signet", "email": "morgan.signet@funder.example", "role": "Awarding Official", "dated": "2025-10-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jamie Program", "email": "jamie.program@funder.example", "role": "Managing Program Officer", "dated": "2025-10-06"}},
+    {"kind": "note", "file": "honorarium_letter.eml", "fields": {}},
+    {"kind": "bill", "file": "honorarium_receipt.txt", "fields": {"total": "50000", "dated": "2026-04-24"}}
+  ],
+  "links": [
+    {"file": "honorarium_letter.eml", "line_id": "L-7101"},
+    {"file": "honorarium_receipt.txt", "line_id": "L-7101", "amount_cents": 50000}
+  ],
+  "budget_lines": [],
+  "answers": [
+    {"line_id": "L-7101", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-7101", "question": "flag", "answer": "unsure"}
+  ],
+  "buckets": [
+    {"line_id": "L-7101", "at": "2026-04-29T12:00:00Z", "bucket": "needs_human"},
+    {"line_id": "L-7101", "at": "2026-07-28T12:00:00Z", "bucket": "needs_human"}
+  ]
+}

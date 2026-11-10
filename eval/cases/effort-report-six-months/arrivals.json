@@ -1,0 +1,15 @@
+{
+  "case": "effort-report-six-months",
+  "events": [
+    {"at": "2025-08-22T16:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
+    {"at": "2025-08-25T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2025-11-20T18:00:00Z", "kind": "file", "file": "appointment_letter.txt", "source": "upload", "note": "The postdoc's appointment letter, signed before the appointment starts."},
+    {"at": "2026-02-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-4101", "note": "January salary posts. The effort report for January to June isn't certified until after June ends."},
+    {"at": "2026-03-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-4102"},
+    {"at": "2026-04-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-4103"},
+    {"at": "2026-05-05T00:00:00Z", "kind": "ledger_line", "line_id": "L-4104"},
+    {"at": "2026-06-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-4105"},
+    {"at": "2026-07-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-4106"},
+    {"at": "2026-08-17T15:30:00Z", "kind": "file", "file": "effort_report.txt", "source": "upload", "note": "The certified effort report for January to June. One document fills the effort item on all six salary lines."}
+  ]
+}

@@ -1,0 +1,24 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-26-0412
+Traveler: Jordan Placeholder, Professor, Earth Sciences
+Email: jordan.placeholder@university.example
+Award charged: SYN-2511207, Permafrost Thaw and Sediment Supply at Example Creek
+
+Purpose of trip: Sediment sampling at Example Creek Field Station for award
+SYN-2511207.
+Destination: Example Creek Field Station, Alaska
+Departure: June 8, 2026
+Return: June 12, 2026
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXQ7RT, paid by traveler   $1,800.00
+  Field site per diem, 5 days at $100.00 per day                  $500.00
+  Total reimbursement                                           $2,300.00
+
+Lodging and meals are covered by the field site per diem, so no lodging or
+meal receipts are attached.
+
+Submitted by traveler: June 15, 2026
+Approved by department: June 16, 2026, Earth Sciences business office

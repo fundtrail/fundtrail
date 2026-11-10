@@ -1,0 +1,18 @@
+UNIVERSITY OF EXAMPLE
+HONORARIUM RECEIPT
+
+Receipt number: HON-26-0031
+Date: April 24, 2026
+
+Received from: University of Example, Example Coastal Data Workshop
+Award: SYN-2510664
+Paid to: Quinn Fictional, Example Ocean Institute
+Purpose: Honorarium for the keynote talk at the Example Coastal Data
+Workshop, April 24, 2026
+
+Amount received: $500.00
+
+I acknowledge that I received the amount above.
+
+Signed: Quinn Fictional
+Date: April 24, 2026

@@ -1,0 +1,63 @@
+{
+  "case": "effort-report-six-months",
+  "award_number": "SYN-2508341",
+  "records": [
+    {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2025-09-01", "end": "2028-08-31", "dated": "2025-08-20"}},
+    {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "15000000", "obligated_to_date": "15000000", "dated": "2025-08-20"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Personnel", "category": "other_personnel", "amount": "9600000", "dated": "2025-08-20"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Post Doctoral Scholars", "category": "other_personnel", "amount": "9600000", "dated": "2025-08-20"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Fringe Benefits", "category": "fringe_benefits", "amount": "2400000", "dated": "2025-08-20"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "3000000", "dated": "2025-08-20"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "3000000", "dated": "2025-08-20"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Taylor Example", "email": "taylor.example@university.example", "role": "Principal Investigator", "dated": "2025-08-20"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Avery Ledger", "email": "avery.ledger@funder.example", "role": "Managing Grants Official", "dated": "2025-08-20"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Morgan Signet", "email": "morgan.signet@funder.example", "role": "Awarding Official", "dated": "2025-08-20"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jamie Program", "email": "jamie.program@funder.example", "role": "Managing Program Officer", "dated": "2025-08-20"}},
+    {"kind": "note", "file": "appointment_letter.txt", "fields": {}},
+    {"kind": "note", "file": "effort_report.txt", "fields": {}}
+  ],
+  "links": [
+    {"file": "appointment_letter.txt", "line_id": "L-4101"},
+    {"file": "appointment_letter.txt", "line_id": "L-4102"},
+    {"file": "appointment_letter.txt", "line_id": "L-4103"},
+    {"file": "appointment_letter.txt", "line_id": "L-4104"},
+    {"file": "appointment_letter.txt", "line_id": "L-4105"},
+    {"file": "appointment_letter.txt", "line_id": "L-4106"},
+    {"file": "effort_report.txt", "line_id": "L-4101"},
+    {"file": "effort_report.txt", "line_id": "L-4102"},
+    {"file": "effort_report.txt", "line_id": "L-4103"},
+    {"file": "effort_report.txt", "line_id": "L-4104"},
+    {"file": "effort_report.txt", "line_id": "L-4105"},
+    {"file": "effort_report.txt", "line_id": "L-4106"}
+  ],
+  "budget_lines": [
+    {"line_id": "L-4101", "budget_line": "Post Doctoral Scholars"},
+    {"line_id": "L-4102", "budget_line": "Post Doctoral Scholars"},
+    {"line_id": "L-4103", "budget_line": "Post Doctoral Scholars"},
+    {"line_id": "L-4104", "budget_line": "Post Doctoral Scholars"},
+    {"line_id": "L-4105", "budget_line": "Post Doctoral Scholars"},
+    {"line_id": "L-4106", "budget_line": "Post Doctoral Scholars"}
+  ],
+  "answers": [
+    {"line_id": "L-4101", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-4102", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-4103", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-4104", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-4105", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-4106", "question": "allowable", "answer": "supports"}
+  ],
+  "buckets": [
+    {"line_id": "L-4101", "at": "2026-02-03T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4102", "at": "2026-03-03T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4103", "at": "2026-04-03T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4104", "at": "2026-05-05T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4105", "at": "2026-06-03T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4106", "at": "2026-07-03T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-4101", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-4102", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-4103", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-4104", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-4105", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-4106", "at": "2026-08-18T12:00:00Z", "bucket": "evidence_complete"}
+  ]
+}
