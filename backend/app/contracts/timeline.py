@@ -84,6 +84,10 @@ class TimelineMove(Model):
 
 
 class TimelineStartOver(Model):
-    """POST /grants/{grant_id}/timeline/start-over: resets that one grant. Needs the confirm."""
+    """POST /grants/{grant_id}/timeline/start-over: resets that one grant.
+
+    With `confirmed` false it's refused: a 409 whose `detail` is an api.SampleRefusal
+    with reason `needs_confirm`.
+    """
 
     confirmed: bool

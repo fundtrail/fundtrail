@@ -27,9 +27,7 @@ def sample_grant() -> Grant:
     return SAMPLE.grant.model_copy(
         update={
             "clock_now": at(0),
-            "sample": GrantSample(
-                sample="nitrate-sensors", choice=SampleChoice.SMALL_LIVE, opens_at=at(0)
-            ),
+            "sample": GrantSample(sample="nitrate-sensors", choice=SampleChoice.SMALL_LIVE),
         }
     )
 
@@ -39,7 +37,9 @@ def test_a_sample_grant_has_its_own_clock_and_says_what_it_was_opened_from():
     assert g.clock_now == at(0) and g.sample is not None and g.sample.choice == "small_live"
     assert SAMPLE.grant.clock_now is None and SAMPLE.grant.sample is None  # a real grant
     with pytest.raises(ValidationError):
-        GrantSample.model_validate({"sample": "x", "choice": "huge", "opens_at": at(0)})
+        GrantSample.model_validate({"sample": "x", "choice": "huge"})
+    with pytest.raises(ValidationError):  # no opening date: every sample opens at its start
+        GrantSample.model_validate({"sample": "x", "choice": "small_live", "opens_at": at(0)})
     assert [m.value for m in MemberRole] == ["owner", "sample"]
 
 

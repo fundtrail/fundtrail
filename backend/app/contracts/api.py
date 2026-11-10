@@ -83,7 +83,11 @@ class ArrivalSource(StrEnum):
 
 
 class NextArrival(Model):
-    """The next item waiting for the clock: when, where from and its name. Not its contents."""
+    """The next item waiting for the clock: when, where from and its name. Not its contents.
+
+    Deprecated with Clock (issue 165): the timeline replaces it. `ArrivalSource` stays,
+    since a timeline event uses it.
+    """
 
     at: UtcDatetime
     source: ArrivalSource
@@ -208,11 +212,9 @@ class SampleRefusal(Model):
     """The 409 `detail` of POST /workspaces/{workspace_id}/samples and of
     POST /grants/{grant_id}/timeline/start-over (ruling 41).
 
-    The larger-live limit is by cost, a first version: opening a larger live sample
-    is refused only while another of the user's larger live samples is still reading
-    its history, which is while its clock is before its opening date, or while agent
-    runs for its earlier events are still queued or running. Starting over a larger
-    live sample counts as opening one.
+    The larger-live limit isn't settled yet (it's being re-confirmed): `history_reading`
+    holds its refusal, naming the larger live sample that blocks the request, whatever
+    the rule turns out to be.
     """
 
     reason: SampleRefusalReason

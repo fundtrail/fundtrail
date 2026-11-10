@@ -38,12 +38,14 @@ class SampleChoice(StrEnum):
 
 
 class GrantSample(Model):
-    """What a sample grant was opened from (issue 165)."""
+    """What a sample grant was opened from (issue 165).
+
+    Every sample opens at the start of its timeline. How a prerun sample is made
+    isn't settled yet.
+    """
 
     sample: Id  # the sample pack's ID, for example "nitrate-sensors"
     choice: SampleChoice
-    opens_at: UtcDatetime  # the simulated date the sample opens on
-    prerun_id: Id | None = None  # for larger_prerun: the prerun it was copied from
 
 
 class Grant(Model):
