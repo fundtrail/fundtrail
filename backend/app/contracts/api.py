@@ -195,8 +195,10 @@ class SampleOption(Model):
 class SampleCreate(Model):
     """POST /workspaces/{workspace_id}/samples: opens a sample grant, returning its GrantSummary.
 
-    It returns 201. A refusal is a 409 whose `detail` is a SampleRefusal: the choice
-    needs a confirm and `confirmed` is false, or the larger-live limit refuses it.
+    It returns 201. The one refusal is a 409 whose `detail` is a SampleRefusal with
+    reason `needs_confirm`: the choice needs a confirm and `confirmed` is false.
+    Opening is never refused for the read-live limit, which is on moving the clock
+    (timeline.TimelineMove).
     """
 
     choice: SampleChoice
@@ -205,21 +207,27 @@ class SampleCreate(Model):
 
 class SampleRefusalReason(StrEnum):
     NEEDS_CONFIRM = "needs_confirm"  # the larger live sample needs the user's confirm
-    HISTORY_READING = "history_reading"  # another larger live sample is still reading its history
+    # Another of the user's larger read-live samples has agent runs queued or running
+    # from a move of its clock.
+    ANOTHER_SAMPLE_WORKING = "another_sample_working"
 
 
 class SampleRefusal(Model):
-    """The 409 `detail` of POST /workspaces/{workspace_id}/samples and of
-    POST /grants/{grant_id}/timeline/start-over (ruling 41).
+    """The 409 `detail` of POST /workspaces/{workspace_id}/samples, of
+    POST /grants/{grant_id}/timeline/start-over and of POST /grants/{grant_id}/timeline
+    (ruling 41).
 
-    The larger-live limit isn't settled yet (it's being re-confirmed): `history_reading`
-    holds its refusal, naming the larger live sample that blocks the request, whatever
-    the rule turns out to be.
+    Opening a sample and starting one over are refused only with `needs_confirm`.
+    The read-live limit is settled as ruling 48, a first version, and is on the clock
+    move: while one of the user's larger read-live samples has agent runs queued or
+    running from a move of its clock, moving the clock of another of the user's
+    larger read-live samples is refused with `another_sample_working`, and `grant`
+    names the one still working.
     """
 
     reason: SampleRefusalReason
     message: Text  # worded by the server
-    # For history_reading: the larger live sample still reading its history.
+    # For another_sample_working: the larger read-live sample still working.
     grant: GrantSummary | None = None
 
 

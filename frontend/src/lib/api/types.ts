@@ -788,13 +788,19 @@ export interface SampleCreate {
   confirmed?: boolean;
 }
 
+/**
+ * "needs_confirm": opening the larger read-live sample needs the user's confirm.
+ * "another_sample_working": moving a larger read-live sample's clock waits
+ * while another of the user's larger read-live samples still has agent runs
+ * from its last move.
+ */
 export type SampleRefusalReason = "needs_confirm" | "another_sample_working";
 
-/** The 409 detail when opening a sample or starting one over is refused (ruling 41). */
+/** The 409 detail when opening a sample, starting one over or moving its clock is refused (rulings 41 and 48). */
 export interface SampleRefusal {
   reason: SampleRefusalReason;
   message: string;
-  /** The grant that blocks it, for another_sample_working. Opening a sample is refused only for needs_confirm (ruling 48). */
+  /** The grant that blocks it, for another_sample_working. */
   grant?: GrantSummary | null;
 }
 
