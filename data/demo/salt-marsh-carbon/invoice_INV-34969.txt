@@ -1,0 +1,26 @@
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-34969
+Invoice date: December 24, 2024
+Customer PO: PO-24-8826
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Harper Fixture
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2401835, salt marsh carbon burial
+
+Item  Description                                   Qty   Unit price      Amount
+1     Nitrile gloves, medium, case of 1000            3       $89.50     $268.50
+2     Ethanol, 200 proof, 4 L                         3      $156.00     $468.00
+3     Pipette tips, 1000 uL, 10 racks                 4       $64.20     $256.80
+
+Subtotal                                                                 $993.30
+Shipping                                                                   $0.00
+Total due                                                                $993.30
+
+Terms: net 30
