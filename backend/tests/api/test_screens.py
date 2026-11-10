@@ -3,11 +3,14 @@ section 15), with the checks faked."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from app.contracts.checks import Bucket, Problem
+from app.contracts.charges import Charge
+from app.contracts.checks import Bucket, ChecksInput, ChecksOutput, Problem
 from app.contracts.fixtures import SampleGrant
+from app.contracts.records import DefaultItem, Record
 from app.contracts.runs import Trigger, TriggerKind
 from app.db import store
 from app.db.jobs import NORMAL_PRIORITY, THREAD_PRIORITY
@@ -392,3 +395,80 @@ def test_a_waiting_term_with_a_problem_stays_on_its_documents_row_and_is_counted
         )
     rows = _get(api, f"/grants/{sample.grant.id}/problems")["rows"]
     assert [(r["kind"], r["record"]["id"]) for r in rows] == [("record", extension)]
+
+
+class _LinkedChecks(FakeChecks):
+    """A charge is Evidence complete once a link to it counts, and Missing evidence before;
+    missing evidence is flagged 60 days after the posting date, as the checks do. Default
+    items are the sample grant's own."""
+
+    defaults: dict[str, tuple[DefaultItem, ...]] = {}
+
+    def default_items(self, charge: Charge, records: Sequence[Record], /) -> Sequence[DefaultItem]:
+        return self.defaults.get(charge.ledger_line_id, ())
+
+    def run_checks(self, checks_input: ChecksInput, /) -> ChecksOutput:
+        from datetime import timedelta
+
+        from app.contracts.checks import ChargeStatus, Reason
+        from app.contracts.rules import RecordState
+
+        state = RecordState(checks_input.records, checks_input.files)
+        linked = {r.charge_id for r in state.current() if r.kind == "link"}
+        statuses = []
+        for c in checks_input.charges:
+            bucket = Bucket.EVIDENCE_COMPLETE if c.id in linked else Bucket.MISSING_EVIDENCE
+            late = checks_input.now.date() >= c.posting_date + timedelta(days=60)
+            reason = Reason(check="checklist", problem=bucket.value, text="t", bucket=bucket)
+            statuses.append(
+                ChargeStatus(
+                    grant_id=c.grant_id,
+                    charge_id=c.id,
+                    bucket=bucket,
+                    reasons=(reason,),
+                    checklist=(),
+                    flagged=bucket == Bucket.MISSING_EVIDENCE and late,
+                )
+            )
+        out = super().run_checks(checks_input)
+        return out.model_copy(update={"charges": tuple(statuses)})
+
+
+def test_a_jump_records_no_late_flag_the_stepped_clock_wouldnt(api: Api) -> None:
+    """Decision 0023: Feb 1 to May 1 gives L-1002 Evidence complete on Feb 24, never flagged."""
+    checks = _LinkedChecks()
+    api.platform.checks = checks
+    feb_1 = datetime(2026, 2, 1, tzinfo=UTC)
+    sample = sample_into_db(api.platform, api.user_id, feb_1)
+    checks.defaults = sample.default_items
+    # The agent's records after Feb 1 are held back; its catch-up runs write them, each at
+    # the arrival time it works as of.
+    held = [r for r in sample.records if r.written_at > feb_1]
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "delete from public.records where grant_id = %s and written_at > %s",
+            (sample.grant.id, feb_1),
+        )
+        recheck_grant(conn, checks, sample.grant, feb_1, Trigger(kind=TriggerKind.CLOCK))
+    agent = api.platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        return AgentResult(
+            records=[r for r in held if r.author == "agent" and r.written_at == i.run.clock_now]
+        )
+
+    agent.behave = behave
+    moved = api.client.post(
+        f"/workspaces/{sample.workspace.id}/clock",
+        json={"to": "2026-05-01T00:00:00Z"},
+        headers=api.headers,
+    )
+    assert moved.status_code == 200, moved.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    with transaction(api.platform.pool) as conn:
+        history = store.status_history(conn, charge_id=_id(sample, "chg-l-1002"))
+    first = history[0]
+    assert first.changed_at == datetime(2026, 2, 24, tzinfo=UTC)
+    assert first.status.bucket == Bucket.EVIDENCE_COMPLETE  # pyright: ignore[reportAttributeAccessIssue]
+    assert not any(row.status.flagged for row in history)
