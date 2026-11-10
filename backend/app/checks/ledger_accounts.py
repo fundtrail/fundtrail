@@ -16,6 +16,12 @@ from dataclasses import dataclass
 from app.checks import account_groups
 from app.contracts.records import BudgetCategory
 
+# The sixth sub-line of Other Direct Costs. The contracts (PR 35) rename it from
+# OTHER to OTHER_DIRECT_COSTS_OTHER; this keeps both working until that merges.
+ODC_OTHER: BudgetCategory = next(
+    c for c in BudgetCategory if c.value in ("other_direct_costs_other", "other")
+)
+
 _CATEGORY_BY_LINE: dict[tuple[str, str | None], BudgetCategory] = {
     ("Senior Personnel", None): BudgetCategory.SENIOR_PERSONNEL,
     ("Other Personnel", None): BudgetCategory.OTHER_PERSONNEL,
@@ -29,7 +35,7 @@ _CATEGORY_BY_LINE: dict[tuple[str, str | None], BudgetCategory] = {
     ("Consultant Services", "Other Direct Costs"): BudgetCategory.CONSULTANT_SERVICES,
     ("Computer Services", "Other Direct Costs"): BudgetCategory.COMPUTER_SERVICES,
     ("Subawards", "Other Direct Costs"): BudgetCategory.SUBAWARDS,
-    ("Other", "Other Direct Costs"): BudgetCategory.OTHER,
+    ("Other", "Other Direct Costs"): ODC_OTHER,
 }
 
 
@@ -94,7 +100,7 @@ CATEGORY_NAMES: dict[BudgetCategory, tuple[str, ...]] = {
     BudgetCategory.CONSULTANT_SERVICES: ("Consultant Services",),
     BudgetCategory.COMPUTER_SERVICES: ("Computer Services",),
     BudgetCategory.SUBAWARDS: ("Subawards",),
-    BudgetCategory.OTHER: ("Other",),
+    ODC_OTHER: ("Other",),
 }
 
 

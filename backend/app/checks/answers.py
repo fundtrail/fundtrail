@@ -6,15 +6,15 @@
   and the question is open for the agent. The accountant's out-of-date answer
   goes back to the accountant, and the charge is in Needs a human meanwhile.
 - No current answer: Needs a human, and the question is open.
-- Several current answers to one question (whether that can happen isn't
-  settled): the accountant's latest wins; among the agent's, the most serious.
+- Several current answers to one question (whether a question has one answer
+  in force isn't settled in the contracts): the latest current answer counts.
 """
 
 from dataclasses import dataclass
 
 from app.checks.findings import Finding
 from app.checks.view import GrantView
-from app.contracts.checks import Bucket, OpenQuestion, most_serious
+from app.contracts.checks import Bucket, OpenQuestion
 from app.contracts.records import Answer, Author, Judgment, Link, Question, Record
 
 ANSWER_BUCKET = {
@@ -104,13 +104,7 @@ def answer_state(
     view: GrantView, charge_id: str, question: Question, record_id: str | None, label: str
 ) -> AnswerState:
     found = view.judgments_for(charge_id, question, record_id)
-    theirs = [r for r in found if r.author == Author.USER]
-    chosen: Record | None = None
-    if theirs:
-        chosen = theirs[-1]
-    elif found:
-        worst = most_serious([ANSWER_BUCKET[_answer(r)] for r in found])
-        chosen = [r for r in found if ANSWER_BUCKET[_answer(r)] == worst][-1]
+    chosen: Record | None = found[-1] if found else None  # records come in the order written
     user_before = view.ever_answered_by_user(charge_id, question, record_id)
     return AnswerState(
         question=question,
@@ -120,8 +114,3 @@ def answer_state(
         out_of_date=chosen is not None and _out_of_date(view, chosen),
         answer_by=Author.USER if user_before else Author.AGENT,
     )
-
-
-def _answer(r: Record) -> Answer:
-    assert isinstance(r.data, Judgment)
-    return r.data.answer
