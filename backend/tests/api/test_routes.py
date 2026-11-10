@@ -91,6 +91,16 @@ def test_a_ledger_upload_adds_new_lines_once_and_reports_bad_rows(api: Api) -> N
     assert sorted(r["trigger"]["kind"] for r in runs) == ["charge", "file"]
 
 
+def test_the_same_ledger_on_a_second_grant_in_the_workspace_adds_its_lines(api: Api) -> None:
+    """Line IDs are unique per grant (issue 165): another grant's lines never count."""
+    workspace = _workspace(api)["id"]
+    first, second = _grant(api, workspace), _grant(api, workspace)
+    content = LEDGER_FILE.read_bytes()
+    assert _ledger(api, first["id"], content).json()["added"] == 2
+    again = _ledger(api, second["id"], content).json()
+    assert again["added"] == 2 and again["already_present"] == 0
+
+
 def test_a_file_that_isnt_a_ledger_is_a_422(api: Api) -> None:
     grant = _grant(api, _workspace(api)["id"])
     response = _ledger(api, grant["id"], b"name,total\nx,1\n")

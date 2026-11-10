@@ -128,7 +128,7 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
                 content,
                 workspace_id=grant.workspace_id,
                 grant_id=grant.id,
-                existing_line_ids=store.ledger_line_ids(conn, grant.workspace_id),
+                existing_line_ids=store.ledger_line_ids(conn, grant.id),
                 now=now,  # the reader applies decision 0023's arrival rule
             )
         except LedgerFileError as error:

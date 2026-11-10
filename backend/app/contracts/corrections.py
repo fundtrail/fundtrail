@@ -9,7 +9,9 @@ that also added money: it's a real cost here and stands on its own.
 
 Which line a line corrects: the line its ledger row names, when that line is on
 the grant; otherwise the line a current `correction` record names (the agent's
-waits for the accountant, so netting starts only once they accept it).
+waits for the accountant, so netting starts only once they accept it). Ledger line
+IDs are unique per grant, not per workspace, so a line ID is only ever looked up
+among the charge's own grant's charges.
 """
 
 from collections.abc import Sequence

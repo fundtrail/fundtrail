@@ -15,7 +15,9 @@ class Charge(Model):
     id: Id
     workspace_id: Id
     grant_id: Id
-    # Unique within a workspace. The same line twice adds nothing.
+    # Unique within a grant: each grant is isolated, so two grants in one workspace
+    # (two copies of a sample, say) can hold the same line ID as two charges. The
+    # same line twice on one grant adds nothing.
     ledger_line_id: Id
     transaction_date: date  # when the cost happened; the checks use this one
     posting_date: (
@@ -31,7 +33,7 @@ class Charge(Model):
     reference: str | None = None  # an invoice or document number, as the ledger gives it
     # For a reversal or cost transfer: the ledger_line_id of the line it undoes or
     # moves. A line ID, not a charge ID, because the original may be on another
-    # grant or arrive later.
+    # grant or arrive later. It's looked up on this charge's grant only.
     original_line_id: str | None = None
     # The order it was stored in: one number from a sequence the database shares
     # across records, charges and evidence files, so any two can be compared. Never

@@ -154,10 +154,13 @@ _CHARGE_COLUMNS = (
 )
 
 
-def ledger_line_ids(conn: Conn, workspace_id: str) -> set[str]:
-    """Every ledger line ID on file in the workspace, arrived or not: a line is matched once."""
+def ledger_line_ids(conn: Conn, grant_id: str) -> set[str]:
+    """Every ledger line ID on file for the grant, arrived or not: a line is matched once.
+
+    Line IDs are unique per grant, so another grant's lines never count here.
+    """
     rows = conn.execute(
-        "select ledger_line_id from public.charges where workspace_id = %s", (workspace_id,)
+        "select ledger_line_id from public.charges where grant_id = %s", (grant_id,)
     ).fetchall()
     return {r["ledger_line_id"] for r in rows}
 
