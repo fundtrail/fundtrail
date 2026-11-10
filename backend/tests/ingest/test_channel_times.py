@@ -304,8 +304,33 @@ def test_a_lone_cr_inside_a_header_doesnt_raise() -> None:
 
 
 def test_an_unreadable_header_block_falls_back_to_the_stored_text(monkeypatch) -> None:
-    def unreadable(stored: str, header_end: int):
+    def unreadable(stored: str):
         raise channel_times._Unreadable  # pyright: ignore[reportPrivateUsage]
 
     monkeypatch.setattr(channel_times, "_fields", unreadable)
     assert reading_text(SUBJECT_THEN_RECEIVED, SAMPLE_NOW).text == SUBJECT_THEN_RECEIVED
+
+
+@pytest.mark.parametrize(
+    "last_header_end, blank_line",
+    [
+        ("\r", "\r\n"),  # \r\r\n
+        ("\r\n", "\r"),  # \r\n\r
+        ("\n", "\r"),  # \n\r
+    ],
+)
+def test_mixed_line_endings_around_the_blank_line_keep_the_body(
+    last_header_end: str, blank_line: str
+) -> None:
+    head, body = SUBJECT_THEN_RECEIVED.split("\r\n\r\n", 1)
+    stored = head + last_header_end + blank_line + body
+    reading = reading_text(stored, SAMPLE_NOW)
+    assert reading.text.endswith(blank_line + body)  # the body, and the blank line, kept
+    assert "2026 08:14" not in reading.text and "2019" not in reading.text
+    quote = "Approved. Pat"
+    at = reading.text.index(quote)
+    stored_start, stored_end = reading.stored_range(at, at + len(quote))
+    assert stored[stored_start:stored_end] == quote
+    view = reading_view(stored.encode(), SAMPLE_NOW)
+    last = view.segments[-1]
+    assert stored[last.stored_start :] == view.text[last.reading_start :]
