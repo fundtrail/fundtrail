@@ -18,7 +18,7 @@ import type {
 import { date, recordKindLabel } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
 import { ANSWER_LABELS, AUTHOR_LABELS, field } from "../charge/labels";
-import { DisputeBox, errorLines, SuggestionBox, type OnDecide } from "./Decide";
+import { DisputeBox, errorLines, SuggestionBox, type Decision, type DecisionMade, type OnDecide } from "./Decide";
 import { describeChange } from "./describe";
 import styles from "./thread.module.css";
 
@@ -32,6 +32,29 @@ export interface ThreadContext {
   /** The waiting suggestions with what each would replace. */
   waiting: SuggestionView[];
   quoteHref?: (citation: Citation) => string | undefined;
+}
+
+type Decisions = Record<Id, DecisionMade>;
+
+/**
+ * The accountant's latest decision on each record, read from their
+ * confirmation records in the thread and in the body's records. The latest
+ * decision on a record wins (contracts.md section 1).
+ */
+export function decisionsFrom(thread: Thread, records: Record<Id, FtRecord>): Decisions {
+  const confirmations = [
+    ...thread.entries.flatMap((e) => (e.kind === "record" ? [e.record] : [])),
+    ...Object.values(records),
+  ].filter((r) => r.author === "user" && r.data.kind === "confirmation");
+  const out: Decisions = {};
+  for (const c of confirmations) {
+    const decision = field<Decision>(c, "decision") ?? "confirmed";
+    for (const id of field<Id[]>(c, "record_ids") ?? []) {
+      const known = out[id];
+      if (!known || known.at < c.written_at) out[id] = { decision, at: c.written_at };
+    }
+  }
+  return out;
 }
 
 function isChargeStatus(status: ChargeStatus | RecordStatus | { problems: unknown }): status is ChargeStatus {
@@ -99,8 +122,21 @@ function DecisionBody({ record, ctx }: { record: FtRecord; ctx: ThreadContext })
   return <p>{recordKindLabel(kind)}</p>;
 }
 
-function RecordBody({ record, state, ctx, onDecide }: { record: FtRecord; state: RecordState; ctx: ThreadContext; onDecide?: OnDecide }) {
+function RecordBody({
+  record,
+  state,
+  ctx,
+  decisions,
+  onDecide,
+}: {
+  record: FtRecord;
+  state: RecordState;
+  ctx: ThreadContext;
+  decisions: Decisions;
+  onDecide?: OnDecide;
+}) {
   if (record.author === "user") return <DecisionBody record={record} ctx={ctx} />;
+  const decision = decisions[record.id] ?? null;
   if (record.data.kind === "dispute") {
     const check = field<string>(record, "check");
     const reason = ctx.reasons.find((r) => r.dispute_id === record.id) ?? ctx.reasons.find((r) => r.check === check && r.bucket !== "evidence_complete");
@@ -109,6 +145,7 @@ function RecordBody({ record, state, ctx, onDecide }: { record: FtRecord; state:
         record={record}
         reasonText={reason?.text ?? null}
         state={state}
+        decision={decision}
         files={ctx.files}
         quoteHref={ctx.quoteHref}
         onDecide={onDecide}
@@ -118,7 +155,7 @@ function RecordBody({ record, state, ctx, onDecide }: { record: FtRecord; state:
   const view = ctx.waiting.find((w) => w.record.id === record.id);
   const replaces = view?.replaces ?? (record.replaces_id ? (ctx.records[record.replaces_id] ?? null) : null);
   const change = describeChange(record, replaces, ctx);
-  return <SuggestionBox record={record} change={change} state={state} onDecide={onDecide} />;
+  return <SuggestionBox record={record} change={change} state={state} decision={decision} onDecide={onDecide} />;
 }
 
 function entryWho(entry: ThreadEntry): { who: "code" | "agent" | "user"; at: string } {
@@ -143,7 +180,7 @@ function entryKey(entry: ThreadEntry, i: number): string {
   }
 }
 
-function Entry({ entry, ctx, onDecide }: { entry: ThreadEntry; ctx: ThreadContext; onDecide?: OnDecide }) {
+function Entry({ entry, ctx, decisions, onDecide }: { entry: ThreadEntry; ctx: ThreadContext; decisions: Decisions; onDecide?: OnDecide }) {
   const { who, at } = entryWho(entry);
   return (
     <li className={styles.entry} data-kind={entry.kind} data-who={who}>
@@ -154,7 +191,7 @@ function Entry({ entry, ctx, onDecide }: { entry: ThreadEntry; ctx: ThreadContex
       <div className={styles.body}>
         {entry.kind === "status" && <StatusBody status={entry.entry.status as ChargeStatus | RecordStatus} />}
         {entry.kind === "message" && <p>{entry.message.text}</p>}
-        {entry.kind === "record" && <RecordBody record={entry.record} state={entry.state} ctx={ctx} onDecide={onDecide} />}
+        {entry.kind === "record" && <RecordBody record={entry.record} state={entry.state} ctx={ctx} decisions={decisions} onDecide={onDecide} />}
       </div>
     </li>
   );
@@ -246,6 +283,7 @@ export function ReviewThread({
   onDecide?: OnDecide;
   onAsk: (text: string) => Promise<void>;
 }) {
+  const decisions = decisionsFrom(thread, ctx.records);
   return (
     <div className={styles.thread}>
       {thread.entries.length === 0 ? (
@@ -253,7 +291,7 @@ export function ReviewThread({
       ) : (
         <ol className={styles.entries} aria-label="Review thread">
           {thread.entries.map((entry, i) => (
-            <Entry key={entryKey(entry, i)} entry={entry} ctx={ctx} onDecide={onDecide} />
+            <Entry key={entryKey(entry, i)} entry={entry} ctx={ctx} decisions={decisions} onDecide={onDecide} />
           ))}
         </ol>
       )}

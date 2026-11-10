@@ -70,7 +70,6 @@ export function ChargeDetailView({
               waiting={waiting}
               records={records}
               files={files}
-              onDecide={onDecide}
             />
           </Section>
           <Section id="bills-heading" title="Bills and evidence covering it">

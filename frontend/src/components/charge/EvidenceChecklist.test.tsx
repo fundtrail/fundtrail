@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import type { ChecklistEntry, EvidenceFile, FtRecord, LinkView } from "@/lib/api";
 import { EvidenceChecklist } from "./EvidenceChecklist";
 
@@ -47,7 +47,7 @@ const checklist: ChecklistEntry[] = [
   entry({ item_record_id: "r-user-item", added_by: "user", needed: "Conference agenda", filled: true }),
 ];
 
-function renderChecklist(onDecide = vi.fn(async () => {})) {
+function renderChecklist() {
   render(
     <EvidenceChecklist
       checklist={checklist}
@@ -55,10 +55,8 @@ function renderChecklist(onDecide = vi.fn(async () => {})) {
       waiting={[{ record: removal, replaces: null, charge_ids: ["c"] }]}
       records={{ [bill.id]: bill, [link.id]: link, [removal.id]: removal }}
       files={{ [invoiceFile.id]: invoiceFile }}
-      onDecide={onDecide}
     />,
   );
-  return onDecide;
 }
 
 function item(name: string): HTMLElement {
@@ -98,16 +96,11 @@ describe("EvidenceChecklist", () => {
     expect(screen.getAllByTestId("suggestion")).toHaveLength(1);
   });
 
-  it("accepts a waiting removal through the decision callback", async () => {
-    const onDecide = renderChecklist();
-    fireEvent.click(within(item("Participant list")).getByRole("button", { name: /Accept/ }));
-    await waitFor(() => expect(onDecide).toHaveBeenCalledWith("r-removal", "confirmed"));
-  });
-
-  it("rejects a waiting removal through the decision callback", async () => {
-    const onDecide = renderChecklist();
-    fireEvent.click(within(item("Participant list")).getByRole("button", { name: /Reject/ }));
-    await waitFor(() => expect(onDecide).toHaveBeenCalledWith("r-removal", "rejected"));
+  it("decides a waiting removal in one place: the thread, not the checklist", () => {
+    renderChecklist();
+    const row = item("Participant list");
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).getByText("Accept or reject it in the review thread.")).toBeInTheDocument();
   });
 
   it("says so when the checklist is empty", () => {

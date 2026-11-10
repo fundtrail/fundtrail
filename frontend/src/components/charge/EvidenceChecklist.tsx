@@ -1,6 +1,6 @@
 import type { ChecklistEntry, EvidenceFile, FtRecord, Id, LinkView, SuggestionView } from "@/lib/api";
 import { date, money } from "@/lib/format";
-import { SuggestionBox, type OnDecide } from "../thread/Decide";
+import { SuggestionBox } from "../thread/Decide";
 import { describeChange } from "../thread/describe";
 import { ADDED_BY_LABELS, recordName } from "./labels";
 import styles from "./charge.module.css";
@@ -12,7 +12,8 @@ function entryKey(entry: ChecklistEntry): string {
 /**
  * The charge's evidence checklist as code worked it out: each item filled or
  * missing, who added it, what fills it, and any removal the agent suggested,
- * waiting with Accept and Reject.
+ * waiting. Its Accept and Reject are in the review thread, the one place the
+ * agent's suggestions are decided.
  */
 export function EvidenceChecklist({
   checklist,
@@ -20,14 +21,12 @@ export function EvidenceChecklist({
   waiting,
   records,
   files,
-  onDecide,
 }: {
   checklist: ChecklistEntry[];
   links: LinkView[];
   waiting: SuggestionView[];
   records: Record<Id, FtRecord>;
   files: Record<Id, EvidenceFile>;
-  onDecide?: OnDecide;
 }) {
   if (checklist.length === 0) {
     return <p className="ft-empty">No items on the checklist yet.</p>;
@@ -68,7 +67,7 @@ export function EvidenceChecklist({
                 record={removal.record}
                 change={describeChange(removal.record, removal.replaces ?? null, ctx)}
                 state="waiting"
-                onDecide={onDecide}
+                note="Accept or reject it in the review thread."
               />
             )}
           </li>

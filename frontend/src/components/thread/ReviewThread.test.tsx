@@ -139,6 +139,38 @@ describe("ReviewThread", () => {
     expect(await screen.findByText("That record no longer waits for a confirmation.")).toBeInTheDocument();
   });
 
+  it("shows a plain line, never a raw body, when a refusal isn't the write check's", async () => {
+    const onDecide = vi.fn(async () => {
+      throw new ApiError(422, [{ loc: ["body", "data"], msg: "field required", type: "missing" }]);
+    });
+    renderThread(onDecide);
+    fireEvent.click(within(screen.getByTestId("suggestion")).getByRole("button", { name: /Accept/ }));
+    expect(await screen.findByText("The server refused this (status 422). Nothing was saved.")).toBeInTheDocument();
+    expect(screen.queryByText(/field required/)).toBeNull();
+  });
+
+  it("says Accepted only when the accountant's confirmation decided it", () => {
+    const decided = { ...thread, entries: [{ kind: "record", record: newAnswer, state: "counts" }, { kind: "record", record: record("r-c2", "user", { kind: "confirmation", record_ids: ["r-new"], decision: "confirmed" }, { written_at: "2026-02-26T10:00:00Z" }), state: "counts" }] } as unknown as Thread;
+    renderThread(undefined, undefined, decided);
+    expect(within(screen.getByTestId("suggestion")).getByText("Accepted by the accountant, Feb 26, 2026")).toBeInTheDocument();
+  });
+
+  it("says Counts for an agent record that took effect without a decision", () => {
+    const settled = { ...thread, entries: [{ kind: "record", record: newAnswer, state: "counts" }] } as unknown as Thread;
+    renderThread(undefined, undefined, settled);
+    const box = screen.getByTestId("suggestion");
+    expect(within(box).getByText("Counts")).toBeInTheDocument();
+    expect(within(box).queryByText(/Accepted/)).toBeNull();
+  });
+
+  it("names the withdrawal of a flag as a flag", () => {
+    const flag = record("r-flag", "agent", { kind: "judgment", charge_id: "c", question: "flag", text: "Bought late?", answer: "unsure", reasoning: "Close to the end date." });
+    const withdraw = record("r-withdraw", "agent", { kind: "retraction", reason: "The order was placed in January." }, { replaces_id: "r-flag" });
+    const t = { entries: [{ kind: "record", record: withdraw, state: "waiting" }], agent_run: null } as unknown as Thread;
+    render(<ReviewThread thread={t} about="L-1002" ctx={{ ...ctx, records: { ...ctx.records, [flag.id]: flag } }} onDecide={vi.fn()} onAsk={vi.fn()} />);
+    expect(within(screen.getByTestId("suggestion")).getByText("Withdraw flag", { selector: "p" })).toBeInTheDocument();
+  });
+
   it("says a rejected suggestion comes back only with new evidence, and offers no buttons", () => {
     const rejected = { ...thread, entries: [{ kind: "record", record: newAnswer, state: "rejected" }] } as unknown as Thread;
     renderThread(undefined, undefined, rejected);
@@ -151,8 +183,8 @@ describe("ReviewThread", () => {
   it("shows a dispute with the check, the server's reason, the agent's reasoning and its quote", () => {
     renderThread();
     const box = screen.getByTestId("dispute");
+    expect(within(box).getByText(`The agent disputes: ${reason.text}`)).toBeInTheDocument();
     expect(within(box).getByText("period_of_performance")).toBeInTheDocument();
-    expect(within(box).getByText(reason.text)).toBeInTheDocument();
     expect(within(box).getByText("The extension notice moves the end date to Jan 31, 2027.")).toBeInTheDocument();
     expect(within(box).getByText("the end date is extended to January 31, 2027")).toBeInTheDocument();
     expect(within(box).getByText("extension_notice.txt")).toBeInTheDocument();

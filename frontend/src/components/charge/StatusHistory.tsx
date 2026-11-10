@@ -27,8 +27,9 @@ function triggerName(entry: HistoryEntry, records: Record<Id, FtRecord>, files: 
 }
 
 /**
- * Every change to the charge's status, oldest first as the server sends it:
- * when, what triggered it in the server's words, and the bucket before and after.
+ * Every change to the charge's status, newest first: when, what triggered it
+ * in the server's words, and the bucket before and after. The server sends the
+ * history oldest first; the screen only reverses it.
  */
 export function StatusHistory({
   history,
@@ -46,7 +47,10 @@ export function StatusHistory({
   if (history.length === 0) return <p className="ft-empty">No status changes yet.</p>;
   return (
     <ol className={styles.list} aria-label="Status history">
-      {history.map((entry, i) => {
+      {history.map((_, j) => {
+        // Newest first: walk the server's order from the end.
+        const i = history.length - 1 - j;
+        const entry = history[i];
         const before = bucketOf(history[i - 1]);
         const after = bucketOf(entry);
         const name = triggerName(entry, records, files, charges);

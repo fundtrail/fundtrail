@@ -76,7 +76,8 @@ export function describeChange(record: FtRecord, replaces: FtRecord | null, ctx:
     return { title: `Remove "${itemNeeded(record, ctx)}" from the checklist`, reason };
   }
   if (kind === "retraction") {
-    const what = replaces ? recordKindLabel(replaces.data.kind).toLowerCase() : "a record";
+    const isFlag = replaces?.data.kind === "judgment" && field<string>(replaces, "question") === "flag";
+    const what = isFlag ? "flag" : replaces ? recordKindLabel(replaces.data.kind).toLowerCase() : "a record";
     return { title: `Withdraw ${what}`, now: replaces ? summary(replaces, ctx) : undefined, reason };
   }
   if (kind === "duplicate") {
