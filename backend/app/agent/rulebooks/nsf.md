@@ -278,7 +278,7 @@ Participant support costs are for participants, such as trainees, students or co
 
 ### NSF-LATE-EXTENSION
 
-The university may extend the end date once, by up to 12 months, on its own, but it must notify NSF through Research.gov, with its reasons and the new period, at least ten calendar days before the end date. Extensions beyond that authority follow the procedures in PAPPG Chapter VI.D.3.c (GC-1 No. 6.c), which this rulebook hasn't read. So the agent flags a late notice or a further extension unless NSF's approval of it, or NSF's own amendment notice for it, is on file. The one-time extension may not be used merely to spend the remaining balance, and an award with a zero balance can't be extended; the agent flags a notice that shows any of these.
+The university may extend the end date once, by up to 12 months, on its own, but it must notify NSF through Research.gov, with its reasons and the new period, at least ten calendar days before the end date. Extensions beyond that authority follow the procedures in PAPPG Chapter VI.D.3.c (GC-1 No. 6.c), which this rulebook hasn't read. So the agent flags a late notice, or any extension beyond that one-time authority (a second extension, or a first one longer than 12 months), unless NSF's approval of it, or NSF's own amendment notice for it, is on file. The one-time extension may not be used merely to spend the remaining balance, and an award with a zero balance can't be extended; the agent flags a notice that shows any of these.
 
 - Kind: judgment
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 6.a to 6.c and footnote 4](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
