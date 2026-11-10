@@ -1,0 +1,22 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-24-6805
+Traveler: Harper Fixture, Principal Investigator
+Email: harper.fixture@university.example
+Award charged: SYN-2401835
+
+Purpose of trip: Example Geophysical Union Fall Meeting, poster
+Destination: Example Summit Convention Center, Example Springs, CO
+Departure: December 9, 2024
+Return: December 13, 2024
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXK2PD                      $434.00
+  Lodging, Example Summit Hotel, 4 nights                        $756.00
+  Total reimbursement                                          $1,190.00
+
+Meals are not claimed on this report.
+
+Submitted by traveler: December 17, 2024
+Approved by department: December 18, 2024, Earth and Ocean Sciences business office

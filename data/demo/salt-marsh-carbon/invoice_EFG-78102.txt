@@ -1,0 +1,24 @@
+EXAMPLE FIELD GEAR
+9 Example Wharf, Example Harbor, CA 94020
+accounts@fieldgear.example
+
+INVOICE
+
+Invoice number: EFG-78102
+Invoice date: April 3, 2024
+Customer PO: PO-24-6147
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Harper Fixture
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2401835, salt marsh carbon burial
+
+Item  Description                                   Qty   Unit price      Amount
+1     Dry bags, 20 L, 4 pack                          5       $88.00     $440.00
+
+Subtotal                                                                 $440.00
+Shipping                                                                  $24.00
+Total due                                                                $464.00
+
+Terms: net 30

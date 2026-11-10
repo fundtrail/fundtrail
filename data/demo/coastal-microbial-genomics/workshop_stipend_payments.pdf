@@ -1,0 +1,61 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 969 >>
+stream
+BT
+/F1 9.5 Tf
+12 TL
+40 752 Td
+(UNIVERSITY OF EXAMPLE) Tj T*
+(Student Payments Office) Tj T*
+() Tj T*
+(PARTICIPANT STIPEND PAYMENT RECORD) Tj T*
+() Tj T*
+(Program: Coastal Microbes Summer Workshop 2026) Tj T*
+(Award: SYN-2507264) Tj T*
+(Payment date: July 24, 2026) Tj T*
+() Tj T*
+(  Participant                 Payment               Amount) Tj T*
+(  Bailey Trainee              STP-26-0701           $750.00) Tj T*
+(  Cameron Novice              STP-26-0702           $750.00) Tj T*
+(  Dakota Learner              STP-26-0703           $750.00) Tj T*
+(  Ellis Fellow                STP-26-0704           $750.00) Tj T*
+(  Frankie Scholar             STP-26-0705           $750.00) Tj T*
+(  Gray Apprentice             STP-26-0706           $750.00) Tj T*
+(  Hayden Intern               STP-26-0707           $750.00) Tj T*
+(  Indigo Cadet                STP-26-0708           $750.00) Tj T*
+() Tj T*
+(  Total paid                                     $6,000.00) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Title (Stipend payments) /Producer (FundTrail seed generator) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000216 00000 n 
+0000001236 00000 n 
+0000001362 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+startxref
+1446
+%%EOF

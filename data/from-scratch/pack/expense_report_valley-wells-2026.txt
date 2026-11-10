@@ -1,0 +1,22 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-26-3348
+Traveler: Emery Testwell, Principal Investigator
+Email: emery.testwell@university.example
+Award charged: SYN-2511958
+
+Purpose of trip: installing sensors in Example Valley wells
+Destination: Example Valley Research Farm, Example Valley, CA
+Departure: June 8, 2026
+Return: June 11, 2026
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXV3JM                      $250.00
+  Lodging, Example Valley Motor Inn, 3 nights                    $426.00
+  Total reimbursement                                            $676.00
+
+Meals are not claimed on this report.
+
+Submitted by traveler: June 16, 2026
+Approved by department: June 17, 2026, Earth and Ocean Sciences business office

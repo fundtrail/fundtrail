@@ -1,0 +1,66 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 1119 >>
+stream
+BT
+/F1 9.5 Tf
+12 TL
+40 752 Td
+(EXAMPLE ELECTRONICS SUPPLY) Tj T*
+(300 Example Circuit, Example City, CA 94007) Tj T*
+(invoices@electronicssupply.example) Tj T*
+() Tj T*
+(INVOICE) Tj T*
+() Tj T*
+(Invoice number: EES-6012) Tj T*
+(Invoice date: February 9, 2026) Tj T*
+(Customer PO: PO-26-4166) Tj T*
+() Tj T*
+(Bill to:) Tj T*
+(  University of Example, Department of Earth and Ocean Sciences) Tj T*
+(  Attn: Emery Testwell) Tj T*
+(  100 Example Hall, Example City, CA 94000) Tj T*
+(Project reference: SYN-2511958, nitrate sensors) Tj T*
+() Tj T*
+(Item  Description                                   Qty   Unit price      Amount) Tj T*
+(1     Sensor housing, PVC, machined                   8      $124.00     $992.00) Tj T*
+(2     O-ring kit                                      2       $34.50      $69.00) Tj T*
+() Tj T*
+(Subtotal                                                               $1,061.00) Tj T*
+(Shipping                                                                  $18.75) Tj T*
+(Total due                                                              $1,079.75) Tj T*
+() Tj T*
+(Terms: net 30) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Title (Invoice EES-6012) /Producer (FundTrail seed generator) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000216 00000 n 
+0000001387 00000 n 
+0000001513 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+startxref
+1597
+%%EOF
