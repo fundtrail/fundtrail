@@ -36,7 +36,7 @@ from .adapter import (
     Judgment as JudgmentData,
 )
 from .context import RunContext
-from .files import CantOpen, open_file
+from .files import CantOpen, open_file, reading_now
 
 # Above this many charges or documents, the lists go through the tools instead of the first message.
 FULL_LIST_LIMIT = 300
@@ -333,7 +333,7 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         ]
         blocks.append({"type": "text", "text": "\n".join(text)})
         try:
-            opened = open_file(f, i.read_file(f))
+            opened = open_file(f, i.read_file(f), reading_now(i, f))
         except CantOpen as error:
             blocks.append({"type": "text", "text": f"The file couldn't be sent: {error}."})
         else:

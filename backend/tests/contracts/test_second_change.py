@@ -435,18 +435,9 @@ def test_every_screen_body_has_a_json_schema():
         "RecordView",
         "Thread",
         "NewMessage",
-        "Clock",
         "NewRecordInput",
     ):
         getattr(api, name).model_json_schema()
-    clock = api.Clock.model_validate(
-        {
-            "now": at(0),
-            "simulated": True,
-            "next_arrival": {"at": at(1), "source": "ledger", "name": "L-1002"},
-        }
-    )
-    assert clock.next_arrival is not None and clock.next_arrival.at == at(1)
 
 
 def test_a_record_view_and_a_thread_entry():

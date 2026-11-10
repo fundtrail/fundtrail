@@ -23,6 +23,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import math
 import re
 import sys
 from datetime import date, datetime, timedelta
@@ -431,7 +432,7 @@ def typed_share(action: dict) -> tuple[float, float] | None:
         share, whole = float(str(action["share"])), float(str(action["out_of"]))
     except ValueError:
         return None
-    if not (whole > 0 and 0 <= share <= whole):
+    if not (math.isfinite(share) and math.isfinite(whole) and whole > 0 and 0 <= share <= whole):
         return None
     return share, whole
 
@@ -1106,7 +1107,7 @@ def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], w
             (b for b in key["buckets"] if b["line_id"] == a["line_id"] and b["at"] > a["at"]),
             key=lambda b: b["at"],
         )
-        cleared = CLEARS_TO[(a["action"], a.get("answer"))]
+        cleared = CLEARS_TO.get((a["action"], a.get("answer")), set())
         if not after or after[0]["bucket"] not in cleared:
             problems.append(
                 f"{where}: the key's next bucket on this line isn't one it clears to "
@@ -1315,6 +1316,18 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
     problems, not tracebacks: a share typed where a basis is on file (S3a), a
     confirmation of an invoice, a suggestion that isn't a record kind, a share
     that isn't a number or is out of 0, and a line that isn't in the ledger."""
+    # A share the loader would refuse: not a number, infinite, or out of nothing.
+    for share, whole in (
+        ("many", "96"),
+        ("Infinity", "Infinity"),
+        ("56", "inf"),
+        ("1", "0"),
+        ("NaN", "96"),
+        ("97", "96"),
+    ):
+        assert typed_share({"share": share, "out_of": whole}) is None, (share, whole)
+    assert typed_share({"share": "56", "out_of": "96"}) == (56.0, 96.0)
+
     import shutil
     import tempfile
 
@@ -1354,6 +1367,8 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
                 "basis": "x",
             },
             {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
+            # An answer that isn't supports, contradicts or unsure.
+            {"at": later, "action": "answer_flag", "line_id": s3a, "answer": "maybe"},
             # S3c's key stays Needs a human, so a typed share clears it to nothing.
             {
                 "at": later,
@@ -1378,6 +1393,7 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
         "must be numbers",
         "isn't in the ledger",
         "isn't one it clears to",
+        "answer must be one of",
     ):
         assert expected in text, (expected, problems)
 

@@ -16,9 +16,12 @@ pages have to go as images). open_file reports those as files it can't open.
 import base64
 import io
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from PIL import Image
+
+from app.ingest.channel_times import reading_text
 
 from .adapter import EvidenceFile
 from .citations import SentDocument, SentImage
@@ -58,20 +61,33 @@ def describe(f: EvidenceFile) -> str:
     return ", ".join(parts)
 
 
-def open_file(f: EvidenceFile, data: bytes) -> Opened:
-    """The blocks that send a whole file to the model."""
+def open_file(f: EvidenceFile, data: bytes, reading_now: datetime | None = None) -> Opened:
+    """The blocks that send a whole file to the model.
+
+    `reading_now` is set on a sample grant, whose channel times come from the grant's now
+    (issue 165, point 4): a live email is read with its Date header replaced by it, and the
+    citations into it map back to the stored file.
+    """
     media = f.media_type.lower()
     head = {"type": "text", "text": describe(f)}
     title = f"{f.name} ({f.id})"
     if media.startswith(TEXT_TYPES):
         text = data.decode("utf-8", errors="replace")
+        reading = None
+        if reading_now is not None and media == "message/rfc822":
+            reading = reading_text(text, reading_now)
         block = {
             "type": "document",
-            "source": {"type": "text", "media_type": "text/plain", "data": text},
+            "source": {
+                "type": "text",
+                "media_type": "text/plain",
+                "data": reading.text if reading is not None else text,
+            },
             "title": title,
             "citations": {"enabled": True},
         }
-        return Opened([head, block], document=SentDocument(f.id, "text", text=text))
+        sent = SentDocument(f.id, "text", text=text, reading=reading)
+        return Opened([head, block], document=sent)
     if media == "application/pdf":
         block = {
             "type": "document",
@@ -119,3 +135,11 @@ def open_file(f: EvidenceFile, data: bytes) -> Opened:
     raise CantOpen(
         f"file {f.id} is a {f.media_type}, which the agent can't open yet; flag the file"
     )
+
+
+def reading_now(inputs: Any, f: EvidenceFile) -> datetime | None:
+    """The time a sample grant's live email is read as sent: the grant's now when it arrived,
+    which is also the sent date stored with it. None on a grant on the real date."""
+    if not getattr(inputs, "channel_times_from_grant_now", False):
+        return None
+    return f.arrived_at

@@ -3,14 +3,18 @@
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from app.contracts.api import ArrivalSource
+from app.contracts.records import RecordKind
 from app.samples.pack import (
     LARGER_SAMPLE,
     SMALL_SAMPLE,
+    SUGGESTION_KINDS,
     EventKind,
     PackError,
     event_id,
@@ -253,12 +257,51 @@ def test_the_script_keeps_every_reference(tmp_path: Path) -> None:
             },
             "line_id or a file",
         ),
-        ({**SCRIPT[3], "share": "half"}, "whole numbers"),
+        # Ruling 51: the seed's own rules.
+        ({**SCRIPT[2], "answer": "yes"}, "an answer is one of"),
+        ({**SCRIPT[1], "suggestion": "bill"}, "suggestion 'bill' isn't one of"),
+        ({**SCRIPT[1], "suggestion": "confirmation"}, "isn't one of"),
+        ({**SCRIPT[2], "line_id": "L-0000-0000"}, "has no line L-0000-0000"),
+        ({**SCRIPT[1], "line_id": None, "file": "nope.txt"}, "isn't on the timeline"),
+        # L-9001-0002 arrives at 00:00 UTC on Nov 24: a share on Nov 22 comes too soon.
+        ({**SCRIPT[3], "line_id": "L-9001-0002"}, "before line L-9001-0002 arrives"),
+        ({**SCRIPT[3], "at": "2026-11-16T17:45:00Z"}, "before line L-9001-0001 arrives"),
+        ({**SCRIPT[0], "at": "2026-11-16T17:30:00Z"}, "before award_letter.txt arrives"),
+        # A file the user brings in arrives when the script brings it in, and here it never does.
+        (
+            {"at": "2026-11-20T00:00:00Z", "action": "confirm_terms", "file": "receipt_R-3.txt"},
+            "before receipt_R-3.txt arrives",
+        ),
+        ({**SCRIPT[3], "share": "half"}, "are numbers"),
+        ({**SCRIPT[3], "out_of": 0}, "out_of above 0"),
+        ({**SCRIPT[3], "share": "97"}, "from 0 to out_of"),
+        ({**SCRIPT[3], "share": -1}, "from 0 to out_of"),
+        ({**SCRIPT[3], "share": "NaN"}, "are numbers"),
+        ({**SCRIPT[3], "share": True}, "are numbers"),
     ],
 )
-def test_refuses_a_bad_script_step(tmp_path: Path, action: dict[str, str], message: str) -> None:
+def test_refuses_a_bad_script_step(tmp_path: Path, action: dict[str, Any], message: str) -> None:
+    step = {k: v for k, v in action.items() if v is not None}
     with pytest.raises(PackError, match=message):
-        load_folder(write_pack(tmp_path / "s", actions=[action]))
+        load_folder(write_pack(tmp_path / "s", actions=[step]))
+
+
+def test_a_share_can_be_a_decimal(tmp_path: Path) -> None:
+    step = {**SCRIPT[3], "share": "2.5", "out_of": 7.5}
+    [share] = load_folder(write_pack(tmp_path / "s", actions=[step])).actions
+    assert (share.share, share.out_of) == (Decimal("2.5"), Decimal("7.5"))
+
+
+def test_a_step_on_a_users_file_comes_after_the_script_brings_it_in(tmp_path: Path) -> None:
+    bring = {"at": "2026-11-18T17:00:00Z", "action": "deliver_file", "file": "receipt_R-3.txt"}
+    confirm = {"at": "2026-11-18T17:01:00Z", "action": "confirm_terms", "file": "receipt_R-3.txt"}
+    assert len(load_folder(write_pack(tmp_path / "s", actions=[bring, confirm])).actions) == 2
+    with pytest.raises(PackError, match="before receipt_R-3.txt arrives"):
+        load_folder(write_pack(tmp_path / "t", actions=[bring, {**confirm, "at": bring["at"]}]))
+
+
+def test_suggestion_kinds_are_record_kinds() -> None:
+    assert {RecordKind(k) for k in SUGGESTION_KINDS} == set(SUGGESTION_KINDS)
 
 
 # The two samples in the repo, from data/samples/.

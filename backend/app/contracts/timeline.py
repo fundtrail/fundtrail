@@ -55,6 +55,11 @@ class PlayedEvent(Model):
     # prerun choice, while the grant is on the run-through; the panel marks it so
     # nothing loaded passes for live work (decision 0007).
     loaded: bool = False
+    # Ruling 52: for a user_delivery event, true when the workspace's sample accountant
+    # delivered it while the move skipped the human steps; false when the user
+    # delivered it (ruling 44: a user's delivery also shows here, under the move that
+    # brought it). Always false for any other kind of event.
+    delivered_by_sample_accountant: bool = False
 
 
 class UserDelivery(Model):

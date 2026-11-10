@@ -29,6 +29,7 @@ from app.contracts.records import (
     Answer,
     Author,
     Bill,
+    CharLocation,
     Citation,
     CitedMoney,
     ImageBox,
@@ -38,10 +39,12 @@ from app.contracts.records import (
 )
 from app.contracts.runs import Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
+from app.ingest.channel_times import reading_view
 from app.packet import (
     ReportInputs,
     Signing,
     build_report,
+    fmt,
 )
 from app.packet.content import SECTION_TITLES, report_view
 from app.packet.view import Heading, Para, Quote, Section, Table
@@ -831,4 +834,44 @@ def test_an_approval_rules_item_names_the_rule():
     assert (
         "The Program Officer's approval through Research.gov: Missing (added by the approval rule "
         "Participant Support Costs: approved by Program Officer, through Research.gov)" in text
+    )
+
+
+# Ruling 50: on a grant with a stored clock, a line number counts in the text the
+# agent read, so the dropped Message-ID header before the cited line doesn't count.
+
+
+def test_an_emails_line_counts_in_the_reading_text_on_a_sample_grant():
+    stored = SAMPLE.document("file-sequencing-statement")
+    assert "\nMessage-ID:" in stored  # a header the reading text drops
+    stored_line = stored[: stored.index("Total: $2,180.00")].count("\n") + 1
+
+    real = texts(section(sample_inputs(), 5))
+    assert f"sequencing_statement.eml, line {stored_line}" in real
+
+    sample_grant = SAMPLE.grant.model_copy(update={"clock_now": APRIL_10})
+    on_sample = texts(section(sample_inputs(grant=sample_grant), 5))
+    reading = reading_view(stored.encode("utf-8"), APRIL_10).text
+    reading_line = reading[: reading.index("Total: $2,180.00")].count("\n") + 1
+    assert reading_line == stored_line - 1
+    assert f"sequencing_statement.eml, line {reading_line}" in on_sample
+    # Plain-text files aren't emails, so they count as stored.
+    assert "invoice_1001.txt, line 12" in on_sample
+
+
+def test_a_place_in_a_replaced_header_counts_the_reading_date_line():
+    stored = SAMPLE.document("file-sequencing-statement")
+    view = reading_view(stored.encode("utf-8"), APRIL_10)
+    files = {f.id: f for f in SAMPLE.files}
+    at = stored.index("Sat, 21 Feb 2026")
+    cite = Citation(
+        file_id="file-sequencing-statement",
+        passage="Sat, 21 Feb 2026",
+        location=CharLocation(start_char_index=at, end_char_index=at + 16),
+        match=Match.EXACT,
+    )
+    texts_by_id = {"file-sequencing-statement": stored}
+    date_line = view.text[: view.text.index("Date:")].count("\n") + 1
+    assert fmt.place(cite, files, texts_by_id, reading=view) == (
+        f"sequencing_statement.eml, line {date_line}"
     )

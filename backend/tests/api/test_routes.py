@@ -27,7 +27,7 @@ def _grant(api: Api, workspace_id: str) -> dict[str, Any]:
 def _set_clock(api: Api, workspace_id: str, now: datetime) -> None:
     with api.platform.pool.connection() as conn:
         conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s", (now, workspace_id)
+            "update public.grants set clock_now = %s where workspace_id = %s", (now, workspace_id)
         )
 
 
@@ -41,7 +41,7 @@ def _ledger(api: Api, grant_id: str, content: bytes) -> Any:
 
 def test_workspaces_are_created_and_listed(api: Api) -> None:
     workspace = _workspace(api)
-    assert workspace["name"] == "Lab" and workspace["clock_now"] is None
+    assert workspace["name"] == "Lab" and "clock_now" not in workspace
     assert workspace["owner_id"] == api.user_id
     assert api.client.get("/workspaces", headers=api.headers).json() == [workspace]
 

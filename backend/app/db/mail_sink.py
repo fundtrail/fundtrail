@@ -199,12 +199,13 @@ def check_and_save(
 
     Arrivals are dated by each grant's clock (`clock.grant_clock`) unless `now` is given.
     What the sink stored during the check is in its progress already. The save keeps
-    every message ID and Drive version the progress holds by then, a concurrent check's
-    included, adds this check's, and moves the mailbox position and the finished first
-    searches forward: a check never takes back what another one saved.
+    every message ID the progress holds by then, a concurrent check's included, adds this
+    check's, and moves the mailbox position and the finished first searches forward: a
+    check never takes back what another one saved (`merged_progress`).
     """
     with transaction(p.pool) as conn:
-        state = CheckState.from_progress(store.lock_progress(conn))
+        start = store.lock_progress(conn)
+    state = CheckState.from_progress(start)
     check_once(
         mail=mail,
         drive=drive,
@@ -215,17 +216,39 @@ def check_and_save(
         sink=DbSink(p),
     )
     with transaction(p.pool) as conn:
-        store.save_progress(conn, merged_progress(store.lock_progress(conn), state.to_progress()))
+        stored = store.lock_progress(conn)
+        store.save_progress(conn, merged_progress(start, stored, state.to_progress()))
 
 
-def merged_progress(stored: CheckerProgress, checked: CheckerProgress) -> CheckerProgress:
-    """The progress to save after a check: the stored message IDs and Drive versions kept
-    (a version the sink saved wins over the check's copy, which can be older), the check's
-    added, and its mailbox position and first searches moved forward."""
-    versions = {(v.grant_id, v.drive_file_id): v for v in checked.drive_versions}
-    versions |= {(v.grant_id, v.drive_file_id): v for v in stored.drive_versions}
+def _later_cursor(a: str | None, b: str | None) -> str | None:
+    """The later of two mailbox positions. Gmail's are numeric history IDs, so the larger;
+    a position that isn't a number (the disk stand-in's) is taken as given."""
+    if a and b and a.isdigit() and b.isdigit():
+        return a if int(a) >= int(b) else b
+    return a or b
+
+
+def merged_progress(
+    start: CheckerProgress, stored: CheckerProgress, checked: CheckerProgress
+) -> CheckerProgress:
+    """The progress to save after a check that began from `start`, with `stored` saved by
+    then and `checked` what this check reached.
+
+    - Message IDs and first searches: both kept.
+    - A Drive file's version: the stored one when another check's sink changed it during
+      this check, else this check's. So a v2 this check skipped (too large, say), which
+      no sink saves, isn't tried again on every check.
+    - The mailbox position: the later one, never back.
+    """
+
+    def by_file(p: CheckerProgress) -> dict[tuple[str, str], DriveVersion]:
+        return {(v.grant_id, v.drive_file_id): v for v in p.drive_versions}
+
+    began, saved = by_file(start), by_file(stored)
+    versions = saved | by_file(checked)
+    versions |= {k: v for k, v in saved.items() if began.get(k) != v}
     return CheckerProgress(
-        mail_cursor=checked.mail_cursor or stored.mail_cursor,
+        mail_cursor=_later_cursor(checked.mail_cursor, stored.mail_cursor),
         seen_message_ids=tuple(sorted({*stored.seen_message_ids, *checked.seen_message_ids})),
         drive_versions=tuple(versions[k] for k in sorted(versions)),
         first_search_done=tuple(sorted({*stored.first_search_done, *checked.first_search_done})),

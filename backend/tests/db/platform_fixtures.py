@@ -277,7 +277,7 @@ def sample_into_db(
     p: Platform, user_id: str | None = None, clock_now: datetime | None = None
 ) -> SampleGrant:
     """The sample grant (contracts.md section 15) stored under fresh IDs, owned by `user_id`
-    (a new user by default), with the workspace clock at `clock_now` (the sample's own by
+    (a new user by default), with the grant's clock at `clock_now` (the sample's own by
     default)."""
     sample = load_sample_grant()
     user_id = user_id or new_auth_user(p)
@@ -303,18 +303,21 @@ def sample_into_db(
     with transaction(p.pool) as conn:
         store.upsert_user(conn, User(id=user_id, email="robin.example@university.example"))
         conn.execute(
-            "insert into public.workspaces (id, owner_id, name, clock_now) values (%s, %s, %s, %s)",
-            (
-                sample.workspace.id,
-                user_id,
-                sample.workspace.name,
-                clock_now or sample.workspace.clock_now,
-            ),
+            "insert into public.workspaces (id, owner_id, name) values (%s, %s, %s)",
+            (sample.workspace.id, user_id, sample.workspace.name),
         )
+        # The golden fixture's grant is a real grant; played here, it takes the
+        # sample's now as its stored clock.
         conn.execute(
-            "insert into public.grants (id, workspace_id, award_number, title)"
-            " values (%s, %s, %s, %s)",
-            (sample.grant.id, sample.workspace.id, sample.grant.award_number, sample.grant.title),
+            "insert into public.grants (id, workspace_id, award_number, title, clock_now)"
+            " values (%s, %s, %s, %s, %s)",
+            (
+                sample.grant.id,
+                sample.workspace.id,
+                sample.grant.award_number,
+                sample.grant.title,
+                clock_now or sample.now,
+            ),
         )
         store.insert_charges(conn, sample.charges)
         for f in sample.files:
