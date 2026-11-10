@@ -13,7 +13,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal, LiteralString
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus, GrantStatus, RecordStatus
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import CheckerProgress, HeldMail, SkippedFile
 from app.contracts.records import Record
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
@@ -53,16 +54,27 @@ def upsert_user(conn: Conn, user: User) -> User:
     return user
 
 
-def list_workspaces(conn: Conn, owner_id: str) -> list[Workspace]:
+def reaches(kind: Literal["workspace", "grant"], column: LiteralString) -> LiteralString:
+    """The one access rule, as a SQL condition on `column` for a user ID parameter: whether
+    the user may reach that workspace or grant (issue 160). It asks the migration's
+    private.can_reach_workspace / private.can_reach_grant, the functions the Realtime
+    policy asks too, so a later rule changes in one place."""
+    return f"private.can_reach_{kind}({column}, %s::uuid)"
+
+
+def list_workspaces(conn: Conn, user_id: str) -> list[Workspace]:
+    """The workspaces this user may reach."""
     rows = conn.execute(
         "select id, name, owner_id, clock_now from public.workspaces"
-        " where owner_id = %s order by name, id",
-        (owner_id,),
+        f" where {reaches('workspace', 'id')} order by name, id",
+        (user_id,),
     ).fetchall()
     return [Workspace.model_validate(_clean(r)) for r in rows]
 
 
 def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
+    """A new workspace. The database adds its creator as its owner member, and its Sample
+    accountant, in the same transaction."""
     row = conn.execute(
         "insert into public.workspaces (owner_id, name) values (%s, %s)"
         " returning id, name, owner_id, clock_now",
@@ -72,12 +84,12 @@ def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
     return Workspace.model_validate(_clean(row))
 
 
-def get_workspace(conn: Conn, workspace_id: str, owner_id: str) -> Workspace | None:
-    """The workspace, only if this user owns it."""
+def get_workspace(conn: Conn, workspace_id: str, user_id: str) -> Workspace | None:
+    """The workspace, only if this user may reach it."""
     row = conn.execute(
         "select id, name, owner_id, clock_now from public.workspaces"
-        " where id = %s and owner_id = %s",
-        (workspace_id, owner_id),
+        f" where id = %s and {reaches('workspace', 'id')}",
+        (workspace_id, user_id),
     ).fetchone()
     return Workspace.model_validate(_clean(row)) if row else None
 
@@ -111,20 +123,24 @@ def list_grants(conn: Conn, workspace_id: str) -> list[Grant]:
 
 
 def get_grant(
-    conn: Conn, grant_id: str, owner_id: str | None = None, *, lock: bool = False
+    conn: Conn, grant_id: str, user_id: str | None = None, *, lock: bool = False
 ) -> Grant | None:
-    """The grant; with owner_id, only if that user owns its workspace.
+    """The grant; with user_id, only if that user may reach it.
 
     lock=True takes the grant's row lock until the transaction ends. Every write to a
     grant's records takes it, so the write check and the save see the same records.
     """
-    query = """select g.id, g.workspace_id, g.funder, g.award_number, g.title, g.address_code,
-                      g.drive_folder_id
-               from public.grants g join public.workspaces w on w.id = g.workspace_id
-               where g.id = %s and (%s::uuid is null or w.owner_id = %s::uuid)"""
+    query: LiteralString = """select g.id, g.workspace_id, g.funder, g.award_number, g.title,
+                      g.address_code, g.drive_folder_id
+               from public.grants g
+               where g.id = %s"""
+    params: tuple[str, ...] = (grant_id,)
+    if user_id is not None:
+        query += f" and {reaches('grant', 'g.id')}"
+        params += (user_id,)
     if lock:
         query += " for update of g"
-    row = conn.execute(query, (grant_id, owner_id, owner_id)).fetchone()  # pyright: ignore[reportArgumentType]
+    row = conn.execute(query, params).fetchone()
     return Grant.model_validate(row) if row else None
 
 
@@ -227,13 +243,13 @@ def list_files(conn: Conn, grant_id: str, now: datetime) -> list[EvidenceFile]:
     return [EvidenceFile.model_validate(r) for r in rows]
 
 
-def get_file(conn: Conn, file_id: str, owner_id: str) -> EvidenceFile | None:
-    """The file, only if this user owns its workspace."""
+def get_file(conn: Conn, file_id: str, user_id: str) -> EvidenceFile | None:
+    """The file, only if this user may reach its grant."""
     row = conn.execute(
         f"""select {_FILE_COLUMNS_F}, f.stored_seq
-            from public.evidence_files f join public.workspaces w on w.id = f.workspace_id
-            where f.id = %s and w.owner_id = %s::uuid""",
-        (file_id, owner_id),
+            from public.evidence_files f
+            where f.id = %s and {reaches("grant", "f.grant_id")}""",
+        (file_id, user_id),
     ).fetchone()
     return EvidenceFile.model_validate(row) if row else None
 
@@ -672,28 +688,30 @@ def status_history(
     ]
 
 
-def get_charge(conn: Conn, charge_id: str, owner_id: str) -> Charge | None:
-    """The charge, only if this user owns its workspace."""
+def get_charge(conn: Conn, charge_id: str, user_id: str) -> Charge | None:
+    """The charge, only if this user may reach its grant."""
     row = conn.execute(
         """select c.id, c.workspace_id, c.grant_id, c.ledger_line_id, c.transaction_date,
                   c.posting_date, c.arrived_at, c.amount_cents, c.description, c.account,
                   c.vendor, c.reference, c.original_line_id
-           from public.charges c join public.workspaces w on w.id = c.workspace_id
-           where c.id = %s and w.owner_id = %s::uuid""",
-        (charge_id, owner_id),
+           from public.charges c
+           where c.id = %s and """
+        + reaches("grant", "c.grant_id"),
+        (charge_id, user_id),
     ).fetchone()
     return Charge.model_validate(row) if row else None
 
 
-def get_record(conn: Conn, record_id: str, owner_id: str) -> Record | None:
-    """The record, only if this user owns its workspace."""
+def get_record(conn: Conn, record_id: str, user_id: str) -> Record | None:
+    """The record, only if this user may reach its grant."""
     row = conn.execute(
         """select r.id, r.workspace_id, r.grant_id, r.author, r.author_user_id, r.written_at,
                   r.replaces_id, r.thread_message_id, r.stored_seq,
                   r.read_through_seq, r.data
-           from public.records r join public.workspaces w on w.id = r.workspace_id
-           where r.id = %s and w.owner_id = %s::uuid""",
-        (record_id, owner_id),
+           from public.records r
+           where r.id = %s and """
+        + reaches("grant", "r.grant_id"),
+        (record_id, user_id),
     ).fetchone()
     return _record(row) if row else None
 
@@ -809,3 +827,160 @@ def set_award_number_and_title(
            where id = %s and (award_number is distinct from %s or title is distinct from %s)""",
         (award_number, title, grant_id, award_number, title),
     )
+
+
+# Mail held from unknown senders, skipped files and the checker's progress (decision 0025).
+
+_HELD_COLUMNS = (
+    "id, workspace_id, grant_id, sender, reason, source_ref, subject, held_at, files, skipped"
+)
+
+
+def insert_held_mail(conn: Conn, held: HeldMail) -> bool:
+    """Saves a held message. False when the grant already holds that Gmail message."""
+    dumped = held.model_dump(mode="json")
+    row = conn.execute(
+        f"""insert into public.held_mail ({_HELD_COLUMNS})
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            on conflict (grant_id, source_ref) do nothing
+            returning id""",
+        (
+            held.id,
+            held.workspace_id,
+            held.grant_id,
+            held.sender,
+            held.reason.value,
+            held.source_ref,
+            held.subject,
+            held.held_at,
+            Jsonb(dumped["files"]),
+            Jsonb(dumped["skipped"]),
+        ),
+    ).fetchone()
+    return row is not None
+
+
+def has_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether the grant already has a Gmail message, as an evidence file or as held mail:
+    the one check for both storing and holding it."""
+    row = conn.execute(
+        """select 1 from public.held_mail where grant_id = %s and source_ref = %s
+           union all
+           select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null
+           limit 1""",
+        (grant_id, message_id, grant_id, message_id),
+    ).fetchone()
+    return row is not None
+
+
+def list_held_mail(conn: Conn, workspace_id: str, now: datetime) -> list[HeldMail]:
+    """Every message held on the workspace's grants by `now`, whether or not it's still held."""
+    rows = conn.execute(
+        f"""select {_HELD_COLUMNS} from public.held_mail
+            where workspace_id = %s and held_at <= %s order by held_at, id""",
+        (workspace_id, now),
+    ).fetchall()
+    return [HeldMail.model_validate(r) for r in rows]
+
+
+def has_gmail_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether a Gmail message has arrived on the grant as an evidence file."""
+    row = conn.execute(
+        """select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null""",
+        (grant_id, message_id),
+    ).fetchone()
+    return row is not None
+
+
+def insert_skipped(conn: Conn, skipped: Sequence[SkippedFile]) -> None:
+    """Saves skipped files. One the grant already has (same source, place, name and reason)
+    isn't saved again: the problem names the set of files, so a repeat adds nothing."""
+    for s in skipped:
+        conn.execute(
+            """insert into public.skipped_files
+                 (workspace_id, grant_id, name, source, source_ref, reason, skipped_at)
+               select %s, %s, %s, %s, %s, %s, %s
+               where not exists (
+                 select 1 from public.skipped_files
+                 where grant_id = %s and source = %s and source_ref = %s and name = %s
+                   and reason = %s)""",
+            (
+                s.workspace_id,
+                s.grant_id,
+                s.name,
+                s.source,
+                s.source_ref,
+                s.reason.value,
+                s.skipped_at,
+                s.grant_id,
+                s.source,
+                s.source_ref,
+                s.name,
+                s.reason.value,
+            ),
+        )
+
+
+def list_skipped(conn: Conn, grant_id: str, now: datetime) -> list[SkippedFile]:
+    rows = conn.execute(
+        """select workspace_id, grant_id, name, source, source_ref, reason, skipped_at
+           from public.skipped_files where grant_id = %s and skipped_at <= %s
+           order by skipped_at, id""",
+        (grant_id, now),
+    ).fetchall()
+    return [SkippedFile.model_validate(r) for r in rows]
+
+
+def lock_progress(conn: Conn) -> CheckerProgress:
+    """The checker's saved progress, locked until the transaction ends. Every write the
+    checker makes takes this lock, so checking what's already taken in and saving it
+    can't interleave."""
+    conn.execute("insert into public.checker_progress (id) values (true) on conflict do nothing")
+    row = conn.execute(
+        """select mail_cursor, seen_message_ids, drive_versions, first_search_done
+           from public.checker_progress for update"""
+    ).fetchone()
+    assert row is not None
+    return CheckerProgress.model_validate(row)
+
+
+def save_progress(conn: Conn, progress: CheckerProgress) -> None:
+    dumped = progress.model_dump(mode="json")
+    conn.execute(
+        """update public.checker_progress
+           set mail_cursor = %s, seen_message_ids = %s, drive_versions = %s,
+               first_search_done = %s""",
+        (
+            progress.mail_cursor,
+            Jsonb(dumped["seen_message_ids"]),
+            Jsonb(dumped["drive_versions"]),
+            Jsonb(dumped["first_search_done"]),
+        ),
+    )
+
+
+def acting_member_emails(conn: Conn, workspace_id: str) -> list[str]:
+    """The sign-in addresses of the workspace's members who can act, lower case: decision
+    0025's "the accountant's own address" among a grant's known senders."""
+    rows = conn.execute(
+        """select lower(u.email) as email from public.workspace_members m
+           join public.users u on u.id = m.user_id
+           where m.workspace_id = %s and private.can_act(m.role)
+           order by 1""",
+        (workspace_id,),
+    ).fetchall()
+    return [r["email"] for r in rows]
+
+
+def sample_accountant_id(conn: Conn, workspace_id: str) -> str:
+    """The workspace's Sample accountant (issue 165): a member that can't act and that
+    nobody signs in as. A sample grant's past decisions are written as it."""
+    row = conn.execute(
+        """select user_id::text as id from public.workspace_members
+           where workspace_id = %s and role = 'sample'""",
+        (workspace_id,),
+    ).fetchone()
+    assert row is not None, "every workspace has its Sample accountant"
+    return row["id"]

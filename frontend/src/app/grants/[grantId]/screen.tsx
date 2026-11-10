@@ -7,11 +7,12 @@ import { ChargesTable } from "@/components/ChargesTable";
 import { GrantHeader } from "@/components/GrantHeader";
 import { grantName } from "@/components/GrantList";
 import { ProblemList } from "@/components/ProblemList";
+import { SampleTimeline } from "@/components/timeline/TimelinePanel";
 import { useCharges, useGrant, useProblemList } from "@/lib/api";
 
 /**
- * A grant's page: where it stands, its problem list, its budget figures with the
- * grant notes, and every charge. Each part is its own request, so a refetch of
+ * A grant's page: where it stands, a sample grant's timeline, its problem list,
+ * its budget figures with the grant notes, and every charge. Each part is its own request, so a refetch of
  * one doesn't wait on the others.
  */
 export function GrantScreen() {
@@ -25,7 +26,10 @@ export function GrantScreen() {
     <AppShell workspaceId={summary?.grant.workspace_id ?? null} crumbs={[summary ? grantName(summary) : "Grant"]}>
       <Loadable result={grant}>{(data) => <GrantHeader summary={data.summary} />}</Loadable>
 
-      <section className="ft-panel" aria-labelledby="problems-heading">
+      {/* Only a sample grant has a timeline to play. */}
+      {grant.data && <SampleTimeline summary={grant.data.summary} />}
+
+      <section id="problem-list" className="ft-panel" aria-labelledby="problems-heading">
         <div className="ft-panel__head">
           <h2 id="problems-heading" className="ft-heading">
             Problem list

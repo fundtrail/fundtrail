@@ -6,7 +6,6 @@ import { useEffect, type ReactNode } from "react";
 import { useGrants, useWorkspaces, type Id } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { routes } from "@/lib/routes";
-import { ClockControls } from "./clock/ClockControls";
 import { grantName } from "./GrantList";
 
 function NavLink({ href, children, count }: { href: string; children: ReactNode; count?: number }) {
@@ -56,7 +55,6 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
         </div>
       )}
       <div className="ft-sidebar__foot">
-        <ClockControls workspaceId={workspaceId} />
         {user && (
           <div className="ft-sidebar__account">
             <span>{user.name ?? user.email}</span>

@@ -118,3 +118,14 @@ def test_one_grants_failure_or_removal_doesnt_stop_the_daily_recheck(
     rechecked = {g for ci in checks.calls for g in _grants_in(ci)}
     assert {first.id, second.id} <= rechecked
     assert broken.id not in rechecked
+
+
+def test_has_stored_clock_and_the_ingest_clock(platform: Platform) -> None:  # noqa: F811
+    sample = sample_into_db(platform, clock_now=STILL)
+    real = _real_grant(platform)
+    with transaction(platform.pool) as conn:
+        assert clock.has_stored_clock(conn, sample.grant.id)
+        assert not clock.has_stored_clock(conn, real.id)
+    now = clock.grant_clock(platform)
+    assert now(sample.grant.id) == STILL
+    assert now(real.id) > STILL

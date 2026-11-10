@@ -1,0 +1,1194 @@
+[
+ {
+  "name": "LF received-first: body value $450.00",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   239,
+   246
+  ],
+  "expected": [
+   137,
+   144
+  ],
+  "expected_text": "$450.00"
+ },
+ {
+  "name": "LF received-first: subject with emoji",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   140,
+   164
+  ],
+  "expected": [
+   69,
+   93
+  ],
+  "expected_text": "Subject: Invoice 😀 total"
+ },
+ {
+  "name": "LF received-first: wholly in Date",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   78,
+   82
+  ],
+  "expected": [
+   0,
+   37
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "LF received-first: whole Date header",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   72,
+   108
+  ],
+  "expected": [
+   0,
+   37
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "LF received-first: wholly in Message-ID (dropped)",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   178,
+   185
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "LF received-first: wholly in Received (dropped)",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   10,
+   25
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "LF received-first: From through Subject",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   109,
+   164
+  ],
+  "expected": [
+   38,
+   93
+  ],
+  "expected_text": "From: Pat <pat@vendor.example>\nSubject: Invoice 😀 total"
+ },
+ {
+  "name": "LF received-first: starts in Date, ends in From/Subject",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   78,
+   118
+  ],
+  "expected": [
+   0,
+   47
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat"
+ },
+ {
+  "name": "LF received-first: ends exactly at a gap boundary",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   140,
+   165
+  ],
+  "expected": [
+   69,
+   94
+  ],
+  "expected_text": "Subject: Invoice 😀 total\n"
+ },
+ {
+  "name": "LF received-first: starts exactly at a segment start",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   196,
+   199
+  ],
+  "expected": [
+   94,
+   97
+  ],
+  "expected_text": "To:"
+ },
+ {
+  "name": "LF received-first: agent cites Date line + next line (via stored_range)",
+  "segments": [
+   {
+    "stored_start": 109,
+    "reading_start": 38,
+    "length": 56
+   },
+   {
+    "stored_start": 196,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   72,
+   139
+  ],
+  "expected": [
+   0,
+   68
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nFrom: Pat <pat@vendor.example>"
+ },
+ {
+  "name": "LF from-first: body value $450.00",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   167,
+   174
+  ],
+  "expected": [
+   137,
+   144
+  ],
+  "expected_text": "$450.00"
+ },
+ {
+  "name": "LF from-first: subject with emoji",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   68,
+   92
+  ],
+  "expected": [
+   69,
+   93
+  ],
+  "expected_text": "Subject: Invoice 😀 total"
+ },
+ {
+  "name": "LF from-first: wholly in Date",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   37,
+   41
+  ],
+  "expected": [
+   31,
+   68
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "LF from-first: whole Date header",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   31,
+   67
+  ],
+  "expected": [
+   31,
+   68
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "LF from-first: wholly in Message-ID (dropped)",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   106,
+   113
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "LF from-first: From through Subject",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   0,
+   92
+  ],
+  "expected": [
+   0,
+   93
+  ],
+  "expected_text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total"
+ },
+ {
+  "name": "LF from-first: starts in Date, ends in From/Subject",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   37,
+   84
+  ],
+  "expected": [
+   31,
+   85
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice"
+ },
+ {
+  "name": "LF from-first: starts in From, ends in Date",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   6,
+   41
+  ],
+  "expected": [
+   6,
+   68
+  ],
+  "expected_text": "Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "LF from-first: ends exactly at a gap boundary",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   68,
+   93
+  ],
+  "expected": [
+   69,
+   94
+  ],
+  "expected_text": "Subject: Invoice 😀 total\n"
+ },
+ {
+  "name": "LF from-first: starts exactly at a segment start",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   124,
+   127
+  ],
+  "expected": [
+   94,
+   97
+  ],
+  "expected_text": "To:"
+ },
+ {
+  "name": "LF from-first: agent cites Date line + next line (via stored_range)",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 31
+   },
+   {
+    "stored_start": 68,
+    "reading_start": 69,
+    "length": 25
+   },
+   {
+    "stored_start": 124,
+    "reading_start": 94,
+    "length": 52
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\nDate: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total\nTo: lab@uni.example\n\nHello 😀, the total is $450.00.\n",
+  "span": [
+   31,
+   92
+  ],
+  "expected": [
+   31,
+   93
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\nSubject: Invoice 😀 total"
+ },
+ {
+  "name": "CRLF received-first: body value $450.00",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   246,
+   253
+  ],
+  "expected": [
+   142,
+   149
+  ],
+  "expected_text": "$450.00"
+ },
+ {
+  "name": "CRLF received-first: subject with emoji",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   143,
+   167
+  ],
+  "expected": [
+   71,
+   95
+  ],
+  "expected_text": "Subject: Invoice 😀 total"
+ },
+ {
+  "name": "CRLF received-first: wholly in Date",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   79,
+   83
+  ],
+  "expected": [
+   0,
+   37
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "CRLF received-first: whole Date header",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   73,
+   109
+  ],
+  "expected": [
+   0,
+   37
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "CRLF received-first: wholly in Message-ID (dropped)",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   182,
+   189
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "CRLF received-first: wholly in Received (dropped)",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   10,
+   25
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "CRLF received-first: From through Subject",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   111,
+   167
+  ],
+  "expected": [
+   39,
+   95
+  ],
+  "expected_text": "From: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total"
+ },
+ {
+  "name": "CRLF received-first: starts in Date, ends in From/Subject",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   79,
+   120
+  ],
+  "expected": [
+   0,
+   48
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat"
+ },
+ {
+  "name": "CRLF received-first: ends exactly at a gap boundary",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   143,
+   169
+  ],
+  "expected": [
+   71,
+   97
+  ],
+  "expected_text": "Subject: Invoice 😀 total\r\n"
+ },
+ {
+  "name": "CRLF received-first: starts exactly at a segment start",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   201,
+   204
+  ],
+  "expected": [
+   97,
+   100
+  ],
+  "expected_text": "To:"
+ },
+ {
+  "name": "CRLF received-first: agent cites Date line + next line (via stored_range)",
+  "segments": [
+   {
+    "stored_start": 111,
+    "reading_start": 39,
+    "length": 58
+   },
+   {
+    "stored_start": 201,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   73,
+   141
+  ],
+  "expected": [
+   0,
+   69
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nFrom: Pat <pat@vendor.example>"
+ },
+ {
+  "name": "CRLF from-first: body value $450.00",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   173,
+   180
+  ],
+  "expected": [
+   142,
+   149
+  ],
+  "expected_text": "$450.00"
+ },
+ {
+  "name": "CRLF from-first: subject with emoji",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   70,
+   94
+  ],
+  "expected": [
+   71,
+   95
+  ],
+  "expected_text": "Subject: Invoice 😀 total"
+ },
+ {
+  "name": "CRLF from-first: wholly in Date",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   38,
+   42
+  ],
+  "expected": [
+   32,
+   69
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "CRLF from-first: whole Date header",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   32,
+   68
+  ],
+  "expected": [
+   32,
+   69
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "CRLF from-first: wholly in Message-ID (dropped)",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   109,
+   116
+  ],
+  "expected": null,
+  "expected_text": null
+ },
+ {
+  "name": "CRLF from-first: From through Subject",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   0,
+   94
+  ],
+  "expected": [
+   0,
+   95
+  ],
+  "expected_text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total"
+ },
+ {
+  "name": "CRLF from-first: starts in Date, ends in From/Subject",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   38,
+   86
+  ],
+  "expected": [
+   32,
+   87
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice"
+ },
+ {
+  "name": "CRLF from-first: starts in From, ends in Date",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   6,
+   42
+  ],
+  "expected": [
+   6,
+   69
+  ],
+  "expected_text": "Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000"
+ },
+ {
+  "name": "CRLF from-first: ends exactly at a gap boundary",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   70,
+   96
+  ],
+  "expected": [
+   71,
+   97
+  ],
+  "expected_text": "Subject: Invoice 😀 total\r\n"
+ },
+ {
+  "name": "CRLF from-first: starts exactly at a segment start",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   128,
+   131
+  ],
+  "expected": [
+   97,
+   100
+  ],
+  "expected_text": "To:"
+ },
+ {
+  "name": "CRLF from-first: agent cites Date line + next line (via stored_range)",
+  "segments": [
+   {
+    "stored_start": 0,
+    "reading_start": 0,
+    "length": 32
+   },
+   {
+    "stored_start": 70,
+    "reading_start": 71,
+    "length": 26
+   },
+   {
+    "stored_start": 128,
+    "reading_start": 97,
+    "length": 55
+   }
+  ],
+  "text": "From: Pat <pat@vendor.example>\r\nDate: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total\r\nTo: lab@uni.example\r\n\r\nHello 😀, the total is $450.00.\r\n",
+  "span": [
+   32,
+   94
+  ],
+  "expected": [
+   32,
+   95
+  ],
+  "expected_text": "Date: Wed, 04 Mar 2026 15:00:00 +0000\r\nSubject: Invoice 😀 total"
+ }
+]

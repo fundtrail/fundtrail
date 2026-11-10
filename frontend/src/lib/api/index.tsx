@@ -11,7 +11,7 @@ import type { ApiClient } from "./client";
 import type { Id } from "./types";
 
 export * from "./types";
-export { ApiError, HttpApiClient, type ApiClient } from "./client";
+export { ApiError, HttpApiClient, SampleRefusalError, type ApiClient } from "./client";
 
 const ApiContext = createContext<ApiClient | null>(null);
 
@@ -108,4 +108,14 @@ export function useChargeThread(chargeId: Id) {
 
 export function useRecordThread(recordId: Id) {
   return useResource(["record-thread", recordId], (api) => api.getRecordThread(recordId));
+}
+
+/** The Sample dropdown's choices. They don't depend on a workspace. */
+export function useSamples() {
+  return useResource(["samples"], (api) => api.listSamples());
+}
+
+/** A sample grant's timeline. Pass null for a grant that isn't a sample: nothing is requested. */
+export function useTimeline(grantId: Id | null) {
+  return useResource(grantId ? ["timeline", grantId] : null, (api) => api.getTimeline(grantId!));
 }
