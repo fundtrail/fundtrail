@@ -372,6 +372,7 @@ Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract P
 | Item | Who settles it |
 |---|---|
 | The names and fields of the new records in section 13: checklist item, accepted reason, snooze, dispute, flag on a record, and the thread messages table | contract |
+| How Procrastinate's jobs relate to the `agent_runs` table. Procrastinate keeps its own job tables, and `agent_runs` is the app's own record of each run. | contract |
 | Whether new evidence has to be something the agent's new answer points at, by quoting it or resting on it, or whether anything that arrived since is enough | contract |
 | Whether a question has one answer in force at a time. A charge could still have several flags. | contract |
 | What a snooze and an acceptance record so code can tell a new problem and changed facts apart. Suggested: the reasons a snooze covered, and the records an accepted reason rested on. | contract |

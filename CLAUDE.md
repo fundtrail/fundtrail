@@ -27,23 +27,27 @@ If something crosses areas or changes what the user sees, ask in your issue. Don
 ## Repo map
 
 ```
-backend/          FastAPI app (Python, uv)
+backend/          FastAPI app (Python, uv), with its own pyproject.toml
   app/contracts/  Pydantic record models, golden fixture   shared
-  app/agent/      LangGraph: read, link, answer            W1 Alex
-  app/checks/     rules, questions, buckets, status text   W2 Alex
   app/ingest/     ledger, Gmail, Drive, upload             W3 Alex
-  app/api/        routes                                   W4 Grant
-  app/db/         database access, clock, jobs             W4 Grant
+  app/agent/      LangGraph: read, link, answer, suggest   W1 Alex
+  app/quotes/     find quotes in files, highlight          W1 Alex
+                  positions, page images, second look
+  app/checks/     rules, questions, checklists, buckets,   W2 Alex
+                  problem list, status text
+  app/api/        routes, thread routes, screen pings      W4 Grant
+  app/db/         database access, clock, job worker,      W4 Grant
+                  thread messages
   app/packet/     PDF evidence report                      W6 Grant
   tests/
-frontend/         Next.js app                              W5 Grant (viewer: W6)
+frontend/         Next.js app, with its own package.json   W5 Grant (viewer: W6)
 supabase/         migrations (shared), config, seed        W4 Grant
 eval/             cases, answer keys, runner               W3 Alex
 data/             synthetic seed packs                     W3 Alex
 docs/, CLAUDE.md  docs                                     shared
 ```
 
-This is the target layout. The skeleton task creates it. Until then only `backend/app/contracts/`, the first migration and the docs exist.
+This is the target layout, one repo with no monorepo tool. The skeleton task creates it. Until then only `backend/app/contracts/`, the first migration and the docs exist. The frontend may use a `src/` folder.
 
 ## Working rules
 
@@ -72,7 +76,8 @@ This is the target layout. The skeleton task creates it. Until then only `backen
 Right now only the contract tests run:
 
 ```bash
-PYTHONPATH=backend uv run --with pytest pytest -q backend/app/contracts/tests
+cd backend
+uv run pytest
 ```
 
 The skeleton task replaces this section with the backend, frontend and test commands.
