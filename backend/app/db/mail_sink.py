@@ -33,7 +33,7 @@ from app.ingest.incoming import (
 )
 from app.ingest.sources import DriveSource, MailSource
 
-from . import store
+from . import clock, store
 from .jobs import queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
@@ -193,10 +193,11 @@ def check_and_save(
     drive: DriveSource | None,
     mailbox: str,
     routes: list[GrantRoute],
-    now: GrantNow,
+    now: GrantNow | None = None,
 ) -> None:
     """One check of Gmail and Drive from the saved progress, then saves where it got to.
 
+    Arrivals are dated by each grant's clock (`clock.grant_clock`) unless `now` is given.
     What the sink stored during the check is in its progress already. The save keeps
     every message ID and Drive version the progress holds by then, a concurrent check's
     included, adds this check's, and moves the mailbox position and the finished first
@@ -210,7 +211,7 @@ def check_and_save(
         mailbox=mailbox,
         routes=routes,
         state=state,
-        now=now,
+        now=now or clock.grant_clock(p),
         sink=DbSink(p),
     )
     with transaction(p.pool) as conn:
