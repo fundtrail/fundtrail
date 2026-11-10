@@ -29,7 +29,15 @@ from typing import Any
 
 from app.agent.adapter import char_citation
 from app.quotes import UnreadablePdfError, find_pdf_quote
-from app.quotes.text_match import clean, value_in_span
+from app.quotes.text_match import NEGATIVE as NEGATIVE_SIGN
+from app.quotes.text_match import POSITIVE as POSITIVE_SIGN
+from app.quotes.text_match import (
+    amount_sign,
+    clean,
+    exact_pattern,
+    sign_reads_either_way,
+    value_in_span,
+)
 
 LABEL_LINE = re.compile(r"^\s*[-*]?\s*@([A-Za-z0-9_.\-]+)\s*:\s?(.*?)\s*$")
 
@@ -262,6 +270,53 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
+
+
+def cited_amount_sign(passage: str, value_text: str) -> str | None:
+    """The finder's sign for the amount at the place the value stands on its own in the passage:
+    NEGATIVE, POSITIVE or EITHER, or None when it stands nowhere."""
+    pattern = exact_pattern(value_text)
+    if pattern is None:
+        return None
+    page = clean(passage).text
+    pos = 0
+    while (found := pattern.search(page, pos)) is not None:
+        if value_in_span(value_text, page, found.start(), found.end()):
+            return amount_sign(page, found.start(), found.end())
+        pos = found.start() + 1
+    return None
+
+
+def money_sign_agrees(cents: int, passage: str, value_text: str) -> bool:
+    """Whether code's reading of the money (its cents) has the sign the finder reads at the cited
+    amount: positive needs at least 0, negative needs less than 0, either way allows both."""
+    sign = cited_amount_sign(passage, value_text)
+    if sign == NEGATIVE_SIGN:
+        return cents < 0
+    if sign == POSITIVE_SIGN:
+        return cents >= 0
+    return True
+
+
+def sign_is_doubtful(passage: str, value_text: str) -> bool:
+    """Whether the sign beside an amount can be read either way (provisional calls 31 and 38).
+
+    Exactly where the quote finder accepts a value of either sign (`sign_reads_either_way`),
+    judged at each place the value's text stands in the cleaned passage, so citing "248.00" out
+    of "Credit amount - $248.00" is still doubtful. The agent's sign stands there, so its
+    reason has to say what it read the sign from.
+    """
+    pattern = exact_pattern(value_text)
+    if pattern is None:
+        return False
+    page = clean(passage).text
+    pos = 0
+    while (found := pattern.search(page, pos)) is not None:
+        if sign_reads_either_way(page, found.start(), found.end()):
+            return True
+        pos = found.start() + 1
+    return False
+
 
 # A minus sign as documents write it: a hyphen, an en dash, or the minus sign itself.
 _MINUS = "-\u2013\u2212"

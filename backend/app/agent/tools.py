@@ -36,12 +36,14 @@ from .adapter import (
 from .citations import (
     CitationProblem,
     image_box,
+    money_sign_agrees,
     parse_date,
     parse_decimal,
     parse_money,
     parse_quantity,
     parse_rate,
     resolve_citation,
+    sign_is_doubtful,
 )
 from .context import REPEAT_LIMIT, RunContext
 from .desk import (
@@ -410,6 +412,15 @@ def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
         citation = resolve_citation(line.text, line.citations, ctx.documents)
     except CitationProblem as error:
         raise WriteProblem(f"{v.field}: {error}") from error
+    passage = citation.get("passage")
+    money = _leaf(v.field) in MONEY_FIELDS
+    if money and passage and not money_sign_agrees(value, passage, line.text):
+        # Code's reading of the money and the quote finder's reading of the page disagree on
+        # the sign (PR 105's review): neither is taken on trust.
+        raise WriteProblem(
+            f"{v.field}: '{line.text}' reads as {value} cents, but the file signs that amount the "
+            "other way. Cite the amount with the sign the file gives it"
+        )
     return {"value": value, "text": line.text, "citation": citation}
 
 
@@ -479,6 +490,12 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     if error or a.kind != "bill":
         return text, error
     new = ctx.staged[-1].record
+    if bill_sign_is_doubtful(new):
+        text += (
+            " The sign of its total can be read either way in the file (a dash with a space "
+            'before the amount). Say what you read the sign from, such as "credit memo", '
+            '"refund" or "amount due", in the reason of each link to this bill.'
+        )
     finder = ctx.inputs.likely_duplicates or likely_duplicates
     state = ctx.state()
     ids = finder(new, state.records, ctx.inputs.files)
@@ -530,8 +547,23 @@ def _check_applies_to(ctx: RunContext, applies_to: str) -> str:
 MAIN_FIELD = {RecordKind.BILL: "total", RecordKind.APPROVAL: "covers", RecordKind.NOTE: "statement"}
 
 
+def bill_sign_is_doubtful(record: Record) -> bool:
+    """Whether a bill's total has a sign that its file lets be read either way."""
+    data = record.data
+    total = getattr(data, "total", None) if record.kind == RecordKind.BILL else None
+    if total is None or total.citation is None or total.citation.passage is None:
+        return False
+    return sign_is_doubtful(total.citation.passage, total.text or "")
+
+
 def t_link(ctx: RunContext, a: LinkIn) -> tuple[str, bool]:
     fact = ctx.state().current_version(a.record_id)
+    if fact is not None and bill_sign_is_doubtful(fact) and not (a.reason or "").strip():
+        raise WriteProblem(
+            f"the sign of bill {fact.id}'s total can be read either way in its file, so the "
+            'link\'s reason has to say what you read the sign from, such as "credit memo", '
+            '"refund" or "amount due"'
+        )
     if a.part is not None:
         part = quote(ctx, a.part)
     else:
@@ -628,8 +660,41 @@ def _judgment_key(r: Record) -> tuple[Any, ...]:
     )
 
 
+# The rulebook's rule for costs after the end date, which the agent cites only in a dispute of
+# code's date check (issue #119).
+PERIOD_DISPUTE_RULE = "NSF-POST-END-COMMITMENTS"
+PERIOD_IS_CODES = (
+    "the charge's date against the period of performance is code's own check, and its bucket "
+    "follows the period in force when the accountant confirms it. Answer on the cost itself; if "
+    "a document shows the date check is wrong for this charge, such as an order placed before "
+    "the end date, dispute the check (period_of_performance) with that quote"
+)
+
+
+def _not_on_the_period(ctx: RunContext, rule: str | None, rests_on: list[str]) -> None:
+    """An Allowable answer doesn't rest on the period of performance (issue #119), and no
+    answer or flag cites the rule kept for a dispute of the date check."""
+    if rule == PERIOD_DISPUTE_RULE:
+        raise WriteProblem(
+            f"{PERIOD_DISPUTE_RULE} is for a dispute of the date check: {PERIOD_IS_CODES}"
+        )
+    state = ctx.state()
+    periods = [
+        i
+        for i in rests_on
+        if (r := state.by_id.get(i)) is not None and r.kind == RecordKind.PERIOD_OF_PERFORMANCE
+    ]
+    if periods:
+        raise WriteProblem(
+            f"this rests on the period of performance ({', '.join(periods)}): {PERIOD_IS_CODES}"
+        )
+
+
 def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
+    if a.question == "allowable":
+        # Only Allowable: a Covers answer on a pre-award approval keeps its start date.
+        _not_on_the_period(ctx, a.rule, a.rests_on)
     question = Question(a.question)
     key = (question, a.charge_id, a.record_id)
     state = ctx.state()
@@ -662,6 +727,10 @@ def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
 
 def t_flag(ctx: RunContext, a: FlagIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
+    if a.rule == PERIOD_DISPUTE_RULE:
+        # The purchase-close-to-the-end-date flag (NSF-END-DATE-PURCHASES, decision 0015) and
+        # any other flag may rest on the period; only the dispute rule is kept for disputes.
+        _not_on_the_period(ctx, a.rule, [])
     data: dict[str, Any] = {
         "kind": "judgment",
         "question": "flag",

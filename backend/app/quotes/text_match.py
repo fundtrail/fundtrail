@@ -96,6 +96,11 @@ _REPLACEMENTS = {
     "\ufb06": "st",
 }
 _NUMBER_SEPARATORS = frozenset(".,")
+# A currency code after a spaced dash, just before the amount (or its currency sign).
+_CODE_AFTER_SPACED_DASH = re.compile(
+    "(?:^|\\s)[-\u2013]\\s+(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|US)\\s*$", re.IGNORECASE
+)
+
 NEGATIVE = "-"
 POSITIVE = "+"
 EITHER = "?"
@@ -261,6 +266,21 @@ def value_in_span(value_text: str, text: str, start: int, end: int) -> bool:
     return False
 
 
+def amount_sign(text: str, start: int, end: int) -> str:
+    """The sign the text puts on the first number in text[start:end]: NEGATIVE, POSITIVE or
+    EITHER (call 31). `text` is the cleaned-up page or passage."""
+    return _number_sign(text, start, end)
+
+
+def sign_reads_either_way(text: str, start: int, end: int) -> bool:
+    """Whether the text signs the first number in text[start:end] either way (call 31).
+
+    That's where `value_in_span` accepts a value of either sign: the value's own sign stands.
+    `text` is the cleaned-up page or passage. The agent asks for the sign's source there.
+    """
+    return _number_sign(text, start, end) == EITHER
+
+
 def _signs_agree(value_sign: str, page_sign: str) -> bool:
     """A value's sign confirms against the page's sign (provisional call 31).
 
@@ -412,6 +432,10 @@ def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str
         if c == " " and before == _MINUS:
             return NEGATIVE
         if c == " " and before in _DASHES:
+            leading = EITHER
+        elif _CODE_AFTER_SPACED_DASH.search(text, 0, k):
+            # A currency code between a spaced dash and the amount ("Credit \u2013 USD 248.00",
+            # "Hotel - US$612.40") reads either way, like a spaced dash alone (ruling 3).
             leading = EITHER
     if end < len(text):
         after = text[end]
