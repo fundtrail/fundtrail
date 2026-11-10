@@ -126,7 +126,8 @@ def test_held_mail_is_a_row_and_in_the_report_until_let_in(
     arrived = {f.id for f in files if f.source == "gmail"}
     assert {r.trigger.id for r in runs if r.trigger.kind == TriggerKind.FILE} >= arrived
     # The stored bytes are the held file's.
-    assert platform.storage.get(files[-1].storage_path) in (b"Invoice attached.", b"Total: $1.00")
+    stored = {f.name: platform.storage.get(f.storage_path) for f in files if f.source == "gmail"}
+    assert stored == {"message.txt": b"Invoice attached.", "invoice.txt": b"Total: $1.00"}
 
 
 def test_a_dismissed_message_never_arrives(platform: Platform) -> None:  # noqa: F811
