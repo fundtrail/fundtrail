@@ -57,6 +57,9 @@ class RunInputs:
     likely_duplicates: LikelyDuplicates | None = None
     second_look: SecondLook | None = None
     new_id: Callable[[], str] = field(default_factory=lambda: lambda: f"rec-{uuid.uuid4()}")
+    # The run's read point (AgentRun.read_through_seq, call 40): every record it
+    # writes carries it, and the write check refuses an agent record without one.
+    read_through_seq: int | None = None
 
 
 class AgentRunFailed(Exception):
