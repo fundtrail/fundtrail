@@ -20,6 +20,7 @@ eval/test_cases.py. Run it with `python3 data/test_seed.py`, or with pytest.
 
 from __future__ import annotations
 
+import ast
 import csv
 import hashlib
 import importlib.util
@@ -43,16 +44,16 @@ _spec.loader.exec_module(ev)
 
 META_FILES = {"answer_key.json", "arrivals.json", "README.md"}
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png"}
-# The contract code names the sixth sub-line of Other Direct Costs
-# other_direct_costs_other (issue 14); eval/test_cases.py still says "other".
-CATEGORIES = (ev.CATEGORIES - {"other"}) | {"other_direct_costs_other"}
-ODC_SUBLINES = (ev.ODC_SUBLINE_CATEGORIES - {"other"}) | {"other_direct_costs_other"}
+CATEGORIES = ev.CATEGORIES
+ODC_SUBLINES = ev.ODC_SUBLINE_CATEGORIES
 MAX_FILE_BYTES = 200_000
 # Each account group's NSF categories, by account code prefix, longest prefix
-# first. This is the test's own copy: domain.md's starting groups, with the
-# categories from the account groups table proposed in pull request 30. Replace
-# it with that table once it's on main.
-ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str]], ...] = tuple(
+# first, and None for an account in no group. A copy of the table in
+# backend/app/checks/account_groups.py, which imports the contract code and so
+# the backend's dependencies. test_account_categories_match_the_table reads that
+# file's source and fails if this copy drifts from it.
+ACCOUNT_GROUPS_SOURCE = DATA.parent / "backend" / "app" / "checks" / "account_groups.py"
+ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str] | None], ...] = tuple(
     sorted(
         [
             ("50", frozenset({"senior_personnel", "other_personnel"})),
@@ -77,6 +78,8 @@ ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str]], ...] = tuple(
             ("59013", frozenset({"equipment"})),
             *((f"578{d}", frozenset({"subawards"})) for d in "123456789"),
             ("925", frozenset({"subawards"})),
+            ("56710", None),
+            ("59000", None),
         ],
         key=lambda pair: len(pair[0]),
         reverse=True,
@@ -532,6 +535,53 @@ def share_of(note: str, award_number: str) -> tuple[int, int] | None:
     return None
 
 
+def table_from_source(path: Path) -> dict[str, frozenset[str] | None]:
+    """The account table in account_groups.py, read from its source with ast.
+
+    Each AccountGroup call gives its `accounts` and `nsf_categories`, and its
+    `categories_by_account` overrides. NOT_IN_ANY_GROUP gives the accounts in no
+    group. A BudgetCategory member's value is its name in lower case.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+
+    def strings(node: ast.AST) -> list[str]:
+        return [
+            n.value
+            for n in ast.walk(node)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        ]
+
+    def categories(node: ast.AST) -> frozenset[str]:
+        return frozenset(
+            n.attr.lower()
+            for n in ast.walk(node)
+            if isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name)
+            and n.value.id == "BudgetCategory"
+        )
+
+    table: dict[str, frozenset[str] | None] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "AccountGroup":
+            kw = {k.arg: k.value for k in node.keywords}
+            for prefix in strings(kw["accounts"]):
+                table[prefix] = categories(kw["nsf_categories"])
+            by_account = kw.get("categories_by_account")
+            if by_account is not None:
+                mapping = next(n for n in ast.walk(by_account) if isinstance(n, ast.Dict))
+                for k, v in zip(mapping.keys, mapping.values, strict=True):
+                    assert isinstance(k, ast.Constant)
+                    table[k.value] = categories(v)
+        if (
+            isinstance(node, ast.AnnAssign)
+            and getattr(node.target, "id", None) == "NOT_IN_ANY_GROUP"
+        ):
+            assert node.value is not None
+            for code in strings(node.value):
+                table[code] = None
+    return table
+
+
 def account_categories(account: str) -> frozenset[str] | None:
     """The NSF categories of a ledger account's group, or None outside every group."""
     code = account.split(" ")[0]
@@ -721,6 +771,11 @@ def test_invariants_catch_false_clears() -> None:
     assert run("coastal-microbial-genomics", complete("ESS-29944")), "reagents marked complete"
 
 
+def test_account_categories_match_the_table() -> None:
+    """The test's copy of the account groups' categories is the backend's table."""
+    assert dict(ACCOUNT_CATEGORIES) == table_from_source(ACCOUNT_GROUPS_SOURCE)
+
+
 def test_seed_story() -> None:
     """What decision 0024 asks of the demo seed."""
     g = gen()
@@ -781,6 +836,7 @@ if __name__ == "__main__":
     for test in (
         test_files_and_keys,
         test_invariants_catch_false_clears,
+        test_account_categories_match_the_table,
         test_seed_story,
         test_from_scratch_pack,
     ):

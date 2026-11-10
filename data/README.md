@@ -72,8 +72,8 @@ Where an expected result depends on something the docs and the provisional decis
 - Ledger line IDs are `L-<last four digits of the award>-<sequence>`, unique in the workspace (contracts.md section 6).
 - Every Gmail arrival comes from a person named on its grant, forwarding what a vendor sent. How mail from unknown senders is held is still open.
 - Emails carry no attachments: a forwarded invoice is in the email's body.
-- Account codes are 5-digit codes inside the groups of domain.md's starting table. The test carries its own copy of each group's NSF categories, taken from the account groups table proposed in pull request 30, to check a charge's account against its budget line. It should give way to that table once the table is on main.
-- The sixth sub-line of Other Direct Costs is `other_direct_costs_other`, as the contract code names it. Aligning `eval/test_cases.py`, which still spells it `other`, is a separate follow-up issue.
+- Account codes are 5-digit codes inside the groups of domain.md's starting table. To check a charge's account against its budget line, the test carries a copy of each group's NSF categories from `backend/app/checks/account_groups.py`, because importing that table would bring in the backend's dependencies. The test reads the table's source and fails if the copy differs from it.
+- The sixth sub-line of Other Direct Costs is `other_direct_costs_other`, as the contract code names it, and `eval/test_cases.py` spells it the same way.
 - Award letters dated before May 20, 2024 name the policy guide in force then, NSF 23-1. Later ones name NSF 24-1.
 - Airports and cities in the travel documents are made up, such as "EXC" for Example City.
 
