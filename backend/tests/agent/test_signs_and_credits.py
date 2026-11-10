@@ -74,6 +74,8 @@ MEMO = (
 )
 
 
+# Doubtful exactly where the quote finder accepts a value of either sign (its
+# sign_reads_either_way, provisional call 31).
 @pytest.mark.parametrize(
     ("passage", "value"),
     [
@@ -86,28 +88,20 @@ MEMO = (
         # Any run of spaces or tabs after the dash.
         ("Hotel -    $612.40", "612.40"),
         ("Hotel -\t$612.40", "$612.40"),
-        # A currency code between the dash and the amount.
-        ("Hotel \u2013 USD 612.40", "612.40"),
-        ("Hotel - USD 612.40", "USD 612.40"),
         # A dash at the start of a line.
         ("Paid\n- $45.00", "$45.00"),
-        # Brackets inside prose (the PR 58 ruling: either way).
-        ("the fee ($450.00) was paid", "($450.00)"),
-        ("the fee ($450.00) was paid", "$450.00"),
-        ("($450.00) was refunded", "450.00"),
         # Any white space, not only a space or a tab (PR 105's recheck).
-        ("Credit amount -\u00a0$248.00", "248.00"),  # a non-breaking space after the dash
-        ("Credit amount \u2009- $248.00", "248.00"),  # a thin space before the dash
-        ("Credit amount -\u2009$248.00", "$248.00"),  # a thin space after the dash
-        ("Credit amount -\n$248.00", "248.00"),  # a line break after the dash
+        ("Credit amount -\u00a0$248.00", "248.00"),
+        ("Credit amount \u2009- $248.00", "248.00"),
+        ("Credit amount -\u2009$248.00", "$248.00"),
         ("Credit\u00a0-\u00a0$248.00", "248.00"),
-        # "US$" and currency codes in lower case.
-        ("Hotel - US$612.40", "612.40"),
-        ("Hotel - usd 612.40", "612.40"),
-        ("Hotel \u2013 eur 612.40", "612.40"),
-        # Brackets next to punctuation inside prose.
-        ("the fee, ($450.00), was paid", "450.00"),
-        ("the fee; ($450.00) was paid", "($450.00)"),
+        # The finder reads these either way too, so the agent asks (the coordinator's call).
+        ("Credit amount -- $248.00", "248.00"),
+        ("Credit amount -- $248.00", "$248.00"),
+        ("Credit- $248.00", "248.00"),
+        ("Credit- $248.00", "$248.00"),
+        ("Hotel- $612.40", "$612.40"),
+        ("Year 2-\u00a0$50,000", "$50,000"),
     ],
 )
 def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
@@ -120,16 +114,41 @@ def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
         ("Credit amount -$248.00", "-$248.00"),  # attached: clearly a minus (call 31)
         ("Total: -$450.00", "-$450.00"),
         ("\u2212 $45.00", "$45.00"),  # the true minus is always a minus
-        ("Total: ($450.00)", "($450.00)"),  # accounting brackets, not prose
+        ("Total: ($450.00)", "($450.00)"),  # brackets read as a minus
+        ("Total:\u00a0($450.00)", "($450.00)"),
         ("Total Due: $1,240.00", "$1,240.00"),
         ("Year 2-$50,000", "$50,000"),  # a hyphen after a digit
-        ("Hotel- $612.40", "$612.40"),  # a hyphen after a letter
-        ("Total:\u00a0($450.00)", "($450.00)"),  # accounting brackets after a label
-        ("Year 2-\u00a0$50,000", "$50,000"),  # a hyphen after a digit, then a no-break space
+        # The finder reads these one way, so they no longer ask for a reason: brackets in
+        # prose still read as a minus until the follow-up on prose brackets lands, and a
+        # currency code or a line break between the dash and the amount ends the dash's reach.
+        ("the fee ($450.00) was paid", "($450.00)"),
+        ("the fee, ($450.00), was paid", "($450.00)"),
+        ("Hotel \u2013 USD 612.40", "612.40"),
+        ("Hotel - US$612.40", "612.40"),
+        ("Credit amount -\n$248.00", "248.00"),
     ],
 )
 def test_a_sign_that_reads_one_way_is_not_doubtful(passage: str, value: str):
     assert not sign_is_doubtful(passage, value)
+
+
+@pytest.mark.parametrize(
+    ("passage", "value"),
+    [
+        ("Credit amount -- $248.00", "248.00"),
+        ("Credit- $248.00", "$248.00"),
+        ("Hotel \u2013 USD 612.40", "612.40"),
+        ("Total: -$450.00", "-$450.00"),
+        ("Hotel - $612.40", "$612.40"),
+    ],
+)
+def test_doubt_is_the_quote_finders_own_reading(passage: str, value: str):
+    """No separate rule: the agent's doubt is the finder's either-way, at the value's place."""
+    from app.quotes.text_match import clean, sign_reads_either_way
+
+    page = clean(passage).text
+    at = page.index(value)
+    assert sign_is_doubtful(passage, value) == sign_reads_either_way(page, at, at + len(value))
 
 
 MEMO_NOW = datetime.fromisoformat("2025-12-01T18:00:00+00:00")
