@@ -10,6 +10,7 @@ What other areas call:
 - history_line: one line of status history
 - period_in_force: the grant's period in force
 - likely_duplicates: bills that look like a new one
+- upcoming_dates: the dates the checks work out after a grant's now, for "Coming up"
 """
 
 from app.checks.checklist import default_items
@@ -19,6 +20,7 @@ from app.checks.findings import BUDGET, OVER_LIMIT
 from app.checks.grant_checks import BudgetFigures, CategoryFigure, LineFigure, budget_figures
 from app.checks.history import history_line
 from app.checks.run import run_checks
+from app.checks.upcoming import UpcomingDate, upcoming_dates
 from app.checks.view import period_in_force
 
 __all__ = [
@@ -36,4 +38,6 @@ __all__ = [
     "note_limit",
     "period_in_force",
     "run_checks",
+    "UpcomingDate",
+    "upcoming_dates",
 ]

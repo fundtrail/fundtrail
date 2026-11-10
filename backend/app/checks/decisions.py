@@ -349,7 +349,9 @@ class Decisions:
             or (window is not None and today >= window)
         )
 
-    def _active(self, snooze: Record) -> bool:
+    def snooze_ends(self, snooze: Record) -> date:
+        """The day a snooze stops hiding its problems: its own date, or earlier when the
+        closeout window opens (or, for one set inside the window, after the end date)."""
         data = snooze.data
         assert isinstance(data, Snooze)
         until = data.until
@@ -360,7 +362,10 @@ class Decisions:
                 until = min(until, window)
             else:
                 until = min(until, p.end + timedelta(days=1))
-        return self.now.date() < until
+        return until
+
+    def _active(self, snooze: Record) -> bool:
+        return self.now.date() < self.snooze_ends(snooze)
 
     def snoozed(self, subject: SubjectKey, flagging: list[Marked]) -> bool:
         active = [r for r in self.snoozes if _key_of(r.data) == subject and self._active(r)]  # type: ignore[arg-type]
