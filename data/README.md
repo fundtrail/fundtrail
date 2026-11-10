@@ -41,7 +41,13 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 
 `user_actions.json` is the answer key's accountant script (ruling 47): every accountant step the key assumes, and no more, each with its time. When the user skips the human steps, the workspace's sample accountant performs these as the clock passes each one. A scripted step whose target isn't there, because the live agent did otherwise, is left for the user. Confirming terms is always a person's decision, so it lives here and never in a timeline.
 
-Each step names its target by stable references: a ledger line ID, a file name, a record kind, and the expected decision or values. It never uses a record ID.
+Each step names its target by stable references: a ledger line ID, a file name, a record kind, and the expected decision or values. It never uses a record ID. The test holds the script to no more than the key assumes:
+- a file is confirmed only if the key reads terms from it
+- each step is scripted once
+- a flag answer or a typed share comes before a bucket on its line that rests on it
+- a typed share is only for part of a bill with no basis on file
+
+A suggestion's kind must be one of the contract's record kinds that wait for the accountant. Whether a `decide_suggestion` is needed can't be checked yet, because the key doesn't express suggestions.
 
 | Action | Fields besides `at` and an optional `note` | In the samples |
 |---|---|---|

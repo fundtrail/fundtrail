@@ -66,6 +66,31 @@ ACTION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
 }
 USER_ACTIONS = set(ACTION_FIELDS)
 DECISIONS = {"accept", "reject"}
+RECORDS_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "records.py"
+# The record kinds an agent's suggestion can be, the ones that wait for the
+# accountant (contracts.md section 1, "What counts"): a fix to a link, a new
+# answer, a checklist removal, a dispute, a duplicate mark, a correction, a
+# remainder, or a retraction of its own flag. Each must be a RecordKind.
+SUGGESTION_KINDS = {
+    "link",
+    "judgment",
+    "checklist_removal",
+    "dispute",
+    "duplicate",
+    "correction",
+    "remainder",
+    "retraction",
+}
+# The record kinds that are a grant's terms, which confirm_terms confirms.
+TERM_RECORD_KINDS = {
+    "period_of_performance",
+    "budget_line",
+    "person",
+    "approval_rule",
+    "rate",
+    "notice",
+    "other_term",
+}
 # SampleChoice, as issue 165 settles it. When the contract code has the enum,
 # test_sample_choices_match_the_contract reads it and compares.
 SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
@@ -366,26 +391,60 @@ def check_timeline(
                 f"{where}: {a['action']} takes {sorted(required)}, and may take {sorted(optional)}"
             )
             continue
-        if a["action"] == "decide_suggestion" and (
-            a["decision"] not in DECISIONS or not ({"line_id", "file"} & given)
-        ):
-            problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+        if a["action"] == "decide_suggestion":
+            if a["decision"] not in DECISIONS or not ({"line_id", "file"} & given):
+                problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+            if a["suggestion"] not in SUGGESTION_KINDS:
+                problems.append(
+                    f"{where}: suggestion {a['suggestion']!r} isn't one of "
+                    f"{sorted(SUGGESTION_KINDS)}"
+                )
         if a["action"] == "answer_flag" and a["answer"] not in ev.ANSWERS:
             problems.append(f"{where}: answer must be one of {sorted(ev.ANSWERS)}")
+        share = None
+        if a["action"] == "enter_share":
+            share = typed_share(a)
+            if share is None:
+                problems.append(
+                    f"{where}: share and out_of must be numbers, with out_of above 0 and "
+                    f"the share from 0 to out_of"
+                )
+                continue
         t = ev.parse_time(a["at"])
         out[f"{a['action']}:{a.get('line_id') or a.get('file')}"] = t
         if a["action"] == "answer_flag":
             out[f"answer_flag_value:{a['line_id']}"] = a["answer"]  # type: ignore[assignment]
-        if a["action"] == "enter_share":
-            out[f"enter_share_value:{a['line_id']}"] = (  # type: ignore[assignment]
-                a["file"],
-                int(a["share"]),
-                int(a["out_of"]),
-            )
+        if share is not None:
+            out[f"enter_share_value:{a['line_id']}"] = (a["file"], *share)  # type: ignore[assignment]
         if a["action"] == "deliver_file":
             # A file marked for the user arrives when the user brings it in.
             out[f"file:{a['file']}"] = t
     return out
+
+
+def typed_share(action: dict) -> tuple[float, float] | None:
+    """A scripted share and its whole, or None when they aren't a usable share."""
+    try:
+        share, whole = float(str(action["share"])), float(str(action["out_of"]))
+    except ValueError:
+        return None
+    if not (whole > 0 and 0 <= share <= whole):
+        return None
+    return share, whole
+
+
+def kinds_in_contract(path: Path) -> set[str] | None:
+    """RecordKind's values in the contract code, or None if it isn't there."""
+    if not path.is_file():
+        return None
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ClassDef) and node.name == "RecordKind":
+            return {
+                stmt.value.value
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Constant)
+            }
+    return None
 
 
 def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -> None:
@@ -928,7 +987,10 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
         where = f"{folder.name}: user action {a['action']} {a.get('line_id') or a.get('file')}"
         at = ev.parse_time(a["at"])
         lid = a.get("line_id")
-        if lid is not None and (lid not in line_at or at <= line_at[lid]):
+        if lid is not None and lid not in line_at:
+            problems.append(f"{where}: line_id {lid!r} isn't in the ledger")
+            continue
+        if lid is not None and at <= line_at[lid]:
             problems.append(f"{where}: comes before its ledger line arrives")
         if a["action"] == "answer_flag" and not any(
             x["line_id"] == lid and x["question"] == "flag" for x in key["answers"]
@@ -939,6 +1001,7 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
             for x in key["links"]
         ):
             problems.append(f"{where}: the key links no part of this bill to the line")
+        check_needed(a, key, actions, problems, where)
         if "file" not in a:
             continue
         event = scheduled.get(a["file"])
@@ -956,6 +1019,80 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
             arrived = delivered.get(a["file"]) if marked else clock_at
             if arrived is None or at <= arrived:
                 problems.append(f"{where}: comes before its file arrives")
+
+
+def needs_typed_share(key: dict, line_id: str, bill: str) -> bool:
+    """Whether the key's link of part of this bill to this line has no basis on
+    file (decision 0021): no note linked to the line, no item of the bill with the
+    link's amount, and no other link on the grant taking the rest of the bill."""
+    total = next(
+        (
+            int(r["fields"]["total"])
+            for r in key["records"]
+            if r["file"] == bill and r["kind"] == "bill"
+        ),
+        None,
+    )
+    link = next(
+        (
+            x
+            for x in key["links"]
+            if x["line_id"] == line_id and x["file"] == bill and "amount_cents" in x
+        ),
+        None,
+    )
+    if total is None or link is None or abs(link["amount_cents"]) >= abs(total):
+        return False
+    items = {
+        int(v)
+        for r in key["records"]
+        if r["file"] == bill and r["kind"] == "bill"
+        for k, v in r["fields"].items()
+        if k.endswith("].amount")
+    }
+    used = sum(x["amount_cents"] for x in key["links"] if x["file"] == bill and "amount_cents" in x)
+    notes = any(x["line_id"] == line_id and "amount_cents" not in x for x in key["links"])
+    return not (notes or link["amount_cents"] in items or used == total)
+
+
+def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], where: str) -> None:
+    """No more than the key assumes (ruling 47).
+
+    - confirm_terms confirms a file the key reads terms from, once.
+    - deliver_file delivers a marked file once.
+    - answer_flag and enter_share come before a bucket on their line that rests
+      on them, one that isn't Needs a human. enter_share is only for part of a
+      bill with no basis on file.
+    A decide_suggestion can't be checked this way yet: the key doesn't express
+    suggestions (contracts.md section 14).
+    """
+    same = [
+        b
+        for b in actions
+        if b["action"] == a["action"]
+        and b.get("file") == a.get("file")
+        and b.get("line_id") == a.get("line_id")
+    ]
+    if len(same) > 1 and a["action"] in (
+        "confirm_terms",
+        "deliver_file",
+        "enter_share",
+        "answer_flag",
+    ):
+        problems.append(f"{where}: scripted more than once")
+    if a["action"] == "confirm_terms" and not any(
+        r["file"] == a["file"] and r["kind"] in TERM_RECORD_KINDS for r in key["records"]
+    ):
+        problems.append(f"{where}: the key reads no terms from this file to confirm")
+    if a["action"] in ("answer_flag", "enter_share"):
+        rests = any(
+            b["line_id"] == a["line_id"] and b["at"] > a["at"] and b["bucket"] != "needs_human"
+            for b in key["buckets"]
+        )
+        if not rests:
+            problems.append(f"{where}: no bucket in the key rests on it")
+    if a["action"] == "enter_share" and not needs_typed_share(key, a["line_id"], a["file"]):
+        problems.append(f"{where}: the key's link already has a basis on file")
 
 
 def check_sample_json(folder: Path, problems: list[str]) -> list[str]:
@@ -1145,6 +1282,73 @@ def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
     assert any("no flag on this line" in p for p in found), found
 
 
+def test_suggestion_kinds_are_record_kinds() -> None:
+    """Every suggestion kind the script allows is one of the contract's record kinds."""
+    kinds = kinds_in_contract(RECORDS_SOURCE)
+    assert kinds is None or SUGGESTION_KINDS <= kinds, SUGGESTION_KINDS - (kinds or set())
+    assert kinds is None or TERM_RECORD_KINDS <= kinds, TERM_RECORD_KINDS - (kinds or set())
+
+
+def test_a_script_with_more_than_the_key_assumes_fails() -> None:
+    """Steps the key doesn't assume, or that can't be read, are reported as
+    problems, not tracebacks: a share typed where a basis is on file (S3a), a
+    confirmation of an invoice, a suggestion that isn't a record kind, a share
+    that isn't a number or is out of 0, and a line that isn't in the ledger."""
+    import shutil
+    import tempfile
+
+    g = gen()[LARGER]
+    s3a = next(ln.line_id for ln in g.lines if ln.reference == "EGS-20931")
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / LARGER.name
+        shutil.copytree(LARGER, copy)
+        actions = load(copy, "user_actions.json")
+        later = "2026-06-01T12:00:00Z"
+        actions["actions"] += [
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3a,
+                "file": "invoice_EGS-20931.pdf",
+                "share": "56",
+                "out_of": "96",
+                "basis": "x",
+            },
+            {"at": later, "action": "confirm_terms", "file": "invoice_EGS-20931.pdf"},
+            {
+                "at": later,
+                "action": "decide_suggestion",
+                "suggestion": "snooze",
+                "decision": "accept",
+                "line_id": s3a,
+            },
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3a,
+                "file": "invoice_EGS-20931.pdf",
+                "share": "many",
+                "out_of": "0",
+                "basis": "x",
+            },
+            {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
+        ]
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        problems: list[str] = []
+        lines = check_ledger(copy, problems)
+        check_timeline(copy, copy, lines, problems)
+        check_user_actions(copy, problems)
+    text = "\n".join(problems)
+    for expected in (
+        "already has a basis on file",
+        "reads no terms from this file",
+        "isn't one of",
+        "must be numbers",
+        "isn't in the ledger",
+    ):
+        assert expected in text, (expected, problems)
+
+
 def test_larger_sample() -> None:
     """The larger sample reaches closeout: its timeline starts with its award
     letter and runs past the start of its 90-day closeout window."""
@@ -1186,6 +1390,8 @@ if __name__ == "__main__":
         test_sample_choices_match_the_contract,
         test_a_user_decision_in_a_timeline_fails,
         test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action,
+        test_suggestion_kinds_are_record_kinds,
+        test_a_script_with_more_than_the_key_assumes_fails,
         test_larger_sample,
         test_small_sample,
         test_line_ids_are_unique,
