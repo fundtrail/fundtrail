@@ -33,6 +33,10 @@ class Charge(Model):
     # moves. A line ID, not a charge ID, because the original may be on another
     # grant or arrive later.
     original_line_id: str | None = None
+    # The order it was stored in: one number from a sequence the database shares
+    # across records, charges and evidence files, so any two can be compared. Never
+    # the workspace clock. None until it's stored.
+    stored_seq: int | None = None
 
 
 class LedgerRow(Model):

@@ -1,0 +1,24 @@
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-20417
+Invoice date: March 2, 2026
+Customer PO: PO-26-0311
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Reese Mockup
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2512836, grain size mapping
+
+Item  Description                                   Qty   Unit price      Amount
+1     Sediment sieve, stainless, 63 um                 8      $150.00   $1,200.00
+
+Subtotal                                                               $1,200.00
+Shipping                                                                   $0.00
+Total due                                                              $1,200.00
+
+Terms: net 30

@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.checks.duplicates import likely_duplicates
 from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion, RunChecks
 from app.contracts.evidence import EvidenceFile
@@ -43,6 +44,7 @@ from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 __all__ = [
+    "likely_duplicates",
     "ApprovalScope",
     "Bill",
     "BudgetAssignment",
@@ -115,11 +117,13 @@ def build_record(
     data: dict[str, Any],
     replaces_id: str | None = None,
     trigger: Trigger | None = None,
+    read_through_seq: int | None = None,
 ) -> tuple[Record | None, list[str]]:
     """The agent's record, or the reasons the contract models refuse it, as plain sentences.
 
     In a run a thread message started, the record names that message, so it waits for the
-    accountant whatever its kind (the contract reads it from there).
+    accountant whatever its kind (the contract reads it from there). The record carries
+    its run's read point (call 40).
     """
     thread = trigger is not None and trigger.kind == TriggerKind.THREAD_MESSAGE
     try:
@@ -132,6 +136,7 @@ def build_record(
                 "written_at": written_at,
                 "replaces_id": replaces_id,
                 "thread_message_id": trigger.id if thread and trigger is not None else None,
+                "read_through_seq": read_through_seq,
                 "data": data,
             }
         )
@@ -191,37 +196,6 @@ TRIGGER_RECORD = TriggerKind.RECORD
 TRIGGER_THREAD = TriggerKind.THREAD_MESSAGE
 TRIGGER_CLOCK = TriggerKind.CLOCK
 TRIGGER_OPEN_QUESTION = TriggerKind.OPEN_QUESTION
-
-
-def _stand_in_likely_duplicates(new: Record, records: Sequence[Record]) -> list[Record]:
-    """Bills on file that look like the same one as a new bill: the same document number, or the
-    same total and vendor. A stand-in until the checks' own search lands."""
-
-    def key(r: Record, name: str) -> str | None:
-        v = getattr(r.data, name, None)
-        return None if v is None else str(v.value).lower()
-
-    found: list[Record] = []
-    for r in records:
-        if r.id == new.id or r.kind != RecordKind.BILL:
-            continue
-        number = key(new, "document_number")
-        vendor = key(new, "vendor")
-        same_number = number is not None and number == key(r, "document_number")
-        same_total = (
-            vendor is not None
-            and vendor == key(r, "vendor")
-            and key(new, "total") == key(r, "total")
-        )
-        if same_number or same_total:
-            found.append(r)
-    return found
-
-
-# The search for likely duplicate bills belongs to the checks (W2), as a pure function in
-# backend/app/checks/. Once it lands, this one line becomes its import, for example
-# `from app.checks import likely_duplicates`.
-likely_duplicates = _stand_in_likely_duplicates
 
 
 def record_waits(state: RecordState, record_id: str, trigger: Trigger) -> bool:

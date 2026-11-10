@@ -10,6 +10,7 @@ same run on the agent's own inputs. The model is claude-opus-5-5, with no fallba
 
 from .graph import recheck_before_save, run_once
 from .inputs import CHARGE_BATCH_SIZE, RunFailed, RunInputs, RunResult, RunSaved
+from .no_tracing import TracingTurnedOn, check_no_tracing
 from .platform import AgentResult, AgentRunFailed, charges_for_run, run_agent
 
 __all__ = [
@@ -20,7 +21,9 @@ __all__ = [
     "RunInputs",
     "RunResult",
     "RunSaved",
+    "TracingTurnedOn",
     "charges_for_run",
+    "check_no_tracing",
     "recheck_before_save",
     "run_agent",
     "run_once",

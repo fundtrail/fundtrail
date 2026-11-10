@@ -22,8 +22,9 @@ from typing import Any
 
 from .adapter import TRIGGER_CHARGE, Author, Charge, OpenQuestion, Record, ThreadMessage
 from .graph import run_once
-from .inputs import CHARGE_BATCH_SIZE, RunFailed, RunInputs
+from .inputs import CHARGE_BATCH_SIZE, AgentRunFailed, RunFailed, RunInputs
 from .model import ModelClient
+from .no_tracing import check_no_tracing
 
 
 @dataclass(frozen=True)
@@ -37,22 +38,6 @@ class AgentResult:
     # Open questions for the agent outside a thread run's charge or record (answer 3): the
     # platform queues an ordinary run for them.
     other_open_questions: list[OpenQuestion] = field(default_factory=list[OpenQuestion])
-
-
-class AgentRunFailed(Exception):
-    """The run failed and saves nothing.
-
-    `retryable` says whether trying again could help (a rate limit, an overload, a network
-    error); a refusal, a run that went on too long, or a write that no longer passes is not.
-    After the last retry the platform records the run as failed, and the checks raise a problem
-    on the file or charge that triggered it (answer 7). `log` is the debug log, kept even then.
-    """
-
-    def __init__(self, error: str, retryable: bool, log: bytes):
-        super().__init__(error)
-        self.error = error
-        self.retryable = retryable
-        self.log = log
 
 
 def charges_for_run(
@@ -98,11 +83,17 @@ def to_run_inputs(agent_input: Any) -> RunInputs:
         run_checks=checks.run_checks,
         charge_ids=charge_ids,
         thread_messages=list(agent_input.thread),
+        read_through_seq=run.read_through_seq,
     )
 
 
 def run_agent(agent_input: Any, model: ModelClient | None = None) -> AgentResult:
-    """One run, as the platform calls it. Raises AgentRunFailed to fail it."""
+    """One run, as the platform calls it. Raises AgentRunFailed to fail it.
+
+    Raises TracingTurnedOn first, before anything else, when LangSmith tracing is turned on in
+    the environment (issue #82).
+    """
+    check_no_tracing()
     inputs = to_run_inputs(agent_input)
     if inputs.trigger.kind == TRIGGER_CHARGE and not inputs.charge_ids:
         log = {"run_id": inputs.run_id, "outcome": "saved", "events": [{"event": "nothing_to_do"}]}

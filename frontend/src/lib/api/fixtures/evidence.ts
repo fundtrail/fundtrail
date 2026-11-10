@@ -44,7 +44,7 @@ function dataUrl(text: string, mediaType: string): string {
 export function evidenceFake(): Pick<ApiClient, "listEvidence" | "uploadEvidence" | "getFileLink"> {
   const cards = sampleEvidence();
   return {
-    listEvidence: (grantId) => served(grantId === SAMPLE_GRANT_ID ? cards : []),
+    listEvidence: (grantId) => served(grantId === SAMPLE_GRANT_ID ? cards : undefined),
     uploadEvidence: (grantId, _file, fileName) => {
       const id = fakeId("file");
       const file: EvidenceFile = {

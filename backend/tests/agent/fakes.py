@@ -200,6 +200,10 @@ def sample_checks(sample: SampleGrant) -> Callable[[ChecksInput], ChecksOutput]:
     return run
 
 
+# The run's read point in these tests (call 40): it read everything stored.
+RUN_READ_THROUGH = 10**9
+
+
 def sample_inputs(
     *,
     now: datetime,
@@ -208,6 +212,7 @@ def sample_inputs(
     ids: Iterator[str] | None = None,
     charge_ids: Sequence[str] = (),
     run_id: str = "run-1",
+    read_through_seq: int | None = RUN_READ_THROUGH,
     **extra: Any,
 ) -> RunInputs:
     """Run inputs on the sample grant, with what's visible at `now`."""
@@ -228,6 +233,7 @@ def sample_inputs(
         run_checks=sample_checks(sample),
         charge_ids=charge_ids,
         new_id=(lambda: next(ids)) if ids is not None else (lambda: f"rec-new-{next(fresh)}"),
+        read_through_seq=read_through_seq,
         **extra,
     )
 

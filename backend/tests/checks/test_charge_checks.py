@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from app.checks.checklist import compare
 from app.contracts.checks import Bucket, most_serious
 
 from .grant_builder import (
@@ -569,3 +570,37 @@ def test_a_benefit_charge_keeps_its_benefit_rate_item_unfilled() -> None:
     assert [(e.default_item, e.filled) for e in status.checklist] == [("benefit_rate", False)]
     assert problems(status) == {("checklist", "missing:benefit_rate")}
     assert status.bucket == Bucket.MISSING_EVIDENCE
+
+
+# Signs in the sums (#73).
+
+
+def test_compare_counts_a_total_of_the_opposite_sign_as_over() -> None:
+    assert compare(10000, 10000) == 0
+    assert compare(6000, 10000) == -1  # under
+    assert compare(12000, 10000) == 1  # over
+    assert compare(-6000, -10000) == -1  # a credit, under
+    assert compare(-12000, -10000) == 1  # a credit, over: more negative
+    assert compare(-5000, 10000) == 1  # opposite sign: over, not under
+    assert compare(5000, -10000) == 1
+    assert compare(0, 10000) == -1  # nothing yet is under
+    assert compare(100, 0) == 1
+
+
+def test_a_link_of_the_opposite_sign_puts_the_item_over() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("c1", date(2024, 3, 1), 10000)
+    f = g.file("f-memo", at(2024, 3, 1))
+    memo = g.bill(-10000, f, at(2024, 3, 1))
+    g.link(memo, "c1", at(2024, 3, 1), amount=-10000, default="bill")
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[memo])
+    status = g.status("c1", at(2024, 3, 2))
+    assert ("checklist", "over:bill") in problems(status)
+    assert status.bucket == Bucket.NEEDS_HUMAN
+    over = next(r for r in status.reasons if r.problem == "over:bill")
+    assert over.text == (
+        "A bill that adds up to the charge: the bills linked add up to -$100.00, "
+        "the opposite sign of the $100.00 it needs."
+    )
