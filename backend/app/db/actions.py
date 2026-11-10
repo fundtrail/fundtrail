@@ -18,12 +18,12 @@ from app.contracts.api import LedgerUploadResult, RowError
 from app.contracts.evidence import EvidenceFile, Source, storage_path
 from app.contracts.records import TERM_KINDS, Author, Record, RecordData
 from app.contracts.rules import check_new_record
-from app.contracts.runs import AgentRun, Trigger, TriggerKind
+from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 from . import store
-from .jobs import agent_questions_open, charge_batches, queue_run
+from .jobs import agent_questions_open, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
 from .pool import transaction, workspace_now
@@ -165,6 +165,10 @@ def add_record(
     is queued with this record as its trigger.
     """
     run: AgentRun | None = None
+    if data.get("kind") == "sign_off":
+        # A sign-off stores the evidence report with it (decision 0022). The report
+        # route and the sign-off come with the screens' pull request (#63).
+        raise WriteRejected(["A sign-off stores the evidence report, which isn't built here yet."])
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
@@ -190,16 +194,23 @@ def add_record(
             store.list_charges(conn, grant.id, now),
             store.list_files(conn, grant.id, now),
             default_items=p.checks.default_items,
+            trigger=None,  # the accountant's write
         )
         if problems:
             raise WriteRejected(problems)
         store.insert_records(conn, [record])
         trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
         output = recheck_grant(conn, p.checks, grant, now, trigger)
-        if agent_questions_open(output.questions) and not store.has_pending_run(conn, grant.id):
+        # Queued whether or not a run is in progress; a queued run that hasn't started
+        # reads this record when it starts, so it's shared (the run-order ruling, 5).
+        if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
             run = queue_run(conn, grant, trigger, now)
-    if run is not None:
-        ping_run(p.pinger, run)
+        from .clock import queue_review_if_due
+
+        review = queue_review_if_due(conn, grant, now)
+    for queued in (run, review):
+        if queued is not None:
+            ping_run(p.pinger, queued)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
     return record
 

@@ -202,9 +202,22 @@ def test_sign_off_waits_for_the_agent_and_needs_a_note_when_something_is_open(ap
         json={"data": {"kind": "sign_off", "note": "L-1002 is explained."}},
         headers=api.headers,
     )
-    assert signed.status_code == 201, signed.text
-    state = _get(api, f"/grants/{sample.grant.id}")["sign_off"]
-    assert state["state"] == "signed" and state["sign_off"]["id"] == signed.json()["id"]
+    # Signing off stores the evidence report (decision 0022), which isn't on main yet.
+    assert signed.status_code == 422 and "evidence report" in signed.json()["detail"][0]
+
+
+def test_a_sign_off_needs_a_note_while_any_charge_isnt_ready(api: Api) -> None:
+    """An unflagged Missing evidence charge isn't on the problem list, but it's still open."""
+    checks = _checks(api)
+    checks.buckets = {"L-1002": Bucket.MISSING_EVIDENCE}  # not flagged by the fake
+    sample = _sample(api)
+    assert _get(api, f"/grants/{sample.grant.id}/problems")["rows"] == []
+    refused = api.client.post(
+        f"/grants/{sample.grant.id}/records",
+        json={"data": {"kind": "sign_off"}},
+        headers=api.headers,
+    )
+    assert refused.status_code == 422 and "needs a note" in refused.json()["detail"][0]
 
 
 def test_the_report_route_gives_the_draft(api: Api) -> None:
@@ -264,9 +277,15 @@ def test_a_jump_is_replayed_in_arrival_order(api: Api) -> None:
         (TriggerKind.CHARGE, "2025-11-14"),
     ]
     assert [j["args"]["run_id"] for j in jobs] == [r.id for r in runs]
+    # Statuses past the first catch-up wait for the runs: none yet for L-1001.
+    assert history == []
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    with transaction(api.platform.pool) as conn:
+        history = store.status_history(conn, charge_id=_id(sample, "chg-l-1001"))
     # The charge's first status is stamped on its arrival, with the charge as its trigger.
     assert history[0].changed_at == datetime(2025, 11, 14, tzinfo=UTC)
     assert history[0].trigger.kind == TriggerKind.CHARGE
+    assert _get(api, path)["catching_up"] is False
 
 
 def test_a_thread_question_during_a_catch_up_waits_for_it(api: Api) -> None:
@@ -284,7 +303,8 @@ def test_a_thread_question_during_a_catch_up_waits_for_it(api: Api) -> None:
             j["priority"]
             for j in conn.execute("select priority from procrastinate_jobs order by id")
         ]
-    assert priorities == [NORMAL_PRIORITY, NORMAL_PRIORITY]
+    # The closeout review (its window is open), L-1001's run, then the question.
+    assert priorities == [NORMAL_PRIORITY, NORMAL_PRIORITY, NORMAL_PRIORITY]
 
 
 def test_a_move_to_exactly_the_next_arrival_is_a_catch_up_until_its_run_finishes(
@@ -318,7 +338,14 @@ def test_a_move_to_exactly_the_next_arrival_is_a_catch_up_until_its_run_finishes
 
     assert ask() == NORMAL_PRIORITY  # asked right after the move: it waits
     run_worker_until_idle(str(api.platform.pool.conninfo))
-    assert tries[:3] == [TriggerKind.CHARGE, TriggerKind.CHARGE, TriggerKind.THREAD_MESSAGE]
+    # The closeout review (its window is open) fails once and is retried in its place,
+    # then L-1001's run, then the question.
+    assert tries[:4] == [
+        TriggerKind.CLOCK,
+        TriggerKind.CLOCK,
+        TriggerKind.CHARGE,
+        TriggerKind.THREAD_MESSAGE,
+    ]
     assert _get(api, clock)["catching_up"] is False
     assert ask() == THREAD_PRIORITY  # the catch-up is done: a question goes first again
 

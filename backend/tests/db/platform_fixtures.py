@@ -14,7 +14,6 @@ import uuid
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any, LiteralString, cast
 
 import jwt
@@ -44,23 +43,19 @@ from app.db import store
 from app.db.platform import Platform, set_platform
 from app.db.pool import open_pool, transaction
 from app.db.ports import AgentInput, AgentResult
+from tests.db.conftest import SUPABASE_STUBS
+from tests.db.conftest import _migration_files as migration_files  # noqa: PLC2701
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "supabase" / "migrations"
 SUPABASE_URL = "https://project.supabase.example"
-
-SUPABASE_STUBS = """
-create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key);
-create schema if not exists storage;
-create table if not exists storage.buckets (
-  id text primary key, name text not null, public boolean default false
-);
-"""
 
 
 @pytest.fixture(scope="session")
 def platform_database_url() -> Iterator[str]:
-    """A fresh database with the Supabase stubs, every migration and Procrastinate's schema."""
+    """A fresh database with the Supabase stubs, every migration and Procrastinate's schema.
+
+    Built like main's `database_url` (tests/db/conftest.py), from its stubs and migrations:
+    skipped without TEST_DATABASE_URL, failed when it's set and no Postgres answers.
+    """
     server_url = os.environ.get("TEST_DATABASE_URL")
     if not server_url:
         pytest.skip("TEST_DATABASE_URL is not set")
@@ -71,7 +66,7 @@ def platform_database_url() -> Iterator[str]:
     try:
         admin = psycopg.connect(server_url, autocommit=True, connect_timeout=5)
     except psycopg.OperationalError as error:
-        pytest.skip(f"no Postgres at TEST_DATABASE_URL: {error}")
+        pytest.fail(f"TEST_DATABASE_URL is set, but no Postgres answers there: {error}")
     name = f"fundtrail_platform_{uuid.uuid4().hex[:12]}"
     with admin:
         admin.execute(sql.SQL("create database {}").format(sql.Identifier(name)))
@@ -79,7 +74,7 @@ def platform_database_url() -> Iterator[str]:
         try:
             with psycopg.connect(url, autocommit=True) as conn:
                 conn.execute(SUPABASE_STUBS)
-                for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+                for path in migration_files():
                     conn.execute(cast(LiteralString, path.read_text()))
                 conn.execute(SchemaManager.get_schema())
             yield url

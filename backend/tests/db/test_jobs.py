@@ -15,7 +15,7 @@ from app.contracts.runs import RunStatus, Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 from app.db import actions, store
-from app.db.jobs import NORMAL_PRIORITY, THREAD_PRIORITY, log_path, queue_run
+from app.db.jobs import NORMAL_PRIORITY, REDOS, THREAD_PRIORITY, log_path, queue_run
 from app.db.platform import Platform
 from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult
@@ -111,7 +111,7 @@ def test_a_run_saves_its_records_and_reruns_the_checks(platform: Platform) -> No
     assert statuses == ["queued", "running", "done"]
 
 
-def test_a_run_whose_write_no_longer_passes_saves_nothing_and_fails_after_its_retries(
+def test_a_save_that_keeps_being_refused_redoes_then_fails_with_nothing_saved(
     platform: Platform,  # noqa: F811
 ) -> None:
     agent = platform.agent
@@ -126,7 +126,7 @@ def test_a_run_whose_write_no_longer_passes_saves_nothing_and_fails_after_its_re
     grant = _grant(platform)
     run_worker_until_idle(str(platform.pool.conninfo))
 
-    assert len(agent.inputs) == platform.run_retries + 1
+    assert len(agent.inputs) == REDOS + 1  # redone from a fresh read, not retried
     [run] = _runs(platform, grant)
     assert run.status == RunStatus.FAILED and run.error and "RunConflict" in run.error
     with transaction(platform.pool) as conn:
@@ -278,9 +278,6 @@ def test_a_failure_that_cant_be_retried_fails_at_once_and_keeps_its_log(
     assert storage.objects[log_path(run)] == (b'{"turns": 3}', "application/json")
 
 
-@pytest.mark.skipif(
-    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
-)
 def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
     platform: Platform,  # noqa: F811
 ) -> None:
@@ -297,7 +294,9 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
             question = OpenQuestion(
                 charge_id=charge.id, question=Question.ALLOWABLE, answer_by=Author.AGENT
             )
-            return AgentResult(records=[_bill(i)], other_open_questions=[question])
+            # Every record the agent writes in a run a thread message started names it.
+            bill = _bill(i).model_copy(update={"thread_message_id": i.run.trigger.id})
+            return AgentResult(records=[bill], other_open_questions=[question])
         return AgentResult()
 
     agent.behave = behave
@@ -338,37 +337,295 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
         queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
     run_worker_until_idle(str(platform.pool.conninfo))
     _, follow_up = seen
-    assert follow_up.run.trigger.kind == TriggerKind.OPEN_QUESTION  # pyright: ignore[reportAttributeAccessIssue]
+    assert follow_up.run.trigger.kind == TriggerKind.OPEN_QUESTION
     assert follow_up.run.trigger.id == charge.id
+    assert follow_up.run.thread_charge_id is None
+    # The thread run's record was saved, and waits for the accountant.
+    from app.contracts.rules import RecordState
+
+    with transaction(platform.pool) as conn:
+        records = store.list_records(conn, grant.id)
+    [bill] = records
+    assert bill.thread_message_id == message.id
+    assert RecordState(records).is_waiting(bill.id)
 
 
-@pytest.mark.skipif(
-    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
-)
+def test_a_thread_runs_record_that_doesnt_name_its_message_is_refused(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The write check takes the run's trigger, so a thread run can't skip the rule."""
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        return AgentResult(records=[_bill(i)])
+
+    agent.behave = behave
+    grant = _grant(platform)
+    with transaction(platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
+        )
+        conn.execute("delete from procrastinate_jobs")
+        user_id = new_auth_user(platform)
+        store.upsert_user(conn, _user(user_id))
+        now = store.list_runs(conn, grant.id)[0].clock_now
+        charge = _charge(platform, grant)
+        message = ThreadMessage(
+            id=str(uuid.uuid4()),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            charge_id=charge.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            text="Can you find the invoice?",
+            written_at=now,
+        )
+        store.insert_messages(conn, [message])
+        queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    thread_run = next(r for r in _runs(platform, grant) if r.thread_charge_id == charge.id)
+    assert thread_run.status == RunStatus.FAILED and "RunConflict" in (thread_run.error or "")
+    assert len(agent.inputs) == REDOS + 1  # the thread run and its redos
+
+
 def test_open_question_follow_ups_name_each_charge_once() -> None:
-    from datetime import UTC, datetime
-
     from app.contracts.checks import OpenQuestion
     from app.contracts.records import Question
-    from app.contracts.runs import AgentRun
     from app.db.jobs import follow_up_triggers
 
-    run = AgentRun(
-        id="r",
-        workspace_id="w",
-        grant_id="g",
-        trigger=Trigger(kind=TriggerKind.THREAD_MESSAGE, id="m"),
-        status=RunStatus.RUNNING,
-        clock_now=datetime(2026, 1, 1, tzinfo=UTC),
-        queued_at=datetime(2026, 1, 1, tzinfo=UTC),
-    )
     questions = [
         OpenQuestion(charge_id=c, question=Question.ALLOWABLE, answer_by=Author.AGENT)
         for c in ("c-1", "c-2", "c-1")
     ]
-    triggers = follow_up_triggers(run, questions)
+    triggers = follow_up_triggers(questions)
     assert [(t.kind.value, t.id) for t in triggers] == [
         ("open_question", "c-1"),
         ("open_question", "c-2"),
     ]
-    assert follow_up_triggers(run, []) == []
+    assert follow_up_triggers([]) == []
+
+
+# The run-order ruling (PR 59, provisional call 35): one order, the order stored.
+
+
+def _charge(p: Platform, grant: Grant, line: str = "L-1001") -> Charge:
+    charge = Charge(
+        id=str(uuid.uuid4()),
+        workspace_id=grant.workspace_id,
+        grant_id=grant.id,
+        ledger_line_id=f"{line}-{uuid.uuid4().hex[:4]}",
+        transaction_date="2025-11-12",  # pyright: ignore[reportArgumentType]
+        posting_date="2025-11-14",  # pyright: ignore[reportArgumentType]
+        arrived_at="2025-11-14T00:00:00Z",  # pyright: ignore[reportArgumentType]
+        amount_cents=124000,
+        description="Sediment core liners",
+        account="55016 Lab Instruments and Supplies",
+    )
+    with transaction(p.pool) as conn:
+        store.insert_charges(conn, [charge])
+    return charge
+
+
+def _user_id(p: Platform, grant: Grant) -> str:
+    with transaction(p.pool) as conn:
+        return store.workspace_by_id(conn, grant.workspace_id).owner_id
+
+
+def test_the_agents_second_link_waits_when_the_accountant_linked_during_the_run(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The sample grant's invoice: the accountant links it to L-1001 while the agent's run
+    for L-1001 works; the agent's own link, stored after, is a second link and waits."""
+    from app.contracts.rules import RecordState
+
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    calls: list[TriggerKind] = []
+
+    def behave(i: AgentInput) -> AgentResult:
+        calls.append(i.run.trigger.kind)
+        if i.run.trigger.kind == TriggerKind.FILE:
+            return AgentResult(records=[_bill(i)])
+        [bill] = [r for r in i.records if r.kind == "bill"]
+        actions.add_record(
+            platform,
+            grant,
+            _user_id(platform, grant),
+            {"kind": "link", "record_id": bill.id, "charge_id": charge.id},
+            None,
+        )
+        part = bill.data.total.citation  # pyright: ignore[reportAttributeAccessIssue]
+        assert part is not None
+        link = Record.model_validate(
+            {
+                "id": str(uuid.uuid4()),
+                "workspace_id": i.run.workspace_id,
+                "grant_id": i.run.grant_id,
+                "author": "agent",
+                "written_at": i.run.clock_now,
+                "data": {
+                    "kind": "link",
+                    "record_id": bill.id,
+                    "charge_id": charge.id,
+                    "part": part.model_dump(mode="json"),
+                },
+            }
+        )
+        return AgentResult(records=[link])
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    charge = _charge(platform, grant)
+    with transaction(platform.pool) as conn:
+        now = store.list_runs(conn, grant.id)[0].clock_now
+        queue_run(conn, grant, Trigger(kind=TriggerKind.CHARGE, id=charge.id), now)
+    run_worker_until_idle(str(platform.pool.conninfo))
+
+    assert calls == [TriggerKind.FILE, TriggerKind.CHARGE]  # no redo
+    with transaction(platform.pool) as conn:
+        records = store.list_records(conn, grant.id)
+    assert [(r.kind, r.author) for r in records] == [
+        ("bill", Author.AGENT),
+        ("link", Author.USER),
+        ("link", Author.AGENT),
+    ]
+    state = RecordState(records)
+    assert state.is_current(records[1].id)
+    assert state.is_waiting(records[2].id) and not state.is_effective(records[2].id)
+
+
+def test_a_refused_save_saves_nothing_and_redoes_from_a_fresh_read(
+    platform: Platform,  # noqa: F811
+) -> None:
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        good = _bill(i)
+        if len(agent.inputs) == 1:
+            bad = good.model_copy(update={"replaces_id": "no-such-record"})
+            return AgentResult(records=[bad])
+        return AgentResult(records=[good])
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    assert len(agent.inputs) == 2
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.DONE and run.error is None
+    with transaction(platform.pool) as conn:
+        assert [r.kind for r in store.list_records(conn, grant.id)] == ["bill"]
+
+
+def test_an_unrelated_accountant_record_during_a_run_causes_no_redo(
+    platform: Platform,  # noqa: F811
+) -> None:
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        actions.add_record(
+            platform,
+            grant,
+            _user_id(platform, grant),
+            {"kind": "person", "name": {"value": "Lee Example"}, "role": {"value": "Lab manager"}},
+            None,
+        )
+        return AgentResult(records=[_bill(i)])
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    assert len(agent.inputs) == 1
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.DONE
+    with transaction(platform.pool) as conn:
+        assert [r.kind for r in store.list_records(conn, grant.id)] == ["person", "bill"]
+
+
+def test_a_question_left_open_during_a_run_gets_its_run(platform: Platform) -> None:  # noqa: F811
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    checks = platform.checks
+    assert isinstance(checks, FakeChecks)
+
+    def behave(i: AgentInput) -> AgentResult:
+        if len(agent.inputs) == 1:
+            checks.agent_questions = True
+            _charge(platform, grant)
+            actions.add_record(
+                platform,
+                grant,
+                _user_id(platform, grant),
+                {"kind": "other_term", "label": "Note", "statement": {"value": "Look again."}},
+                None,
+            )
+        return AgentResult()
+
+    agent.behave = behave
+    grant = _grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    assert [i.run.trigger.kind for i in agent.inputs] == [TriggerKind.FILE, TriggerKind.RECORD]
+    # The second run read everything stored when it started, the record included.
+    assert any(r.kind == "other_term" for r in agent.inputs[1].records)
+
+
+def test_a_runs_clock_time_is_fixed_when_it_starts(platform: Platform) -> None:  # noqa: F811
+    from datetime import UTC, datetime
+
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    grant = _grant(platform)
+    later = datetime(2030, 1, 1, tzinfo=UTC)
+    with transaction(platform.pool) as conn:
+        conn.execute(
+            "update public.workspaces set clock_now = %s where id = %s", (later, grant.workspace_id)
+        )
+    run_worker_until_idle(str(platform.pool.conninfo))
+    [run] = _runs(platform, grant)
+    assert agent.inputs[0].run.clock_now == later and run.clock_now == later
+
+
+def test_an_error_before_the_try_ends_the_run_failed_with_its_problem(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(*_: object) -> list[str]:
+        raise ConnectionError("lost the database")
+
+    grant = _grant(platform)
+    monkeypatch.setattr(store, "other_running_runs", broken)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.FAILED and run.error and "ConnectionError" in run.error
+    with transaction(platform.pool) as conn:
+        assert not store.has_pending_run(conn, grant.id)
+        [(key, status)] = store.current_statuses(conn, grant.id).items()
+    assert key[0] == "file" and status.flagged
+
+
+def test_an_error_while_recording_a_failure_still_ends_the_run_failed(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        raise RuntimeError("overloaded")
+
+    agent.behave = behave
+    real_set_run = store.set_run
+
+    def set_run(conn: object, run_id: str, status: RunStatus, **kwargs: object) -> None:
+        if status == RunStatus.QUEUED:
+            raise ConnectionError("lost the database")
+        real_set_run(conn, run_id, status, **kwargs)  # pyright: ignore[reportArgumentType]
+
+    grant = _grant(platform)
+    monkeypatch.setattr(store, "set_run", set_run)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    [run] = _runs(platform, grant)
+    assert run.status == RunStatus.FAILED and run.error and "ConnectionError" in run.error

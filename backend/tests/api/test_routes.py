@@ -216,20 +216,35 @@ def test_a_record_that_leaves_a_question_for_the_agent_queues_a_run(api: Api) ->
     checks = api.platform.checks
     assert isinstance(checks, FakeChecks)
     data = {"kind": "other_term", "label": "Note", "statement": {"value": "Something."}}
-    # A run is already queued for the award letter, so no second one is added.
     checks.agent_questions = True
     _ledger(api, grant["id"], LEDGER_FILE.read_bytes())
-    before = len(api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json())
+
+    def runs() -> list[dict[str, Any]]:
+        return api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
+
+    def set_status(status: str) -> None:
+        with api.platform.pool.connection() as conn:
+            conn.execute(
+                "update public.agent_runs set status = %s where grant_id = %s",
+                (status, grant["id"]),
+            )
+
+    # A queued run that hasn't started reads the new record when it starts, so it's shared.
+    before = len(runs())
     _post_record(api, grant["id"], data)
-    after = api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
-    assert len(after) == before
+    assert len(runs()) == before
+    # With a run in progress and none queued, the record queues one to run after it.
+    set_status("done")
     with api.platform.pool.connection() as conn:
         conn.execute(
-            "update public.agent_runs set status = 'done' where grant_id = %s", (grant["id"],)
+            "update public.agent_runs set status = 'running' where id = %s", (runs()[0]["id"],)
         )
     record = _post_record(api, grant["id"], data).json()
-    runs = api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
-    assert runs[0]["trigger"] == {"kind": "record", "id": record["id"]}
+    assert runs()[0]["trigger"] == {"kind": "record", "id": record["id"]}
+    # On a quiet grant, likewise.
+    set_status("done")
+    record = _post_record(api, grant["id"], data).json()
+    assert runs()[0]["trigger"] == {"kind": "record", "id": record["id"]}
 
 
 def test_evidence_upload_and_its_content_link(api: Api) -> None:
@@ -246,3 +261,31 @@ def test_evidence_upload_and_its_content_link(api: Api) -> None:
     link = api.client.get(f"/evidence/{f['id']}/content", headers=api.headers).json()
     assert link["url"].endswith(f"{f['storage_path']}?token=fake&ttl=300")
     assert api.client.get("/evidence/missing/content", headers=api.headers).status_code == 404
+
+
+def test_every_422_from_the_records_route_is_a_list_of_sentences(api: Api) -> None:
+    grant = _grant(api, _workspace(api)["id"])
+    for body in ({"data": {"kind": "no_such_kind"}}, {"nothing": 1}):
+        response = api.client.post(f"/grants/{grant['id']}/records", json=body, headers=api.headers)
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail and all(isinstance(p, str) for p in detail)
+
+
+def test_an_upload_over_the_limit_is_refused(api: Api, monkeypatch: Any) -> None:
+    from app.api import routes
+
+    grant = _grant(api, _workspace(api)["id"])
+    monkeypatch.setattr(routes, "MAX_UPLOAD_BYTES", 10)
+    response = api.client.post(
+        f"/grants/{grant['id']}/evidence",
+        files={"file": ("big.txt", b"x" * 11, "text/plain")},
+        headers=api.headers,
+    )
+    assert response.status_code == 413
+
+
+def test_runs_dont_show_the_debug_log_path(api: Api) -> None:
+    grant = _grant(api, _workspace(api)["id"])
+    [run] = api.client.get(f"/grants/{grant['id']}/runs", headers=api.headers).json()
+    assert "log_path" not in run

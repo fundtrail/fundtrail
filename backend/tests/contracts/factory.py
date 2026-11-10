@@ -8,6 +8,7 @@ from app.contracts.charges import Charge
 from app.contracts.evidence import EvidenceFile, Source
 from app.contracts.records import DefaultItem, Record
 from app.contracts.rules import check_new_record
+from app.contracts.runs import Trigger, TriggerKind
 
 T0 = datetime(2026, 1, 5, 12, tzinfo=UTC)
 ACCOUNTANT = "00000000-0000-4000-8000-0000000000aa"
@@ -185,8 +186,35 @@ def defaults(charge: Charge, records: Sequence[Record]) -> list[DefaultItem]:
 def problems(
     new: Record, written: Sequence[Record], files: Sequence[EvidenceFile] = FILES
 ) -> list[str]:
-    return check_new_record(new, written, CHARGES, files, default_items=defaults)
+    trigger = Trigger(kind=TriggerKind.CLOCK) if new.author == "agent" else None
+    return check_new_record(new, written, CHARGES, files, default_items=defaults, trigger=trigger)
 
 
 def ids(records: Sequence[Record]) -> list[str]:
     return [r.id for r in records]
+
+
+def sign_off(note: str | None = None) -> dict[str, Any]:
+    """A stored sign-off, with what the server fills in."""
+    totals = {
+        "ledger_total_cents": 1200,
+        "charges_total": 1,
+        "charges_ready": 1,
+        "accepted": 0,
+        "reversed": 0,
+        "bucket_counts": {"evidence_complete": 1},
+    }
+    snapshot = {
+        "charges": [
+            {"charge_id": "c1", "bucket": "evidence_complete", "accepted": False, "reversed": False}
+        ],
+        "problem_rows": [],
+        "totals": totals,
+    }
+    return {
+        "kind": "sign_off",
+        "note": note,
+        "report_path": "w/g/reports/s1.pdf",
+        "report_sha256": "0" * 64,
+        "snapshot": snapshot,
+    }

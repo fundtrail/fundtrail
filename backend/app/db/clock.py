@@ -8,24 +8,28 @@
   order. Charges that arrive at the same moment share runs, in batches.
 - Time alone can change a status, with no agent. The statuses are worked out again at
   each arrival and at each midnight the clock passes, so a change time caused is recorded
-  on the day the rule was crossed. A real workspace gets the same once a day.
-- The agent's review of a grant when its closeout window opens is queued the same way,
-  once per grant.
+  on the day the rule was crossed. Each catch-up run's save works out its own moment and
+  the midnights up to the next one, so a status never runs ahead of the agent's work. A
+  real workspace gets the same once a day.
+- The agent's review of a grant when its closeout window opens is a catch-up run too.
+  It's queued once per end date in force: again when the end date moves, and on the next
+  move, daily check or confirmation when the window was already open.
 - A thread question asked while the agent catches up waits for the catch-up.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
+from app.contracts.checks import ChecksOutput
 from app.contracts.evidence import Source
 from app.contracts.rules import RecordState
-from app.contracts.runs import AgentRun, Trigger, TriggerKind
+from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
 from app.contracts.workspaces import Grant, Workspace
 
 from . import store, terms
-from .jobs import charge_batches, grant_catching_up, queue_run
+from .jobs import grant_catching_up, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
 from .pool import transaction, workspace_now
@@ -86,6 +90,7 @@ def clock_state(conn: Conn, workspace: Workspace) -> ClockState:
 
 
 def _midnights(after: datetime, until: datetime) -> list[datetime]:
+    """Each midnight UTC in (after, until]."""
     day = after.date() + timedelta(days=1)
     out: list[datetime] = []
     while (at := datetime.combine(day, time(), tzinfo=UTC)) <= until:
@@ -94,66 +99,106 @@ def _midnights(after: datetime, until: datetime) -> list[datetime]:
     return out
 
 
-def _closeout_review(
-    conn: Conn, grant: Grant, after: datetime, until: datetime, *, catch_up: bool = False
-) -> AgentRun | None:
-    """Queue the grant's closeout review if its window opened in (after, until]."""
-    if store.has_clock_run(conn, grant.id):
-        return None
-    state = RecordState(store.list_records(conn, grant.id, until))
+def _midnight(day: date) -> datetime:
+    return datetime.combine(day, time(), tzinfo=UTC)
+
+
+def review_due(conn: Conn, grant: Grant, at: datetime) -> datetime | None:
+    """When the grant's closeout window opened, if it has by `at` and no review has run for
+    the end date in force: a review counts only if it works as of the window's opening or
+    later, so a moved end date gets a review of its own."""
+    state = RecordState(store.list_records(conn, grant.id, at))
     opens = terms.closeout_window_opens(terms.end_date(state, grant.id))
     if opens is None:
         return None
-    at = datetime.combine(opens, time(), tzinfo=UTC)
-    if not after < at <= until:
+    window = _midnight(opens)
+    if window > at or store.has_review_since(conn, grant.id, window):
         return None
-    return queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), at, catch_up=catch_up)
+    return window
+
+
+def queue_review_if_due(conn: Conn, grant: Grant, now: datetime) -> AgentRun | None:
+    """Queue the closeout review now if the window is open and it hasn't run for this end
+    date: after the accountant confirms dates already inside the window, after the end date
+    in force moves, or when a daily check was missed."""
+    if review_due(conn, grant, now) is None:
+        return None
+    return queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), now)
+
+
+@dataclass(frozen=True)
+class _CatchUp:
+    at: datetime
+    order: int  # at the same moment: the review, then files, then charge batches
+    trigger: Trigger
 
 
 def replay(
     p: Platform, conn: Conn, grant: Grant, after: datetime, until: datetime
 ) -> list[AgentRun]:
-    """Everything that happens on a grant when time moves from `after` to `until`: arrivals
-    get their runs in order, and the statuses are worked out again at each arrival and each
-    midnight, with the arriving item or the clock as the trigger."""
+    """What happens on a grant when the clock moves from `after` to `until`.
+
+    Each file and each batch of charges the clock passes, and the closeout review if its
+    window is due, gets a catch-up run as of its own time, queued in time order. Time
+    alone is worked out here only up to the first of them; from there, each catch-up run's
+    save works out its own moment and the midnights up to the next one, so every status
+    reflects the runs done by then, as stepping one arrival at a time would.
+    """
     charges = [c for c in store.list_charges(conn, grant.id, until) if c.arrived_at > after]
     files = [f for f in store.list_files(conn, grant.id, until) if f.arrived_at > after]
-    points = sorted(
-        {c.arrived_at for c in charges}
-        | {f.arrived_at for f in files}
-        | set(_midnights(after, until))
-        | {until}
-    )
-    runs: list[AgentRun] = []
+    items = [_CatchUp(f.arrived_at, 1, Trigger(kind=TriggerKind.FILE, id=f.id)) for f in files]
+    items += [
+        _CatchUp(batch[0].arrived_at, 2, Trigger(kind=TriggerKind.CHARGE, id=batch[0].id))
+        for batch in charge_batches(charges)
+    ]
+    window = review_due(conn, grant, until)
+    if window is not None:
+        items.append(_CatchUp(max(window, after), 0, Trigger(kind=TriggerKind.CLOCK)))
+    items.sort(key=lambda i: (i.at, i.order, i.trigger.id or ""))
+
+    first = items[0].at if items else None
     clock = Trigger(kind=TriggerKind.CLOCK)
-    batches = charge_batches(charges)
+    points = [m for m in _midnights(after, until) if first is None or m < first]
+    if first is None and until not in points:
+        points.append(until)
     for at in points:
-        arriving_charges = [c for c in charges if c.arrived_at == at]
-        arriving_files = [f for f in files if f.arrived_at == at]
-        charge_triggers = {
-            c.id: Trigger(kind=TriggerKind.CHARGE, id=c.id) for c in arriving_charges
-        }
-        file_triggers = {f.id: Trigger(kind=TriggerKind.FILE, id=f.id) for f in arriving_files}
-        first = next(iter([*charge_triggers.values(), *file_triggers.values()]), clock)
-        recheck_grant(
-            conn,
-            p.checks,
-            grant,
-            at,
-            first,
-            charge_triggers=charge_triggers,
-            file_triggers=file_triggers,
-        )
-        for f in sorted(arriving_files, key=lambda f: (f.arrived_at, f.id)):
-            runs.append(queue_run(conn, grant, file_triggers[f.id], at, catch_up=True))
-        for batch in batches:
-            if batch[0].arrived_at == at:
-                runs.append(queue_run(conn, grant, charge_triggers[batch[0].id], at, catch_up=True))
-        review = _closeout_review(conn, grant, after, at, catch_up=True)
-        if review is not None:
-            runs.append(review)
-        after = max(after, at)
-    return runs
+        recheck_grant(conn, p.checks, grant, at, clock)
+    return [queue_run(conn, grant, i.trigger, i.at, catch_up=True) for i in items]
+
+
+def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) -> ChecksOutput:
+    """After a catch-up run saves or fails: work out the statuses at its own time, with
+    what arrived then triggered by itself, then at each midnight up to the next catch-up
+    run, or up to the workspace's "now" when it's the last. Returns the output at its time."""
+    at = run.clock_now
+    charge_triggers = {
+        c.id: Trigger(kind=TriggerKind.CHARGE, id=c.id)
+        for c in store.list_charges(conn, grant.id, at)
+        if c.arrived_at == at
+    }
+    file_triggers = {
+        f.id: Trigger(kind=TriggerKind.FILE, id=f.id)
+        for f in store.list_files(conn, grant.id, at)
+        if f.arrived_at == at
+    }
+    output = recheck_grant(
+        conn,
+        p.checks,
+        grant,
+        at,
+        run.trigger,
+        charge_triggers=charge_triggers,
+        file_triggers=file_triggers,
+    )
+    following = store.next_catch_up_time(conn, grant.id, run.id)
+    end = following or workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+    clock = Trigger(kind=TriggerKind.CLOCK)
+    points = [m for m in _midnights(at, end) if following is None or m < following]
+    if following is None and end > at and end not in points:
+        points.append(end)
+    for point in points:
+        recheck_grant(conn, p.checks, grant, point, clock)
+    return output
 
 
 def move_clock(p: Platform, workspace_id: str, to: datetime | None) -> ClockState:
@@ -172,7 +217,11 @@ def move_clock(p: Platform, workspace_id: str, to: datetime | None) -> ClockStat
             raise ClockError("The clock only moves forward.")
         store.set_clock(conn, workspace.id, to)
         grants = store.list_grants(conn, workspace.id)
-        runs = [r for g in grants for r in replay(p, conn, g, old, to)] if to > old else []
+        runs: list[AgentRun] = []
+        if to > old:
+            for g in grants:
+                store.get_grant(conn, g.id, lock=True)
+                runs += replay(p, conn, g, old, to)
         state = clock_state(conn, workspace.model_copy(update={"clock_now": to}))
     for run in runs:
         ping_run(p.pinger, run)
@@ -183,7 +232,8 @@ def move_clock(p: Platform, workspace_id: str, to: datetime | None) -> ClockStat
 
 def daily_recheck(p: Platform) -> None:
     """Once a day in each real-time workspace: work the statuses out again for time alone,
-    and queue any closeout review whose window opened since yesterday."""
+    and queue the closeout review if its window is open and it hasn't run for this end date
+    (so a missed day doesn't lose it)."""
     now = datetime.now(UTC)
     with transaction(p.pool) as conn:
         workspace_ids = store.real_time_workspace_ids(conn)
@@ -194,7 +244,7 @@ def daily_recheck(p: Platform) -> None:
             for grant in grants:
                 store.get_grant(conn, grant.id, lock=True)
                 recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.CLOCK))
-                review = _closeout_review(conn, grant, now - timedelta(days=1), now)
+                review = queue_review_if_due(conn, grant, now)
                 if review is not None:
                     runs.append(review)
         for run in runs:

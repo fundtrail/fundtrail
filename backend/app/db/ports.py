@@ -12,14 +12,15 @@ they exist. Tests pass fakes instead.
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.contracts.charges import Charge
-from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion
+from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion, RunChecks
 from app.contracts.evidence import EvidenceFile
-from app.contracts.records import BudgetCategory, DefaultItem, Record
+from app.contracts.records import BudgetCategory, DefaultItem, DefaultItems, Record
 from app.contracts.runs import AgentRun
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
@@ -40,24 +41,36 @@ class Checks(Protocol):
         ...
 
 
+def _not_yet(module: str, name: str, issue: str) -> Callable[..., Any]:
+    """`module.name` from another area, or a clear error naming the issue that delivers it."""
+    found = getattr(importlib.import_module(module), name, None)
+    if found is None:
+        raise NotImplementedError(f"{module}.{name} isn't on main yet ({issue})")
+    return found
+
+
 class ModuleChecks:
-    """The real checks: `app.checks.run_checks`, `app.checks.default_items` and
-    `app.checks.account_categories`."""
+    """The real checks.
+
+    - `account_categories`: the account groups table on main (#20),
+      `app.checks.account_groups.lookup_account(account).nsf_categories`.
+    - `run_checks` and `default_items`: `app.checks.run_checks` and `app.checks.default_items`,
+      which #24 delivers. Until then they raise NotImplementedError saying so.
+    """
 
     def run_checks(self, checks_input: ChecksInput, /) -> ChecksOutput:
-        from app import checks
-
-        return checks.run_checks(checks_input)  # pyright: ignore[reportAttributeAccessIssue]
+        run: RunChecks = _not_yet("app.checks", "run_checks", "#24")
+        return run(checks_input)
 
     def default_items(self, charge: Charge, records: Sequence[Record], /) -> Sequence[DefaultItem]:
-        from app import checks
-
-        return checks.default_items(charge, records)  # pyright: ignore[reportAttributeAccessIssue]
+        items: DefaultItems = _not_yet("app.checks", "default_items", "#24")
+        return items(charge, records)
 
     def account_categories(self, account: str, /) -> Sequence[BudgetCategory]:
-        from app import checks
+        from app.checks.account_groups import lookup_account
 
-        return checks.account_categories(account)  # pyright: ignore[reportAttributeAccessIssue]
+        found = lookup_account(account)
+        return found.nsf_categories if found is not None else ()
 
 
 @dataclass(frozen=True)
@@ -112,9 +125,8 @@ class ModuleAgent:
     """The real agent: `app.agent.run_agent(agent_input) -> AgentResult`."""
 
     def run(self, agent_input: AgentInput, /) -> AgentResult:
-        from app import agent
-
-        return agent.run_agent(agent_input)  # pyright: ignore[reportAttributeAccessIssue]
+        run: Callable[[AgentInput], AgentResult] = _not_yet("app.agent", "run_agent", "#23")
+        return run(agent_input)
 
 
 class Storage(Protocol):

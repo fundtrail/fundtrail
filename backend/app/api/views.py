@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
 
+from app.contracts.api import SignOffInput
 from app.contracts.charges import Charge
 from app.contracts.checks import (
     SEVERITY,
@@ -23,6 +24,7 @@ from app.contracts.checks import (
     Problem,
     RecordStatus,
     StatusEntry,
+    ready_for_closeout,
 )
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
@@ -784,13 +786,24 @@ def has_running_or_queued(snap: GrantSnapshot) -> bool:
     return any(r.status in (RunStatus.QUEUED, RunStatus.RUNNING) for r in snap.pending)
 
 
-def sign_off_refusals(p: Platform, grant: Grant, data: SignOff) -> list[str]:
+def anything_open(snap: GrantSnapshot) -> bool:
+    """Decision 0022's "open": a charge that isn't ready for closeout (Evidence complete,
+    accepted or fully reversed, and not snoozed; a charge with no status yet counts as
+    open), or any row on the problem list."""
+    for c in snap.charges:
+        status = snap.charge_status(c.id)
+        if status is None or not ready_for_closeout(status):
+            return True
+    return bool(problem_rows(snap))
+
+
+def sign_off_refusals(p: Platform, grant: Grant, data: SignOffInput) -> list[str]:
     """Decision 0022: nothing blocks a sign-off except a run in progress or queued, and a
     sign-off with anything still open needs a note."""
     with transaction(p.pool) as conn:
         snap = load_snapshot(p, conn, grant)
     if snap.pending:
         return ["The agent is still working on this grant. Sign off once it's done."]
-    if problem_rows(snap) and not (data.note and data.note.strip()):
+    if anything_open(snap) and not (data.note and data.note.strip()):
         return ["Something is still open, so a sign-off needs a note."]
     return []
