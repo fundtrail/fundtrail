@@ -7,7 +7,7 @@ from datetime import date, datetime
 from app.checks import UpcomingDate, upcoming_dates
 from app.contracts.checks import ChecksInput
 
-from .grant_builder import STIPENDS, Grant, at
+from .grant_builder import STIPENDS, TRAVEL, Grant, at
 
 
 def _input(g: Grant, now: datetime) -> ChecksInput:
@@ -161,3 +161,107 @@ def test_a_snooze_on_a_bill_says_which_bill() -> None:
         u for u in upcoming_dates(_input(g, at(2024, 3, 3)), "g1") if u.kind == "snooze_ends"
     ]
     assert (ends.on, ends.about_record_id, ends.charge_id) == (date(2024, 6, 1), bill, None)
+
+
+def _trip_with_one_item_snoozed(until: date, expense_report_due: date | None = None) -> Grant:
+    """A travel charge missing its expense report and its bills, both due Apr 30, 2024.
+    A snooze names only the bills."""
+    g = Grant()
+    g.standard_terms()
+    g.charge("trip", date(2024, 2, 28), 50000, account=TRAVEL, posted=date(2024, 3, 1))
+    g.assign("trip", g.confirmed_line("Travel", "travel", at(2024, 3, 1)), at(2024, 3, 1))
+    if expense_report_due is not None:
+        # The accountant replaces the default with an item expected later.
+        g.user(
+            {"kind": "checklist_removal", "charge_id": "trip", "default_item": "expense_report"},
+            at(2024, 3, 1),
+        )
+        g.item(
+            "trip", "Expense report", at(2024, 3, 1), author="user", expected_by=expense_report_due
+        )
+    g.user(
+        {
+            "kind": "snooze",
+            "charge_id": "trip",
+            "until": until,
+            "note": "Receipts in the mail.",
+            "reasons": [{"check": "checklist", "problem": "missing:bills"}],
+        },
+        at(2024, 3, 2),
+    )
+    return g
+
+
+def test_a_covered_item_comes_up_when_an_uncovered_one_on_the_charge_does() -> None:
+    """From PR 181's recheck: the expense report isn't snoozed, so on Apr 30 the charge is
+    on the list, and the snoozed bills with it."""
+    g = _trip_with_one_item_snoozed(until=date(2024, 6, 1))
+    found = upcoming_dates(_input(g, at(2024, 3, 3)), "g1")
+    flagged = {u.problem: u.on for u in found if u.kind == "missing_flagged"}
+    assert flagged == {
+        "missing:expense_report": date(2024, 4, 30),
+        "missing:bills": date(2024, 4, 30),
+    }
+
+
+def test_a_covered_item_waits_for_the_snooze_when_the_uncovered_one_comes_later() -> None:
+    g = _trip_with_one_item_snoozed(until=date(2024, 6, 1), expense_report_due=date(2024, 7, 1))
+    found = upcoming_dates(_input(g, at(2024, 3, 3)), "g1")
+    flagged = {u.problem: u.on for u in found if u.kind == "missing_flagged"}
+    assert flagged["missing:bills"] == date(2024, 6, 1)  # the snooze ends first
+    assert flagged["missing:item:expense_report"] == date(2024, 8, 30)
+
+
+# From PR 193's review.
+
+
+def test_a_reason_shown_on_its_terms_row_doesnt_end_a_snooze() -> None:
+    """The grant's dates aren't confirmed, so the charge has Needs a human reasons that
+    the terms' own rows stand for. They never flag the charge, so the snoozed bill waits
+    for the snooze to end."""
+    g = Grant()
+    t = g.standard_terms(confirm=False)
+    g.charge("c1", date(2024, 3, 1), 10000)  # the bill is due Apr 30
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.user(
+        {
+            "kind": "snooze",
+            "charge_id": "c1",
+            "until": date(2024, 6, 15),
+            "note": "Invoice promised for June.",
+            "reasons": [{"check": "checklist", "problem": "missing:bill"}],
+        },
+        at(2024, 3, 3),
+    )
+    found = upcoming_dates(_input(g, at(2024, 3, 4)), "g1")
+    assert [u.on for u in found if u.kind == "missing_flagged"] == [date(2024, 6, 15)]
+
+
+def test_two_snoozes_with_different_ends_release_the_charge_when_the_first_ends() -> None:
+    """Both items are due Apr 30. One snooze names the participant list until Jun 15, the
+    other the payment record until May 15. On May 15 the payment record is on the list and
+    no running snooze names it, so the charge is listed with both items."""
+    g = Grant()
+    t = g.standard_terms(with_rule=False)
+    g.charge("stip", date(2024, 3, 1), 50000, account=STIPENDS, vendor=None)
+    g.assign("stip", t["psc"], at(2024, 3, 1))
+    for until, problem in (
+        (date(2024, 6, 15), "missing:participant_list"),
+        (date(2024, 5, 15), "missing:payment_record"),
+    ):
+        g.user(
+            {
+                "kind": "snooze",
+                "charge_id": "stip",
+                "until": until,
+                "note": "Waiting on the program office.",
+                "reasons": [{"check": "checklist", "problem": problem}],
+            },
+            at(2024, 3, 3),
+        )
+    found = upcoming_dates(_input(g, at(2024, 3, 4)), "g1")
+    flagged = {u.problem: u.on for u in found if u.kind == "missing_flagged"}
+    assert flagged == {
+        "missing:participant_list": date(2024, 5, 15),
+        "missing:payment_record": date(2024, 5, 15),
+    }

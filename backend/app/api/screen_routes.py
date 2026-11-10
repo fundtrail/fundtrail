@@ -1,4 +1,4 @@
-"""The screens' endpoints (#22 as agreed, with PR 40's names), the threads and the clock."""
+"""The screens' endpoints (#22 as agreed, with PR 40's names) and the threads."""
 
 from __future__ import annotations
 
@@ -8,14 +8,11 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse, Response
 
 from app.contracts.api import (
-    ArrivalSource,
     ChargeDetail,
-    ClockMove,
     EvidenceCard,
     GrantDetail,
     GrantSummary,
     NewMessage,
-    NextArrival,
     ProblemList,
     Thread,
 )
@@ -24,13 +21,12 @@ from app.contracts.records import Record, SignOff
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 from app.db import actions, store
-from app.db.clock import ClockError, ClockState, clock_state, grant_now, move_clock
+from app.db.clock import grant_now
 from app.db.pool import transaction
 
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
 from .report import draft_report
 from .routes import PlainErrorsRoute
-from .screens import ClockView
 from .views import (
     GrantSnapshot,
     charge_detail,
@@ -209,36 +205,3 @@ def _slug(grant: Grant) -> str:
     return "".join(
         ch if ch.isalnum() or ch == "-" else "-" for ch in grant.award_number or grant.id
     )
-
-
-# The clock.
-
-
-def _clock_view(state: ClockState) -> ClockView:
-    arrival = state.next_arrival
-    return ClockView(
-        now=state.now,
-        simulated=state.simulated,
-        next_arrival_at=arrival.at if arrival else None,
-        next_arrival=NextArrival(
-            at=arrival.at, source=ArrivalSource(arrival.source), name=arrival.name
-        )
-        if arrival
-        else None,
-        catching_up=state.catching_up,
-    )
-
-
-@router.get("/workspaces/{workspace_id}/clock")
-def get_clock(workspace: WorkspaceDep, platform: PlatformDep) -> ClockView:
-    with transaction(platform.pool) as conn:
-        return _clock_view(clock_state(conn, store.workspace_by_id(conn, workspace.id)))
-
-
-@router.post("/workspaces/{workspace_id}/clock", responses={422: {"description": "A refused move"}})
-def post_clock(workspace: WorkspaceDep, body: ClockMove, platform: PlatformDep) -> ClockView:
-    """Move the demo workspace's clock forward: to `to`, or with nothing, to the next arrival."""
-    try:
-        return _clock_view(move_clock(platform, workspace.id, body.to))
-    except ClockError as error:
-        return _rejected([str(error)])  # pyright: ignore[reportReturnType]
