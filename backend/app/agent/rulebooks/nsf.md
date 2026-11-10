@@ -16,7 +16,9 @@ Where a rule says "the university", it means the recipient of the award.
 
 **Which conditions govern an award.** GC-1 applies to NSF grants issued on or after October 1, 2024, and each GC-1 edition applies to new grants and to funding amendments dated on or after its own date. A grant issued before October 1, 2024 follows the conditions issued at the time of award: for a university, the RTC with NSF's ASR. The award notice, and each later amendment, states which conditions govern and their date.
 
-**On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). The older ASR citations are to its edition of May 20, 2024. Each passage a rule below cites from it was compared with the four earlier editions (November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023), and the rule's `- Older editions:` line says what they say; on an award under one of them, name that edition's citation. For any other ASR passage, when the award cites an earlier edition, apply the rule from the May 2024 text and say in the reason that the award cites an earlier edition that hasn't been read, without flagging the charge for that alone. An award under an RTC edition before November 12, 2020 is handled the same way: apply the rule from the texts cited here and say in the reason that the award's own RTC edition hasn't been read, without flagging the charge for that alone. Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made, which this rulebook hasn't compared.
+**On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). The older ASR citations are to its edition of May 20, 2024. Each passage a rule below cites from it was compared with the four earlier editions (November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023), and the rule's `- Older editions:` line says what they say; on an award under one of them, name that edition's citation. For any other ASR passage, when the award cites an earlier edition, apply the rule from the May 2024 text and say in the reason that the award cites an earlier edition that hasn't been read, without flagging the charge for that alone. An award under an RTC edition before November 12, 2020 is handled the same way: apply the rule from the texts cited here and say in the reason that the award's own RTC and ASR editions haven't been read, without flagging the charge for that alone. Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made.
+
+**2 CFR 200 on older awards.** Every section of 2 CFR 200 cited here was compared with its text as in force on September 30, 2024, the day before the current edition took effect. Most were reworded but say the same in substance: 200.216, 200.308 (where today's (g)(1) and (g)(2) were (e)(1) and (e)(2)), 200.421, 200.423, 200.424, 200.429, 200.431, 200.434, 200.441, 200.442, 200.445, 200.449, 200.450, 200.451, 200.459, 200.463, 200.465, 200.469, 200.470, 200.471 and 200.475. Five passages differ in substance: 200.1 (participants), 200.413(c), 200.438, 200.454(c) and 200.461(b). The rules that cite them name the older wording on an `- Older source:` line with its quote. On an older award, name both citations. Where a rule has `- Older answer: from the governing wording`, answer from the wording that governs the award, not the current one. The reason names both citations, says which one governed and why (which conditions the award is under, from its confirmed terms), and says how the other differs. Where both wordings give the same answer, the reason still names both citations, and nothing more is needed. Where they give different answers and the award's conditions can't be told from its confirmed terms, answer unsure with both readings in the reason, without picking one. Where the older wording asks for prior approval, that approval is evidence like any other: on file and cited, or missing. For a rule that quotes an older 2 CFR wording without that line, name both citations and say in the reason how the older wording differs. Editions before November 12, 2020 weren't compared.
 
 **Older citations for the terms code checks.** These six terms are checked by code, not by a rule below. These are the places where the older conditions cover each term, and where their wording differs, the row says so.
 
@@ -78,13 +80,15 @@ Travel, meal and hotel costs of university employees who are not on travel statu
 
 ### NSF-PUBLICATION-FEES
 
-Page charges, article processing charges and open access fees are allowed only when the publication reports work the federal award supported and the journal charges them on every item it publishes, federally funded or not. Publication costs not incurred during the period of performance may be charged during closeout, to the final budget period.
+Page charges, article processing charges and open access fees are allowed only when the publication reports work the federal award supported and the journal charges them on every item it publishes, federally funded or not. Publication costs not incurred during the period of performance may be charged during closeout, to the final budget period. Under the older 2 CFR wording, 200.461(b) names only page charges for professional journal publications, under the same two conditions; article processing charges and open access fees aren't named there.
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.461(b)](https://www.ecfr.gov/current/title-2/part-200/section-200.461#p-200.461(b))
 - Source: [NSF PAPPG 24-1, Chapter X.A.2.c, Post-End Date Costs](https://www.nsf.gov/policies/pappg/24-1/ch-10-allowability-of-costs)
 - Source: [NSF PAPPG 24-1, Supplement 2 (NSF 26-202), item 1, revising Chapter XI.D.2.c](https://www.nsf.gov/policies/document/pappg24-1-supplement-2)
+- Older source: [2 CFR 200.461(b) as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.461)
 - Quote: "Special fees for the purpose of making published versions of record (VORs) publicly accessible are allowable costs but such payments are not required for deposits of AAMs in PAR." (PAPPG 24-1 Supplement 2)
+- Quote: "Page charges for professional journal publications are allowable where:" (2 CFR 200.461(b), edition in force on September 30, 2024)
 - Checked: 2026-11-10
 
 ### NSF-POST-END-COMMITMENTS
@@ -108,12 +112,12 @@ Consultant and professional service costs are allowed only for people who are no
 
 ### NSF-ADMIN-SALARIES
 
-Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs. On an award under the older conditions, they must also be explicitly included in the approved budget or have NSF's prior written approval (RTC Appendix A keeps that condition, 2 CFR 200.413(c)(3) in the edition then in force, for NSF), so the agent flags them when they're neither in the approved budget nor approved by NSF, and says so in its reason (a budget line on the grant for those salaries, from the award notice, satisfies it); it's a flag, not contradicts, because code's standing approval list comes from the current matrix.
+Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs. On an award under the older conditions, they must also be explicitly included in the approved budget or have NSF's prior written approval: RTC Appendix A keeps that condition, 2 CFR 200.413(c)(3) in the edition then in force, for NSF. A budget line on the grant for those salaries, from the award notice, satisfies it. When they aren't in the approved budget, the agent adds NSF's prior approval to the charge's evidence checklist as an NSF approval item, with `nsf_standing_list` set to that older passage (2 CFR 200.413(c)(3) in the edition then in force) and this rule named in the item's reason. The charge stays in Missing evidence until an NSF approval is linked; the agent doesn't answer contradicts or flag.
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.413(c)](https://www.ecfr.gov/current/title-2/part-200/section-200.413#p-200.413(c))
 - Older source: [RTC Appendix A, Prior Approval Matrix (November 12, 2020), 200.413(c), NSF column: Required](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf)
-- Older source: [2 CFR 200.413(c)(3) as in force on November 12, 2020](https://www.ecfr.gov/on/2020-11-12/title-2/part-200/section-200.413)
+- Older source: [2 CFR 200.413(c)(3) as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2020-11-12/title-2/part-200/section-200.413)
 - Quote: "Direct charge the salaries of administrative and clerical staff if all conditions in 200.413 are met, excluding 200.413(c)(3)." (RTC Appendix A, row 200.413(c), where the RTC column says Waived and the NSF column says Required)
 - Quote: "Such costs are explicitly included in the budget or have the prior written approval of the Federal awarding agency" (2 CFR 200.413(c)(3), edition in force on November 12, 2020)
 - Checked: 2026-11-10
@@ -153,11 +157,14 @@ Promotional items and memorabilia are not allowed, and neither is advertising or
 
 ### NSF-NEVER-ENTERTAINMENT
 
-Entertainment, amusement, diversion and social activities, and costs tied to them such as tickets, meals, lodging, transportation and gifts, are not allowed. The only exception is a cost with a specific and direct programmatic purpose that is included in the award.
+Entertainment, amusement, diversion and social activities, and costs tied to them such as tickets, meals, lodging, transportation and gifts, are not allowed. The only exception is a cost with a specific and direct programmatic purpose that is included in the award. Under the older 2 CFR wording, the exception covers a cost with a programmatic purpose that is authorized in the approved budget or has NSF's prior written approval.
 
 - Kind: not allowed
 - Source: [2 CFR 200.438(a)](https://www.ecfr.gov/current/title-2/part-200/section-200.438#p-200.438(a))
 - Source: [NSF PAPPG 24-1, Chapter II.D.2.f(xiii)(a)](https://www.nsf.gov/policies/pappg/24-1/ch-2-proposal-preparation)
+- Older source: [2 CFR 200.438 as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.438)
+- Older answer: from the governing wording
+- Quote: "Costs of entertainment, including amusement, diversion, and social activities and any associated costs are unallowable, except where specific costs that might otherwise be considered entertainment have a programmatic purpose and are authorized either in the approved budget for the Federal award or with prior written approval of the Federal awarding agency." (2 CFR 200.438, edition in force on September 30, 2024)
 - Checked: 2026-11-10
 
 ### NSF-NEVER-DONATIONS
@@ -211,10 +218,13 @@ Interest on borrowed money, on temporary use of endowment funds, or on the unive
 
 ### NSF-NEVER-SOCIAL-CLUBS
 
-Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed.
+Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed. Under the older 2 CFR wording, civic or community memberships are allowed only with prior approval. On an award under the older wording, the agent adds that prior approval to the charge's evidence checklist as an NSF approval item, with `nsf_standing_list` set to that older passage (2 CFR 200.454(c) in the edition then in force) and this rule named in the item's reason. The charge stays in Missing evidence until an NSF approval is linked; the agent doesn't answer contradicts or flag.
 
 - Kind: not allowed
 - Source: [2 CFR 200.454(a), (c) and (d)](https://www.ecfr.gov/current/title-2/part-200/section-200.454)
+- Older source: [2 CFR 200.454(c) as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.454)
+- Older answer: from the governing wording
+- Quote: "Costs of membership in any civic or community organization are allowable with prior approval by the Federal awarding agency or pass-through entity." (2 CFR 200.454(c), edition in force on September 30, 2024)
 - Checked: 2026-11-10
 
 ### NSF-NEVER-ALUMNI
@@ -298,12 +308,20 @@ The university typically should not buy equipment or computing devices, or resto
 
 ### NSF-PARTICIPANT-NOT-STAFF
 
-Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports.
+Participant support costs are for participants, such as trainees, students or conference attendees, not for people who develop or deliver the award's activities: consultants, project personnel and the university's staff are not participants. Speakers and trainers generally aren't participants either, unless their main purpose at the event is to learn as a participant. The agent compares who was paid with the people named on the grant: a match is contradicts, citing both documents, and someone not named on the grant is supports. Under the older 2 CFR wording, which has no definition of Participant, participant support is for "participants or trainees (but not employees)" in connection with conferences or training projects, so it excludes only employees. On an award under the older wording, a named employee is still contradicts, and a named person who isn't an employee is unsure, with both readings in the reason. A speaker or trainer paid from participant support is contradicts unless their main purpose at the event was to learn as a participant, because every PAPPG edition in force for those awards (NSF 19-1, 20-1, 22-1, 23-1 and 24-1) already said speakers and trainers generally aren't participants.
 
 - Kind: judgment
 - Source: [2 CFR 200.1, definitions of Participant and Participant support costs](https://www.ecfr.gov/current/title-2/part-200/section-200.1)
 - Source: [NSF PAPPG 24-1, Chapter II.D.2.f(v)](https://www.nsf.gov/policies/pappg/24-1/ch-2-proposal-preparation)
+- Older source: [2 CFR 200.1, Participant support costs, as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.1)
+- Older source: [NSF PAPPG 19-1 (February 25, 2019), Chapter II.C.2.g(v) and II.E.7](https://nsf-gov-resources.nsf.gov/pubs/policydocs/pappg19_1/nsf19_1.pdf)
+- Older source: [NSF PAPPG 20-1 (June 1, 2020), Chapter II.C.2.g(v) and II.E.7](https://nsf-gov-resources.nsf.gov/pubs/policydocs/pappg20_1/nsf20_1.pdf)
+- Older source: [NSF PAPPG 22-1 (October 4, 2021), Chapter II.C.2.g(v) and II.E.7](https://nsf-gov-resources.nsf.gov/pubs/policydocs/pappg22_1/nsf22_1.pdf)
+- Older source: [NSF PAPPG 23-1 (January 30, 2023), Chapter II.D.2.f(v) and II.F.7](https://www.nsf.gov/policies/pappg/23-1/ch-2-proposal-preparation)
+- Older answer: from the governing wording
 - Quote: "Individuals committing effort to the development or delivery of program activities under a Federal award (such as consultants, project personnel, or staff members of a recipient or subrecipient) are not participants." (2 CFR 200.1)
+- Quote: "Participant support costs means direct costs for items such as stipends or subsistence allowances, travel allowances, and registration fees paid to or on behalf of participants or trainees (but not employees) in connection with conferences, or training projects." (2 CFR 200.1, edition in force on September 30, 2024, which has no definition of Participant)
+- Quote: "Speakers and trainers generally are not considered participants and should not be included in this section of the budget." (PAPPG 19-1, 20-1 and 22-1, II.C.2.g(v); 23-1 and 24-1, II.D.2.f(v))
 - Checked: 2026-11-10
 
 ### NSF-LATE-EXTENSION
@@ -315,6 +333,7 @@ The university may extend the end date once, by up to 12 months, on its own, but
 - Source: [2 CFR 200.308(g)(2)](https://www.ecfr.gov/current/title-2/part-200/section-200.308#p-200.308(g)(2))
 - Older source: [RTC overlay (November 12, 2020), 200.308(e)(2)](https://nsf-gov-resources.nsf.gov/files/rtcoverlay-nov20-r.pdf)
 - Older source: [RTC Appendix A, Prior Approval Matrix (November 12, 2020), 200.308(e)(2), NSF column](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf)
+- Older source: [2 CFR 200.308(e)(2) as in force from November 12, 2020 to September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.308)
 - Older status: partly unread (no older equivalent was found for filing the notice through Research.gov or for the zero-balance limit)
 - Quote: "For one-time extensions, the recipient must notify the Federal awarding agency in writing with the supporting reasons and revised end date at least 10 days before the final end date of the period of performance specified in the award." (RTC overlay, 200.308(e)(2))
 - Quote: "Subsequent no-cost extension or extension of more than 12 months." (RTC Appendix A, row 200.308(e)(2), NSF: Required)
