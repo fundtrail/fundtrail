@@ -86,6 +86,14 @@ decides the answer: for a not-allowed rule, contradicts when the documents show 
 unless they show the exception the rule states; for an allowed-under-a-condition rule, supports \
 when a document shows the condition is met and contradicts when none does; for a judgment rule, \
 a flag rather than contradicts, unless the rule names a comparison that gives contradicts.
+- The Allowable answer is about the cost itself: is it necessary, reasonable and for this \
+project, and is it a kind of cost the rulebook allows. A charge's date against the period of \
+performance isn't part of it: that's code's own check, and the charge's bucket follows the \
+period in force once the accountant confirms it, with no new answer from you. So don't answer \
+unsure or contradicts because of the date, don't rest an answer on the period term, and don't \
+add a checklist item or a flag about it. If a document shows the date check is wrong for a \
+charge, such as an order placed before the end date, dispute the check \
+(NSF-POST-END-COMMITMENTS is for that dispute).
 - A cost no rule names isn't thereby allowed: still answer whether it is necessary, reasonable and \
 for this project.
 

@@ -599,8 +599,38 @@ def _judgment_key(r: Record) -> tuple[Any, ...]:
     )
 
 
+# The rulebook's rule for costs after the end date, which the agent cites only in a dispute of
+# code's date check (issue #119).
+PERIOD_DISPUTE_RULE = "NSF-POST-END-COMMITMENTS"
+PERIOD_IS_CODES = (
+    "the charge's date against the period of performance is code's own check, and its bucket "
+    "follows the period in force when the accountant confirms it. Answer on the cost itself; if "
+    "a document shows the date check is wrong for this charge, such as an order placed before "
+    "the end date, dispute the check (period_of_performance) with that quote"
+)
+
+
+def _not_on_the_period(ctx: RunContext, rule: str | None, rests_on: list[str]) -> None:
+    """An answer or a flag doesn't rest on the period of performance (issue #119)."""
+    if rule == PERIOD_DISPUTE_RULE:
+        raise WriteProblem(
+            f"{PERIOD_DISPUTE_RULE} is for a dispute of the date check: {PERIOD_IS_CODES}"
+        )
+    state = ctx.state()
+    periods = [
+        i
+        for i in rests_on
+        if (r := state.by_id.get(i)) is not None and r.kind == RecordKind.PERIOD_OF_PERFORMANCE
+    ]
+    if periods:
+        raise WriteProblem(
+            f"this rests on the period of performance ({', '.join(periods)}): {PERIOD_IS_CODES}"
+        )
+
+
 def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
+    _not_on_the_period(ctx, a.rule, a.rests_on)
     question = Question(a.question)
     key = (question, a.charge_id, a.record_id)
     state = ctx.state()
@@ -633,6 +663,8 @@ def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
 
 def t_flag(ctx: RunContext, a: FlagIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
+    if a.charge_id is not None:
+        _not_on_the_period(ctx, a.rule, a.rests_on)
     data: dict[str, Any] = {
         "kind": "judgment",
         "question": "flag",
