@@ -6,9 +6,11 @@ Acceptances, reusable notes, snoozes and flagging are applied afterwards (decisi
 
 from dataclasses import dataclass, field
 from datetime import timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from app.checks import checklist as checklist_check
 from app.checks.answers import ANSWER_BUCKET, AnswerState, answer_state
+from app.checks.checklist import compare
 from app.checks.findings import (
     AGENT_RUN,
     APPROVAL,
@@ -22,7 +24,7 @@ from app.checks.findings import (
 )
 from app.checks.ledger_accounts import categories, category_name
 from app.checks.rules_match import rules_for
-from app.checks.text import day, norm
+from app.checks.text import day, money, norm
 from app.checks.view import GrantView, LinkInForce
 from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecklistEntry, OpenQuestion
@@ -384,6 +386,9 @@ def _values_check(
     targets: dict[str, tuple[Record, tuple[str, ...] | None]] = {}
     for link in links:
         targets.setdefault(link.fact.id, (link.fact, _VALUE_FIELDS.get(link.fact.kind, ())))
+        if link.data.stated_amount is not None or link.data.share is not None:
+            # Decision 0021: the basis behind a link for part of a bill.
+            targets.setdefault(link.link.id, (link.link, ("stated_amount", "share")))
     for item in result.items:
         if item.spec.record is not None and item.spec.rate is not None:
             targets.setdefault(item.spec.record.id, (item.spec.record, ("rate",)))
@@ -424,6 +429,78 @@ def _values_check(
             )
     if not out:
         out.append(passed(VALUES, "Every value this charge rests on is confirmed.", list(targets)))
+    return out
+
+
+def _part_of_bill_check(view: GrantView, links: list[LinkInForce]) -> list[Finding]:
+    """Decision 0021: a link for part of a bill rests on a cited basis.
+
+    When a link covers less than its bill's total and the bill's other links on this
+    grant don't account for the rest, the link's amount needs a line on the bill that
+    states the part (`stated_amount`), or a share with its cited basis (`share`).
+    Without one the charge is Needs a human, whatever the sums say, since matching
+    amounts alone could come from copying the charge. A stated amount has to equal the
+    link's amount, and a share's worked-out amount has to match it within one cent.
+    """
+    out: list[Finding] = []
+    for link in links:
+        bill = link.fact.data
+        amount = link.data.amount_cents
+        if not isinstance(bill, Bill) or amount is None or abs(amount) >= abs(bill.total.value):
+            continue
+        ids = [link.link.id, link.fact.id]
+        used = sum(lk.data.amount_cents or 0 for lk in view.using_links(link.fact.id))
+        stated, share = link.data.stated_amount, link.data.share
+        if stated is None and share is None:
+            if compare(used, bill.total.value) >= 0:
+                continue  # this grant's charges account for the whole bill
+            out.append(
+                Finding(
+                    CHECKLIST,
+                    f"part_without_basis:{view.root(link.link.id)}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{describe(link.fact)} is linked for {money(amount)} of its "
+                    f"{money(bill.total.value)}, with nothing cited for that part: a line "
+                    "on the bill that states it, or the basis for the share.",
+                    ids,
+                )
+            )
+        elif stated is not None and stated.value != amount:
+            out.append(
+                Finding(
+                    CHECKLIST,
+                    f"part_mismatch:{view.root(link.link.id)}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{describe(link.fact)}: the part it states is {money(stated.value)}, "
+                    f"but the link is for {money(amount)}.",
+                    ids,
+                )
+            )
+        elif share is not None and not share.matches(amount):
+            worked = share.amount().quantize(Decimal(1), rounding=ROUND_HALF_UP)
+            out.append(
+                Finding(
+                    CHECKLIST,
+                    f"share_mismatch:{view.root(link.link.id)}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{describe(link.fact)}: {share.share.value} of {share.out_of.value} of "
+                    f"{money(share.total.value)} is {money(int(worked))}, "
+                    f"not the {money(amount)} linked.",
+                    ids,
+                )
+            )
+        elif share is not None and share.total.value != bill.total.value:
+            out.append(
+                Finding(
+                    CHECKLIST,
+                    f"share_total_mismatch:{view.root(link.link.id)}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{describe(link.fact)}: the share is worked out of "
+                    f"{money(share.total.value)}, but the bill's total is "
+                    f"{money(bill.total.value)}.",
+                    ids,
+                )
+            )
     return out
 
 
@@ -609,6 +686,7 @@ def evaluate_charge(
     findings += _approval_check(charge, view, result)
     findings += _values_check(view, links, result, answers)
     findings += _budget_line_check(charge, view)
+    findings += _part_of_bill_check(view, links)
     findings += [s.finding() for s in answers]
     findings += _flags(charge, view)
 

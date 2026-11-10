@@ -59,21 +59,11 @@ def _arrived(view: GrantView, record: Record) -> datetime:
     return min(times) if times else record.written_at
 
 
-def _using(view: GrantView, links: list[LinkInForce]) -> list[LinkInForce]:
-    """The links that use up a bill's total. Decision 0020: a link to a fully reversed
-    charge doesn't, so the bill is free to be linked to the line that now carries the cost."""
-    return [
-        lk
-        for lk in links
-        if not ((net := view.nets.get(lk.data.charge_id)) is not None and net.reversed)
-    ]
-
-
 def over_linked_bills(view: GrantView) -> set[str]:
     out: set[str] = set()
     for r in view.current:
         if isinstance(r.data, Bill) and not view.is_copy(r):
-            links = _using(view, view.links_to_fact.get(r.id, []))
+            links = view.using_links(r.id)
             total = sum(lk.data.amount_cents or 0 for lk in links)
             if compare(total, r.data.total.value) > 0:
                 out.add(r.id)
@@ -87,7 +77,7 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
         if not isinstance(bill, Bill) or view.is_copy(r):
             continue
         all_links = view.links_to_fact.get(r.id, [])
-        links = _using(view, all_links)
+        links = view.using_links(r.id)
         freed = len(links) < len(all_links)  # linked to a fully reversed charge
         total = sum(lk.data.amount_cents or 0 for lk in links)
         target = bill.total.value
@@ -108,7 +98,13 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
             )
         # A bill freed by a full reversal isn't "money nobody charged": the ledger shows
         # what happened to the money (decision 0020).
-        elif side < 0 and not freed and not _credit_on_a_credit_line(view, target, links):
+        # A remainder record the accountant accepted says where the rest went (0021).
+        elif (
+            side < 0
+            and not freed
+            and not view.has_remainder(r.id)
+            and not _credit_on_a_credit_line(view, target, links)
+        ):
             found = _unused_bill(view, r, now, total, target, ids)
             if found is not None:
                 out.append(found)
