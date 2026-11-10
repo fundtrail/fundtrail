@@ -260,7 +260,8 @@ ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
         nsf_categories=(OTHER_DIRECT_COSTS,),
         # A recharge account that names what was bought carries that category.
         categories_by_account={
-            "59005": (EQUIPMENT,),  # Rechg-Fabricated Equip (OH)<5k
+            # Under $5,000, like other equipment under the threshold.
+            "59005": (MATERIALS_AND_SUPPLIES,),  # Rechg-Fabricated Equip (OH)<5k
             "59006": (MATERIALS_AND_SUPPLIES,),  # Recharge-Supplies
             "59007": (PARTICIPANT_SUPPORT_COSTS,),  # Recharge-Participant Support
             "59008": (TRAVEL,),  # Recharge-Travel

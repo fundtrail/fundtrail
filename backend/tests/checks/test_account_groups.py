@@ -134,7 +134,7 @@ def test_sample_grant_recharge_line() -> None:
 @pytest.mark.parametrize(
     ("account", "expected"),
     [
-        ("59005", EQUIPMENT),
+        ("59005", MATERIALS_AND_SUPPLIES),  # fabricated equipment under $5,000
         ("59006", MATERIALS_AND_SUPPLIES),
         ("59007", PARTICIPANT_SUPPORT_COSTS),
         ("59008", TRAVEL),
@@ -148,6 +148,11 @@ def test_recharge_that_names_what_was_bought(account: str, expected: NsfLine) ->
     assert found.group.id == "recharges"
     assert found.nsf_categories == (expected,)
     assert [item.id for item in found.default_items] == ["recharges.usage_statement"]
+
+
+@pytest.mark.parametrize("account", ["59001", "59002", "59003", "59004", "59009", "59011"])
+def test_other_recharges_stay_at_other_direct_costs(account: str) -> None:
+    assert categories(account) == (OTHER_DIRECT_COSTS,)
 
 
 def test_participant_stipends_are_participant_support() -> None:
