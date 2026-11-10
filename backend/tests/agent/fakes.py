@@ -129,6 +129,8 @@ class FakeModel:
         self.requests: list[ModelRequest] = []
 
     def __call__(self, request: ModelRequest) -> Message:
+        # The agent keeps appending to its history, so keep a copy of what this request held.
+        request = ModelRequest(**{**request.__dict__, "messages": list(request.messages)})
         self.requests.append(request)
         assert self.steps, "the fake model ran out of scripted turns"
         return self.steps.pop(0)(request)

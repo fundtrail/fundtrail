@@ -21,10 +21,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .adapter import (
     QUESTION_TEXT,
     Answer,
+    Author,
     BudgetCategory,
     Question,
     Record,
     RecordKind,
+    ThreadMessage,
     citation_of,
     uncited_value,
 )
@@ -43,6 +45,7 @@ from .desk import (
     document_lines,
     money,
     record_in_full,
+    record_summary,
     search_lines,
 )
 from .files import CantOpen, open_file
@@ -482,8 +485,6 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     finder = ctx.inputs.likely_duplicates or _default_duplicates
     dupes = finder(new, ctx.state().current())
     if dupes:
-        from .desk import record_summary
-
         text += " Bills on file that look like the same one, compare before linking: " + "; ".join(
             record_summary(r) for r in dupes
         )
@@ -676,8 +677,6 @@ def t_mark_duplicate(ctx: RunContext, a: MarkDuplicate) -> tuple[str, bool]:
 
 
 def t_post_message(ctx: RunContext, a: PostMessage) -> tuple[str, bool]:
-    from .adapter import Author, ThreadMessage
-
     try:
         message = ThreadMessage(
             id=ctx.inputs.new_id(),

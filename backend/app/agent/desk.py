@@ -27,7 +27,6 @@ from .adapter import (
     Link,
     PeriodOfPerformance,
     Record,
-    RecordKind,
     RecordState,
     agent_questions,
     cited_values,
@@ -272,10 +271,12 @@ def lists(ctx: RunContext) -> str:
     )
 
 
-def missing_items(ctx: RunContext) -> list[str]:
+def missing_items(ctx: RunContext, only: Sequence[str] = ()) -> list[str]:
     out: list[str] = []
     by_id = {c.id: c for c in ctx.inputs.charges}
     for status in ctx.checks().charges:
+        if only and status.charge_id not in only:
+            continue
         c = by_id.get(status.charge_id)
         if c is None:
             continue
@@ -366,7 +367,13 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         )
         blocks.append({"type": "text", "text": "\n".join(text)})
     elif t.kind == TRIGGER_CLOCK:
-        links = [r for r in state.current() if r.kind == RecordKind.LINK]
+        # A closeout review can run in batches of charges, each its own run (charge_ids).
+        only = list(i.charge_ids)
+        links = [
+            r
+            for r in state.current()
+            if isinstance(r.data, Link) and (not only or r.data.charge_id in only)
+        ]
         unlinked = [
             document_line(ctx, f) for f in i.files if "unlinked $0.00" not in document_line(ctx, f)
         ]
@@ -377,7 +384,7 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
             "Every link:",
             *([f"- {record_summary(r)}" for r in links] or ["- none"]),
             "Every missing item:",
-            *(missing_items(ctx) or ["- none"]),
+            *(missing_items(ctx, only) or ["- none"]),
             "Documents with money nobody charged, or no facts:",
             *(unlinked or ["- none"]),
         ]
