@@ -15,7 +15,7 @@ export function BudgetFigures({ budget, notes }: { budget: BudgetView; notes: Gr
         </h2>
         <p className="ft-caption">
           Charged {money(budget.spent_cents)}
-          {budget.limit_cents !== null && <> of the award&apos;s {money(budget.limit_cents)} limit</>}
+          {budget.limit_cents != null && <> of the award&apos;s {money(budget.limit_cents)} limit</>}
         </p>
       </div>
       <table className="ft-ledger ft-ledger--flush">

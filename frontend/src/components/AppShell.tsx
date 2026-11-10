@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { useClock, useGrants, useWorkspaces, type Id } from "@/lib/api";
+import { useGrants, useWorkspaces, type Id } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { date } from "@/lib/format";
+import { routes } from "@/lib/routes";
+import { ClockControls } from "./clock/ClockControls";
 import { grantName } from "./GrantList";
 
 function NavLink({ href, children, count }: { href: string; children: ReactNode; count?: number }) {
@@ -28,7 +29,6 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
   const auth = useAuth();
   const workspaces = useWorkspaces();
   const grants = useGrants(workspaceId);
-  const clock = useClock(workspaceId);
   const workspace = workspaces.data?.find((w) => w.id === workspaceId);
   const user = auth.state.status === "signed_in" ? auth.state.user : null;
 
@@ -41,11 +41,11 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
       </div>
       {workspaceId && (
         <div className="ft-nav">
-          <NavLink href={`/w/${encodeURIComponent(workspaceId)}`}>Grants</NavLink>
+          <NavLink href={routes.workspace(workspaceId)}>Grants</NavLink>
           <ul className="ft-nav__grants">
             {grants.data?.map((g) => (
               <li key={g.grant.id}>
-                <NavLink href={`/grants/${encodeURIComponent(g.grant.id)}`} count={g.on_problem_list}>
+                <NavLink href={routes.grant(g.grant.id)} count={g.on_problem_list}>
                   {g.grant.award_number ?? grantName(g)}
                 </NavLink>
               </li>
@@ -54,17 +54,7 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
         </div>
       )}
       <div className="ft-sidebar__foot">
-        <div className="ft-sidebar__clock">
-          <span className="ft-label">Clock</span>
-          {clock.data ? (
-            <span className="ft-num">
-              {date(clock.data.now)}
-              {clock.data.simulated && <span className="ft-caption"> · demo clock</span>}
-            </span>
-          ) : (
-            <span className="ft-caption">…</span>
-          )}
-        </div>
+        <ClockControls workspaceId={workspaceId} />
         {user && (
           <div className="ft-sidebar__account">
             <span>{user.name ?? user.email}</span>
