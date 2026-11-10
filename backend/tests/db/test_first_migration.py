@@ -236,7 +236,9 @@ TRIGGER = {"trigger_kind", "trigger_id"}  # a trigger is split into these two co
 # Each table: the model fields it holds, and the columns section 11 adds.
 ROWS: dict[str, tuple[set[str], set[str]]] = {
     "users": (fields(User), {"created_at"}),
-    "workspaces": (fields(Workspace), set()),
+    # Workspace.clock_now is deprecated: the clock moved to grants (issue 165) and its
+    # column is gone. The field goes when the contracts drop it.
+    "workspaces": (fields(Workspace) - {"clock_now"}, set()),
     "grants": (fields(Grant), set()),
     "charges": (fields(Charge), set()),
     "evidence_files": (fields(EvidenceFile), set()),

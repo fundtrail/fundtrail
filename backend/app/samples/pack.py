@@ -30,6 +30,13 @@ expected decision or values), never a record ID:
   `reject`), and a `line_id` or a `file`
 - `answer_flag`: `line_id`, `answer`
 - `enter_share`: `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021)
+
+The loader holds the script to the seed's own rules (ruling 51, as `data/test_seed.py`
+checks them): an answer is supports, contradicts or unsure; a suggestion is a record kind
+the agent suggests; a line is in the ledger and a file is on the timeline; an action about
+a line comes after the line arrives, and one about a file after the file arrives (for a
+file the user brings in, after the script brings it in); a share is a number from 0 to
+`out_of`, and `out_of` is above 0.
 """
 
 from __future__ import annotations
@@ -39,7 +46,8 @@ import hashlib
 import io
 import json
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import UTC, date, datetime, time
+from decimal import Decimal, InvalidOperation
 from email import policy
 from email.parser import BytesParser
 from enum import StrEnum
@@ -48,6 +56,7 @@ from pathlib import Path
 from typing import Any
 
 from app.contracts.api import ArrivalSource
+from app.contracts.records import RecordKind
 
 # The repo's data folder: backend/app/samples/pack.py -> the repo root -> data.
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
@@ -100,11 +109,27 @@ class UserAction:
     suggestion: str | None = None  # decide_suggestion: the record kind suggested
     decision: str | None = None  # decide_suggestion: accept or reject
     answer: str | None = None  # answer_flag
-    share: int | None = None  # enter_share: the part of the bill, as `share` of `out_of`
-    out_of: int | None = None
+    share: Decimal | None = None  # enter_share: the part of the bill, as `share` of `out_of`
+    out_of: Decimal | None = None  # above 0, and at least `share`
     basis: str | None = None  # enter_share: why that share (decision 0021)
     note: str | None = None
 
+
+# The record kinds an agent's suggestion can be: the ones that wait for the accountant.
+SUGGESTION_KINDS = frozenset(
+    {
+        RecordKind.LINK,
+        RecordKind.JUDGMENT,
+        RecordKind.CHECKLIST_REMOVAL,
+        RecordKind.DISPUTE,
+        RecordKind.DUPLICATE,
+        RecordKind.CORRECTION,
+        RecordKind.REMAINDER,
+        RecordKind.RETRACTION,
+    }
+)
+# The answers to a flag (contracts.md section 14).
+ANSWERS = frozenset({"supports", "contradicts", "unsure"})
 
 # Each action's fields besides `at` and `note`: the ones it needs, and the ones it may take.
 ACTION_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
@@ -260,6 +285,17 @@ def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
             raise PackError(f"{where}: {kind!r} isn't a scheduled event.")
 
 
+def _number(value: Any) -> Decimal | None:
+    """A whole or decimal number, written as a number or as text; None for anything else."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return number if number.is_finite() else None
+
+
 def _action(raw: dict[str, Any], where: str) -> UserAction:
     action = raw.get("action")
     if action not in ACTION_FIELDS:
@@ -275,11 +311,21 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
             raise PackError(f"{where}: a decision is accept or reject.")
         if not given & {"line_id", "file"}:
             raise PackError(f"{where}: a decision is about a line_id or a file.")
-    try:
-        share = int(raw["share"]) if "share" in raw else None
-        out_of = int(raw["out_of"]) if "out_of" in raw else None
-    except (TypeError, ValueError) as error:
-        raise PackError(f"{where}: share and out_of are whole numbers.") from error
+        if raw["suggestion"] not in SUGGESTION_KINDS:
+            raise PackError(
+                f"{where}: suggestion {raw['suggestion']!r} isn't one of "
+                f"{sorted(SUGGESTION_KINDS)}."
+            )
+    if action == "answer_flag" and raw["answer"] not in ANSWERS:
+        raise PackError(f"{where}: an answer is one of {sorted(ANSWERS)}.")
+    share = out_of = None
+    if action == "enter_share":
+        share, out_of = _number(raw["share"]), _number(raw["out_of"])
+        if share is None or out_of is None or not (out_of > 0 and 0 <= share <= out_of):
+            raise PackError(
+                f"{where}: share and out_of are numbers, with out_of above 0 and the share "
+                "from 0 to out_of."
+            )
     text = {k: (str(raw[k]) if k in raw else None) for k in ("file", "line_id", "suggestion")}
     return UserAction(
         at=_time(raw.get("at"), where),
@@ -353,14 +399,54 @@ def _check(pack: SamplePack, where: str) -> None:
         seen_files.add(e.name)
     if seen_lines and any(e.kind is EventKind.LEDGER for e in pack.events):
         raise PackError(f"{where}: a timeline has a ledger event or ledger_line events, not both.")
-    delivered = {e.name: e.at for e in pack.events if e.deliver_by_user}
+    _check_script(pack, where)
+
+
+def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
+    """When each ledger line arrives: its `ledger_line` event, or the later of the ledger
+    file's event and 00:00 UTC on its posting date (decision 0023)."""
+    out = {e.name: e.at for e in pack.events if e.kind is EventKind.LEDGER_LINE}
+    ledger = next((e for e in pack.events if e.kind is EventKind.LEDGER), None)
+    if ledger is not None:
+        header, rows = pack._ledger_rows  # pyright: ignore[reportPrivateUsage]
+        if "posting_date" not in header:
+            raise PackError(f"{pack.files_folder}: {LEDGER_FILE} has no posting_date header.")
+        column = header.index("posting_date")
+        for line_id, row in rows.items():
+            try:
+                posting = datetime.combine(date.fromisoformat(row[column]), time(), tzinfo=UTC)
+            except (IndexError, ValueError) as error:
+                raise PackError(f"{pack.files_folder}: {line_id} has no posting date.") from error
+            out[line_id] = max(posting, ledger.at)
+    return out
+
+
+def _check_script(pack: SamplePack, where: str) -> None:
+    """Each scripted action is possible at its time (ruling 51)."""
+    files = {e.name: e for e in pack.events if e.kind is EventKind.FILE}
+    lines = _line_arrivals(pack)
+    brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
     for a in pack.actions:
-        if a.action != "deliver_file":
+        what = f"{where}: {a.action} at {a.at.isoformat()}"
+        if a.line_id is not None:
+            if a.line_id not in lines:
+                raise PackError(f"{what}: {LEDGER_FILE} has no line {a.line_id}.")
+            if a.at <= lines[a.line_id]:
+                raise PackError(f"{what}: comes before line {a.line_id} arrives.")
+        if a.file is None:
             continue
-        if a.file not in delivered:
-            raise PackError(f"{where}: {a.file} is delivered by the user but not marked so.")
-        if a.at < delivered[a.file]:
-            raise PackError(f"{where}: {a.file} is delivered before its date.")
+        event = files.get(a.file)
+        if event is None:
+            raise PackError(f"{what}: {a.file} isn't on the timeline.")
+        if a.action == "deliver_file":
+            if not event.deliver_by_user:
+                raise PackError(f"{what}: {a.file} is delivered by the user but not marked so.")
+            if a.at < event.at:
+                raise PackError(f"{what}: {a.file} is delivered before its date.")
+            continue
+        arrived = brought.get(a.file) if event.deliver_by_user else event.at
+        if arrived is None or a.at <= arrived:
+            raise PackError(f"{what}: comes before {a.file} arrives.")
 
 
 def load_folder(folder: Path) -> SamplePack:

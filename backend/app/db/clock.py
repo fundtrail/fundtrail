@@ -3,9 +3,9 @@
 - `grant_now` answers "what time is it for this grant" for every caller. Nothing else
   in the app reads the stored clock or the system time for grant purposes, and only
   this module asks whether a clock is stored.
-- Every rule asks the grant's clock for "now". A workspace a user creates runs on the real
-  time and its clock can't move; the demo workspace's clock is simulated and moves
-  forward only, to the next arrival or to a chosen time.
+- Every rule asks the grant's clock for "now". A grant a user adds runs on the real time
+  and its clock can't move. A sample grant's clock is stored (`grants.clock_now`), and
+  moves forward only, to the next arrival or to a chosen time (issue 165).
 - A jump is replayed in order. Each charge or file the clock passes gets its agent run as
   of its own arrival time, queued in arrival order, so the runs go one at a time in that
   order. Charges that arrive at the same moment share runs, in batches.
@@ -13,7 +13,7 @@
   each arrival and at each midnight the clock passes, so a change time caused is recorded
   on the day the rule was crossed. Each catch-up run's save works out its own moment and
   the midnights up to the next one, so a status never runs ahead of the agent's work. A
-  real workspace gets the same once a day.
+  grant on the real date gets the same once a day.
 - The agent's review of a grant when its closeout window opens is a catch-up run too.
   It's queued once per end date in force: again when the end date moves, and on the next
   move, daily check or confirmation when the window was already open.
@@ -31,7 +31,7 @@ from app.contracts.checks import ChecksOutput
 from app.contracts.evidence import Source
 from app.contracts.rules import RecordState
 from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
-from app.contracts.workspaces import Grant, Workspace
+from app.contracts.workspaces import Grant
 
 from . import jobs, store, terms
 from .pings import ping_changed, ping_run
@@ -57,14 +57,6 @@ class Arrival:
     grant_id: str
 
 
-@dataclass(frozen=True)
-class ClockState:
-    now: datetime
-    simulated: bool
-    next_arrival: Arrival | None
-    catching_up: bool
-
-
 def _database_now(conn: Conn) -> datetime:
     """The database's time for this transaction: when it started, the same all through it."""
     row = conn.execute("select now() as now").fetchone()
@@ -73,13 +65,8 @@ def _database_now(conn: Conn) -> datetime:
 
 
 def _stored_clock(conn: Conn, grant_id: str) -> datetime | None:
-    """The grant's stored clock, if it has one. It's the workspace's until the per-grant
-    clock lands with the sample-grant design; then only this function changes."""
-    row = conn.execute(
-        """select w.clock_now from public.grants g
-           join public.workspaces w on w.id = g.workspace_id where g.id = %s""",
-        (grant_id,),
-    ).fetchone()
+    """The grant's stored clock, if it has one: a sample grant's simulated "now"."""
+    row = conn.execute("select clock_now from public.grants where id = %s", (grant_id,)).fetchone()
     assert row is not None
     return row["clock_now"]
 
@@ -93,8 +80,7 @@ def grant_now(conn: Conn, grant_id: str) -> datetime:
 
 def has_stored_clock(conn: Conn, grant_id: str) -> bool:
     """Whether the grant runs on a stored clock (a sample grant), not the real date: the one
-    place that asks. It reads the workspace's column until the sample builder moves the
-    clock to grants.clock_now; then only _stored_clock changes."""
+    place that asks. It reads grants.clock_now, through _stored_clock."""
     return _stored_clock(conn, grant_id) is not None
 
 
@@ -119,34 +105,23 @@ def read_now(conn: Conn, run: AgentRun) -> datetime:
     return _database_now(conn)
 
 
-def next_arrival(conn: Conn, workspace: Workspace) -> Arrival | None:
-    """The first charge or file waiting for the clock. A real workspace has none."""
-    if workspace.clock_now is None:
+def next_arrival(conn: Conn, grant_id: str) -> Arrival | None:
+    """The first charge or file stored on the grant and still waiting for its clock. A
+    grant on the real date has none."""
+    now = _stored_clock(conn, grant_id)
+    if now is None:
         return None
-    now = workspace.clock_now
-    found: list[Arrival] = []
-    for grant in store.list_grants(conn, workspace.id):
-        for c in store.list_charges(conn, grant.id, store.END_OF_TIME):
-            if c.arrived_at > now:
-                found.append(Arrival(c.arrived_at, "ledger", c.ledger_line_id, grant.id))
-        for f in store.list_files(conn, grant.id, store.END_OF_TIME):
-            if f.arrived_at > now:
-                found.append(Arrival(f.arrived_at, _SOURCE_NAMES[f.source], f.name, grant.id))
+    found = [
+        Arrival(c.arrived_at, "ledger", c.ledger_line_id, grant_id)
+        for c in store.list_charges(conn, grant_id, store.END_OF_TIME)
+        if c.arrived_at > now
+    ]
+    found += [
+        Arrival(f.arrived_at, _SOURCE_NAMES[f.source], f.name, grant_id)
+        for f in store.list_files(conn, grant_id, store.END_OF_TIME)
+        if f.arrived_at > now
+    ]
     return min(found, key=lambda a: (a.at, a.source, a.name), default=None)
-
-
-def catching_up(conn: Conn, workspace: Workspace) -> bool:
-    """Whether the agent is still working through arrivals the clock passed, on any grant."""
-    return any(jobs.grant_catching_up(conn, g.id) for g in store.list_grants(conn, workspace.id))
-
-
-def clock_state(conn: Conn, workspace: Workspace) -> ClockState:
-    return ClockState(
-        now=workspace.clock_now or _database_now(conn),
-        simulated=workspace.clock_now is not None,
-        next_arrival=next_arrival(conn, workspace),
-        catching_up=catching_up(conn, workspace),
-    )
 
 
 def _midnights(after: datetime, until: datetime) -> list[datetime]:
@@ -266,33 +241,30 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     return output
 
 
-def move_clock(p: Platform, workspace_id: str, to: datetime | None) -> ClockState:
-    """Move the demo workspace's clock forward: to `to`, or to the next arrival."""
+def move_grant_clock(p: Platform, grant_id: str, to: datetime | None) -> datetime:
+    """Move a grant's stored clock forward: to `to`, or with None, to the next charge or
+    file stored on it and waiting. Everything the move passes is replayed in order. Returns
+    the grant's new "now"."""
     with transaction(p.pool) as conn:
-        workspace = store.lock_workspace(conn, workspace_id)
-        if workspace.clock_now is None:
-            raise ClockError("This workspace runs on the real date, so its clock can't move.")
-        old = workspace.clock_now
+        grant = store.get_grant(conn, grant_id, lock=True)
+        if grant is None:
+            raise ClockError("There's no such grant.")
+        old = _stored_clock(conn, grant_id)
+        if old is None:
+            raise ClockError("This grant runs on the real date, so its clock can't move.")
         if to is None:
-            arrival = next_arrival(conn, workspace)
+            arrival = next_arrival(conn, grant_id)
             if arrival is None:
                 raise ClockError("Nothing is waiting to arrive.")
             to = arrival.at
         if to < old:
             raise ClockError("The clock only moves forward.")
-        store.set_clock(conn, workspace.id, to)
-        grants = store.list_grants(conn, workspace.id)
-        runs: list[AgentRun] = []
-        if to > old:
-            for g in grants:
-                store.get_grant(conn, g.id, lock=True)
-                runs += replay(p, conn, g, old, to)
-        state = clock_state(conn, workspace.model_copy(update={"clock_now": to}))
+        store.set_grant_clock(conn, grant_id, to)
+        runs = replay(p, conn, grant, old, to) if to > old else []
     for run in runs:
         ping_run(p.pinger, run)
-    for g in grants:
-        ping_changed(p.pinger, workspace.id, g.id, "charges", "evidence", "statuses")
-    return state
+    ping_changed(p.pinger, grant.workspace_id, grant.id, "charges", "evidence", "statuses")
+    return to
 
 
 def daily_recheck(p: Platform) -> None:
