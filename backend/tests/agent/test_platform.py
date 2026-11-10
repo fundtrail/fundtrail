@@ -57,6 +57,7 @@ def agent_input(
         status="running",  # pyright: ignore[reportArgumentType]
         clock_now=clock,
         queued_at=clock,
+        read_through_seq=10**9,  # the platform records it when the run starts (call 40)
     )
     return AgentInput(
         run=run,

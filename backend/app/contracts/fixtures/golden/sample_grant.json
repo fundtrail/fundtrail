@@ -148,7 +148,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-budget-participant-support",
@@ -201,7 +202,8 @@
           }
         },
         "category": "participant_support"
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-budget-other-direct-costs",
@@ -254,7 +256,8 @@
           }
         },
         "category": "other_direct_costs"
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-budget-materials-and-supplies",
@@ -307,7 +310,8 @@
           }
         },
         "category": "materials_and_supplies"
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-budget-other",
@@ -360,7 +364,8 @@
           }
         },
         "category": "other_direct_costs_other"
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-person-pi",
@@ -426,7 +431,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-person-program-officer",
@@ -492,7 +498,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-person-grants-officer",
@@ -558,7 +565,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-approval-rule",
@@ -638,7 +646,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-notice-000",
@@ -718,7 +727,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 1
     },
     {
       "id": "rec-confirm-award-terms",
@@ -853,7 +863,8 @@
             }
           }
         ]
-      }
+      },
+      "read_through_seq": 13
     },
     {
       "id": "rec-link-l-1001",
@@ -878,7 +889,8 @@
         },
         "default_item": "bill",
         "reason": "The ledger line's reference INV-1001, vendor and amount match the invoice."
-      }
+      },
+      "read_through_seq": 15
     },
     {
       "id": "rec-budget-l-1001",
@@ -891,7 +903,8 @@
         "charge_id": "chg-l-1001",
         "record_id": "rec-budget-materials-and-supplies",
         "reason": "The bill is for sediment core liners, 50 count."
-      }
+      },
+      "read_through_seq": 15
     },
     {
       "id": "rec-allowable-l-1001",
@@ -921,7 +934,8 @@
         "rests_on": [
           "rec-bill-inv-1001"
         ]
-      }
+      },
+      "read_through_seq": 15
     },
     {
       "id": "rec-bill-seq-0207",
@@ -1001,7 +1015,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 19
     },
     {
       "id": "rec-link-l-1002",
@@ -1026,7 +1041,8 @@
         },
         "default_item": "usage_statement",
         "reason": "The ledger line's reference SEQ-0207, vendor and amount match the usage statement."
-      }
+      },
+      "read_through_seq": 21
     },
     {
       "id": "rec-budget-l-1002",
@@ -1039,7 +1055,8 @@
         "charge_id": "chg-l-1002",
         "record_id": "rec-budget-other",
         "reason": "The bill is for sediment dna sequencing, run 7, 48 samples."
-      }
+      },
+      "read_through_seq": 21
     },
     {
       "id": "rec-allowable-l-1002",
@@ -1069,7 +1086,8 @@
         "rests_on": [
           "rec-bill-seq-0207"
         ]
-      }
+      },
+      "read_through_seq": 21
     },
     {
       "id": "rec-period-extension",
@@ -1107,7 +1125,8 @@
             "match": "exact"
           }
         }
-      }
+      },
+      "read_through_seq": 25
     },
     {
       "id": "rec-confirm-extension",

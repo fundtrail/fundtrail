@@ -479,7 +479,9 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
         return text, error
     new = ctx.staged[-1].record
     finder = ctx.inputs.likely_duplicates or likely_duplicates
-    dupes = finder(new, ctx.state().current())
+    state = ctx.state()
+    ids = finder(new, state.records, ctx.inputs.files)
+    dupes = [state.by_id[i] for i in ids if i in state.by_id]
     if dupes:
         text += " Bills on file that look like the same one, compare before linking: " + "; ".join(
             record_summary(r) for r in dupes
