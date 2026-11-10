@@ -1,9 +1,9 @@
 """Format checks for the NSF rulebook the agent gets on every run.
 
 Each rule is a `### <ID>` heading under a `## ` section for its kind, then its
-text, then `- Kind:`, `- Source:`, optional `- Quote:` and `- Checked:` lines.
-These tests check the shape only, not whether a rule is right: each rule is
-checked against its source by hand.
+text, then `- Kind:`, `- Source:`, optional `- Older source:`, `- Older status:`
+and `- Quote:` lines, and `- Checked:`. These tests check the shape only, not
+whether a rule is right: each rule is checked against its source by hand.
 """
 
 import re
@@ -16,10 +16,20 @@ RULEBOOK = Path(__file__).resolve().parents[1] / "app" / "agent" / "rulebooks" /
 
 ID_PATTERN = re.compile(r"^NSF-[A-Z0-9]+(?:-[A-Z0-9]+)*$")
 # A link may hold balanced parentheses, as eCFR paragraph anchors do: #p-200.475(e).
-SOURCE_LINE = re.compile(r"^- Source: \[[^\]]+\]\(https://(?:[^()\s]|\([^()\s]*\))+\)$")
+LINK = r"\[[^\]]+\]\(https://(?:[^()\s]|\([^()\s]*\))+\)"
+SOURCE_LINE = re.compile(rf"^- Source: {LINK}$")
+OLDER_SOURCE_LINE = re.compile(rf"^- Older source: {LINK}$")
+OLDER_STATUS_LINE = re.compile(r"^- Older status: (unread|partly unread) \(.+\)$")
 QUOTE_LINE = re.compile(r'^- Quote: "[^"]+" \(.+\)$')
 CHECKED_LINE = re.compile(r"^- Checked: \d{4}-\d{2}-\d{2}$")
-META_PREFIXES = ("- Kind: ", "- Source: ", "- Quote: ", "- Checked: ")
+META_PREFIXES = (
+    "- Kind: ",
+    "- Source: ",
+    "- Older source: ",
+    "- Older status: ",
+    "- Quote: ",
+    "- Checked: ",
+)
 
 # Each section heading holds rules of one kind.
 SECTION_KINDS = {
@@ -83,6 +93,14 @@ def test_header_explains_kinds_and_lists_what_is_unread(rulebook: Rulebook) -> N
     assert "still unread" in rulebook.header
 
 
+def test_header_says_which_conditions_govern_and_how_to_treat_older_awards(
+    rulebook: Rulebook,
+) -> None:
+    assert "Which conditions govern an award" in rulebook.header
+    assert "On an award under the older conditions" in rulebook.header
+    assert "Older citations for the terms code checks" in rulebook.header
+
+
 def test_every_section_is_a_known_kind(rulebook: Rulebook) -> None:
     unknown = sorted({rule.section for rule in rulebook.rules} - SECTION_KINDS.keys())
     assert not unknown, f"rules under unknown sections: {unknown}"
@@ -128,6 +146,29 @@ def test_every_rule_has_a_source_with_a_link(rulebook: Rulebook) -> None:
         assert sources, f"{rule.id} has no source"
         for line in sources:
             assert SOURCE_LINE.match(line), f"{rule.id} source has no https link: {line}"
+
+
+def test_older_citation_lines_are_well_formed(rulebook: Rulebook) -> None:
+    for rule in rulebook.rules:
+        for line in rule.lines("- Older source:"):
+            assert OLDER_SOURCE_LINE.match(line), f"{rule.id} older source has no link: {line}"
+        statuses = rule.lines("- Older status:")
+        assert len(statuses) <= 1, f"{rule.id} has more than one older status line"
+        for line in statuses:
+            assert OLDER_STATUS_LINE.match(line), f"{rule.id} older status malformed: {line}"
+
+
+def test_every_gc1_rule_says_what_the_older_conditions_say(rulebook: Rulebook) -> None:
+    for rule in rulebook.rules:
+        cites_gc1 = any("GC-1" in line for line in rule.lines("- Source:"))
+        older_sources = rule.lines("- Older source:")
+        statuses = rule.lines("- Older status:")
+        if cites_gc1:
+            assert older_sources or statuses, (
+                f"{rule.id} cites GC-1 but has no older source or older status"
+            )
+        if any(line.startswith("- Older status: partly unread") for line in statuses):
+            assert older_sources, f"{rule.id} is partly unread but names no older source"
 
 
 def test_every_quote_is_quoted_and_attributed(rulebook: Rulebook) -> None:
