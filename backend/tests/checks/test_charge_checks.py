@@ -257,7 +257,7 @@ def test_an_empty_checklist_is_needs_a_human() -> None:
     g.standard_terms()
     g.charge("c1", date(2024, 3, 1), 10000, account=NO_GROUP)
     status = g.status("c1", at(2024, 3, 2))
-    assert status.checklist == []
+    assert status.checklist == ()
     assert problems(status) == {("checklist", "empty")}
     assert status.bucket == Bucket.NEEDS_HUMAN
 
@@ -277,7 +277,7 @@ def test_the_agents_removal_waits_and_the_accountants_takes_effect() -> None:
     assert status.bucket == Bucket.NEEDS_HUMAN
 
     g.user({"kind": "checklist_removal", "charge_id": "c1", "default_item": "bill"}, at(2024, 3, 4))
-    assert g.status("c1", at(2024, 3, 5)).checklist == []
+    assert g.status("c1", at(2024, 3, 5)).checklist == ()
 
 
 def test_a_reversal_gets_its_two_default_items_in_place_of_the_groups() -> None:

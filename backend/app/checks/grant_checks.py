@@ -159,7 +159,7 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
                     grant_id=view.grant_id,
                     check=BUDGET,
                     text=f"{latest.name.value}: {money(spent[category])} of {money(amount)}",
-                    record_ids=[r.id for r in lines[category]],
+                    record_ids=tuple(r.id for r in lines[category]),
                 )
             )
     return notes

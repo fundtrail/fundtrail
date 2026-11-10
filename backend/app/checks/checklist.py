@@ -443,7 +443,7 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
             period=item.spec.period,
             expected_by=item.spec.expected_by,
             filled=item.filled,
-            link_ids=[lk.link.id for lk in item.links],
+            link_ids=tuple(lk.link.id for lk in item.links),
             removal_waiting_id=item.removal_waiting_id,
         )
         for item in items

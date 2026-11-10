@@ -61,7 +61,7 @@ def test_terms_waiting_for_the_accountant_are_problems_until_confirmed() -> None
     assert grant_problems(out) == {"no_dates", "no_budget"}
     g.confirm(*t.values(), when=at(2023, 1, 13, 13))
     out = g.run(at(2023, 1, 14))
-    assert out.records == [] and out.grants == []
+    assert out.records == () and out.grants == ()
 
 
 def test_the_exact_same_file_twice_is_a_problem_on_the_later_copy() -> None:
@@ -175,5 +175,5 @@ def test_an_overspent_budget_line_is_a_note_not_a_problem() -> None:
     t = g.standard_terms()
     g.supplies_charge("c1", date(2024, 3, 1), 4_200_000, at(2024, 3, 1), line=t["ms"])
     out = g.run(at(2024, 3, 2))
-    assert out.grants == []
+    assert out.grants == ()
     assert [n.text for n in out.notes] == ["Materials and Supplies: $42,000.00 of $40,000.00"]
