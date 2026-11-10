@@ -53,6 +53,26 @@ def test_a_bill_with_money_nobody_charged_is_a_problem_60_days_after_it_arrived(
     assert out.records[0].problems[0].text.startswith("$100.00 of this bill's $100.00 isn't linked")
 
 
+def test_a_credit_memo_linked_to_a_credit_line_isnt_unused() -> None:
+    """#74: the link to a line that takes money off the grant can't carry an amount."""
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("credit", date(2024, 3, 1), -45000)
+    g.assign("credit", t["ms"], at(2024, 3, 1, 9))
+    f = g.file("f-memo", at(2024, 3, 1, 9))
+    memo = g.bill(-45000, f, at(2024, 3, 1, 9))
+    g.link(memo, "credit", at(2024, 3, 1, 9), default="justification")
+    assert record_problems(g.run(at(2024, 5, 1))) == {}  # well past 60 days
+
+
+def test_a_credit_memo_linked_to_nothing_is_still_unused() -> None:
+    g = Grant()
+    g.standard_terms()
+    f = g.file("f-memo", at(2024, 3, 1, 9))
+    memo = g.bill(-45000, f, at(2024, 3, 1, 9))
+    assert record_problems(g.run(at(2024, 5, 1))) == {memo: {"unused"}}
+
+
 def test_terms_waiting_for_the_accountant_are_problems_until_confirmed() -> None:
     g = Grant()
     t = g.standard_terms(confirm=False)
