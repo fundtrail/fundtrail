@@ -101,6 +101,11 @@ class GrantRoute:
     # When the grant's address was made. Its first check takes in everything delivered
     # to the address since then.
     address_created_at: datetime | None = None
+    # True for a sample grant, one with a stored clock (`Grant.clock_now` set): a time a
+    # channel supplies, such as an email's sent date, is replaced by the grant's "now"
+    # wherever it's stored or shown (issue 165, point 4). Stands in for reading
+    # `Grant.clock_now` until the contracts carry it.
+    channel_times_from_grant_now: bool = False
 
     def __post_init__(self) -> None:
         lowered = frozenset(s.strip().lower() for s in self.known_senders)
