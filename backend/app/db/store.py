@@ -731,9 +731,12 @@ def set_clock(conn: Conn, workspace_id: str, now: datetime) -> None:
     conn.execute("update public.workspaces set clock_now = %s where id = %s", (now, workspace_id))
 
 
-def real_time_workspace_ids(conn: Conn) -> list[str]:
-    rows = conn.execute("select id from public.workspaces where clock_now is null").fetchall()
-    return [r["id"] for r in rows]
+def all_grants(conn: Conn) -> list[Grant]:
+    rows = conn.execute(
+        "select id, workspace_id, funder, award_number, title, address_code, drive_folder_id"
+        " from public.grants order by id"
+    ).fetchall()
+    return [Grant.model_validate(r) for r in rows]
 
 
 END_OF_TIME = datetime.max.replace(tzinfo=UTC)
@@ -794,13 +797,6 @@ def set_read_point(conn: Conn, run_id: str, read_through_seq: int) -> None:
         "update public.agent_runs set read_through_seq = %s where id = %s",
         (read_through_seq, run_id),
     )
-
-
-def snapshot_now(conn: Conn) -> datetime:
-    """The database's "now" for the current transaction: when its snapshot was taken."""
-    row = conn.execute("select now() as now").fetchone()
-    assert row is not None
-    return row["now"]
 
 
 def set_award_number_and_title(
