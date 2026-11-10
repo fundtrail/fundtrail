@@ -419,8 +419,11 @@ def judgments_about(state: RecordState, charge_ids: Sequence[str]) -> list[Recor
 AWARD_NOTICE_GUIDANCE = (
     "If this is an award notice, an amendment or a program solicitation: read its free-text "
     "conditions as well as its labeled fields, and write each condition as a term "
-    "(an approval_rule when it says who must approve what, otherwise an other_term). Write one "
-    "notice term per notice, with its amendment number and type and any amounts it obligates. "
-    "Write each budget line and sub-line it prints as its own budget_line, with its NSF category "
-    "from the fixed list. Totals such as Total Direct Costs are sums, not terms."
+    "(an approval_rule when it says who must approve what, otherwise an other_term). Every award "
+    "notice gets exactly one notice term: its amendment number, its amendment type, and the "
+    "amounts it prints for Amount Obligated by this Amendment (obligated_by_amendment) and Total "
+    "Amount Obligated to Date (obligated_to_date), because code checks each notice's running "
+    "total against the one before. Write each budget line and sub-line it prints as its own "
+    "budget_line, with its NSF category from the fixed list. Totals such as Total Direct Costs "
+    "are sums, not terms."
 )

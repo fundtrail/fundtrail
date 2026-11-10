@@ -120,7 +120,7 @@ def test_a_file_run_hands_over_the_file_and_the_award_notice_guidance():
     assert (
         "free-text conditions" in joined
         and "NSF category" in joined
-        and "one notice term" in joined.replace("\n", " ")
+        and "exactly one notice term" in joined
     )
     assert "Which of these does this file fill?" in joined and "chg-l-1001" in joined
     assert any(b.get("type") == "document" for b in first)
