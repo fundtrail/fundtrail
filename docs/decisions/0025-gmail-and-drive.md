@@ -1,6 +1,6 @@
 # 0025. Gmail and Drive bring files in through one account the app owns
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Builds on [0013](0013-stack-additions-and-repo-structure.md).
+**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Builds on [0013](0013-stack-additions-and-repo-structure.md). Amended by [0027](0027-sample-grants.md) and [0028](0028-one-clock-per-grant.md) (Gmail and Drive work on a sample grant as on any grant, and a live email there is dated to the simulated time) and [0029](0029-workspace-members-and-one-access-check.md) (known senders include the addresses of the workspace's members who can act, not only the accountant's).
 
 ## Context
 

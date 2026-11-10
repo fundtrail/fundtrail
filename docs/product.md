@@ -19,13 +19,15 @@ This fits the hackathon theme, "Automate the Old Way": an old financial workflow
 These limits are for now. The design stays open to grow (see below).
 
 - The only user is the person who manages a grant's money and prepares its closeout. These docs call them **the accountant**. At Berkeley, that's the department's research administrator, who prepares the Award Closeout Certification. At other universities, it can be a grant accountant in the sponsored programs office.
-- Each workspace has one person. Professors and lab staff only send evidence in.
+- For now the accountant is the only person who signs in to a workspace. Professors and lab staff only send evidence in.
+- Nothing assumes a workspace has one person. Each workspace has a list of members, and one place decides whether a user may reach a workspace or a grant ([0029](decisions/0029-workspace-members-and-one-access-check.md)). The owner and the workspace's sample accountant are members.
 - Users sign in with Google. A workspace holds many grants.
-- A new account starts with a demo workspace already loaded with grants. Users can create more workspaces.
+- Nothing is loaded at sign-up. Samples are chosen when adding a grant, and a sample sits in the user's ordinary workspace beside their own grants (see [Demo data](#demo-data-examples)). Users can create more workspaces.
 
 ## Grants
 
-- To add a grant, the accountant drops in the award letter. The agent pulls out the terms as cited records: dates, budget lines, people and their roles, approval rules, and anything else the letter says that those don't hold, such as a principal investigator going on leave. The accountant confirms the terms before any check uses them. What a real NSF award letter contains is in [domain.md](domain.md#what-an-nsf-award-notice-contains).
+- Adding a grant offers two choices: your own grant, or a sample (see [Demo data](#demo-data-examples)).
+- To add their own grant, the accountant drops in the award letter. The agent pulls out the terms as cited records: dates, budget lines, people and their roles, approval rules, and anything else the letter says that those don't hold, such as a principal investigator going on leave. The accountant confirms the terms before any check uses them. What a real NSF award letter contains is in [domain.md](domain.md#what-an-nsf-award-notice-contains).
 - **Checks use only confirmed terms.** Where an older confirmed term exists, it stays in force. Where none exists, the charge is in Needs a human, with a reason such as "the grant's dates aren't confirmed yet". Checks that need no terms still run, such as the checklist and the amounts. The problem list shows the waiting terms as one item, and confirming them clears all of those charges at once.
 - **The agent doesn't wait for confirmation.** It reads evidence, links it and builds checklists while the terms wait. Anything that rests on an unconfirmed term stays in Needs a human until the term is confirmed.
 - **A wrong term.** The accountant rejects it and fixes it one of two ways. They type the right value, which counts as confirmed because they typed it. Or they tell the agent in the term's thread where to look, and the agent's new reading waits for confirmation like any other.
@@ -235,26 +237,39 @@ Every university has its own closeout step, with its own forms and deadlines, bu
 
 ## Demo data (examples)
 
-Everything in this section is an example. The actual grants, people, amounts, dates and documents get decided later, when we build the seed data. All of it is synthetic.
+The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
 
-The seeded workspace has a few NSF grants. At least two of them share a cost, so a split shows up on both.
+- **Choosing one.** Adding a grant offers two choices: your own grant, or a sample. The sample choice has a dropdown with nothing chosen at first and three options: a small sample, read live; a larger sample, read live from the start; and the larger sample, prerun. The description changes with the choice, and an Open button opens it.
+- **A sample is one grant.** It sits in the user's ordinary workspace beside their own grants and is isolated like any grant. There's no demo workspace, and nothing is loaded at sign-up.
+- **It's an ordinary grant** whose "now" is simulated, with a timeline of scheduled events, such as ledger lines posting, emails arriving, files appearing in Drive, and uploads. Its clock is the grant's own ([0028](decisions/0028-one-clock-per-grant.md)).
+- **Every sample opens at the start of its timeline** and plays the same events, in all three choices. Read live, the agent works on each arrival as the clock reaches it. Prerun, the agent's work was done ahead of time, so the user doesn't wait for it. On both, the user can move to a chosen date, closeout included, with the human steps skipped.
+- **Nothing is blocked.** The user can upload, email or drop in anything and decide anything. A file arrives at the sample grant's "now", and a date printed inside a document is used as written. Gmail and Drive work as on any grant.
+- **The timeline doesn't react.** Scheduled events never change with what the user does. Leaving the expected path changes what the app finds, never what the timeline delivers or when.
+- **Skipped decisions** are made by the workspace's sample accountant, an account that nobody can sign in as.
+- **First versions, to judge running** ([0027](decisions/0027-sample-grants.md)):
+  - Skipping the human steps is offered on "next event" and "go to a date". The sample accountant then makes the decisions the sample's expected results assume, and anything off that script is left for the user.
+  - The prerun saves the whole expected run-through, made with the real agent. A saved result is loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live from there.
+  - The small sample is read live only. One larger read-live sample works at a time. While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
+  - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, going to a date, and starting over. It marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
+
+Everything below is an example. What goes in each sample, the grants, people, amounts, situations and the timeline's events, gets decided later by the product owner. All of it is synthetic.
 
 | Example situation | What FundTrail does |
 |---|---|
 | A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
 | A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete** once the accountant confirms the new end date, citing it |
-| One purchase is shared with a second grant and split across both ledgers | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
+| One purchase is shared with a second grant and split across both ledgers. A sample is one grant, so this needs two samples or shows one side, which is left to what goes in each sample | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
 | A bill arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
-| A new grant is built from scratch from a seed pack: award letter, ledger file, emails, invoices, a receipt photo | Create the grant, confirm its terms, upload the ledger, add the evidence, watch the statuses fill in |
+| The small sample, read live: a new grant with an award letter, a ledger file, emails, invoices and a receipt photo on its timeline | Open it, confirm its terms, deliver the ledger and the evidence or let the clock deliver them, and watch the statuses fill in |
 
 ## Scope
 
 **Core: has to ship**
 
-- Sign-in, workspaces and the seeded workspace
-- The clock
-- The demo situations
-- Adding a grant from its award letter, including the from-scratch seed pack
+- Sign-in and workspaces, with the membership list and one access check
+- One clock per grant
+- The sample grants and their situations
+- Adding a grant from its award letter, or as a sample
 - The agent and the checks
 - Review threads, including asking the agent a question
 - Provenance, with the viewer and highlights
@@ -273,11 +288,10 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 - Report styling and a zip of the originals
 - Drafted explanations for charges moved off the grant
 - Audit export for the charges an auditor picks
-- Workspace members
 
 **Designed to grow.** These are out for now, but nothing in the design should block them later:
 
-- more users and roles: workspace members, and a read-only view for professors
+- more people and roles: invitations, roles on screen, access to only some grants, and a read-only view for professors. The membership list and the one access check are part of the build, so nothing blocks them ([0029](decisions/0029-workspace-members-and-one-access-check.md)).
 - more funders, with rules organized per funder, starting with NSF
 - more universities, each with its own evidence report template, starting with Berkeley
 - grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on
@@ -293,13 +307,13 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 
 | Item | Who settles it |
 |---|---|
-| Demo data specifics: grants, people, amounts, dates, documents, including a situation only the agent's judgment catches | product |
-| How to demo: how the clock and the seeded workspace get used in the pitch | product |
-| The evidence report's name, its layout, and the sign-off flow (preparer and reviewer) | product |
+| What goes in each sample: the grants, people, amounts, situations and the timeline's events, including a situation only the agent's judgment catches | product |
+| How to demo: how the sample grants and their timelines get used in the pitch | product |
+| The evidence report's name, its layout, and the sign-off flow. The preparer is whoever signs off ([0029](decisions/0029-workspace-members-and-one-access-check.md)). How the reviewer is shown is open. | product |
 | Whether checks and reasons use the university's cost criteria as labels, for example Berkeley's | product |
 | How drafted explanations are written: by code from the records, or by the agent with citations | product, if the feature is built |
-| The clock controls the user sees | product |
-| What a workspace reset clears, and how the seed is copied on sign-up | product |
+| The timeline panel on a sample grant and its controls. A first version is built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
+| Skipping the human steps, how the prerun is made and when its saved results are loaded, what starting a sample grant over clears, and the limit on larger samples read live. First versions are built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
 | The screens for confirming terms, the problem list, the checklist and the thread. The layout ideas above are a starting point. | product |
 | How a problem on the grant itself and a note on the grant are shown | product, with the screens |
 | How reversals and cost transfers show in buckets and at closeout, beyond their default checklist. Berkeley's 120-day limit on cost transfers is discussed with it. | product |
@@ -310,7 +324,8 @@ The seeded workspace has a few NSF grants. At least two of them share a cost, so
 | How the evidence report shows the agent's answers next to code's reasons | product |
 | How the optional chat relates to review threads | product, if chat is built |
 | How the budget check treats indirect costs. They're out for now, so comparing spending with the award's limit is only as complete as the ledger. | product, later |
-| The scope lists above disagree in three places. A general chat and workspace members each appear as optional and as out for now. Creating extra workspaces is optional in one list and described as built elsewhere. | product |
+| The scope lists above disagree in two places. A general chat appears as optional and as out for now. Creating extra workspaces is optional in one list and described as built elsewhere. | product |
+| Invitations, roles on screen, and access to only some grants ([0029](decisions/0029-workspace-members-and-one-access-check.md)) | product, later |
 | How charges and records are sorted together on the problem list. A simple start: most serious first, then oldest. | product, with the screens |
 | How reusable notes, the offer on a similar charge, and confirmed duplicates are laid out | product, with the screens |
 | Screen layouts, and how emails are displayed | builder |
