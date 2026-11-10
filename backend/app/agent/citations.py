@@ -172,12 +172,25 @@ def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
             start, end = found, found + len(passage)
         else:
             match = "not_found"
-    if doc.reading is not None and match == "exact":
-        # Cited in the text the agent read; checked and stored against the original file.
-        start, end = doc.reading.stored_range(start, end)
-        passage = doc.text[start:end]
-    lines = value_lines(doc.text, start, end, value_text) if match == "exact" else []
+    lines = value_lines(sent, start, end, value_text) if match == "exact" else []
+    if doc.reading is not None:
+        # A sample grant's live email (ruling 50): the passage stays the text the agent read,
+        # so a value is checked against what it saw and no passage carries a dropped header's
+        # real time. The location and the highlight are on the stored file.
+        lines = [_stored_span(doc.reading, doc.text, s, e) for s, e in lines]
+        start, end = _stored_span(doc.reading, doc.text, start, end)
     return char_citation(doc.file_id, passage, start, end, match, lines)
+
+
+def _stored_span(reading: ReadingText, stored: str, start: int, end: int) -> tuple[int, int]:
+    """The stored range a reading range stands for. A range that stops before a line ending
+    stops before the stored line's ending too, which matters for the replaced Date header:
+    stored_range maps an end inside it to the end of the whole stored header."""
+    stored_start, stored_end = reading.stored_range(start, end)
+    if not reading.text[start:end].endswith(("\n", "\r")):
+        cut = stored[stored_start:stored_end]
+        stored_end -= len(cut) - len(cut.rstrip("\r\n"))
+    return stored_start, stored_end
 
 
 def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
