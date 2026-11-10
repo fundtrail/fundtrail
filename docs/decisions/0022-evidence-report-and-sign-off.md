@@ -1,6 +1,6 @@
 # 0022. The evidence report is frozen at sign-off
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex.
+**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Amended by [0028](0028-one-clock-per-grant.md) (dates on the report come from the grant's clock), [0029](0029-workspace-members-and-one-access-check.md) (nothing assumes a workspace has one person, and the preparer is whoever signs off) and [0027](0027-sample-grants.md) (a reset is starting one sample grant over, not resetting a workspace).
 
 ## Context
 

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpApiClient, SampleRefusalError } from "../client";
 import { createFakeApiClient } from "../fake";
 import { FAKE_NOW, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
-import { SAMPLE_OPENS_AT } from "./samples";
+import { sampleStartsAt } from "./samples";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -25,9 +25,13 @@ describe("sample grants in fake mode", () => {
 
     const opened = await api.createSample(WORKSPACE_ID, { choice: "larger_live", confirmed: true });
     expect(opened.grant.sample?.choice).toBe("larger_live");
-    expect(opened.now).toBe(SAMPLE_OPENS_AT);
+    expect(opened.now).toBe(sampleStartsAt());
     expect((await api.getGrant(opened.grant.id)).summary.grant.id).toBe(opened.grant.id);
-    expect((await api.getTimeline(opened.grant.id)).coming_up).toHaveLength(6);
+    // It opens at the start of its timeline: the first event played.
+    const opening = await api.getTimeline(opened.grant.id);
+    expect(opening.now.now).toBe("2023-01-12T15:00:00Z");
+    expect(opening.now.stopped_on?.name).toBe("award_letter.txt");
+    expect(opening.coming_up).toHaveLength(5);
   });
 
   it("marks the fake's grant as a sample, with its now", async () => {
@@ -45,20 +49,14 @@ describe("sample grants in fake mode", () => {
     expect(atNow.coming_up).toEqual([]);
     expect(atNow.now.waiting_on_problem_list).toBe(3);
 
+    // Starting over goes back to the start of the timeline: its first event, played.
     const fresh = await api.startOver(SAMPLE_GRANT_ID);
-    expect(fresh.now.now).toBe(SAMPLE_OPENS_AT);
-    expect(fresh.coming_up?.map((e) => e.name)).toEqual([
-      "award_letter.txt",
-      "invoice_1001.txt",
-      "L-1001",
-      "sequencing_statement.eml",
-      "L-1002",
-      "extension_notice.txt",
-    ]);
+    expect(fresh.now.now).toBe(sampleStartsAt());
+    expect(fresh.now.stopped_on?.name).toBe("award_letter.txt");
+    expect(fresh.coming_up?.map((e) => e.name)).toEqual(["invoice_1001.txt", "L-1001", "sequencing_statement.eml", "L-1002", "extension_notice.txt"]);
 
     // The award letter is the user's to deliver: once its date comes, it waits in Now.
-    const first = await api.moveTimeline(SAMPLE_GRANT_ID, {});
-    expect(first.now.deliveries?.map((d) => d.event.name)).toEqual(["award_letter.txt"]);
+    expect(fresh.now.deliveries?.map((d) => d.event.name)).toEqual(["award_letter.txt"]);
     expect((await api.deliveryFileUrl(SAMPLE_GRANT_ID, "event-file-award-letter")).url).toMatch(/^data:text\/plain/);
     const delivered = await api.deliverForMe(SAMPLE_GRANT_ID, "event-file-award-letter");
     expect(delivered.now.deliveries).toEqual([]);
