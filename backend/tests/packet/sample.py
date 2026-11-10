@@ -24,7 +24,7 @@ from app.contracts.checks import (
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import Period, Record
 from app.contracts.runs import Trigger, TriggerKind
-from app.packet import BudgetFigure, ChargeLedgerState, ReportInputs, TermsInForce
+from app.packet import BudgetFigure, ReportInputs, TermsInForce
 from app.quotes import PDFIUM_LOCK
 
 SAMPLE = load_sample_grant()
@@ -207,10 +207,6 @@ def sample_inputs(now: datetime = APRIL_10, **changes: Any) -> ReportInputs:
         "checks": checks,
         "history": tuple(e for e in _history() if e.changed_at <= now),
         "terms": _terms(confirmed),
-        "ledger": (
-            ChargeLedgerState(charge_id="chg-l-1001", net_cents=124000, ready=True),
-            ChargeLedgerState(charge_id="chg-l-1002", net_cents=218000, ready=confirmed),
-        ),
         "file_texts": {f.id: SAMPLE.document(f.id) for f in files},
     }
     fields.update(changes)

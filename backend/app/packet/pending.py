@@ -3,29 +3,14 @@
 Each type here is a stand-in, kept small and in one place so it can be swapped
 for the contract's own type when it lands:
 
-- the reversed state, the net amount and how corrections are grouped
-  (decisions 0020 and 0022), held mail (0025), and "ready for closeout" (0022):
-  the second contract change, issue #39
 - the terms in force and the budget figures: the checks' output, which reports
   them for the grant page too (issue #39)
 
 The report reads these as given. It never works any of them out itself.
 """
 
-from app.contracts.base import Cents, Id, Model, Text, UtcDatetime
+from app.contracts.base import Cents, Id, Model
 from app.contracts.records import Period
-
-
-class ChargeLedgerState(Model):
-    """One charge read together with the lines that correct it (0020). Stand-in for #39."""
-
-    charge_id: Id
-    net_cents: Cents  # the charge's amount netted with its corrections
-    reversed: bool = False  # fully corrected: the net is zero
-    # The correcting charges shown under this one, in the order to show them.
-    corrections: tuple[Id, ...] = ()
-    # Evidence complete, accepted or fully reversed (0022). Never true for a snoozed charge.
-    ready: bool
 
 
 class BudgetFigure(Model):
@@ -49,12 +34,3 @@ class TermsInForce(Model):
     budget: tuple[BudgetFigure, ...] = ()
     # Every other term in force: people, approval rules, rates and other terms.
     other_term_ids: tuple[Id, ...] = ()
-
-
-class HeldMessage(Model):
-    """Mail held from a sender nobody knows (0025). Stand-in for #39."""
-
-    id: Id
-    sender: Text
-    arrived_at: UtcDatetime
-    subject: str | None = None

@@ -9,9 +9,18 @@ a bucket, a reason, whether something is open, or which term is in force.
 from collections import Counter
 from collections.abc import Iterable
 
+from app.checks.history import describe_trigger
 from app.contracts.charges import Charge
-from app.contracts.checks import Bucket, ChargeStatus, ItemSource, Reason, StatusEntry
+from app.contracts.checks import (
+    Bucket,
+    ChargeStatus,
+    ItemSource,
+    Reason,
+    StatusEntry,
+    ready_for_closeout,
+)
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import HoldReason
 from app.contracts.records import (
     FACT_KINDS,
     TERM_KINDS,
@@ -42,7 +51,6 @@ from app.contracts.records import (
     Rate,
     Record,
     RecordKind,
-    SignOff,
     Snooze,
     citations,
     cited_values,
@@ -50,7 +58,6 @@ from app.contracts.records import (
 from app.contracts.rules import RecordState
 
 from . import fmt
-from .history import history_text
 from .inputs import ReportInputs
 from .view import Block, Heading, Para, Quote, ReportView, Section, SignLines, Table
 
@@ -89,6 +96,11 @@ KIND_LABELS = {
     RecordKind.RETRACTION: "Retraction",
 }
 
+HOLD_REASONS = {
+    HoldReason.UNKNOWN_SENDER: "Unknown sender",
+    HoldReason.UNVERIFIED_SENDER: "Sender not verified",
+}
+
 ANSWER_LABELS = {
     Answer.SUPPORTS: "Supports",
     Answer.CONTRADICTS: "Contradicts",
@@ -116,14 +128,13 @@ class _Report:
         self.files = {f.id: f for f in inp.files}
         self.charges = {c.id: c for c in inp.charges}
         self.status = {s.charge_id: s for s in inp.checks.charges}
-        self.ledger = {s.charge_id: s for s in inp.ledger}
         self.order = self._charge_order()
 
     # Charges, and how they're grouped.
 
     def _charge_order(self) -> list[tuple[Charge, bool]]:
         """Every charge with whether it's a correction shown under the charge it corrects."""
-        nested = {cid for s in self.inp.ledger for cid in s.corrections}
+        nested = {cid for s in self.inp.checks.charges for cid in s.corrections}
         top = sorted(
             (c for c in self.inp.charges if c.id not in nested),
             key=lambda c: (c.transaction_date, c.ledger_line_id, c.id),
@@ -133,14 +144,31 @@ class _Report:
             out.append((c, False))
             out.extend(
                 (self.charges[cid], True)
-                for cid in self.ledger[c.id].corrections
+                for cid in self.status[c.id].corrections
                 if cid in self.charges
             )
         return out
 
+    def net(self, c: Charge) -> int:
+        """The charge's net from the checks; its own amount when nothing is netted into it."""
+        n = self.status[c.id].net_cents
+        return c.amount_cents if n is None else n
+
+    def history_text(self, e: StatusEntry) -> str:
+        """W2's wording of what triggered the change, with code's reason for the new bucket."""
+        about = (
+            self.by_id.get(e.trigger.id or "")
+            or self.charges.get(e.trigger.id or "")
+            or self.files.get(e.trigger.id or "")
+        )
+        trigger = describe_trigger(e, about, self.inp.records)
+        assert isinstance(e.status, ChargeStatus)
+        reason = self.headline_reason(e.status)
+        return f"{trigger[:1].upper()}{trigger[1:]}. {reason}" if reason else trigger
+
     def marks(self, c: Charge) -> str:
         out: list[str] = []
-        if self.ledger[c.id].reversed:
+        if self.status[c.id].reversed:
             out.append("Reversed")
         if self.status[c.id].accepted:
             out.append("Accepted")
@@ -347,7 +375,7 @@ class _Report:
         blocks.append(Heading("Charges by status", 3))
         counts: Counter[str] = Counter()
         for c in self.inp.charges:
-            if self.ledger[c.id].reversed:
+            if self.status[c.id].reversed:
                 counts["reversed"] += 1
             elif self.status[c.id].accepted:
                 counts["accepted"] += 1
@@ -360,7 +388,7 @@ class _Report:
             ("All charges", str(len(self.inp.charges))),
         ]
         blocks.append(Table(("Status", "Number"), tuple(count_rows), (0.4, 0.6)))
-        ready = sum(1 for s in self.inp.ledger if s.ready)
+        ready = sum(1 for s in self.inp.checks.charges if ready_for_closeout(s))
         blocks.append(
             Para(
                 f"Ready for closeout: {ready} of {len(self.inp.charges)} charges "
@@ -413,7 +441,7 @@ class _Report:
 
     def open_items(self) -> Section:
         blocks: list[Block] = []
-        open_charges = [c for c, _ in self.order if not self.ledger[c.id].ready]
+        open_charges = [c for c, _ in self.order if not ready_for_closeout(self.status[c.id])]
         if open_charges:
             blocks.append(Heading("Charges not ready for closeout", 3))
         for c in open_charges:
@@ -481,15 +509,20 @@ class _Report:
             )
 
         if self.inp.held_mail:
-            blocks.append(Heading("Mail held from unknown senders", 3))
+            blocks.append(Heading("Held mail", 3))
             blocks.append(
                 Table(
-                    ("Sender", "Arrived", "Subject"),
+                    ("Sender", "Held", "Why", "Subject"),
                     tuple(
-                        (m.sender, fmt.day(m.arrived_at), m.subject or "")
-                        for m in sorted(self.inp.held_mail, key=lambda m: (m.arrived_at, m.id))
+                        (
+                            m.sender or "No sender address",
+                            fmt.day(m.held_at),
+                            HOLD_REASONS.get(m.reason, m.reason),
+                            m.subject or "",
+                        )
+                        for m in sorted(self.inp.held_mail, key=lambda m: (m.held_at, m.id))
                     ),
-                    (0.4, 0.2, 0.4),
+                    (0.3, 0.14, 0.18, 0.38),
                 )
             )
 
@@ -679,12 +712,13 @@ class _Report:
         rows: list[tuple[str, ...]] = []
         sub: set[int] = set()
         for i, (c, is_correction) in enumerate(self.order):
-            s, led = self.status[c.id], self.ledger[c.id]
+            s = self.status[c.id]
+            net = self.net(c)
             if is_correction:
                 sub.add(i)
             amount = fmt.money(c.amount_cents)
-            if led.net_cents != c.amount_cents or led.corrections:
-                amount += f"\nNet {fmt.money(led.net_cents)}"
+            if net != c.amount_cents or s.corrections:
+                amount += f"\nNet {fmt.money(net)}"
             marks = self.marks(c)
             line = c.ledger_line_id + (" (correction)" if is_correction else "")
             rows.append(
@@ -740,13 +774,14 @@ class _Report:
                 (
                     fmt.day(e.changed_at),
                     fmt.bucket(e.status.bucket),
-                    history_text(e, records=self.by_id, files=self.files, charges=self.charges),
+                    self.history_text(e),
                 )
             )
         return tuple(rows)
 
     def charge_section(self, c: Charge, is_correction: bool) -> list[Block]:
-        s, led = self.status[c.id], self.ledger[c.id]
+        s = self.status[c.id]
+        net = self.net(c)
         line_name, line_reason = self.budget_line(c.id)
         title = f"{c.ledger_line_id} · {c.description}"
         if is_correction:
@@ -754,11 +789,7 @@ class _Report:
         facts = [
             f"Cost date {fmt.day(c.transaction_date)}, posted {fmt.day(c.posting_date)}.",
             f"Amount {fmt.money(c.amount_cents)}"
-            + (
-                f", net {fmt.money(led.net_cents)}."
-                if led.net_cents != c.amount_cents or led.corrections
-                else "."
-            ),
+            + (f", net {fmt.money(net)}." if net != c.amount_cents or s.corrections else "."),
             f"Account {c.account}.",
         ]
         if c.vendor:
@@ -942,7 +973,6 @@ class _Report:
         if so is None:
             blocks.append(Para(f"Not signed. This is a draft as of {fmt.moment(self.inp.now)}."))
         else:
-            assert isinstance(so.data, SignOff)
             # The sign-off's own author; the preparer is the only user known by name.
             p = self.inp.preparer
             who = (
@@ -950,9 +980,9 @@ class _Report:
                 if so.author_user_id == p.id
                 else (so.author_user_id or "the accountant")
             )
-            blocks.append(Para(f"Signed off by {who} on {fmt.moment(so.written_at)}."))
+            blocks.append(Para(f"Signed off by {who} on {fmt.moment(so.signed_at)}."))
             blocks.append(Para("Note for the reviewer", "label"))
-            blocks.append(Para(so.data.note or "No note."))
+            blocks.append(Para(so.note or "No note."))
         blocks.append(SignLines("Reviewed by", ("Name", "Title", "Signature", "Date")))
         return Section(SECTION_TITLES[6], blocks)
 

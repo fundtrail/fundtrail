@@ -21,6 +21,7 @@ from app.contracts.checks import (
     Reason,
 )
 from app.contracts.evidence import EvidenceFile, Source
+from app.contracts.mail import HeldMail, HoldReason
 from app.contracts.records import (
     Answer,
     Bill,
@@ -32,16 +33,15 @@ from app.contracts.records import (
     Record,
 )
 from app.packet import (
-    ChargeLedgerState,
-    HeldMessage,
     ReportInputs,
+    Signing,
     TermsInForce,
     build_report,
 )
 from app.packet.content import SECTION_TITLES, report_view
 from app.packet.view import Heading, Para, Quote, Section, Table
 
-from .sample import APRIL_9, APRIL_10, SAMPLE, flat, pdf_pages, sample_inputs, user_record
+from .sample import APRIL_9, APRIL_10, SAMPLE, USER, flat, pdf_pages, sample_inputs, user_record
 
 BACKEND = Path(__file__).resolve().parents[2]
 FORBIDDEN = ("submitted", "filed", "certified")
@@ -64,6 +64,20 @@ def texts(s: Section) -> str:
     return flat(" ".join(out))
 
 
+def held(id: str, sender: str, subject: str) -> HeldMail:
+    return HeldMail(
+        id=id,
+        workspace_id="ws-sample",
+        grant_id="grant-sample",
+        sender=sender,
+        reason=HoldReason.UNKNOWN_SENDER,
+        source_ref=f"gmail-{id}",
+        subject=subject,
+        held_at=datetime(2026, 3, 2, 9, tzinfo=UTC),
+        files=(),
+    )
+
+
 def signed_inputs() -> ReportInputs:
     """April 9, with L-1002's date conflict accepted with a note, then signed off."""
     base = sample_inputs(APRIL_9)
@@ -77,13 +91,10 @@ def signed_inputs() -> ReportInputs:
             "note": "The extension notice moves the end date; it’s waiting for confirmation.",
         },
     )
-    sign_off = user_record(
-        "rec-sign-off",
-        APRIL_9,
-        {
-            "kind": "sign_off",
-            "note": "Signed off with one term waiting – the “extension” is on file.",
-        },
+    sign_off = Signing(
+        author_user_id=USER.id,
+        signed_at=APRIL_9,
+        note="Signed off with one term waiting – the “extension” is on file.",
     )
     l1002 = base.checks.charges[1]
     reasons = tuple(
@@ -100,12 +111,10 @@ def signed_inputs() -> ReportInputs:
             )
         }
     )
-    ledger = (base.ledger[0], base.ledger[1].model_copy(update={"ready": True}))
     return sample_inputs(
         APRIL_9,
-        records=(*base.records, accepted, sign_off),
+        records=(*base.records, accepted),
         checks=checks,
-        ledger=ledger,
         sign_off=sign_off,
     )
 
@@ -252,15 +261,10 @@ def test_an_open_charge_lists_its_failing_reasons_and_the_waiting_term():
 
 
 def test_held_mail_is_listed_as_open():
-    mail = HeldMessage(
-        id="held-1",
-        sender="unknown.vendor@vendor.example",
-        arrived_at=datetime(2026, 3, 2, 9, tzinfo=UTC),
-        subject="Invoice",
-    )
+    mail = held("held-1", "unknown.vendor@vendor.example", "Invoice")
     text = texts(section(sample_inputs(held_mail=(mail,)), 2))
-    assert "Mail held from unknown senders" in text
-    assert "unknown.vendor@vendor.example Mar 2, 2026 Invoice" in text
+    assert "Held mail" in text
+    assert "unknown.vendor@vendor.example Mar 2, 2026 Unknown sender Invoice" in text
 
 
 # 3. Decisions
@@ -350,18 +354,17 @@ def test_a_correction_sits_under_the_charge_it_corrects_with_the_net():
     inputs = sample_inputs(
         charges=(*base.charges, reversal),
         checks=ChecksOutput(
-            charges=(*base.checks.charges, status), records=(), grants=(), questions=(), notes=()
-        ),
-        ledger=(
-            base.ledger[0],
-            ChargeLedgerState(
-                charge_id="chg-l-1002",
-                net_cents=0,
-                reversed=True,
-                corrections=("chg-l-1003",),
-                ready=True,
+            charges=(
+                base.checks.charges[0],
+                base.checks.charges[1].model_copy(
+                    update={"net_cents": 0, "reversed": True, "corrections": ("chg-l-1003",)}
+                ),
+                status,
             ),
-            ChargeLedgerState(charge_id="chg-l-1003", net_cents=-218000, ready=True),
+            records=(),
+            grants=(),
+            questions=(),
+            notes=(),
         ),
     )
     table = section(inputs, 4).blocks[0]
@@ -399,7 +402,7 @@ def test_each_charge_shows_its_evidence_checks_answers_and_history():
     assert (
         "Feb 24, 2026 Possible conflict Ledger line L-1002 arrived. Feb 20, 2026 is after" in text
     )
-    assert "Apr 10, 2026 Evidence complete Confirmation by the accountant." in text
+    assert "Apr 10, 2026 Evidence complete New end date confirmed. Feb 20, 2026 is inside" in text
 
 
 def test_the_agents_rule_prints_with_its_title():
@@ -473,11 +476,13 @@ def test_a_signed_report_prints_who_when_and_the_note_in_full(signed_pdf: bytes)
 
 def test_inputs_must_cover_every_charge():
     base = sample_inputs()
-    with pytest.raises(ValueError, match="one entry per charge"):
-        sample_inputs(ledger=base.ledger[:1])
-    record: Record = base.records[0]
-    with pytest.raises(ValueError, match="sign_off record"):
-        sample_inputs(sign_off=record)
+    with pytest.raises(ValueError, match="one status per charge"):
+        sample_inputs(checks=base.checks.model_copy(update={"charges": base.checks.charges[:1]}))
+    other_grant = held("held-x", "a@vendor.example", "x").model_copy(
+        update={"grant_id": "grant-other"}
+    )
+    with pytest.raises(ValueError, match="belongs to the grant"):
+        sample_inputs(held_mail=(other_grant,))
 
 
 def test_a_waiting_term_cites_its_file_and_a_rejected_one_doesnt():
@@ -496,19 +501,23 @@ def test_a_waiting_term_cites_its_file_and_a_rejected_one_doesnt():
     assert "extension_notice.txt Google Drive, arrived Apr 9, 2026" in uncited
 
 
-def test_the_history_wording_comes_from_one_function():
-    from app.packet.history import history_text
+def test_the_history_wording_is_w2s():
+    from app.checks.history import describe_trigger
 
     inputs = sample_inputs()
     entry = inputs.history[-1]
-    words = history_text(
-        entry,
-        records={r.id: r for r in inputs.records},
-        files={f.id: f for f in inputs.files},
-        charges={c.id: c for c in inputs.charges},
+    about = next(r for r in inputs.records if r.id == entry.trigger.id)
+    trigger = describe_trigger(entry, about, inputs.records)
+    assert trigger == "new end date confirmed"
+    assert "New end date confirmed. Feb 20, 2026 is inside the period in force." in texts(
+        section(inputs, 5)
     )
-    assert words == "Confirmation by the accountant. Feb 20, 2026 is inside the period in force."
-    assert words in texts(section(inputs, 5))
+
+
+def test_a_charge_with_nothing_netted_shows_its_own_amount():
+    table = section(sample_inputs(), 4).blocks[0]
+    assert isinstance(table, Table)
+    assert table.rows[0][2] == "$1,240.00"  # net_cents is None: no net line
 
 
 # Review fixes
@@ -562,11 +571,10 @@ def test_long_notes_reasoning_and_subjects_never_stop_the_report():
         "rec-confirm-dispute", APRIL_9, {"kind": "confirmation", "record_ids": ["rec-dispute"]}
     )
     mail = tuple(
-        HeldMessage(
-            id=f"held-{i}",
-            sender=f"sender{i}@vendor.example",
-            arrived_at=datetime(2026, 3, 2, 9, tzinfo=UTC),
-            subject="Quarterly statement and remittance details " * 60,
+        held(
+            f"held-{i}",
+            f"sender{i}@vendor.example",
+            "Quarterly statement and remittance details " * 60,
         )
         for i in range(3)
     )
@@ -574,7 +582,6 @@ def test_long_notes_reasoning_and_subjects_never_stop_the_report():
         APRIL_9,
         records=(*long_note, dispute, confirm),
         checks=base.checks,
-        ledger=base.ledger,
         sign_off=base.sign_off,
         held_mail=mail,
     )
@@ -663,9 +670,7 @@ def test_the_sign_off_names_its_own_author():
     base = signed_inputs()
     assert base.sign_off is not None
     other = base.sign_off.model_copy(update={"author_user_id": "user-other"})
-    inputs = sample_inputs(
-        APRIL_9, records=base.records, checks=base.checks, ledger=base.ledger, sign_off=other
-    )
+    inputs = sample_inputs(APRIL_9, records=base.records, checks=base.checks, sign_off=other)
     assert texts(section(inputs, 7)).startswith(
         "Signed off by user-other on Apr 9, 2026, 17:00 UTC."
     )
@@ -678,7 +683,6 @@ def test_a_signed_report_is_built_at_the_sign_offs_time_from_this_grant_only():
             APRIL_10,
             records=base.records,
             checks=base.checks,
-            ledger=base.ledger,
             sign_off=base.sign_off,
         )
     stray = base.records[0].model_copy(update={"grant_id": "grant-other"})
@@ -715,7 +719,6 @@ def test_a_grant_with_no_charges_says_so():
     inputs = sample_inputs(
         charges=(),
         checks=ChecksOutput(charges=(), records=(), grants=(), questions=(), notes=()),
-        ledger=(),
         history=(),
         terms=TermsInForce(),
     )
