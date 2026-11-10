@@ -8,8 +8,6 @@
 
 import type { ApiClient } from "../client";
 import type { AgentRun, BudgetLine, ChargeRow, FtRecord, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, TermView, Workspace } from "../types";
-import { SAMPLE_SIGN_OFF } from "./closeout";
-import { SAMPLE_HELD_MAIL } from "./mail";
 import { chargeStatusAt } from "./statuses";
 import {
   atNow,
@@ -21,6 +19,8 @@ import {
   sampleFile,
   sampleRecord,
   sampleWorkspace,
+  SAMPLE_HELD_MAIL,
+  SAMPLE_SIGN_OFF,
   served,
   SAMPLE_GRANT_ID,
   WORKSPACE_ID,
