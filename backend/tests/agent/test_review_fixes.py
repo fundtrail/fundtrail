@@ -157,6 +157,13 @@ def test_please_link_this_in_a_thread_gives_a_link_that_waits():
         thread_inputs("Please link INV-1001.", records_until("rec-link-l-1001")), model
     )
     assert isinstance(result, RunSaved) and [r.kind for r in result.records] == ["link"]
+    # The contract makes it wait: the record names the thread message of its run.
+    from app.contracts.rules import RecordState
+
+    link = result.records[0]
+    assert link.thread_message_id == "msg-1"
+    state = RecordState([*records_until("rec-link-l-1001"), link], SAMPLE.files)
+    assert state.waits(link.id) and not state.is_current(link.id)
     link_result = results_of_turn(result, "link")
     assert "waits for the accountant" in link_result
     prompt = " ".join(model.requests[0].messages[0]["content"][-1]["text"].split())
@@ -183,6 +190,35 @@ def test_a_question_that_needs_no_change_gives_a_message_and_no_record():
     )
     assert isinstance(result, RunSaved) and result.records == []
     assert [m.text for m in result.messages] == ["Yes, INV-1001 matches."]
+
+
+def test_a_run_for_a_question_a_thread_run_left_open_gets_that_charge_in_full():
+    inputs = sample_inputs(
+        now=datetime.fromisoformat("2025-11-14T12:00:00+00:00"),
+        trigger=Trigger(kind="open_question", id="chg-l-1001"),  # pyright: ignore[reportArgumentType]
+        records=records_until("rec-allowable-l-1001"),
+    )
+    model = FakeModel(
+        [
+            lambda r: calls(
+                tool(
+                    "answer",
+                    charge_id="chg-l-1001",
+                    question="allowable",
+                    answer="supports",
+                    reasoning="Supplies.",
+                ),
+                tool("finish", summary="Answered."),
+            )
+        ]
+    )
+    result = run_once(inputs, model)
+    assert isinstance(result, RunSaved) and [r.kind for r in result.records] == ["judgment"]
+    trigger_text = model.requests[0].messages[0]["content"][-1]["text"]
+    assert (
+        "left questions open" in trigger_text and "allowable on charge chg-l-1001" in trigger_text
+    )
+    assert "Checklist:" in trigger_text  # the charge in full
 
 
 def test_an_open_question_on_the_threads_charge_goes_to_an_ordinary_run():
