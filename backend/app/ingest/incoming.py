@@ -187,7 +187,12 @@ def let_in_skips(held: HeldMail, now: datetime) -> list[SkippedFile]:
 
     The sink saves them in the same write as the evidence files the message becomes.
     """
-    return [skip.model_copy(update={"skipped_at": now}) for skip in held.skipped]
+    # model_validate, not model_copy: the time is checked and converted to UTC like any
+    # contract timestamp, so a naive time is refused.
+    return [
+        SkippedFile.model_validate({**skip.model_dump(), "skipped_at": now})
+        for skip in held.skipped
+    ]
 
 
 def to_evidence_file(
