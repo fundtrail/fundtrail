@@ -61,10 +61,6 @@ export interface GrantSample {
   /** The sample pack's ID, for example "nitrate-sensors". */
   sample: Id;
   choice: SampleChoice;
-  /** The simulated opening date. */
-  opens_at: IsoDatetime;
-  /** The prerun it was copied from. */
-  prerun_id?: Id | null;
 }
 
 // --- charges.py, evidence.py ---
