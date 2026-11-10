@@ -249,7 +249,7 @@ The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
 - **First versions, to judge running** ([0027](decisions/0027-sample-grants.md)):
   - Skipping the human steps is offered on "next event" and "go to a date". The sample accountant then makes the decisions the sample's expected results assume, and anything off that script is left for the user.
   - The prerun saves the whole expected run-through, made with the real agent. A saved result is loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live from there.
-  - The small sample is read live only. While a user's larger read-live sample has agent runs going from a move of its clock, opening another or starting one over is refused.
+  - The small sample is read live only. One larger read-live sample works at a time. While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
   - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, going to a date, and starting over. It marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
 
 Everything below is an example. What goes in each sample, the grants, people, amounts, situations and the timeline's events, gets decided later by the product owner. All of it is synthetic.

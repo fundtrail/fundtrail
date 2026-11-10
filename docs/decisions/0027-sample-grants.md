@@ -41,7 +41,7 @@ These may change once they're seen running.
 - **When a saved result is used.** Only while the grant is still on that run-through: every accountant decision so far is the sample accountant's scripted one, none missing and none the user's own. Then moving the clock loads the saved result up to that point at once, copied in with the workspace's sample accountant as author.
 - **Once the user makes a decision of their own,** saved results no longer apply as a whole. The agent works live from there, reusing a saved reading of a file where that reading doesn't depend on the grant's state.
 - **The small sample** is read live only.
-- **One larger sample read live at a time.** While a user's larger read-live sample has agent runs queued or running from a move of its clock, opening another or starting one over is refused.
+- **One larger read-live sample works at a time.** While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
 - **A timeline panel,** on a sample grant's page only. It shows:
   - what just happened
   - what the clock has stopped on now: an item for the user to deliver, which the clock can deliver instead, and a count of what waits on the problem list
@@ -49,7 +49,7 @@ These may change once they're seen running.
 
   Its controls are: next event, go to a date (forward only), and start over. Moving forward plays everything between in order, as [0023](0023-the-clock.md) proposes. The panel plays the timeline and doesn't edit it. It marks a result loaded from the prerun as such, and shows which decisions the sample accountant made.
 
-  Details the product owner saw drawn, kept for review: what the agent did on each event, under "what just happened"; the problem list staying the one place for reviews; and dates the checks work out under "coming up", such as a snooze ending.
+  Proposed details, kept for review: what the agent did on each event, under "what just happened"; the problem list staying the one place for reviews; and dates the checks work out under "coming up", such as a snooze ending.
 - **Start over** resets that one sample grant.
 - **Two tests play each sample's timeline:** one as a user who does nothing, and one as a user who does everything the sample's expected results assume.
 
@@ -84,8 +84,8 @@ The first versions above:
 - using a saved result only while the grant is on the run-through, and loading it at once
 - working live after the user's own decision, reusing saved readings of files that don't depend on the grant's state
 - the small sample being read live only
-- refusing to open or start over another larger read-live sample while one has runs from a clock move
+- one larger read-live sample working at a time: moving another's clock is refused, with a line naming the one still working, while opening or starting over is never refused
 - the timeline panel, its three parts, its controls, and how it marks prerun results and the sample accountant's decisions
-- the panel details the product owner saw drawn: what the agent did on each event, the problem list staying the one place for reviews, and dates the checks work out under "coming up"
+- the proposed panel details: what the agent did on each event, the problem list staying the one place for reviews, and dates the checks work out under "coming up"
 - start over resetting one sample grant
 - the two tests that play each sample's timeline
