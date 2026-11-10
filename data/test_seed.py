@@ -1024,6 +1024,19 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
                 problems.append(f"{where}: comes before its file arrives")
 
 
+# The buckets a scripted decision clears a line to. A flag answered supports
+# takes away the flag's Needs a human, leaving Evidence complete or Missing
+# evidence. Answered contradicts, it's Possible conflict. Answered unsure, it
+# clears nothing. A typed share gives part of a bill its basis, so the line can
+# be complete, or still missing other evidence.
+CLEARS_TO: dict[tuple[str, str | None], set[str]] = {
+    ("answer_flag", "supports"): {"evidence_complete", "missing_evidence"},
+    ("answer_flag", "contradicts"): {"possible_conflict"},
+    ("answer_flag", "unsure"): set(),
+    ("enter_share", None): {"evidence_complete", "missing_evidence"},
+}
+
+
 def needs_typed_share(key: dict, line_id: str, bill: str) -> bool:
     """Whether the key's link of part of this bill to this line has no basis on
     file (decision 0021): no note linked to the line, no item of the bill with the
@@ -1063,9 +1076,10 @@ def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], w
 
     - confirm_terms confirms a file the key reads terms from, once.
     - deliver_file delivers a marked file once.
-    - answer_flag and enter_share come before a bucket on their line that rests
-      on them, one that isn't Needs a human. enter_share is only for part of a
-      bill with no basis on file.
+    - answer_flag and enter_share are followed by the bucket the decision clears
+      the line to: the first bucket the key gives the line after the step must be
+      the one the decision leads to (CLEARS_TO). enter_share is only for part of
+      a bill with no basis on file.
     A decide_suggestion can't be checked this way yet: the key doesn't express
     suggestions (contracts.md section 14).
     """
@@ -1088,12 +1102,16 @@ def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], w
     ):
         problems.append(f"{where}: the key reads no terms from this file to confirm")
     if a["action"] in ("answer_flag", "enter_share"):
-        rests = any(
-            b["line_id"] == a["line_id"] and b["at"] > a["at"] and b["bucket"] != "needs_human"
-            for b in key["buckets"]
+        after = sorted(
+            (b for b in key["buckets"] if b["line_id"] == a["line_id"] and b["at"] > a["at"]),
+            key=lambda b: b["at"],
         )
-        if not rests:
-            problems.append(f"{where}: no bucket in the key rests on it")
+        cleared = CLEARS_TO[(a["action"], a.get("answer"))]
+        if not after or after[0]["bucket"] not in cleared:
+            problems.append(
+                f"{where}: the key's next bucket on this line isn't one it clears to "
+                f"({', '.join(sorted(cleared)) or 'none'})"
+            )
     if a["action"] == "enter_share" and not needs_typed_share(key, a["line_id"], a["file"]):
         problems.append(f"{where}: the key's link already has a basis on file")
 
@@ -1302,6 +1320,7 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
 
     g = gen()[LARGER]
     s3a = next(ln.line_id for ln in g.lines if ln.reference == "EGS-20931")
+    s3c = next(ln.line_id for ln in g.lines if ln.reference == "ECX-7702")
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / LARGER.name
         shutil.copytree(LARGER, copy)
@@ -1335,6 +1354,16 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
                 "basis": "x",
             },
             {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
+            # S3c's key stays Needs a human, so a typed share clears it to nothing.
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3c,
+                "file": "invoice_ECX-7702.txt",
+                "share": "3",
+                "out_of": "5",
+                "basis": "Three fifths of the shared dewar's nitrogen",
+            },
         ]
         (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
         problems: list[str] = []
@@ -1348,6 +1377,7 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
         "isn't one of",
         "must be numbers",
         "isn't in the ledger",
+        "isn't one it clears to",
     ):
         assert expected in text, (expected, problems)
 

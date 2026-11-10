@@ -45,7 +45,7 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 Each step names its target by stable references: a ledger line ID, a file name, a record kind, and the expected decision or values. It never uses a record ID. The test holds the script to no more than the key assumes:
 - a file is confirmed only if the key reads terms from it
 - each step is scripted once
-- a flag answer or a typed share comes before a bucket on its line that rests on it
+- after a flag answer or a typed share, the key's next bucket on that line is the one the decision clears it to: Evidence complete or Missing evidence after a supports answer or a share, and Possible conflict after a contradicts answer
 - a typed share is only for part of a bill with no basis on file
 
 A suggestion's kind must be one of the contract's record kinds that wait for the accountant. Whether a `decide_suggestion` is needed can't be checked yet, because the key doesn't express suggestions.
