@@ -17,38 +17,55 @@ by its real-time created_at). Whether one of the agent's records waits is
 decided from what was written before it.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from datetime import datetime
 
+from .buckets import Bucket
 from .charges import Charge
 from .evidence import EvidenceFile
+from .mail import HeldMail, HoldReason
 from .records import (
     FACT_KINDS,
     FOUND,
     TERM_KINDS,
     AcceptedReason,
     Answer,
+    Approval,
     Author,
+    Bill,
     BudgetAssignment,
     ChecklistItem,
     ChecklistRemoval,
     Confirmation,
+    Correction,
     Decision,
     DefaultItems,
     Dispute,
     Duplicate,
     Judgment,
     Link,
+    MailAction,
+    MailDecision,
+    Note,
     Question,
     Record,
     RecordKind,
+    Remainder,
+    SignOff,
     Snooze,
     citations,
     cited_values,
 )
+from .runs import Trigger, TriggerKind
 
 # Kinds of the agent's that always wait for the accountant.
-_ALWAYS_WAIT = TERM_KINDS | {RecordKind.CHECKLIST_REMOVAL, RecordKind.DISPUTE, RecordKind.DUPLICATE}
+_ALWAYS_WAIT = TERM_KINDS | {
+    RecordKind.CHECKLIST_REMOVAL,
+    RecordKind.DISPUTE,
+    RecordKind.DUPLICATE,
+    RecordKind.CORRECTION,
+    RecordKind.REMAINDER,
+}
 
 # How strong a concern an answer raises. Moving down this order clears or weakens a problem.
 _CONCERN = {Answer.SUPPORTS: 0, Answer.UNSURE: 1, Answer.CONTRADICTS: 2}
@@ -71,6 +88,7 @@ class RecordState:
         self._answers_of: dict[tuple[str, str | None, str | None], list[str]] = {}
         self._waits: dict[str, bool] = {}
         self._effective_memo: dict[tuple[str, int], bool] = {}
+        self._thread_records: list[str] = []  # the agent's records written in thread runs
         for i, r in enumerate(self.records):
             if r.id in self.by_id:
                 raise ValueError(f"record {r.id} appears twice")
@@ -84,6 +102,8 @@ class RecordState:
                     self._confirmations_of.setdefault(target, []).append(r.id)
             if isinstance(r.data, Link):
                 self._links_of.setdefault(r.data.charge_id, []).append(r.id)
+            if r.author == Author.AGENT and r.thread_message_id is not None:
+                self._thread_records.append(r.id)
             if isinstance(r.data, Judgment) and r.data.question != Question.FLAG:
                 self._answers_of.setdefault(_answer_key(r.data), []).append(r.id)
         self._end = len(self.records)
@@ -123,6 +143,55 @@ class RecordState:
     def answers_of(self, answer: Judgment) -> list[str]:
         """The IDs of the answers to the same question about the same things, in order."""
         return self._answers_of.get(_answer_key(answer), [])
+
+    def suggestion_key(self, record: Record, i: int | None = None) -> tuple[str, ...] | None:
+        """What makes two of the agent's records "the same one", for the no-repeats rule and
+        for a thread run's record written again by another run. As of position `i`."""
+        at = self._end if i is None else i
+        data = record.data
+        if record.replaces_id is not None:
+            answer = data.answer.value if isinstance(data, Judgment) else ""
+            return ("replace", record.replaces_id, record.kind.value, answer)
+        if isinstance(data, Judgment) and data.question == Question.FLAG:
+            return ("flag", data.charge_id or "", data.record_id or "", data.file_id or "")
+        if isinstance(data, Judgment):
+            # An answer beside the agent's own is a new answer over it.
+            for old_id in reversed(self._answers_of.get(_answer_key(data), [])):
+                old = self.by_id[old_id]
+                if (
+                    old.author == Author.AGENT
+                    and old_id != record.id
+                    and self._current_at(old_id, at)
+                ):
+                    return ("replace", old_id, record.kind.value, data.answer.value)
+            question, charge_id, about = _answer_key(data)
+            return ("answer", question, charge_id or "", about or "", data.answer.value)
+        if isinstance(data, BudgetAssignment):
+            line = self._current_version_at(data.record_id, at)
+            return ("budget_assignment", data.charge_id, line.id if line else data.record_id)
+        if isinstance(data, Bill):
+            number = data.document_number.value if data.document_number else ""
+            return ("bill", _first_file(record), str(data.total.value), number)
+        if isinstance(data, Approval):
+            return ("approval", _first_file(record), data.approver_email.value, data.covers.value)
+        if isinstance(data, Note):
+            return ("note", _first_file(record), data.label, data.statement.value)
+        if isinstance(data, ChecklistItem):
+            return ("checklist_item", data.charge_id, " ".join(data.needed.split()).casefold())
+        if isinstance(data, ChecklistRemoval):
+            return ("removal", data.charge_id, data.item_record_id or "", data.default_item or "")
+        if isinstance(data, Dispute):
+            return ("dispute", data.charge_id, data.check)
+        if isinstance(data, Duplicate):
+            return ("duplicate", *sorted((data.copy_file_id, data.original_file_id)))
+        if isinstance(data, Correction):
+            return ("correction", data.charge_id, data.corrects_line_id)
+        if isinstance(data, Remainder):
+            return ("remainder", data.record_id)
+        if isinstance(data, Link):
+            bill = self._current_version_at(data.record_id, at)
+            return ("link", bill.id if bill else data.record_id, data.charge_id)
+        return None
 
     def is_replaced(self, record_id: str) -> bool:
         """Whether a record that counts replaces this one."""
@@ -250,8 +319,12 @@ class RecordState:
         """Whether one of the agent's records waits, decided from the records written before it."""
         if r.author != Author.AGENT:
             return False
+        if r.thread_message_id is not None:
+            return True  # written in a run a thread message started
         if r.kind in _ALWAYS_WAIT:
             return True
+        if self._repeats_a_waiting_thread_record(r, i):
+            return True  # the same as a thread run's record that still waits
         data = r.data
         if r.replaces_id is not None:
             old = self.by_id.get(r.replaces_id)
@@ -278,6 +351,19 @@ class RecordState:
             return self._second_bill_link(data, i)
         return False
 
+    def _repeats_a_waiting_thread_record(self, r: Record, i: int) -> bool:
+        key = self.suggestion_key(r, i)
+        if key is None:
+            return False
+        for tid in self._thread_records:
+            if self._pos[tid] >= i or not self._waits[tid]:
+                continue
+            if self._decision_at(tid, i) is not None or self._replaced_at(tid, i):
+                continue
+            if self.suggestion_key(self.by_id[tid], i) == key:
+                return True
+        return False
+
     def _new_answer_waits(
         self, old: Record, before: Answer, new: Record, after: Answer, i: int
     ) -> bool:
@@ -302,6 +388,10 @@ class RecordState:
             if other_bill is not None and other_bill.id == bill.id:
                 return True
         return False
+
+
+def _first_file(record: Record) -> str:
+    return next((c.file_id for c in citations(record.data)), "")
 
 
 def _answer_key(answer: Judgment) -> tuple[str, str | None, str | None]:
@@ -362,6 +452,8 @@ def _referenced_records(new: Record) -> list[str]:
     elif isinstance(data, Snooze):
         if data.record_id is not None:
             ids.append(data.record_id)
+    elif isinstance(data, Remainder):
+        ids.append(data.record_id)
     elif isinstance(data, Confirmation):
         ids += data.record_ids
     return ids
@@ -378,28 +470,7 @@ def _referenced_files(new: Record) -> list[str]:
 
 
 def _suggestion_key(new: Record, state: RecordState) -> tuple[str, ...] | None:
-    """What makes two of the agent's suggestions "the same one", for the no-repeats rule."""
-    data = new.data
-    if new.replaces_id is not None:
-        answer = data.answer.value if isinstance(data, Judgment) else ""
-        return ("replace", new.replaces_id, new.kind.value, answer)
-    if isinstance(data, Judgment) and data.question != Question.FLAG:
-        # An answer beside the agent's own is a new answer over it.
-        for old_id in reversed(state.answers_of(data)):
-            old = state.by_id[old_id]
-            if old.author == Author.AGENT and old_id != new.id and state.is_current(old_id):
-                return ("replace", old_id, new.kind.value, data.answer.value)
-        return None
-    if isinstance(data, ChecklistRemoval):
-        return ("removal", data.charge_id, data.item_record_id or "", data.default_item or "")
-    if isinstance(data, Dispute):
-        return ("dispute", data.charge_id, data.check)
-    if isinstance(data, Duplicate):
-        return ("duplicate", *sorted((data.copy_file_id, data.original_file_id)))
-    if isinstance(data, Link):
-        bill = state.current_version(data.record_id)
-        return ("link", bill.id if bill else data.record_id, data.charge_id)
-    return None
+    return state.suggestion_key(new)
 
 
 def _files_of(record: Record) -> set[str]:
@@ -413,6 +484,8 @@ def check_new_record(
     files: Sequence[EvidenceFile],
     *,
     default_items: DefaultItems,
+    held_mail: Sequence[HeldMail] = (),
+    trigger: Trigger | None,
 ) -> list[str]:
     """The problems with a record about to be written, as plain sentences.
 
@@ -422,7 +495,11 @@ def check_new_record(
     can fix them. `records` is everything already written in the workspace, in
     order; `charges` and `files` are everything that has arrived. The citations
     in `new` have already been matched against their files by the server.
-    `default_items` gives a charge's default checklist items (W2 provides it).
+    `default_items` gives a charge's default checklist items (W2 provides it), and
+    `held_mail` is the mail held on the workspace's grants, for a `mail_action`.
+    `trigger` is the trigger of the agent run writing the record, or None for the
+    accountant's write. It's required, so leaving it out can't turn the rule off:
+    in a run a thread message started, the agent's record names that message.
     """
     problems: list[str] = []
     state = RecordState(records, files)
@@ -463,6 +540,23 @@ def check_new_record(
 
     if new.id in state.by_id:
         problems.append(f"the ID {new.id} is already used")
+
+    # The agent writes inside a run, so its record comes with the run's trigger; the
+    # accountant's doesn't.
+    if agent and trigger is None:
+        problems.append("the agent's record needs the trigger of the run writing it")
+    if not agent and trigger is not None:
+        problems.append("the accountant's record isn't written by an agent run")
+
+    # A run a thread message started: every record the agent writes in it waits.
+    in_thread = trigger is not None and trigger.kind == TriggerKind.THREAD_MESSAGE
+    if agent and in_thread and trigger is not None and new.thread_message_id != trigger.id:
+        problems.append(
+            f"this run was started by thread message {trigger.id}: the record names it, "
+            "so it waits for the accountant"
+        )
+    elif new.thread_message_id is not None and not in_thread:
+        problems.append("only a record written in a run a thread message started names one")
 
     # Every quoted value appears in its passage, and every citation was matched against its file.
     for path, value in cited_values(data):
@@ -517,6 +611,13 @@ def check_new_record(
                 problems.append(
                     f"the replaced record {old.id} isn't current: "
                     "it was replaced, retracted or rejected, or it still waits"
+                )
+                old = None
+        if old is not None and isinstance(old.data, MailDecision):
+            if old.data.action == MailAction.LET_IN:
+                problems.append(
+                    f"held mail {old.data.held_mail_id} was let in and its files have arrived: "
+                    "the decision stands"
                 )
                 old = None
         if old is not None:
@@ -707,18 +808,73 @@ def check_new_record(
             ):
                 problems.append(f"record {record_id} replaces a record that's no longer current")
 
+    elif isinstance(data, Remainder):
+        bill = pointed.get(data.record_id)
+        if bill is not None and bill.kind != RecordKind.BILL:
+            problems.append(f"the rest belongs to another award on a bill, not on a {bill.kind}")
+
+    elif isinstance(data, Correction):
+        if the_charge is not None and data.corrects_line_id == the_charge.ledger_line_id:
+            problems.append("a line can't correct itself")
+        if the_charge is not None and the_charge.original_line_id is not None:
+            named_on_grant = any(
+                c.ledger_line_id == the_charge.original_line_id and c.grant_id == new.grant_id
+                for c in charges
+            )
+            if named_on_grant and data.corrects_line_id != the_charge.original_line_id:
+                problems.append(
+                    f"the ledger says this line corrects {the_charge.original_line_id}, "
+                    "which is on this grant"
+                )
+        if any(
+            isinstance(r.data, Correction)
+            and r.data.charge_id == data.charge_id
+            and r.id != new.replaces_id
+            for r in state.current()
+        ):
+            problems.append("this charge already has a current correction: replace it instead")
+
+    elif isinstance(data, MailDecision):
+        held = next((m for m in held_mail if m.id == data.held_mail_id), None)
+        if held is None:
+            problems.append(f"held mail {data.held_mail_id} doesn't exist")
+        elif held.grant_id != new.grant_id:
+            problems.append(
+                f"for now each grant is isolated, and held mail {held.id} is on another grant"
+            )
+        if any(
+            isinstance(r.data, MailDecision)
+            and r.data.held_mail_id == data.held_mail_id
+            and r.id != new.replaces_id
+            for r in state.current()
+        ):
+            problems.append("this message already has a current decision: replace it instead")
+
+    elif isinstance(data, SignOff):
+        open_items = list(data.snapshot.problem_rows) + [
+            c.charge_id
+            for c in data.snapshot.charges
+            if not (c.bucket == Bucket.EVIDENCE_COMPLETE or c.accepted or c.reversed)
+        ]
+        if open_items and not (data.note or "").strip():
+            problems.append(
+                "signing off with anything still open needs a note saying why "
+                f"({len(open_items)} open)"
+            )
+
     elif isinstance(data, AcceptedReason) and data.reuses_id is not None:
         note = pointed.get(data.reuses_id)
         if note is not None and not (isinstance(note.data, AcceptedReason) and note.data.reusable):
             problems.append(f"record {data.reuses_id} isn't a reusable note")
 
     # No repeats: a suggestion the accountant rejected isn't raised again without new
-    # evidence. It applies only to a record that would wait, and the window for new
-    # evidence starts when the accountant rejected the earlier one.
+    # evidence. It applies to a record that would wait, and to any record that repeats
+    # a rejected record of a thread run (which waited because of its run, whatever its
+    # kind). The window for new evidence starts when the accountant rejected it.
     if agent and new.id not in state.by_id:
         key = _suggestion_key(new, state)
         would_wait = key is not None and RecordState([*state.records, new], files).waits(new.id)
-        if key is not None and would_wait:
+        if key is not None:
             for earlier in state.records:
                 if (
                     earlier.author != Author.AGENT
@@ -726,6 +882,8 @@ def check_new_record(
                     or state.decision(earlier.id) != Decision.REJECTED
                     or _suggestion_key(earlier, state) != key
                 ):
+                    continue
+                if not would_wait and earlier.thread_message_id is None:
                     continue
                 rejection = state.decided_by(earlier.id)
                 if rejection is not None and not state.new_evidence_between(
@@ -738,3 +896,22 @@ def check_new_record(
                     break
 
     return problems
+
+
+def still_held(held: HeldMail, state: RecordState, known_senders: Collection[str]) -> bool:
+    """Whether a message is still held (decision 0025).
+
+    Held until the accountant lets it in or dismisses it (a current `mail_action`), or,
+    for an unknown sender, until the sender becomes known: a confirmed person term, one
+    the accountant added, or the accountant's own address, given in `known_senders` in
+    lower case. Mail held because a known address couldn't be verified stays held
+    until the accountant decides.
+    """
+    decided = any(
+        isinstance(r.data, MailDecision) and r.data.held_mail_id == held.id for r in state.current()
+    )
+    if decided:
+        return False
+    if held.reason == HoldReason.UNKNOWN_SENDER and held.sender is not None:
+        return held.sender.lower() not in {s.lower() for s in known_senders}
+    return True

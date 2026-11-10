@@ -1,0 +1,63 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: August 10, 2023
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project measures how sediment moves
+through the channels of the Example River delta.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2309472
+Award Instrument: Standard Grant
+Award Date: August 10, 2023
+Period of Performance Start Date: September 1, 2023
+Period of Performance End Date: August 31, 2026
+Project Title: Sediment Transport in Example River Delta Channels
+Funding Opportunity: NSF 23-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $174,000
+Total Intended Award Amount: $174,000
+Cost Share: $0
+Total Amount Obligated to Date: $174,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Parker Proxy, Principal Investigator
+  Email: parker.proxy@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Pat Panel
+  Email: pat.panel@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the Research Terms and Conditions and the NSF
+Agency Specific Requirements in effect on the award date, and to the terms
+of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+B. Other Personnel                                   $125,000
+     Graduate Students                               $125,000
+C. Fringe Benefits                                     $4,000
+E. Travel                                              $4,000
+     Domestic                                          $4,000
+G. Other Direct Costs                                 $41,000
+     Materials and Supplies                           $17,000
+     Other                                            $24,000
+H. Total Direct Costs                                $174,000
+
+Except as modified by this amendment, the award conditions remain unchanged.

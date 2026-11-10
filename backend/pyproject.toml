@@ -4,8 +4,14 @@ version = "0.1.0"
 description = "FundTrail backend: FastAPI app"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=2.8.0",
     "fastapi[standard]>=0.162.2",
+    "google-api-python-client>=2.202.0",
+    "google-auth>=2.62.2",
+    "google-auth-oauthlib>=1.5.0",
+    "langgraph>=1.2.20",
     "openpyxl>=3.1.5",
+    "pillow>=13.0.0",
     "pydantic>=2.9",
     "pypdfium2>=5.15.2",
     "reportlab>=5.1.0",

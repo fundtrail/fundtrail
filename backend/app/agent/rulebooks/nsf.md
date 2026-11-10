@@ -16,7 +16,7 @@ Where a rule says "the university", it means the recipient of the award.
 
 **Which conditions govern an award.** GC-1 applies to NSF grants issued on or after October 1, 2024, and each GC-1 edition applies to new grants and to funding amendments dated on or after its own date. A grant issued before October 1, 2024 follows the conditions issued at the time of award: for a university, the RTC with NSF's ASR. The award notice, and each later amendment, states which conditions govern and their date.
 
-**On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). The older citations are to NSF's ASR of May 20, 2024; when the award cites an earlier ASR edition, apply the rule from the May 2024 text and say in the reason that the award cites an earlier edition that hasn't been read, without flagging the charge for that alone. Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made, which this rulebook hasn't compared.
+**On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). The older ASR citations are to its edition of May 20, 2024. Each passage a rule below cites from it was compared with the four earlier editions (November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023), and the rule's `- Older editions:` line says what they say; on an award under one of them, name that edition's citation. For any other ASR passage, when the award cites an earlier edition, apply the rule from the May 2024 text and say in the reason that the award cites an earlier edition that hasn't been read, without flagging the charge for that alone. An award under an RTC edition before November 12, 2020 is handled the same way: apply the rule from the texts cited here and say in the reason that the award's own RTC edition hasn't been read, without flagging the charge for that alone. Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made, which this rulebook hasn't compared.
 
 **Older citations for the terms code checks.** These six terms are checked by code, not by a rule below. These are the places where the older conditions cover each term, and where their wording differs, the row says so.
 
@@ -29,6 +29,8 @@ Where a rule says "the university", it means the recipient of the award.
 | Prior approval requests go through Research.gov | [GC-1 No. 2.b](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf) | [ASR Article 2](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf) |
 | U.S.-flag air carriers | [GC-1 No. 10.c and 10.d](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf): short trips where a U.S. carrier "would at least double the scheduled travel time" | [ASR Article 14.c and 14.d](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf): 14.d.5 says "would double the travel time" |
 
+The four earlier ASR editions (November 12, 2020 to January 30, 2023) word these ASR rows the same, apart from the request channel. Article 2's request sentence says "via the use of NSF's electronic systems" in all four, and Article 13.b says "via use of NSF's electronic systems" in the editions of November 12, 2020, October 4, 2021 and May 13, 2022, where the May 2024 edition says Research.gov.
+
 **How a rule's kind decides the answer.** Each rule sits under one of three kinds, and each rule repeats its kind on a `- Kind:` line. A not-allowed rule gives contradicts when the documents show that kind of cost, unless they show the exception the rule states. An allowed-under-a-condition rule gives supports when a document shows the condition is met, and contradicts when no document does. A judgment rule gives a flag, not contradicts, unless the rule itself names a comparison that gives contradicts.
 
 **This rulebook is not complete.** It holds the rules checked so far. These sources are still unread:
@@ -36,7 +38,7 @@ Where a rule says "the university", it means the recipient of the award.
 - 2 CFR 200 Subpart E: 200.400 to 200.402, 200.404 to 200.412, 200.414 to 200.419, 200.427, 200.428, 200.436, 200.440, 200.443, 200.452, 200.457, 200.460, 200.462, 200.468, 200.474 and 200.476, and most of 200.430. Parts of 200.431, 200.435, 200.446, 200.449, 200.450, 200.464, 200.465 and 200.470 are unread too. Every section from 200.420 to 200.476 was searched for "unallowable" and "not allowable", and each hit was read.
 - NSF PAPPG 24-1: every chapter except Chapter X and Chapter II.D.2.f(v) and II.D.2.f(xiii) is unread, including Chapter VI.D.3.c on further extensions. Of Supplement 1, only its list of changes and items 4 and 13 were read. Supplement 2 was read in full.
 - NSF GC-1 beyond Term and Condition Nos. 1 to 12.
-- The older conditions beyond the parts named here: NSF's ASR editions before May 20, 2024 (an award made before that date cites one of them), RTC editions before November 12, 2020, and RTC Appendices B and C. Of the RTC overlay, only its 200.308 clarification was read, and the rest was searched by keyword. Of the ASR of May 20, 2024, Articles 1 to 7, 13, 14.a to 14.d and 24 were read, and the rest was searched by keyword.
+- The older conditions beyond the parts named here: of NSF's ASR editions of November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023, only Articles 13, 14.a.2, 14.c and 14.d and Article 2's request sentence were compared; ASR editions before November 12, 2020; RTC editions before November 12, 2020; and RTC Appendices B and C. Of the RTC overlay, only its 200.308 clarification was read, and the rest was searched by keyword. Of the ASR of May 20, 2024, Articles 1 to 7, 13, 14.a to 14.d and 24 were read, and the rest was searched by keyword.
 
 A cost that no rule here names isn't thereby allowed. The agent still answers whether it is necessary, reasonable and allocable to the award.
 
@@ -50,6 +52,7 @@ Airfare above the basic least expensive unrestricted class is not allowed. A hig
 - Source: [2 CFR 200.475(e)](https://www.ecfr.gov/current/title-2/part-200/section-200.475#p-200.475(e))
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 10.a.2](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 14.a.2](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
+- Older editions: the ASR editions of November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023 say the same in Article 14.a.2.
 - Quote: "the difference between economy airfare and a higher-class airfare is unallowable" (GC-1 No. 10.a.2)
 - Checked: 2026-11-10
 
@@ -60,6 +63,7 @@ Air travel to, from, between or within countries other than the U.S. paid with N
 - Kind: allowed under a condition
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 10.c and 10.d](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 14.c and 14.d](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
+- Older editions: the ASR editions of November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023 say the same in Articles 14.c and 14.d, apart from writing the Fly America Act citation as "49 USC".
 - Checked: 2026-11-10
 
 ### NSF-MEALS-NOT-TRAVELING
@@ -144,6 +148,7 @@ Promotional items and memorabilia are not allowed, and neither is advertising or
 - Source: [2 CFR 200.421(e)](https://www.ecfr.gov/current/title-2/part-200/section-200.421#p-200.421(e))
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 3.a](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 13.a](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
+- Older editions: the ASR edition of January 30, 2023 says the same in Article 13.a. The editions of November 12, 2020, October 4, 2021 and May 13, 2022 also require NSF's prior written approval, but send the request "via use of NSF's electronic systems" rather than through Research.gov.
 - Checked: 2026-11-10
 
 ### NSF-NEVER-ENTERTAINMENT

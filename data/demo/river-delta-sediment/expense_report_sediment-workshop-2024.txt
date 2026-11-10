@@ -1,0 +1,22 @@
+UNIVERSITY OF EXAMPLE
+TRAVEL EXPENSE REPORT
+
+Report number: ER-24-8569
+Traveler: Parker Proxy, Principal Investigator
+Email: parker.proxy@university.example
+Award charged: SYN-2309472
+
+Purpose of trip: Example Sediment Dynamics Workshop, talk
+Destination: Example Lakeside Conference Center, Example Lakes, WI
+Departure: October 14, 2024
+Return: October 17, 2024
+
+Expenses claimed
+  Airfare, Example Air, confirmation EXL6HC                      $337.00
+  Lodging, Example Lakeside Inn, 3 nights                        $492.00
+  Total reimbursement                                            $829.00
+
+Meals are not claimed on this report.
+
+Submitted by traveler: October 19, 2024
+Approved by department: October 20, 2024, Earth and Ocean Sciences business office

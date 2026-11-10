@@ -1,0 +1,29 @@
+{
+  "opening_at": "2026-11-16T17:00:00Z",
+  "first_arrival_at": "2023-08-14T17:00:00Z",
+  "last_arrival_at": "2027-03-18T20:05:00Z",
+  "arrivals_after_opening": 19,
+  "grants": [
+    {
+      "folder": "salt-marsh-carbon",
+      "award_number": "SYN-2401835",
+      "ledger_lines": 65,
+      "files": 45,
+      "lines_without_buckets": []
+    },
+    {
+      "folder": "coastal-microbial-genomics",
+      "award_number": "SYN-2507264",
+      "ledger_lines": 42,
+      "files": 29,
+      "lines_without_buckets": []
+    },
+    {
+      "folder": "river-delta-sediment",
+      "award_number": "SYN-2309472",
+      "ledger_lines": 61,
+      "files": 33,
+      "lines_without_buckets": []
+    }
+  ]
+}

@@ -428,7 +428,7 @@ def test_each_charge_is_the_contracts_mapping_of_its_row():
         vendor="Example Sequencing Core",
         reference="SEQ-0207",
     )
-    assert second == row.to_charge(id="charge-2", workspace_id=WORKSPACE, grant_id=GRANT)
+    assert second == row.to_charge(id="charge-2", workspace_id=WORKSPACE, grant_id=GRANT, now=now)
     # Once the posting date has begun, only the arrival differs from the contract's mapping.
     assert first.model_dump(exclude={"arrived_at"}) == EXPECTED_SAMPLE[0].model_dump(
         exclude={"arrived_at"}
