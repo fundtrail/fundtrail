@@ -386,6 +386,13 @@ class BudgetLine(_Term):
     name: CitedText
     amount: CitedMoney
     category: BudgetCategory  # read by the agent with the line, and confirmed with it
+    # Issue 104 (product call 42, contract ruling 39): the evidence file of the notice
+    # (the award letter or an amendment) this line belongs to, so lines that share a
+    # date but come from different notices aren't mixed. The accountant picks it when
+    # typing a line. A line the agent read takes it from its citation's file, so code
+    # may fill it from the citation when it's absent. It names an evidence file on the
+    # line's own grant: the write check refuses one that doesn't exist or is elsewhere.
+    notice_file_id: Id | None = None
 
 
 class Person(_Term):

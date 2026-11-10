@@ -37,6 +37,7 @@ from .records import (
     Author,
     Bill,
     BudgetAssignment,
+    BudgetLine,
     ChecklistItem,
     ChecklistRemoval,
     Confirmation,
@@ -576,6 +577,8 @@ def _referenced_files(new: Record) -> list[str]:
         ids.append(data.file_id)
     if isinstance(data, Duplicate):
         ids += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        ids.append(data.notice_file_id)
     return ids
 
 
