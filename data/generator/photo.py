@@ -84,7 +84,7 @@ def photo(name: str, lines: list[str], *, seed: int) -> bytes:
     """The photo, drawn fresh when Pillow is installed, else the one already on disk."""
     if available():
         return receipt_photo(lines, seed=seed)
-    for path in [*(DATA / "demo").glob(f"*/{name}"), DATA / "from-scratch" / "pack" / name]:
+    for path in [*(DATA / "samples").glob(f"*/{name}"), *(DATA / "demo").glob(f"*/{name}")]:
         if path.is_file():
             return path.read_bytes()
     raise SystemExit(f"{name} isn't on disk and Pillow isn't installed: run with uv --with pillow")

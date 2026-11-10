@@ -1,10 +1,13 @@
 """The seed's building blocks: a grant's files, ledger lines and answer key.
 
-A `Grant` collects what arrives (files and ledger lines, each with its arrival
-time), what the accountant does in the script the key assumes, and the key
-itself in the format of docs/contracts.md section 14. `write()` puts it on disk
-the way an eval case is laid out: the documents, `ledger.csv`,
-`answer_key.json` and `arrivals.json` side by side.
+A `Grant` collects its scheduled events (files and ledger lines, each with its
+arrival time), the user actions its answer key assumes, and the key itself in
+the format of docs/contracts.md section 14. `write()` puts the documents and
+`ledger.csv` on disk, and `write_key()` writes `timeline.json` (scheduled
+events only), `user_actions.json` and `answer_key.json` beside them.
+
+A timeline never holds a user decision. Confirming terms or delivering a file
+is the user's, so it lives in `user_actions.json`, the script the key assumes.
 """
 
 from __future__ import annotations
@@ -50,6 +53,11 @@ class Doc:
     source: str  # gmail, drive or upload
     sender: str | None = None
     note: str | None = None
+    # "user": the user is expected to bring this file in (ruling 44). Its `at` is
+    # its date: from then it waits under the timeline's Now until the user
+    # delivers it. The clock never delivers it. In the play the key assumes,
+    # the user delivers it on that date, so `at` is also when it arrives.
+    deliver: str | None = None
 
 
 @dataclass
@@ -88,7 +96,12 @@ class Grant:
     end: date
     docs: list[Doc] = field(default_factory=list)
     lines: list[Line] = field(default_factory=list)
-    accountant: list[dict] = field(default_factory=list)
+    user_actions: list[dict] = field(default_factory=list)
+    # When the whole ledger file arrives, for a grant whose ledger is one
+    # scheduled event. Each line then arrives at the later of this and 00:00 UTC
+    # on its posting date (decision 0023). None: each line is its own event.
+    ledger_at: datetime | None = None
+    starts_at: datetime | None = None
     records: list[dict] = field(default_factory=list)
     links: list[dict] = field(default_factory=list)
     budget_lines: list[dict] = field(default_factory=list)
@@ -116,6 +129,7 @@ class Grant:
         sender: str | None = None,
         note: str | None = None,
         text: str | None = None,
+        deliver: str | None = None,
     ) -> Doc:
         assert all(d.name != name for d in self.docs), f"{self.slug}: {name} twice"
         if isinstance(content, str):
@@ -123,7 +137,7 @@ class Grant:
         else:
             assert text is not None, f"{name}: binary content needs its text"
             data, shown = content, text
-        d = Doc(name, data, shown, arrives, source, sender, note)
+        d = Doc(name, data, shown, arrives, source, sender, note, deliver)
         self.docs.append(d)
         return d
 
@@ -154,15 +168,21 @@ class Grant:
         return ln
 
     def confirm(self, file: str, when: datetime, note: str) -> None:
-        self.accountant.append(
-            {
-                "at": when,
-                "kind": "accountant",
-                "action": "confirm_terms",
-                "file": file,
-                "note": note,
-            }
+        """The user confirms the terms read from a file: a user action, not an event."""
+        self.user_actions.append(
+            {"at": when, "action": "confirm_terms", "file": file, "note": note}
         )
+
+    def deliver_file(self, file: str, when: datetime, note: str) -> None:
+        """The user brings in a file marked for them to deliver, by upload."""
+        self.user_actions.append({"at": when, "action": "deliver_file", "file": file, "note": note})
+
+    def script(self, action: str, when: datetime, note: str, **refs: str) -> None:
+        """Any other step of the accountant script (ruling 47): decide_suggestion,
+        answer_flag or enter_share. `refs` are stable references (a ledger line
+        ID, a file name, a record kind) and the expected decision or values,
+        never record IDs."""
+        self.user_actions.append({"at": when, "action": action, **refs, "note": note})
 
     def record(self, kind: str, file: str, **fields: str) -> None:
         self.records.append({"kind": kind, "file": file, "fields": dict(fields)})
@@ -204,6 +224,8 @@ class Grant:
         return EVIDENCE_COMPLETE
 
     def line_arrival(self, ln: Line) -> datetime:
+        if self.ledger_at is not None:
+            return max(self.ledger_at, midnight(ln.posting_date))
         return ln.arrives or midnight(ln.posting_date)
 
     def expect_ordinary(self) -> None:
@@ -265,29 +287,43 @@ class Grant:
             )
         return buf.getvalue()
 
-    def arrival_events(self) -> list[dict]:
+    def timeline_events(self) -> list[dict]:
+        """The scheduled events, in time order. No user action is among them."""
         events: list[tuple[datetime, int, dict]] = []
         for d in self.docs:
             ev: dict = {"at": d.at, "kind": "file", "file": d.name, "source": d.source}
             if d.sender:
                 ev["sender"] = d.sender
+            if d.deliver:
+                ev["deliver"] = d.deliver
             if d.note:
                 ev["note"] = d.note
             events.append((d.at, 0, ev))
-        for ln in self.lines:
-            ev = {"at": self.line_arrival(ln), "kind": "ledger_line", "line_id": ln.line_id}
-            if ln.note:
-                ev["note"] = ln.note
-            events.append((self.line_arrival(ln), 1, ev))
-        for a in self.accountant:
-            events.append((a["at"], 2, dict(a)))
+        if self.ledger_at is not None:
+            ev = {
+                "at": self.ledger_at,
+                "kind": "ledger",
+                "file": "ledger.csv",
+                "note": "The ledger file arrives. Each line arrives at the later of this "
+                "and 00:00 UTC on its posting date (decision 0023).",
+            }
+            events.append((self.ledger_at, 1, ev))
+        else:
+            for ln in self.lines:
+                ev = {"at": self.line_arrival(ln), "kind": "ledger_line", "line_id": ln.line_id}
+                if ln.note:
+                    ev["note"] = ln.note
+                events.append((self.line_arrival(ln), 1, ev))
         events.sort(key=lambda e: (e[0], e[1], e[2].get("file") or e[2].get("line_id") or ""))
-        out = []
-        for _, _, ev in events:
-            ev = dict(ev)
-            ev["at"] = iso(ev["at"])
-            out.append(ev)
-        return out
+        return [{**ev, "at": iso(ev["at"])} for _, _, ev in events]
+
+    def first_event_at(self) -> datetime:
+        times = [d.at for d in self.docs] + [self.line_arrival(ln) for ln in self.lines]
+        return min(times)
+
+    def last_event_at(self) -> datetime:
+        times = [d.at for d in self.docs] + [self.line_arrival(ln) for ln in self.lines]
+        return max(times)
 
     def write(self, folder: Path, *, ledger_name: str = "ledger.csv") -> None:
         folder.mkdir(parents=True, exist_ok=True)
@@ -309,13 +345,27 @@ class Grant:
         }
         return dump_key(key)
 
-    def arrivals_json(self) -> str:
-        return dump_list_obj({"case": self.slug, "events": self.arrival_events()}, "events")
+    def timeline_json(self) -> str:
+        head = {
+            "sample": self.slug,
+            "starts_at": iso(self.starts_at or self.first_event_at()),
+            "events": self.timeline_events(),
+        }
+        return dump_list_obj(head, "events")
+
+    def user_actions_json(self) -> str:
+        actions = sorted(
+            self.user_actions,
+            key=lambda a: (a["at"], a["action"], a.get("line_id", ""), a.get("file", "")),
+        )
+        body = {"sample": self.slug, "actions": [{**a, "at": iso(a["at"])} for a in actions]}
+        return dump_list_obj(body, "actions")
 
     def write_key(self, folder: Path) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "answer_key.json").write_text(self.key_json(), encoding="utf-8")
-        (folder / "arrivals.json").write_text(self.arrivals_json(), encoding="utf-8")
+        (folder / "timeline.json").write_text(self.timeline_json(), encoding="utf-8")
+        (folder / "user_actions.json").write_text(self.user_actions_json(), encoding="utf-8")
 
 
 def _one_line(obj: object) -> str:
