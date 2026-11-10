@@ -130,9 +130,9 @@ describe("ConfirmValues", () => {
     expect(writeRecord.mock.calls[0][1]).toEqual({ data: { kind: "confirmation", record_ids: [fact.record.id], decision: "confirmed" } });
   });
 
-  it("writes a typed value with no citation, replacing the record, then confirms the rest", async () => {
+  it("writes one replacing record: the typed value with no citation, the value left as read with its citation", async () => {
     const fact = await photoFact();
-    const writeRecord = vi.fn<ApiClient["writeRecord"]>(async (_grantId, body: NewRecordInput) => written(body.replaces_id ? { id: "rec-typed" } : {}));
+    const writeRecord = vi.fn<ApiClient["writeRecord"]>(async (_grantId, body: NewRecordInput) => written({ id: "rec-typed", replaces_id: body.replaces_id }));
     const onDone = vi.fn();
     render(withApi({ writeRecord }, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={onDone} />));
     const vendor = screen.getByRole("group", { name: "Vendor" });
@@ -143,9 +143,14 @@ describe("ConfirmValues", () => {
 
     const replacement = writeRecord.mock.calls[0][1];
     expect(replacement.replaces_id).toBe(fact.record.id);
-    expect(valueAt(replacement.data, "vendor")).toEqual({ value: "Example Bay Boat Rental", text: null, citation: null });
+    expect(valueAt(replacement.data, "vendor")).toEqual({ value: "Example Bay Boat Rental", text: null, citation: null, uncited: false });
+    // "Dated" was left as read: it keeps the agent's citation, so its highlight still shows.
+    const dated = valueAt(fact.record.data, "dated") as { citation: unknown };
+    expect(dated.citation).not.toBeNull();
+    expect(valueAt(replacement.data, "dated")).toEqual(dated);
     expect(valueAt(replacement.data, "total")).toEqual(valueAt(fact.record.data, "total"));
-    expect(writeRecord.mock.calls[1][1]).toEqual({ data: { kind: "confirmation", record_ids: ["rec-typed"], decision: "confirmed" } });
+    // The accountant's own record is their confirmation: no second write.
+    expect(writeRecord).toHaveBeenCalledTimes(1);
   });
 
   it("shows the write check's problems as the server words them", async () => {

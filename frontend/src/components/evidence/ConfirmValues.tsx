@@ -15,12 +15,14 @@ type Choice = "confirm" | "type";
  * value of one record that couldn't be found, with a choice to confirm it as
  * read or type the right one.
  *
- * How it's written (contracts.md, Not decided yet, "the working choice"):
- * - Nothing typed: one confirmation listing the record.
- * - Something typed: a new record replacing this one, with each typed value and
- *   no citation for it. When other values were left to confirm as read, a
- *   confirmation listing the new record follows.
- * The server's write check decides whether either is allowed; its problems are
+ * How it's written (the main coordinator's ruling on PR 111):
+ * - Nothing typed: one confirmation listing the agent's record.
+ * - Something typed: one write, a record replacing the agent's. Being the
+ *   accountant's own record, it confirms everything in it. A typed value has
+ *   no citation; a value left as read keeps its citation (or its `uncited`
+ *   mark) exactly as the agent wrote it, so its highlight still shows and the
+ *   two stay told apart.
+ * The server's write check decides whether it's allowed; its problems are
  * shown as it words them.
  */
 export function ConfirmValues({
@@ -62,7 +64,7 @@ export function ConfirmValues({
         continue;
       }
       // A value the accountant enters has no citation (contracts.md, Cited values).
-      data = withValueAt(data, v.path, { value: parsed.value, text: null, citation: null });
+      data = withValueAt(data, v.path, { value: parsed.value, text: null, citation: null, uncited: false });
       typedPaths.push(v.path);
     }
     setErrors(nextErrors);
@@ -70,21 +72,16 @@ export function ConfirmValues({
     if (Object.keys(nextErrors).length > 0) return;
 
     setBusy(true);
-    let saved = false;
     try {
-      if (typedPaths.length === 0) {
-        await api.writeRecord(grantId, { data: { kind: "confirmation", record_ids: [record.id], decision: "confirmed" } });
-      } else {
-        const replacement = await api.writeRecord(grantId, { data, replaces_id: record.id });
-        saved = true;
-        if (typedPaths.length < open.length) {
-          await api.writeRecord(grantId, { data: { kind: "confirmation", record_ids: [replacement.id], decision: "confirmed" } });
-        }
-      }
+      await api.writeRecord(
+        grantId,
+        typedPaths.length === 0
+          ? { data: { kind: "confirmation", record_ids: [record.id], decision: "confirmed" } }
+          : { data, replaces_id: record.id },
+      );
       onDone();
     } catch (err) {
-      const said = err instanceof ApiError ? (err.problems ?? [err.message]) : ["Couldn't save. Try again."];
-      setProblems(saved ? ["The typed values were saved. Confirming the rest wasn't:", ...said] : said);
+      setProblems(err instanceof ApiError ? (err.problems ?? [err.message]) : ["Couldn't save. Try again."]);
     } finally {
       setBusy(false);
     }
