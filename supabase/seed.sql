@@ -1,1 +1,1 @@
--- Seed data for local development. Empty until the tables exist.
+-- No seed rows yet. Demo data comes from the synthetic seed packs in data/.
