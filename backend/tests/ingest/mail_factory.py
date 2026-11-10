@@ -73,3 +73,15 @@ def forwarding(inner: EmailMessage, *, sender: str = PI) -> EmailMessage:
     outer = email(sender=sender, subject="Fwd: invoice", body="See the attached message.")
     outer.add_attachment(inner)
     return outer
+
+
+def with_from_lines(msg: EmailMessage, lines: list[str]) -> bytes:
+    """The message's bytes with its From header replaced by `lines` exactly as written.
+
+    Building the header through EmailMessage would repair a malformed line, so the
+    bytes are edited instead.
+    """
+    head, _, body = msg.as_bytes().partition(b"\n\n")
+    kept = [h for h in head.split(b"\n") if not h.lower().startswith(b"from:")]
+    added = [f"From: {line}".encode() for line in lines]
+    return b"\n".join(kept + added) + b"\n\n" + body

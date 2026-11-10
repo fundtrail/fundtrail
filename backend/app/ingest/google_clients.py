@@ -8,8 +8,9 @@ Gmail: the first check records the mailbox's current history ID, and later check
 read the messages added since, with `users.history.list`. Starting from "now" is safe
 only because a grant's code doesn't exist before its grant does: each grant's first
 check searches for everything delivered to its address since the address was made.
-If the history has expired, the check falls back to the last week of the inbox, and
-the checker's list of messages it has seen keeps them from arriving twice.
+If the history has expired (HTTP, Hypertext Transfer Protocol, status 404), the
+check falls back to the last week of the inbox, and the checker's list of messages it
+has seen keeps them from arriving twice.
 https://developers.google.com/workspace/gmail/api/guides/sync
 
 Drive: the folder and the folders inside it are listed on every check with
@@ -29,7 +30,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from .sources import FOLDER, DriveEntry, RawMessage
+from .sources import FOLDER, CannotTake, DriveEntry, RawMessage
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -37,6 +38,7 @@ SCOPES = [
 ]
 
 _FALLBACK_QUERY = "in:inbox newer_than:7d"
+_FILE_FIELDS = "nextPageToken, files(id, name, mimeType, modifiedTime, md5Checksum, size)"
 
 
 def load_credentials(token_file: str | None = None) -> Credentials:
@@ -133,7 +135,7 @@ class GoogleDrive:
                 self._drive.files()
                 .list(
                     q=f"'{folder_id}' in parents and trashed = false",
-                    fields="nextPageToken, files(id, name, mimeType, modifiedTime, md5Checksum)",
+                    fields=_FILE_FIELDS,
                     supportsAllDrives=True,
                     includeItemsFromAllDrives=True,
                     pageToken=token,
@@ -164,6 +166,7 @@ class GoogleDrive:
                         mime_type=item["mimeType"],
                         modified_time=datetime.fromisoformat(item["modifiedTime"]),
                         md5=item.get("md5Checksum"),
+                        size=int(item["size"]) if item.get("size") else None,
                     )
                 )
         return entries
@@ -172,6 +175,11 @@ class GoogleDrive:
         return self._drive.files().get_media(fileId=file_id, supportsAllDrives=True).execute()
 
     def export_pdf(self, file_id: str) -> bytes:
-        # Drive limits an export to 10 MB:
+        # Drive limits an export to 10 MB and refuses a larger one:
         # https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export
-        return self._drive.files().export(fileId=file_id, mimeType="application/pdf").execute()
+        try:
+            return self._drive.files().export(fileId=file_id, mimeType="application/pdf").execute()
+        except HttpError as error:
+            if error.resp.status == 403 and b"exportSizeLimitExceeded" in (error.content or b""):
+                raise CannotTake("export over Drive's 10 MB limit") from error
+            raise

@@ -5,24 +5,28 @@
 - Each attachment of a message forwarded as an attachment, also pointing back to
   the outer message, which holds the forwarded message's text.
 - A photo pasted into the body is kept. Only very small images, such as a logo or
-  a signature mark, are skipped.
+  a signature mark, are skipped, and so are S/MIME (Secure/Multipurpose Internet Mail
+  Extensions) and PGP (Pretty Good Privacy) signature parts.
 """
 
 import io
+import logging
 import mimetypes
 from dataclasses import dataclass
 from datetime import date
 from email import message_from_bytes, policy
 from email.message import EmailMessage, Message
-from email.utils import getaddresses, parsedate_to_datetime
+from email.utils import parsedate_to_datetime
 
 from PIL import Image
 
-from .incoming import IncomingFile, safe_name
+from .incoming import MAX_FILE_BYTES, IncomingFile, safe_name
 
 # An image smaller than this many pixels (about 200 by 200) is a logo or a
 # signature mark, not evidence.
 SMALL_IMAGE_PIXELS = 40_000
+
+log = logging.getLogger(__name__)
 
 _SKIPPED_TYPES = {
     "application/pkcs7-signature",
@@ -34,17 +38,38 @@ _SKIPPED_TYPES = {
 @dataclass(frozen=True)
 class ParsedEmail:
     headers: dict[str, list[str]]  # lower-case name -> values, in order
-    sender: str | None  # the From address, lower case
+    # The From address, lower case, only when there is exactly one From header holding
+    # exactly one address and it parsed without defects. Otherwise None, and the message
+    # can't count as from a known sender.
+    sender: str | None
+    from_header: str  # the From line as written
     subject: str
     sent_on: date | None
 
 
+def _single_sender(msg: EmailMessage) -> str | None:
+    """The one From address, or None when the From line is missing, doubled or malformed.
+
+    The parser "repairs" a malformed line, such as `a@x.example <b@y.example>`, by
+    picking one address. That repair could favour a forger, so any defect means None.
+    """
+    from_headers = msg.get_all("from", [])
+    if len(from_headers) != 1:
+        return None
+    header = from_headers[0]
+    addresses = getattr(header, "addresses", ())
+    if getattr(header, "defects", ()) or len(addresses) != 1:
+        return None
+    address = addresses[0].addr_spec.strip().lower()
+    return address if address.count("@") == 1 and not address.startswith("@") else None
+
+
 def parse_headers(raw: bytes) -> ParsedEmail:
     msg = message_from_bytes(raw, policy=policy.default)
+    assert isinstance(msg, EmailMessage)
     headers: dict[str, list[str]] = {}
     for name, value in msg.items():
         headers.setdefault(name.lower(), []).append(str(value))
-    senders = [a for _, a in getaddresses(headers.get("from", [])) if a]
     sent_on = None
     if "date" in headers:
         try:
@@ -53,7 +78,13 @@ def parse_headers(raw: bytes) -> ParsedEmail:
             sent_on = None
     return ParsedEmail(
         headers=headers,
-        sender=senders[0].lower() if senders else None,
+        sender=_single_sender(msg),
+        # As written, not as the parser repaired it.
+        from_header=" | ".join(
+            " ".join(str(value).split())
+            for name, value in msg.raw_items()
+            if name.lower() == "from"
+        ),
         subject=headers.get("subject", [""])[0].strip(),
         sent_on=sent_on,
     )
@@ -116,6 +147,9 @@ def email_to_files(
             continue
         data = _part_bytes(part)
         if not data:
+            continue
+        if len(data) > MAX_FILE_BYTES:
+            log.warning("skipped an attachment over %d bytes", MAX_FILE_BYTES)
             continue
         content_type = part.get_content_type()
         if part.get_content_maintype() == "image" and is_small_image(data):

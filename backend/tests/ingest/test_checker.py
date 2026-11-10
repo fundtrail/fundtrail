@@ -6,10 +6,17 @@ from pathlib import Path
 
 import pytest
 
+from app.ingest import drive_files
 from app.ingest.checker import CheckState, check_drive, check_mail, check_once
 from app.ingest.drive_files import SETTLE, folder_id_from_link
 from app.ingest.incoming import GrantRoute, HeldMail, IncomingFile
-from app.ingest.sources import GOOGLE_DOC, DiskDrive, DiskMailbox
+from app.ingest.sources import (
+    EXPORT_LIMIT_BYTES,
+    GOOGLE_DOC,
+    GOOGLE_DRAWING,
+    DiskDrive,
+    DiskMailbox,
+)
 
 from .mail_factory import (
     MAILBOX,
@@ -19,6 +26,7 @@ from .mail_factory import (
     forwarding,
     gmail_auth,
     with_attachments,
+    with_from_lines,
 )
 
 WORKSPACE_NOW = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
@@ -243,3 +251,142 @@ def test_folder_id_from_link(link: str) -> None:
 def test_folder_link_rejects_other_links() -> None:
     with pytest.raises(ValueError):
         folder_id_from_link("https://example.com/folders/x")
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://evil.example/?u=drive.google.com/drive/folders/1AbC",
+        "https://evil.example/drive.google.com/open?id=1AbC",
+    ],
+)
+def test_folder_link_must_be_on_drives_host(link: str) -> None:
+    with pytest.raises(ValueError):
+        folder_id_from_link(link)
+
+
+# Review fixes
+
+
+def test_known_senders_and_tags_are_lower_cased() -> None:
+    route = GrantRoute(
+        "w1", "g1", "ABC23DEF", known_senders=frozenset({"Pat.Rivera@University.example"})
+    )
+    assert route.known_senders == {PI} and route.tag == "abc23def"
+
+
+def test_a_forged_from_line_is_held_as_unverified(mailbox) -> None:
+    source, folder, state = mailbox
+    raw = with_from_lines(email(), [f"{PI} <evil@bad.example>"])
+    (folder / "001.eml").write_bytes(raw)
+    sink = check(source, state)
+    assert sink.stored == []
+    (held,) = sink.held
+    assert held.reason == "unverified_sender" and held.sender is None
+    assert "evil@bad.example" in held.from_header
+
+
+class FlakySink(MemorySink):
+    """Fails the first `failures` stores."""
+
+    def __init__(self, failures: int) -> None:
+        super().__init__()
+        self.failures = failures
+
+    def store(self, files: list[IncomingFile]) -> None:
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("database down")
+        super().store(files)
+
+
+def test_a_failed_store_loses_no_mail(mailbox) -> None:
+    source, folder, state = mailbox
+    cursor_before = state.mail_cursor
+    write_mail(folder, "001", email(subject="First"))
+    write_mail(folder, "002", email(subject="Second"))
+    sink = FlakySink(failures=1)
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert [f.name for f in sink.stored] == ["Second.eml"]
+    assert state.mail_cursor == cursor_before  # the batch had a failure: position kept
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert [f.name for f in sink.stored] == ["Second.eml", "First.eml"]
+    assert state.mail_cursor == "002"
+
+
+def test_a_failed_first_read_is_tried_again(tmp_path: Path) -> None:
+    folder = tmp_path / "mail"
+    folder.mkdir()
+    write_mail(folder, "001", email(subject="Early"))
+    source, state = DiskMailbox(folder), CheckState()
+    sink = FlakySink(failures=1)
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert sink.stored == [] and ROUTE.grant_id not in state.started_grants
+    check_mail(source, mailbox=MAILBOX, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert [f.name for f in sink.stored] == ["Early.eml"]
+
+
+def test_one_grants_drive_failure_doesnt_stop_the_others(tmp_path: Path) -> None:
+    touch(tmp_path / "grant-g2" / "quote.pdf", b"%PDF", OLD)
+    gone = GrantRoute("w1", "g1", "abc23def", drive_folder_id="no-longer-shared")
+    g2 = GrantRoute("w1", "g2", "g2tag234", drive_folder_id="grant-g2")
+
+    class Unshared(DiskDrive):
+        def list_tree(self, folder_id: str):
+            if folder_id == "no-longer-shared":
+                raise PermissionError("not shared")
+            return super().list_tree(folder_id)
+
+    sink = MemorySink()
+    check_drive(Unshared(tmp_path), routes=[gone, g2], state=CheckState(), now=now, sink=sink)
+    assert [(f.grant_id, f.name) for f in sink.stored] == [("g2", "quote.pdf")]
+
+
+def test_a_new_modified_time_alone_stores_no_copy(tmp_path: Path) -> None:
+    path = tmp_path / "grant-g1" / "quote.pdf"
+    touch(path, b"%PDF same", OLD * 2)
+    source, state, sink = DiskDrive(tmp_path), CheckState(), MemorySink()
+    check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
+    touch(path, b"%PDF same", OLD)  # touched, bytes unchanged
+    check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert len(sink.stored) == 1
+
+
+def test_google_files_that_cant_be_exported_are_skipped_once(tmp_path: Path) -> None:
+    folder = tmp_path / "grant-g1"
+    touch(folder / "Survey.gform", b"", OLD)
+    touch(folder / "Diagram.gdraw", b"%PDF drawing", OLD)
+    touch(folder / "Huge.gdoc", b"x" * (EXPORT_LIMIT_BYTES + 1), OLD)
+
+    class Counting(DiskDrive):
+        exports = 0
+
+        def export_pdf(self, file_id: str) -> bytes:
+            Counting.exports += 1
+            return super().export_pdf(file_id)
+
+    source, state, sink = Counting(tmp_path), CheckState(), MemorySink()
+    check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert [(f.name, f.exported_from) for f in sink.stored] == [("Diagram.pdf", GOOGLE_DRAWING)]
+    exports = Counting.exports
+    check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
+    assert Counting.exports == exports  # not tried again every check
+    assert len(sink.stored) == 1
+
+
+def test_drive_files_over_the_size_limit_are_skipped(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(drive_files, "MAX_FILE_BYTES", 3)
+    touch(tmp_path / "grant-g1" / "big.pdf", b"%PDF big", OLD)
+    sink = MemorySink()
+    check_drive(DiskDrive(tmp_path), routes=[ROUTE], state=CheckState(), now=now, sink=sink)
+    assert sink.stored == []
+
+
+def test_disk_drive_refuses_paths_outside_its_root(tmp_path: Path) -> None:
+    (tmp_path / "secret.txt").write_text("x")
+    (tmp_path / "root").mkdir()
+    drive = DiskDrive(tmp_path / "root")
+    with pytest.raises(ValueError):
+        drive.download("../secret.txt")
+    with pytest.raises(ValueError):
+        drive.list_tree("../")

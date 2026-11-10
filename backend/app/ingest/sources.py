@@ -19,7 +19,23 @@ FOLDER = "application/vnd.google-apps.folder"
 GOOGLE_DOC = "application/vnd.google-apps.document"
 GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet"
 GOOGLE_SLIDES = "application/vnd.google-apps.presentation"
-GOOGLE_EXPORTED_TYPES = {GOOGLE_DOC, GOOGLE_SHEET, GOOGLE_SLIDES}
+GOOGLE_DRAWING = "application/vnd.google-apps.drawing"
+GOOGLE_PREFIX = "application/vnd.google-apps."
+# Google files with no original, exported to PDF (Portable Document Format) when read.
+# Other Google types (Forms, Sites, Maps, shortcuts) can't be downloaded or exported
+# to PDF and are skipped.
+GOOGLE_EXPORTED_TYPES = {GOOGLE_DOC, GOOGLE_SHEET, GOOGLE_SLIDES, GOOGLE_DRAWING}
+
+# Drive limits an export to 10 MB:
+# https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export
+EXPORT_LIMIT_BYTES = 10 * 1024 * 1024
+
+
+class CannotTake(Exception):
+    """A file that can't be taken in as it is, such as an export over Drive's 10 MB limit.
+
+    It isn't tried again until the file changes.
+    """
 
 
 @dataclass(frozen=True)
@@ -34,7 +50,8 @@ class DriveEntry:
     name: str
     mime_type: str
     modified_time: datetime
-    md5: str | None  # Drive gives none for Google Docs, Sheets and Slides
+    md5: str | None  # MD5 (Message Digest 5) checksum; Drive gives none for Google files
+    size: int | None = None  # in bytes; Drive gives none for Google files
 
 
 class MailSource(Protocol):
@@ -105,7 +122,13 @@ _ADDRESS_HEADERS = ("delivered-to", "x-original-to", "to", "cc")
 
 # On disk, a Google file is stood in for by a file with one of these suffixes. Its bytes
 # are what the export returns.
-_DISK_GOOGLE_SUFFIXES = {".gdoc": GOOGLE_DOC, ".gsheet": GOOGLE_SHEET, ".gslides": GOOGLE_SLIDES}
+_DISK_GOOGLE_SUFFIXES = {
+    ".gdoc": GOOGLE_DOC,
+    ".gsheet": GOOGLE_SHEET,
+    ".gslides": GOOGLE_SLIDES,
+    ".gdraw": GOOGLE_DRAWING,
+    ".gform": "application/vnd.google-apps.form",
+}
 
 
 class DiskDrive:
@@ -116,11 +139,18 @@ class DiskDrive:
     """
 
     def __init__(self, root: Path) -> None:
-        self.root = root
+        self.root = root.resolve()
+
+    def _path(self, relative: str) -> Path:
+        """`relative` under the root; anything that would leave the root is refused."""
+        path = (self.root / relative).resolve()
+        if not path.is_relative_to(self.root):
+            raise ValueError("path is outside the stand-in's root")
+        return path
 
     def list_tree(self, folder_id: str) -> list[DriveEntry]:
         entries: list[DriveEntry] = []
-        for path in sorted((self.root / folder_id).rglob("*")):
+        for path in sorted(self._path(folder_id).rglob("*")):
             if not path.is_file() or path.name.startswith("."):
                 continue
             data = path.read_bytes()
@@ -132,15 +162,19 @@ class DiskDrive:
                     mime_type=google_type or _guess_type(path),
                     modified_time=datetime.fromtimestamp(path.stat().st_mtime, UTC),
                     md5=None if google_type else hashlib.md5(data).hexdigest(),
+                    size=None if google_type else len(data),
                 )
             )
         return entries
 
     def download(self, file_id: str) -> bytes:
-        return (self.root / file_id).read_bytes()
+        return self._path(file_id).read_bytes()
 
     def export_pdf(self, file_id: str) -> bytes:
-        return (self.root / file_id).read_bytes()
+        data = self._path(file_id).read_bytes()
+        if len(data) > EXPORT_LIMIT_BYTES:
+            raise CannotTake("export over Drive's 10 MB limit")
+        return data
 
 
 def _guess_type(path: Path) -> str:

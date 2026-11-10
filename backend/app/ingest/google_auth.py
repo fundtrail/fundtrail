@@ -1,4 +1,4 @@
-"""One-time sign-in for the app's own Google account.
+"""One-time OAuth (Open Authorization) sign-in for the app's own Google account.
 
     uv run python -m app.ingest.google_auth CLIENT_SECRET_JSON TOKEN_FILE
 
@@ -25,6 +25,7 @@ def main(argv: list[str]) -> int:
     credentials = flow.run_local_server(port=0)
     token_file.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.chmod(token_file, 0o600)  # os.open's mode applies only to a new file
     with os.fdopen(fd, "w") as out:
         out.write(credentials.to_json())  # type: ignore[union-attr]
     print(f"Wrote the token file to {token_file}")
