@@ -109,7 +109,30 @@ describe("ReviewThread", () => {
     expect(within(entries[1]).getByText("Accountant")).toBeInTheDocument();
   });
 
-  it("shows a suggestion's change, now and suggested", () => {
+  it("shows the server's wording of a suggestion when it sends one", () => {
+    const worded: ThreadContext = {
+      ...ctx,
+      waiting: [
+        {
+          record: newAnswer,
+          replaces: oldAnswer,
+          charge_ids: ["c"],
+          change: { title: "Change the Allowable answer on L-1002", now: "Contradicts: business class", suggested: "Supports: economy fare" },
+        },
+        ...ctx.waiting.slice(1),
+      ],
+    };
+    render(<ReviewThread thread={thread} about="L-1002" ctx={worded} onDecide={vi.fn()} onAsk={vi.fn()} />);
+    const box = screen.getByTestId("suggestion");
+    expect(within(box).getByText("Change the Allowable answer on L-1002", { selector: "p" })).toBeInTheDocument();
+    expect(within(box).getByText("Contradicts: business class")).toBeInTheDocument();
+    expect(within(box).getByText("Supports: economy fare")).toBeInTheDocument();
+    expect(within(box).queryByText("Change answer", { selector: "p" })).toBeNull();
+    // The agent's own reason still comes from its record.
+    expect(within(box).getByText("The fare class is economy.")).toBeInTheDocument();
+  });
+
+  it("falls back to the page's own wording while the server sends none", () => {
     renderThread();
     const box = screen.getByTestId("suggestion");
     expect(within(box).getByText("Change answer", { selector: "p" })).toBeInTheDocument();
