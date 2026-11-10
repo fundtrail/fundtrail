@@ -1,0 +1,178 @@
+<!-- @dsCard group="Demo" height=2660 width=1440 page subtitle="Every screen in order, and what each click does. Dashed boxes are optional screens, not designed." -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screen map</title>
+<style>
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
+  .sm { padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 28px; }
+  .sm-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+  .sm-head h1 { margin: 0; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; }
+  .sm-head p { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--ink-muted); max-width: 720px; }
+  .sm-legend { display: flex; gap: 20px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .sm-legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .sm-legend i { display: inline-block; width: 22px; height: 14px; border-radius: 3px; border: 1px solid var(--rule-strong); background: var(--paper-raised); }
+  .sm-legend i.is-dashed { border-style: dashed; background: none; }
+  .sm-stage { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 20px; padding-top: 24px; border-top: 1px solid var(--rule); }
+  .sm-stage__label { display: flex; flex-direction: column; gap: 4px; }
+  .sm-stage__n { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted); }
+  .sm-stage__name { font-size: 15px; line-height: 20px; font-weight: 700; }
+  .sm-stage__note { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .sm-flows { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .sm-flow { display: flex; align-items: flex-start; gap: 0; flex-wrap: nowrap; }
+  .sm-screen { width: 232px; flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .sm-thumb { display: block; width: 232px; height: 145px; object-fit: cover; object-position: top left; border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--paper-raised); }
+  .sm-thumb--page { object-position: top center; }
+  .sm-screen h3 { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; }
+  .sm-screen h3 span { font-weight: 400; color: var(--ink-muted); }
+  .sm-clicks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .sm-clicks li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 4px; }
+  .sm-clicks li::before { content: "\2192"; color: var(--ink); }
+  .sm-clicks b { color: var(--ink); font-weight: 600; }
+  .sm-arrow { width: 80px; flex: none; align-self: flex-start; margin-top: 46px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 11px; line-height: 14px; color: var(--ink); font-weight: 600; padding: 0 6px; box-sizing: border-box; }
+  .sm-arrow span { display: block; }
+  .sm-arrow em { font-style: normal; font-weight: 400; color: var(--ink-muted); }
+  .sm-arrow svg { width: 100%; height: 12px; display: block; }
+  .sm-todo { width: 232px; height: 145px; flex: none; border: 1.5px dashed var(--rule-strong); border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 16px; box-sizing: border-box; }
+  .sm-todo b { font-size: 13px; line-height: 18px; }
+  .sm-todo span { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .sm-gap { width: 24px; flex: none; }
+  .sm-foot { font-size: 12px; line-height: 16px; color: var(--ink-muted); border-top: 1px solid var(--rule); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main class="sm" aria-label="Screen map">
+  <header class="sm-head">
+    <div>
+      <h1>Screen map</h1>
+      <p>Every screen designed so far, in the order the accountant meets them. The label on each arrow is the click that gets you to the next screen. Under each screen, the other things you can click and where they go.</p>
+    </div>
+    <div class="sm-legend"><span><i></i>Designed</span><span><i class="is-dashed"></i>Optional, not designed</span></div>
+  </header>
+
+  <section class="sm-stage" aria-labelledby="st1">
+    <div class="sm-stage__label"><span class="sm-stage__n">1</span><span class="sm-stage__name" id="st1">Get in</span><span class="sm-stage__note">Card: SignIn</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{signin}}" alt="Sign-in page"><h3>Sign in</h3>
+        <ul class="sm-clicks"><li><span><b>Continue with Google</b>, first time: setup</span></li><li><span>Returning: straight to the workspace home</span></li></ul></div>
+      <div class="sm-arrow"><span>Continue with Google</span><em>first sign-in</em>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{setup}}" alt="Setting up the demo workspace"><h3>Setting up <span>· first sign-in only</span></h3>
+        <ul class="sm-clicks"><li><span>No clicks. It copies 3 sample grants and opens the workspace</span></li></ul></div>
+      <div class="sm-arrow"><span>Finishes on its own</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{home}}" alt="Workspace home"><h3>Workspace home <span>· stage 2</span></h3>
+        <ul class="sm-clicks"><li><span>Where every sign-in lands</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st2">
+    <div class="sm-stage__label"><span class="sm-stage__n">2</span><span class="sm-stage__name" id="st2">Workspace</span><span class="sm-stage__note">Cards: Workspace, WorkspaceMenu</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{home}}" alt="Workspace home"><h3>Workspace home</h3>
+        <ul class="sm-clicks"><li><span><b>Add a grant</b>: stage 3</span></li><li><span><b>A grant's row</b>: its grant page, stage 4</span></li><li><span><b>Workspace</b> in the sidebar: back here from anywhere</span></li></ul></div>
+      <div class="sm-arrow"><span>Workspace name in the sidebar</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{menu}}" alt="Workspace menu open"><h3>Workspace menu <span>· on every page</span></h3>
+        <ul class="sm-clicks"><li><span><b>Another workspace</b>: switches to its home</span></li><li><span><b>New workspace</b>: a dialog, then its empty home</span></li><li><span><b>Reset demo workspace</b>: a confirm, Cancel focused</span></li><li><span><b>Account</b>, then <b>Sign out</b>: back to sign-in</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st3">
+    <div class="sm-stage__label"><span class="sm-stage__n">3</span><span class="sm-stage__name" id="st3">Add a grant</span><span class="sm-stage__note">Card: AddGrant. Done steps can be clicked to go back.</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{ag1}}" alt="Step 1, award letter"><h3>1 Award letter</h3>
+        <ul class="sm-clicks"><li><span>The agent reads it; terms appear one by one</span></li></ul></div>
+      <div class="sm-arrow"><span>Drop the award letter</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{ag2}}" alt="Step 2, terms"><h3>2 Terms</h3>
+        <ul class="sm-clicks"><li><span><b>Correct</b> or <b>Reject</b> any term</span></li><li><span><b>Add email</b>, <b>Add the budget</b> on rows that need you</span></li><li><span>Any quote: opens the viewer</span></li></ul></div>
+      <div class="sm-arrow"><span>Confirm 7 terms</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{ag3}}" alt="Step 3, ledger"><h3>3 Ledger</h3>
+        <ul class="sm-clicks"><li><span>Drop the ledger file: charges added, bad rows listed</span></li><li><span><b>Undo</b> on the done line: back to Terms</span></li></ul></div>
+      <div class="sm-arrow"><span>Next: evidence</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{ag4}}" alt="Step 4, evidence"><h3>4 Evidence</h3>
+        <ul class="sm-clicks"><li><span><b>Copy</b> the grant's email address</span></li><li><span>Drop files: the readiness bar fills</span></li><li><span><b>Open the grant</b>: its grant page, stage 4</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st4">
+    <div class="sm-stage__label"><span class="sm-stage__n">4</span><span class="sm-stage__name" id="st4">Work the grant</span><span class="sm-stage__note">Cards: Demo, Viewer cards. The demo clock's Next arrival brings new evidence.</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{grant}}" alt="Grant page with the problem list"><h3>Grant page <span>· problem list</span></h3>
+        <ul class="sm-clicks"><li><span><b>A row</b>: its trail and evidence checklist scroll on the right; its review thread and ask box stay docked at the bottom</span></li><li><span>The list and the details scroll on their own; the page doesn't</span></li><li><span><b>Filter tabs</b>: one bucket at a time</span></li><li><span><b>Next arrival</b> (sidebar clock): new evidence arrives</span></li><li><span><b>Snooze</b> or <b>Accept with a note</b>: takes a problem off the list, with Undo</span></li></ul></div>
+      <div class="sm-arrow"><span>Next arrival</span><em>extension notice</em>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{confirm}}" alt="Confirm the grant extension"><h3>A term waiting for you <span>· a row on the list</span></h3>
+        <ul class="sm-clicks"><li><span><b>Confirm grant extension</b>: the charge clears, with Undo</span></li><li><span><b>Reject amendment</b>: it stays a conflict</span></li></ul></div>
+      <div class="sm-gap"></div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{answer}}" alt="Answer the agent"><h3>Ask, then answer <span>· L-1019</span></h3>
+        <ul class="sm-clicks"><li><span><b>Ask the agent</b> in the thread; it answers about this charge only</span></li><li><span>Pick an answer, say why, <b>Save answer</b>: code rechecks the charge</span></li></ul></div>
+      <div class="sm-gap"></div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{split}}" alt="Enter a split"><h3>Enter a split <span>· L-1010</span></h3>
+        <ul class="sm-clicks"><li><span>Units or amount, a basis, <b>Save split</b>: the live check must match</span></li></ul></div>
+    </div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{grant}}" alt="Grant page"><h3>Any trail link or quote</h3>
+        <ul class="sm-clicks"><li><span>Award letter, invoice, email, receipt photo</span></li></ul></div>
+      <div class="sm-arrow"><span>Click it</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{viewer}}" alt="Viewer over the grant page"><h3>Viewer <span>· slides in from the right</span></h3>
+        <ul class="sm-clicks"><li><span>Opens at the passage, marked; photos zoom to a box checked by a second look</span></li><li><span>A quote it couldn't place: the page, the quote beside it, and Confirm or Type the value</span></li><li><span><b>Side list</b> or <b>pager</b>: other facts in the file</span></li><li><span><b>Esc</b> or <b>close</b>: back to the link you clicked</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st4b">
+    <div class="sm-stage__label"><span class="sm-stage__n">4</span><span class="sm-stage__name" id="st4b">More of the grant</span><span class="sm-stage__note">Cards: Charges, Evidence, GrantTerms. The sidebar under each grant links to them.</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{charges}}" alt="Charges page"><h3>Charges <span>· every charge</span></h3>
+        <ul class="sm-clicks"><li><span><b>Bucket tabs</b>, <b>budget line</b>, <b>search</b>: narrow the list</span></li><li><span><b>A row</b>: its trail, what covers it, its history</span></li><li><span><b>Any link</b>: the viewer</span></li></ul></div>
+      <div class="sm-gap"></div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{evidence}}" alt="Evidence page"><h3>Evidence <span>· every file</span></h3>
+        <ul class="sm-clicks"><li><span><b>A file</b>: its facts and what it pays for</span></li><li><span><b>Not linked</b>: invoice 2050, never charged</span></li><li><span><b>A fact</b>: the viewer at that passage</span></li></ul></div>
+      <div class="sm-gap"></div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{terms}}" alt="Grant terms page"><h3>Grant terms <span>· proposal</span></h3>
+        <ul class="sm-clicks"><li><span>Terms in force, and what they replaced</span></li><li><span><b>Confirm</b> or <b>Reject</b> new terms; <b>Approve</b> or <b>Reject</b> the agent's suggestions</span></li><li><span><b>Any quote</b>: the viewer</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st5">
+    <div class="sm-stage__label"><span class="sm-stage__n">5</span><span class="sm-stage__name" id="st5">Close out</span><span class="sm-stage__note">Cards: Closeout, EvidenceReport</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-screen"><img class="sm-thumb" src="{{grant}}" alt="Grant page"><h3>Grant page</h3>
+        <ul class="sm-clicks"><li><span>Sidebar, under the grant</span></li></ul></div>
+      <div class="sm-arrow"><span>Closeout</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb" src="{{closeout}}" alt="Closeout page"><h3>Closeout</h3>
+        <ul class="sm-clicks"><li><span>Berkeley's steps and your deadline</span></li><li><span><b>Open the problem list</b>: back to the grant</span></li><li><span><b>Sign off</b> with a note: every report page shows it; Undo, then Withdraw</span></li></ul></div>
+      <div class="sm-arrow"><span>Preview</span>{{arrow}}</div>
+      <div class="sm-screen"><img class="sm-thumb sm-thumb--page" src="{{report}}" alt="Evidence report, page 1"><h3>Evidence report <span>· in the viewer</span></h3>
+        <ul class="sm-clicks"><li><span>9 pages; the side list jumps to each part</span></li><li><span><b>Download PDF</b>: attach it to the Award Closeout Certification</span></li></ul></div>
+    </div>
+    </div>
+  </section>
+
+  <section class="sm-stage" aria-labelledby="st6">
+    <div class="sm-stage__label"><span class="sm-stage__n">6</span><span class="sm-stage__name" id="st6">Optional, not designed</span><span class="sm-stage__note">In product.md's optional scope. Only if there's time.</span></div>
+    <div class="sm-flows">
+    <div class="sm-flow">
+      <div class="sm-todo"><b>Drafted explanations</b><span>For each charge moved off the grant, a draft that answers the university's questions.</span></div>
+      <div class="sm-gap"></div>
+      <div class="sm-todo"><b>Audit export</b><span>The same records, filtered to the charges an auditor picked.</span></div>
+      <div class="sm-gap"></div>
+      <div class="sm-todo"><b>Chat</b><span>Ask about a grant in plain words.</span></div>
+    </div>
+    </div>
+  </section>
+
+  <p class="sm-foot">Everywhere: the sidebar's grant names open their grant page, Workspace opens the workspace home, the theme switch flips light and dark, and the workspace and Account menus work the same on every page. Each screen is its own card in this design system; this map is a picture of how they join, not a live link between them.</p>
+</main>
+</body>
+</html>

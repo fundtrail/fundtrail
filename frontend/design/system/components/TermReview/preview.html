@@ -1,0 +1,57 @@
+<!-- @dsCard group="Adding a grant" height=760 width=960 subtitle="Reviewing the terms the agent read from a new award letter, before any check uses them" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TermReview preview</title></head>
+<body>
+<div class="ft-stage">
+  <section class="ft-panel" aria-label="Terms read from the award letter, SYN-2400042" style="width:100%">
+  <ul class="ft-terms ft-terms--review ft-terms--flush">
+    <li class="ft-term">
+      <span class="ft-term__kind">Period of performance</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Sep 1, 2022 to Aug 31, 2025</span><span class="ft-quote">&ldquo;September 1, 2022 through August 31, 2025&rdquo; <span class="ft-loc">award_letter.txt, line 12</span></span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-overrule">Correct</button><button type="button" class="ft-overrule">Reject</button></div>
+    </li>
+    <li class="ft-term">
+      <span class="ft-term__kind">Budget line</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Participant Support Costs, <span class="ft-amount">$30,000.00</span></span><span class="ft-quote">&ldquo;Funds budgeted for participant support costs ($30,000)&rdquo; <span class="ft-loc">award_letter.txt, line 16</span></span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-overrule">Correct</button><button type="button" class="ft-overrule">Reject</button></div>
+    </li>
+    <li class="ft-term is-check">
+      <span class="ft-term__kind">Budget lines</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">The other budget lines aren&rsquo;t in the letter</span><span class="ft-quote">&ldquo;allocated according to the approved budget attached to this notice&rdquo; <span class="ft-loc">award_letter.txt, line 14</span></span><span class="ft-term__note">The approved budget isn&rsquo;t on file. Without it, code can&rsquo;t check budget room on the other lines.</span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-btn ft-btn--sm">Add the budget</button></div>
+    </li>
+    <li class="ft-term is-check">
+      <span class="ft-term__kind">Person</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Dr. Jordan Rivera, Principal Investigator</span><span class="ft-quote">&ldquo;Principal Investigator: Dr. Jordan Rivera, Department of Biology&rdquo; <span class="ft-loc">award_letter.txt, line 6</span></span><span class="ft-term__note">No email address in the letter. Add one so their emails count as the principal investigator&rsquo;s.</span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-btn ft-btn--sm">Add email</button></div>
+    </li>
+    <li class="ft-term is-edited">
+      <span class="ft-term__kind">Person</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Dr. Alex Morgan, Program Officer, alex.morgan@funder.example</span><span class="ft-quote">&ldquo;Program Officer: Dr. Alex Morgan, alex.morgan@funder.example&rdquo; <span class="ft-loc">award_letter.txt, line 18</span></span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-overrule">Correct</button><button type="button" class="ft-overrule">Reject</button></div>
+    </li>
+    <li class="ft-term is-rejected">
+      <span class="ft-term__kind">Person</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Casey Lin, Grants Officer, casey.lin@funder.example</span><span class="ft-quote">&ldquo;Grants Officer: Casey Lin, casey.lin@funder.example&rdquo; <span class="ft-loc">award_letter.txt, line 20</span></span></div>
+      <div class="ft-term__actions"><span class="ft-state ft-state--rejected">Rejected</span><button type="button" class="ft-overrule">Undo</button></div>
+    </li>
+    <li class="ft-term">
+      <span class="ft-term__kind">Approval rule</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">Moving participant support money to other costs needs the program officer&rsquo;s written approval, through Research.gov</span><span class="ft-quote">&ldquo;without prior written approval from the cognizant Program Officer, requested through Research.gov&rdquo; <span class="ft-loc">award_letter.txt, line 16</span></span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-overrule">Correct</button><button type="button" class="ft-overrule">Reject</button></div>
+    </li>
+    <li class="ft-term">
+      <span class="ft-term__kind">Other term</span>
+      <div class="ft-term__main"><span class="ft-term__value ft-fact__value">The Grant General Conditions (GC-1) and the Prior Approval Matrix apply</span><span class="ft-quote">&ldquo;The Grant General Conditions (GC-1) in effect on the award date and the agency Prior Approval Matrix are incorporated into this award by reference.&rdquo; <span class="ft-loc">award_letter.txt, line 10</span></span></div>
+      <div class="ft-term__actions"><button type="button" class="ft-overrule">Correct</button><button type="button" class="ft-overrule">Reject</button></div>
+    </li>
+  </ul>
+  <div class="ft-panel__foot">
+    <span>No check uses these terms until you confirm them.</span>
+    <button type="button" class="ft-btn ft-btn--approve ft-btn--main">Confirm 6 terms</button>
+  </div>
+  </section>
+</div>
+</body>
+</html>

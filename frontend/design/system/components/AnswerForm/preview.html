@@ -1,0 +1,20 @@
+<!-- @dsCard group="Judgment" height=430 width=1000 subtitle="Answering the agent's Unsure, and entering a split" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AnswerForm preview</title>
+<style>.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 28px;width:100%}</style></head>
+<body>
+<div class="ft-stage"><div class="grid">
+  <form class="ft-form" onsubmit="return false"><p class="ft-form__title">Your answer</p>
+    <fieldset class="ft-field"><legend class="ft-field__label" style="position:absolute;left:-9999px">Is it for this project?</legend><div class="ft-choice"><label><input type="radio" name="a" checked> For this project</label><label><input type="radio" name="a"> Not for this project</label></div></fieldset>
+    <div class="ft-field"><label class="ft-field__label" for="w">Why</label><textarea class="ft-textarea" id="w">The camera is in the approved budget justification for field imaging of sediment cores.</textarea><span class="ft-field__hint">Goes into the evidence report as your reasoning, labeled as yours.</span></div>
+    <div class="ft-form__actions"><button class="ft-btn ft-btn--main">Save answer</button><span class="ft-trail__scope" style="margin:0">Code rechecks L-1019 with your answer.</span></div></form>
+  <form class="ft-form" onsubmit="return false"><p class="ft-form__title">This grant's part of invoice SEQ-0311, $10,000.00</p>
+    <fieldset class="ft-field"><legend class="ft-field__label">Split by</legend><div class="ft-choice"><label><input type="radio" name="b" checked> Share of units</label><label><input type="radio" name="b"> Amount</label></div></fieldset>
+    <div class="ft-field"><span class="ft-field__label" id="u">This grant's share</span><div class="ft-units" role="group" aria-labelledby="u"><input class="ft-input" aria-label="Units for this grant" value="56"> of <input class="ft-input" aria-label="Total units" value="96"> samples</div></div>
+    <div class="ft-field"><label class="ft-field__label" for="bs">Basis</label><input class="ft-input" id="bs" value="56 of 96 samples were from Example Bay, per the lab manifest"></div>
+    <div class="ft-check is-ok"><span>Covers this charge: <b>$5,833.33</b> of <b>$5,833.33</b>. The other grant's part is <b>$4,166.67</b>.</span></div>
+    <div class="ft-form__actions"><button class="ft-btn ft-btn--main">Save split</button></div></form>
+</div></div>
+</body>
+</html>

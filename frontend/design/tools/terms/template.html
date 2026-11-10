@@ -1,0 +1,334 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: the grant's terms after setup, the amendments that change them, and the grant's standing notes" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grant terms preview</title>
+<style>
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item" href="#">Problem list <span class="ft-count ft-count--alert" id="gt-side-problems">3</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item" href="#">Evidence</a>
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Grant terms <span class="ft-count" id="gt-side-terms" hidden>1 waiting</span></a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <a class="ft-nav__item ft-nav__item--add" href="#">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount" id="gt-clock">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" id="gt-next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Grant terms</b></span></div>
+      <div><button class="ft-btn">Evidence report</button></div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption" id="gt-caption"></span>
+          <h1 class="ft-grant-head__title">Sediment Microbiome Survey of Example Bay</h1>
+        </div>
+        <div class="ft-ready" id="gt-ready"></div>
+      </section>
+
+      <div class="ft-split">
+        <section class="ft-panel" aria-label="Grant terms"><div class="ft-gt-list" id="gt-list"></div></section>
+        <section class="ft-panel ft-gt-detail" id="gt-detail" aria-live="polite"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ft-toast" id="gt-toast" role="status" hidden><span id="gt-toast-text"></span></div>
+
+<!-- @pr6-scripts -->
+<!-- @viewer-scripts -->
+<script>
+(function () {
+  var D = /*@DATA@*/null;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function money(c) { return '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  /* Which fact in which file each term cites, by the viewer's fact label */
+  function factIndex(file, label) {
+    var V = window.FTViewer, f = V && V.files && V.files[file]; if (!f) return -1;
+    for (var i = 0; i < f.facts.length; i++) if (f.facts[i].label === label) return i;
+    return -1;
+  }
+  function quote(file, label, text, loc) {
+    var k = factIndex(file, label), q = '“' + esc(text) + '” <span class="ft-loc">' + esc(loc) + '</span>';
+    return '<span class="ft-quote">' + (k >= 0 ? '<a class="ft-trail__qlink" href="#" data-file="' + file + '" data-fact="' + k + '" aria-label="Open ' + esc(loc) + ' at this passage">' + q + '</a>' : q) + '</span>';
+  }
+
+  /* ---------- the terms ---------- */
+  var END_OLD = { k: 'end-old', group: 'Dates', kind: 'Period of performance', value: 'Feb 1, 2023 to Jan 31, 2026',
+    file: 'F1', label: 'End date', text: 'February 1, 2023 through January 31, 2026', loc: 'award_letter.txt, line 15' };
+  var END_NEW = { k: 'end-new', group: 'Dates', kind: 'Period of performance', value: 'Feb 1, 2023 to Jan 31, 2027',
+    file: 'F2', label: 'New end date', text: 'changed from January 31, 2026 to January 31, 2027', loc: 'extension_notice.txt, line 8' };
+  var LINES = ['Materials and Supplies', 'Other Direct Costs', 'Participant Support Costs'];
+  var BUDGET_TEXT = { 'Materials and Supplies': 'Materials and Supplies: $40,000', 'Other Direct Costs': 'Other Direct Costs: $60,000', 'Participant Support Costs': 'Participant Support Costs: $20,000' };
+  var FIXED = LINES.map(function (l, i) {
+    var b = D.budget[l];
+    return { k: 'line-' + i, group: 'Budget lines', kind: 'Budget line', value: l + ', ' + money(b.budget), line: l, file: 'F1', label: l, text: BUDGET_TEXT[l], loc: 'award_letter.txt, line 17' };
+  }).concat([
+    { k: 'pi', group: 'People and roles', kind: 'Person', value: 'Dr. Robin Example, principal investigator', email: 'robin.example@university.example',
+      file: 'F1', label: 'Principal investigator', text: 'Dr. Robin Example, robin.example@university.example', loc: 'award_letter.txt, line 9' },
+    { k: 'po', group: 'People and roles', kind: 'Person', value: 'Dr. Jesse Sample, program officer', email: 'jesse.sample@funder.example',
+      file: 'F1', label: 'Program officer', text: 'Dr. Jesse Sample, jesse.sample@funder.example', loc: 'award_letter.txt, line 11' },
+    { k: 'go', group: 'People and roles', kind: 'Person', value: 'Casey Placeholder, grants officer', email: 'casey.placeholder@funder.example',
+      file: 'F1', label: 'Grants officer', text: 'Casey Placeholder, casey.placeholder@funder.example', loc: 'award_letter.txt, line 13' },
+    { k: 'rule', group: 'Approval rules', kind: 'Approval rule', value: 'Participant support money used for other costs needs the program officer’s written approval, through Research.gov',
+      file: 'F1', label: 'Approval rule', text: 'without prior written approval from the Program Officer, requested through Research.gov', loc: 'award_letter.txt, line 19' }
+  ]);
+  var GROUPS = ['Dates', 'Budget lines', 'People and roles', 'Approval rules', 'Other terms'];
+
+  /* ---------- state ---------- */
+  function initial() { return { at: 'apr12', ext: 'confirmed', notes: false, sel: 'end-new', done: null }; }
+  var state = initial(), undoState = null, doneTimer = null, toastTimer = null;
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function today() { return state.at === 'apr10' ? 'Apr 10, 2026' : 'Apr 12, 2026'; }
+  function counts() {
+    var c = { complete: D.counts.complete - 2, conflict: 1, human: 2, missing: 0 }; /* 46 others are always complete; L-0981 conflict; L-1010 and L-1019 need a human */
+    if (state.ext === 'confirmed') c.complete++; else c.conflict++;            /* L-1002 */
+    if (state.at === 'apr12') c.complete++; else c.missing++;                  /* L-1015, its receipt photo arrives Apr 12 */
+    return c;
+  }
+  /* PR 6: Missing evidence goes on the problem list 60 days past the posting date, or 90 days before the end date in force,
+     whichever comes first. L-1015 posted Jan 16, 2026, so it is listed from Mar 17, 2026 whatever the end date.
+     A term waiting for confirmation is a record on the problem list too. */
+  function endInForce() { return state.ext === 'confirmed' ? '2027-01-31' : '2026-01-31'; }
+  function nowISO() { return state.at === 'apr10' ? '2026-04-10' : '2026-04-12'; }
+  function missingListed() {
+    var now = new Date(nowISO() + 'T12:00:00'), end = new Date(endInForce() + 'T12:00:00'), sixty = new Date('2026-03-17T12:00:00');
+    return now >= sixty || (end - now) / 864e5 <= 90;
+  }
+  function termRecords() { return state.ext === 'waiting' ? 1 : 0; }
+  function problemCount() { var c = counts(); return c.conflict + c.human + (missingListed() ? c.missing : 0) + termRecords(); }
+  function waitingCount() { return state.ext === 'waiting' ? 1 : 0; }
+  function inForce() { return [state.ext === 'confirmed' ? END_NEW : END_OLD].concat(FIXED); }
+  function term(k) { var all = [END_OLD, END_NEW].concat(FIXED); for (var i = 0; i < all.length; i++) if (all[i].k === k) return all[i]; return null; }
+
+  /* ---------- chrome ---------- */
+  function renderChrome() {
+    var c = counts(), total = D.total, done = c.complete;
+    $('gt-caption').innerHTML = '<span class="ft-id">SYN-2300117</span> <span class="ft-sep">&middot;</span> National Science Foundation (NSF) <span class="ft-sep">&middot;</span> <span class="ft-amount">$120,000.00</span> awarded <span class="ft-sep">&middot;</span> <span class="ft-amount">' + D.charged + '</span> charged';
+    $('gt-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">' + done + '</span><span class="ft-ready__of">of ' + total + ' charges ready for closeout</span></div>' +
+      '<div class="ft-ready__bar" aria-hidden="true">' + (c.conflict ? '<span class="is-conflict" style="flex:' + c.conflict + '"></span>' : '') + (c.human ? '<span class="is-human" style="flex:' + c.human + '"></span>' : '') +
+      (c.missing ? '<span class="is-missing" style="flex:' + c.missing + '"></span>' : '') + '<span class="is-complete" style="flex:' + done + '"></span></div>';
+    $('gt-side-problems').textContent = problemCount();
+    var w = waitingCount(); $('gt-side-terms').hidden = !w; $('gt-side-terms').textContent = w + ' waiting';
+    $('gt-clock').textContent = today();
+    var nx = $('gt-next');
+    if (state.at === 'apr10') { nx.disabled = false; nx.textContent = 'Next: receipt photo, Apr 12'; } else { nx.disabled = true; nx.textContent = 'Nothing else scheduled'; }
+  }
+
+  /* ---------- the list ---------- */
+  function row(t, opts) {
+    opts = opts || {};
+    var cls = 'ft-term' + (state.sel === t.k ? ' is-selected' : '') + (opts.replaced ? ' is-replaced' : '') + (opts.waiting ? ' is-check' : '');
+    var note = opts.note ? '<span class="ft-gt-meta">' + opts.note + '</span>' : '';
+    var acts = opts.acts || (opts.when ? '<span class="ft-gt-when">' + opts.when + '</span>' : '');
+    return '<li class="' + cls + '" data-k="' + t.k + '"><span class="ft-term__kind">' + esc(t.kind) + '</span>' +
+      '<div class="ft-term__main"><button type="button" class="ft-gt-pick" data-pick="' + t.k + '" aria-pressed="' + (state.sel === t.k) + '">' + esc(t.value) + '</button>' + note +
+      quote(t.file, t.label, t.text, t.loc) + (opts.below || '') + '</div><div class="ft-term__actions">' + acts + '</div></li>';
+  }
+  function budgetNote(t) {
+    var b = D.budget[t.line];
+    return 'Charged ' + money(b.charged) + ' of ' + money(b.budget) + ' <span class="ft-sep">&middot;</span> ' + money(b.budget - b.charged) + ' left';
+  }
+  function doneLine() {
+    if (!state.done) return '';
+    return '<div class="ft-trail__done" role="status" tabindex="-1" id="gt-done"><span>' + state.done + '</span><button type="button" data-act="undo">Undo</button></div>';
+  }
+  function renderList() {
+    var h = '';
+    /* Waiting for you */
+    var w = waitingCount();
+    h += '<section class="ft-gt-sec" aria-labelledby="gt-h-wait"><div class="ft-gt-sec__head"><h2 id="gt-h-wait">Waiting for you</h2><span>' + (w ? w + ' to decide' : '') + '</span></div>' + doneLine();
+    if (state.ext === 'waiting') {
+      var acts = '<div class="ft-gt-acts"><div class="ft-actions"><button type="button" class="ft-btn ft-btn--approve ft-btn--main" data-act="confirm">Confirm grant extension</button><button type="button" class="ft-btn ft-btn--reject" data-act="reject">Reject amendment</button></div>' +
+        '<p class="ft-trail__scope">Updates the grant end date to Jan 31, 2027 and rechecks its charges. 1 charge would become ready.</p></div>';
+      h += '<ul class="ft-terms" aria-label="Terms waiting for you">' + row(END_NEW, { waiting: true, note: 'Amendment 01, read by the agent from Google Drive, Apr 10, 2026. Also on the problem list.', below: acts, acts: '<span class="ft-state ft-state--waiting">Waiting for you</span>' }) + '</ul>';
+    }
+    if (!w && !state.done) h += '<p class="ft-gt-empty">Nothing waiting. New terms from an award letter or amendment show up here and on the problem list. The agent’s suggestions wait in each charge’s thread.</p>';
+    else if (!w) h += '<p class="ft-gt-empty">Nothing else waiting.</p>';
+    h += '</section>';
+    /* In force */
+    var terms = inForce();
+    h += '<section class="ft-gt-sec" aria-labelledby="gt-h-force"><div class="ft-gt-sec__head"><h2 id="gt-h-force">In force</h2><span>The terms code checks charges against</span></div>';
+    GROUPS.forEach(function (g) {
+      var ts = terms.filter(function (t) { return t.group === g; });
+      h += '<div class="ft-gt-group">' + g + '</div>';
+      if (!ts.length) { h += '<p class="ft-gt-empty">None in the award letter or its amendment.</p>'; return; }
+      h += '<ul class="ft-terms" aria-label="' + g + '">' + ts.map(function (t) {
+        var note = t.line ? budgetNote(t) : t.k === 'end-new' ? 'From amendment 01, confirmed Apr 10, 2026' : 'Confirmed Jan 12, 2023';
+        return row(t, { note: note });
+      }).join('') + '</ul>';
+    });
+    h += '</section>';
+    /* Replaced */
+    h += '<section class="ft-gt-sec" aria-labelledby="gt-h-old"><div class="ft-gt-sec__head"><h2 id="gt-h-old">Replaced or rejected</h2><span>Kept for the record; no check uses them</span></div>';
+    var old = '';
+    if (state.ext === 'confirmed') old += row(END_OLD, { replaced: true, note: 'Replaced by amendment 01, Apr 10, 2026' });
+    if (state.ext === 'rejected') old += row(END_NEW, { replaced: true, note: 'Amendment 01, rejected by you, ' + today() });
+    h += old ? '<ul class="ft-terms" aria-label="Replaced or rejected terms">' + old + '</ul>' : '<p class="ft-gt-empty">Nothing replaced yet.</p>';
+    h += '</section>';
+    h += notesHtml();
+    $('gt-list').innerHTML = h;
+  }
+
+  /* ---------- standing notes (PR 6): each covers every charge with the same problem, account and vendor ---------- */
+  function notesHtml() {
+    var h = '<section class="ft-gt-sec" aria-labelledby="gt-h-notes"><div class="ft-gt-sec__head"><h2 id="gt-h-notes">Standing notes</h2><span>Each covers every charge with the same problem, account and vendor</span></div>';
+    if (!state.notes || !window.FTProblems) return h + '<p class="ft-gt-empty">No standing notes. When you accept a problem with a standing note, it shows here with the charges it covers.</p></section>';
+    var n = D.note, list = window.FTProblems.standingNotesHtml([{ id: 'note-storage', note: n.note, by: 'you', date: 'Apr 12, 2026', problem: n.problem, account: n.account, vendor: n.vendor, covers: [] }]);
+    var a = list.indexOf('<ul class="ft-pb-notes__list">'), b = list.lastIndexOf('</section>');
+    list = list.slice(a, b);
+    /* It covers no charge today: say why, instead of an empty list */
+    list = list.replace(/<span class="ft-pb-note__label">Covers 0 charges<\/span><ul><\/ul>/, '<span class="ft-pb-note__label">Covers no charges yet</span><p class="ft-gt-uses" style="margin:0">' + n.why + '</p>')
+               .replace('Withdrawing brings these charges back to the problem list.', 'Withdrawing it stops it covering future charges.');
+    return h + '<div class="ft-pb-notes">' + list + '</div></section>';
+  }
+
+  /* ---------- the selected term ---------- */
+  function hist(items) {
+    return '<ol class="ft-gt-hist">' + items.map(function (x) { return '<li><time>' + x[0] + '</time><span>' + x[1] + '</span><span class="ft-gt-who">' + x[2] + '</span></li>'; }).join('') + '</ol>';
+  }
+  function renderDetail() {
+    var t = term(state.sel); if (!t) return;
+    var replaced = (t.k === 'end-old' && state.ext === 'confirmed') || (t.k === 'end-new' && state.ext === 'rejected');
+    var waiting = t.k === 'end-new' && state.ext === 'waiting';
+    var stateTxt = waiting ? '<span class="ft-state ft-state--waiting">Waiting for you</span>' : replaced ? '<span class="ft-state ft-state--rejected">' + (t.k === 'end-new' ? 'Rejected' : 'Replaced') + '</span>' : '<span class="ft-state ft-state--confirmed">In force</span>';
+    var h = '<div class="ft-panel__section"><span class="ft-gt-detail__kind">' + esc(t.kind) + '</span><h2 class="ft-gt-detail__title">' + esc(t.value) + '</h2><div class="ft-gt-detail__state">' + stateTxt + '</div></div>';
+    h += '<div class="ft-panel__section"><span class="ft-gt-label">Source</span>' + quote(t.file, t.label, t.text, t.loc) + '</div>';
+    var uses = '';
+    if (t.group === 'Dates') {
+      if (waiting) uses = 'If you confirm, the end date moves from Jan 31, 2026 to Jan 31, 2027 and code rechecks the grant’s charges against it. <span class="ft-id">L-1002</span>, sequencing done Feb 20, 2026, would become Evidence complete.';
+      else if (replaced) uses = t.k === 'end-old' ? 'No check uses it. Code checks dates against amendment 01’s end date, Jan 31, 2027.' : 'No check uses it. The grant still ends Jan 31, 2026.';
+      else uses = 'Code checks the date of every charge, ' + D.total + ' in all, against this period.' + (t.k === 'end-old' ? ' <span class="ft-id">L-1002</span>, sequencing done Feb 20, 2026, fails it.' : '');
+    } else if (t.line) {
+      var b = D.budget[t.line];
+      h += '<div class="ft-panel__section"><span class="ft-gt-label">Budget room</span><dl class="ft-gt-room"><div><dt>Budget</dt><dd>' + money(b.budget) + '</dd></div><div><dt>Charged</dt><dd>' + money(b.charged) + '</dd></div><div><dt>Left</dt><dd>' + money(b.budget - b.charged) + '</dd></div></dl>' +
+        '<div class="ft-gt-meter" aria-hidden="true"><span style="width:' + (b.charged / b.budget * 100).toFixed(1) + '%"></span></div></div>';
+      uses = 'Code checks each charge on this line against the budget room. ' + b.n + ' charges are on it.';
+    } else if (t.group === 'People and roles') {
+      uses = 'Code matches senders against it: email from <span class="ft-id">' + t.email + '</span> counts as the ' + t.value.split(', ')[1] + '’s.' +
+        (t.k === 'pi' ? ' <span class="ft-id">L-1002</span>: the invoice came from this address. <span class="ft-id">L-0981</span>: the approval came from it too, which the approval rule doesn’t accept.' : '') +
+        (t.k === 'po' ? ' No approval from this address is on file yet.' : '');
+    } else if (t.group === 'Approval rules') {
+      uses = 'Applies to the ' + D.budget['Participant Support Costs'].n + ' charges on Participant Support Costs. <span class="ft-id">L-0981</span> fails it: approved by the principal investigator by email, not the program officer through Research.gov.';
+    }
+    if (uses) h += '<div class="ft-panel__section"><span class="ft-gt-label">What it does</span><p class="ft-gt-uses">' + uses + '</p></div>';
+    var hs;
+    if (t.k === 'end-new') {
+      hs = [['Apr 10, 2026', 'Read from extension_notice.txt, Google Drive', 'Agent']];
+      if (state.ext === 'confirmed') hs.push(['Apr 10, 2026', 'Confirmed; replaced the award letter’s end date', 'You']);
+      if (state.ext === 'rejected') hs.push([today(), 'Rejected', 'You']);
+    } else {
+      hs = [['Jan 12, 2023', 'Read from award_letter.txt, uploaded by you', 'Agent'], ['Jan 12, 2023', 'Confirmed with the other award terms', 'You']];
+      if (t.k === 'end-old' && state.ext === 'confirmed') hs.push(['Apr 10, 2026', 'Replaced by amendment 01', 'You']);
+    }
+    h += '<div class="ft-panel__section"><span class="ft-gt-label">History</span>' + hist(hs) + '</div>';
+    $('gt-detail').innerHTML = h;
+    $('gt-detail').setAttribute('aria-label', t.kind + ': ' + t.value);
+  }
+
+  function render(focusSel) {
+    renderChrome(); renderList(); renderDetail();
+    if (focusSel) { var el = document.querySelector(focusSel); if (el) el.focus(); }
+  }
+
+  /* ---------- actions ---------- */
+  function finish(text) {
+    state.done = text; render('#gt-done');
+    clearTimeout(doneTimer);
+    doneTimer = setTimeout(function () {
+      var had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#gt-done');
+      undoState = null; state.done = null; render();
+      if (had) { var hh = $('gt-h-wait'); hh.tabIndex = -1; hh.focus(); }
+    }, 8000);
+  }
+  function confirmExt() { undoState = clone(state); state.ext = 'confirmed'; state.sel = 'end-new'; var c = counts(); finish('Extension confirmed. ' + c.complete + ' of ' + D.total + ' charges ready.'); }
+  function rejectExt() { undoState = clone(state); state.ext = 'rejected'; state.sel = 'end-new'; finish('Amendment rejected. The grant still ends Jan 31, 2026.'); }
+  function withdrawNote() { undoState = clone(state); state.notes = false; finish('Standing note withdrawn. It covered no charges, so nothing comes back to the problem list.'); }
+  function undo() {
+    if (!undoState) return; clearTimeout(doneTimer); var wasExt = undoState.ext === 'waiting'; state = undoState; undoState = null; state.done = null;
+    render(wasExt ? '[data-act="confirm"]' : state.notes ? '[data-pb-act="withdraw"]' : null);
+  }
+  function toast(text) { $('gt-toast-text').textContent = text; $('gt-toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { $('gt-toast').hidden = true; }, 5000); }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, a, li.ft-term') : null; if (!t) return;
+    if (window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen() && t.closest('.ft-sheet')) return;
+    if (t.tagName === 'A') {
+      e.preventDefault();
+      var fid = t.getAttribute('data-file');
+      if (fid && window.FTViewer && window.FTViewer.files[fid]) window.FTViewer.open(window.FTViewer.files[fid], parseInt(t.getAttribute('data-fact'), 10), t);
+      return;
+    }
+    if (t.tagName === 'LI') { var k0 = t.getAttribute('data-k'); if (k0 && k0 !== state.sel) { state.sel = k0; render('[data-pick="' + k0 + '"]'); } return; }
+    if (t.getAttribute('data-pb-act') === 'withdraw') { withdrawNote(); return; }
+    var act = t.getAttribute('data-act'), pick = t.getAttribute('data-pick');
+    if (pick) { state.sel = pick; render('[data-pick="' + pick + '"]'); return; }
+    if (act === 'confirm') confirmExt();
+    else if (act === 'reject') rejectExt();
+    else if (act === 'undo') undo();
+    else if (t.id === 'gt-next' && state.at === 'apr10') { state.at = 'apr12'; render(); toast('Receipt photo linked to L-1015. Field boat rental is now Evidence complete.'); }
+  });
+
+  /* Arrow keys, Home and End move through the visible term rows and select, like the Charges and Evidence lists.
+     Only when focus is on a term row, so the workspace menus keep their own arrow keys. */
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (!t || !t.classList || !t.classList.contains('ft-gt-pick')) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    var rows = Array.prototype.filter.call(document.querySelectorAll('button.ft-gt-pick'), function (b) { return b.offsetParent !== null; });
+    var i = rows.indexOf(t); if (i < 0 || !rows.length) return;
+    var j = e.key === 'Home' ? 0 : e.key === 'End' ? rows.length - 1 : i + (e.key === 'ArrowDown' ? 1 : -1);
+    e.preventDefault();
+    if (j < 0 || j >= rows.length || j === i) return;
+    var k = rows[j].getAttribute('data-pick'); state.sel = k; render('[data-pick="' + k + '"]');
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* ---------- a hash can jump to a state, for screenshots: #at=apr10, #state=notes, #sel=line-0, #t=dark ---------- */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme();
+  if (h.at === 'apr10') { state.at = 'apr10'; state.ext = 'waiting'; state.sel = 'end-new'; }
+  if (h.state === 'notes') { state.notes = true; }
+  if (h.sel && term(h.sel)) state.sel = h.sel;
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2294 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: the problem list with records, each charge's trail, checklist and thread, Snooze and Accept with a note, Confirm with Undo" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo preview</title>
+<style>
+  .ft-app { min-height: 1080px; }
+  .ft-sidebar { position: relative; height: auto; }
+  .ft-row__bucket { display: block; }
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .demo-right { display: flex; gap: var(--space-2); align-items: center; }
+  .demo-col { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .demo-lines { margin: 6px 0 0; }
+  .demo-lines b { color: var(--ink); font-weight: 600; }
+  .demo-acts { margin-top: var(--space-2); }
+  .demo-term { margin: 4px 0 0; font-size: 14px; line-height: 20px; }
+  .demo-off { margin-top: var(--space-2); }
+  .demo-done-top .ft-trail__done { margin-top: 0; }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Problem list <span class="ft-count ft-count--alert" id="demo-side-problems">5</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item" href="#">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms <span class="ft-count" id="demo-side-terms" hidden>1 waiting</span></a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount" id="demo-clock">Apr 9, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" id="demo-next">Next: extension notice, Apr 10</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title">
+        <span class="ft-crumbs">Example Bay / <b>Problem list</b></span>
+        <span class="ft-working" id="demo-working" role="status" hidden><span class="ft-working-dot" aria-hidden="true"></span><span id="demo-working-text"></span></span>
+      </div>
+      <div class="demo-right">
+        <button class="ft-btn">Evidence report</button>
+      </div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption">SYN-2300117 <span class="ft-sep">&middot;</span> National Science Foundation (NSF) <span class="ft-sep">&middot;</span> $120,000.00 awarded <span class="ft-sep">&middot;</span> $96,412.18 charged</span>
+          <h1 class="ft-grant-head__title">Sediment Microbiome Survey of Example Bay</h1>
+        </div>
+        <div class="ft-ready" id="demo-ready"></div>
+      </section>
+      <div class="ft-timeline" id="demo-timeline" role="img"></div>
+
+      <div class="ft-split">
+        <div class="demo-col">
+        <section class="ft-panel" aria-label="Problem list">
+          <div class="ft-tabs" role="tablist" aria-label="Filter by bucket" id="demo-tabs"></div>
+          <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Problem list">
+            <div class="ft-ledger__head" role="row"><span role="columnheader">Date</span><span role="columnheader">Charge</span><span role="columnheader" class="ft-row__amount">Amount</span><span role="columnheader">Bucket</span></div>
+            <div id="demo-rows"></div>
+          </div>
+        </section>
+        </div>
+        <section class="ft-panel" id="demo-detail"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ft-toast" id="demo-toast" role="status" hidden><span id="demo-toast-text"></span><button type="button" id="demo-undo">Undo</button><button type="button" id="demo-toast-open" hidden>Open receipt</button></div>
+
+<!-- @viewer-scripts -->
+<script>
+/* FundTrail viewer frame: builds the sheet, moves between passages, zooms, and handles the keyboard.
+   Renderers (FTViewer.text, .email, .pdf, .photo) draw the document; this file draws everything around it.
+   FTViewer.mount(container, file, active)  inline, for design system cards
+   FTViewer.open(file, active, opener)      over the app, with a scrim; Esc closes and focus returns to the opener
+   Checked quotes (decision 0012): a fact with confirmed:false couldn't be placed in its file. The viewer opens its
+   page with no guessed highlight and shows the quote beside it, with two ways to settle it: confirm the value, or
+   type the right one. Either marks the fact confirmed by the accountant and still unplaced (placed:false). */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function where(file, f) { return file.type === 'pdf' || file.type === 'report' ? 'page ' + f.page : file.type === 'photo' ? '' : 'line ' + f.line; }
+  /* A fact is unplaced when its quote couldn't be found (unconfirmed), or when the accountant settled it by hand */
+  function unplaced(f) { return f.confirmed === false || f.placed === false; }
+  /* Draw the document without the active highlight or box, so nothing is guessed */
+  function unmark(html) {
+    return html.replace(/<mark class="ft-mark-hl is-active"[^>]*>([\s\S]*?)<\/mark>/g, '$1').replace(/<span class="ft-box ft-photo__box"[^>]*><\/span>/g, '')
+      .replace(/<div class="ft-photo__tools">[\s\S]*?<\/div>/, '');
+  }
+
+  function Viewer(host, file, active, inline) {
+    this.host = host; this.file = file; this.inline = inline;
+    this.r = V[file.type];
+    this.go(active == null ? (file.active || 0) : active, true);
+  }
+  Viewer.prototype.html = function () {
+    var file = this.file, f = file.facts[this.active], r = this.r, n = file.facts.length, i = this.active, z = this.view.zoom;
+    var head = '<header class="ft-sheet__head"><div class="ft-sheet__title"><h2 id="ftv-title">' + esc(file.title) + '</h2>' +
+      '<span class="ft-sheet__meta"><span class="ft-id">' + esc(file.name) + '</span> <span class="ft-sep">&middot;</span> ' + String(file.meta || '').split(/\s*·\s*/).map(esc).join(' <span class="ft-sep">&middot;</span> ') + '</span></div>' +
+      '<div class="ft-sheet__tools"><button type="button" class="ft-btn ft-btn--sm ft-btn--quiet" data-act="download">Download original</button>' +
+      (this.inline ? '' : '<span class="ft-vr" aria-hidden="true"></span><button type="button" class="ft-iconbtn ft-iconbtn--close" data-act="close" aria-label="Close viewer"></button>') + '</div></header>';
+    var cite;
+    if (f.confirmed === false) cite = '<b>' + esc(f.label) + '</b><span class="ft-vu-flag">Unconfirmed</span><span>' + (file.type === 'photo' ? 'The second look didn’t read the same value' : 'Couldn’t place this quote in the file') + '</span>';
+    else if (f.placed === false) cite = '<b>' + esc(f.label) + '</b><span>Confirmed by you <span class="ft-sep">&middot;</span> not placed in the file</span>';
+    else cite = r.cite ? r.cite(file, f) : file.type === 'photo'
+      ? '<b>' + esc(f.label) + '</b><span>Box checked by a second look</span>'
+      : '<b>' + esc(f.label) + '</b><span>Exact passage <span class="ft-sep">&middot;</span> ' + where(file, f) + '</span>';
+    var zoom = '';
+    if (r.zooms) {
+      var lo = z <= r.zooms[0] + 1e-6, hi = z >= r.zooms[r.zooms.length - 1] - 1e-6;
+      zoom = '<span class="ft-zoom" role="group" aria-label="Zoom"><button type="button" class="ft-iconbtn ft-iconbtn--minus" data-act="zoomout" aria-label="Zoom out"' + (lo ? ' aria-disabled="true"' : '') + '></button>' +
+        '<span class="ft-zoom__level" aria-live="polite">' + Math.round(z * 100) + '%</span><button type="button" class="ft-iconbtn ft-iconbtn--plus" data-act="zoomin" aria-label="Zoom in"' + (hi ? ' aria-disabled="true"' : '') + '></button></span><span class="ft-vr" aria-hidden="true"></span>';
+    }
+    var pager = '<span class="ft-pager" role="group" aria-label="Passage ' + (i + 1) + ' of ' + n + '"><button type="button" class="ft-iconbtn ft-iconbtn--up" data-act="prev" aria-label="Previous passage"' + (i === 0 ? ' aria-disabled="true"' : '') + '></button>' +
+      '<span class="ft-pager__text" aria-hidden="true">' + (i + 1) + ' of ' + n + '</span><button type="button" class="ft-iconbtn ft-iconbtn--down" data-act="next" aria-label="Next passage"' + (i === n - 1 ? ' aria-disabled="true"' : '') + '></button></span>';
+    var bar = '<div class="ft-sheet__bar"><div class="ft-sheet__cite" role="status">' + cite + '</div><div class="ft-sheet__controls">' + zoom + pager + '</div></div>';
+    var facts = file.facts.map(function (x, k) {
+      var loc = where(file, x), mark = '';
+      if (x.confirmed === false) mark = '<span class="ft-sidefact__loc ft-vu-side">Unconfirmed</span>';
+      else if (x.placed === false) mark = '<span class="ft-sidefact__loc">Confirmed by you</span>';
+      else if (loc) mark = '<span class="ft-sidefact__loc">' + loc + '</span>';
+      return '<li><button type="button" class="ft-sidefact" data-fact="' + k + '"' + (k === i ? ' aria-current="true"' : '') + '><span class="ft-sidefact__label">' + esc(x.label) + '</span>' +
+        '<span class="ft-sidefact__value">' + esc(x.value) + '</span>' + mark + '</button></li>';
+    }).join('');
+    var side = '<div class="ft-sheet__section"><span class="ft-sheet__label" id="ftv-facts">In this file</span><ul class="ft-sidefacts" aria-labelledby="ftv-facts">' + facts + '</ul></div>';
+    if (file.links && file.links.length) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Linked to</span><ul class="ft-sidelinks">' + file.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-caption">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul></div>';
+    else if (file.note) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Status</span><p class="ft-sheet__note" style="margin:0">' + esc(file.note) + '</p></div>';
+    var page = this.r.render(file, i, this.view);
+    if (unplaced(f)) page = unmark(page);
+    var doc = '<div class="ft-sheet__doc" tabindex="0" aria-label="' + esc(file.name) + '">' + this.settleHtml(f) + page + '</div>';
+    return head + bar + '<div class="ft-sheet__body">' + doc + '<aside class="ft-sheet__side" aria-label="Facts and links">' + side + '</aside></div>';
+  };
+  /* The panel beside an unconfirmed fact's page: the quote, why it matters, and the two ways to settle it */
+  Viewer.prototype.settleHtml = function (f) {
+    var file = this.file;
+    if (this.done) return '<div class="ft-vu-wrap"><div class="ft-trail__done ft-vu-done" role="status" tabindex="-1" id="ftv-done"><span>' + esc(this.done) + '</span><button type="button" data-act="vu-undo">Undo</button></div></div>';
+    if (f.confirmed !== false) return '';
+    var photo = file.type === 'photo', loc = where(file, f);
+    var quote = photo
+      ? '<p class="ft-vu__quote"><span class="ft-vu__said">The agent read</span> <span class="ft-quote">“' + esc(f.value) + '”</span></p>'
+      : '<p class="ft-vu__quote ft-quote">“' + esc(f.text || f.value) + '”' + (loc ? ' <span class="ft-loc">' + loc + ', not found there</span>' : '') + '</p>';
+    var form = this.typing
+      ? '<form class="ft-inline-edit ft-vu__form" data-vu-form><input class="ft-input" name="v" aria-label="The right value for ' + esc(f.label.toLowerCase()) + '" value="' + esc(f.value) + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="vu-cancel">Cancel</button></form>'
+      : '<div class="ft-vu__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-act="vu-confirm">Confirm ' + esc(f.value) + '</button><button type="button" class="ft-btn ft-btn--sm" data-act="vu-type">Type the right value</button></div>';
+    return '<div class="ft-vu-wrap"><section class="ft-vu" aria-labelledby="ftv-vu-h">' +
+      '<div class="ft-vu__head"><span class="ft-vu__mark" aria-hidden="true"></span><b id="ftv-vu-h">' + (photo ? 'The second look didn’t confirm this value' : 'Couldn’t place this quote in the file') + '</b></div>' +
+      quote +
+      '<p class="ft-vu__why">' + (photo ? 'No box is drawn, so nothing is guessed. ' : 'No highlight is drawn, so nothing is guessed. ') + 'Anything that rests on this fact is in Needs a human until you confirm the value or type the right one.</p>' +
+      form + '</section></div>';
+  };
+  /* Settle an unconfirmed fact by hand; Undo puts it back as it was */
+  Viewer.prototype.settle = function (value) {
+    var f = this.file.facts[this.active];
+    this.undo = { i: this.active, value: f.value, confirmed: f.confirmed, placed: f.placed, by: f.confirmedBy };
+    var typed = value != null && value !== f.value;
+    if (value != null) f.value = value;
+    f.confirmed = true; f.placed = false; f.confirmedBy = 'you'; this.typing = false;
+    this.done = (typed ? 'Set by you: ' + f.value + '.' : 'Confirmed by you: ' + f.value + '.') + ' Anything that rested on it rechecks.';
+    this.draw(true, '#ftv-done');
+  };
+  Viewer.prototype.unsettle = function () {
+    var u = this.undo; if (!u) return;
+    var f = this.file.facts[u.i];
+    f.value = u.value; f.confirmed = u.confirmed; f.placed = u.placed; f.confirmedBy = u.by;
+    this.undo = null; this.done = null;
+    this.draw(true, '[data-act="vu-confirm"]');
+  };
+  Viewer.prototype.draw = function (smooth, focusSel) {
+    var a = document.activeElement, key = null;
+    if (a && this.host.contains(a)) key = a.getAttribute('data-act') ? '[data-act="' + a.getAttribute('data-act') + '"]' : a.getAttribute('data-fact') ? '[data-fact="' + a.getAttribute('data-fact') + '"]' : a.classList.contains('ft-sheet__doc') ? '.ft-sheet__doc' : null;
+    var doc0 = this.host.querySelector('.ft-sheet__doc'), keepTop = doc0 ? doc0.scrollTop : 0, keepLeft = doc0 ? doc0.scrollLeft : 0;
+    this.host.innerHTML = this.html();
+    var doc = this.host.querySelector('.ft-sheet__doc');
+    if (smooth) doc.scrollTo({ top: keepTop, left: keepLeft, behavior: 'instant' });
+    /* Renderers that fit to the window (the whole photo) know their real zoom only once drawn */
+    var lv = this.host.querySelector('.ft-zoom__level'), zi = this.host.querySelector('[data-act="zoomin"]'), zo = this.host.querySelector('[data-act="zoomout"]');
+    if (lv && this.r.levelText) lv.textContent = this.r.levelText(this.view, doc);
+    if (zi && this.r.canStep) { zi.setAttribute('aria-disabled', String(!this.r.canStep(this.view, 1, doc))); zo.setAttribute('aria-disabled', String(!this.r.canStep(this.view, -1, doc))); }
+    var t = focusSel ? this.host.querySelector(focusSel) : key ? this.host.querySelector(key) : null;
+    if (t) t.focus({ preventScroll: true });
+    this.reveal(smooth);
+    var side = this.host.querySelector('.ft-sheet__side'), sf = side && side.querySelector('[aria-current="true"]');
+    if (sf) { var s = side.getBoundingClientRect(), r = sf.getBoundingClientRect(); if (r.top < s.top || r.bottom > s.bottom) side.scrollTop += r.top - s.top - (side.clientHeight - r.height) / 2; }
+  };
+  Viewer.prototype.reveal = function (smooth, settled) {
+    var doc = this.host.querySelector('.ft-sheet__doc'), f = this.file.facts[this.active], el;
+    if (doc && unplaced(f)) {
+      /* Nothing to point at: open the fact's page when it has one, else the top, with the panel in view */
+      var pages = doc.querySelectorAll('.ft-pdf__sheet, .ft-rpage');
+      el = f.page && pages[f.page - 1] && f.page > 1 ? pages[f.page - 1] : null;
+      if (!el) { doc.scrollTo({ top: 0, left: 0, behavior: 'instant' }); return; }
+    } else el = doc && this.r.target(doc, this.file, this.active);
+    if (!el) return;
+    if (settled) smooth = false;
+    var d = doc.getBoundingClientRect(), e = el.getBoundingClientRect();
+    var top = doc.scrollTop + (e.top - d.top) - (e.height > doc.clientHeight - 32 ? 16 : (doc.clientHeight - e.height) / 2);
+    var left = doc.scrollLeft + (e.left - d.left) - (doc.clientWidth - e.width) / 2;
+    doc.scrollTo({ top: Math.max(0, top), left: Math.max(0, left), behavior: smooth && !reduce ? 'smooth' : 'instant' });
+    if (!smooth && !settled && document.fonts && document.fonts.ready) { var self = this, i = this.active; document.fonts.ready.then(function () { if (self.active === i && self.host.isConnected) self.reveal(false, true); }); }
+  };
+  Viewer.prototype.go = function (i, first, focusSel) {
+    var n = this.file.facts.length; i = Math.max(0, Math.min(n - 1, i));
+    var keepZoom = this.view && this.file.type === 'pdf';
+    if (i !== this.active) { this.typing = false; this.done = null; this.undo = null; }
+    this.active = i;
+    if (!keepZoom) this.view = this.r.initialView ? this.r.initialView(this.file, i) : { zoom: 1, whole: false };
+    /* A photo fact that isn't placed has no box to zoom to: show the whole photo */
+    if (this.file.type === 'photo' && unplaced(this.file.facts[i])) this.view.whole = true;
+    this.draw(!first, focusSel);
+  };
+  Viewer.prototype.zoom = function (dir) {
+    var zs = this.r.zooms; if (!zs) return;
+    if (this.r.step) { this.view = this.r.step(this.view, dir, this.host.querySelector('.ft-sheet__doc')); this.draw(true, dir > 0 ? '[data-act="zoomin"]' : '[data-act="zoomout"]'); return; }
+    var z = this.view.zoom, k;
+    if (dir > 0) { for (k = 0; k < zs.length && zs[k] <= z + 1e-6; k++); this.view.zoom = zs[Math.min(k, zs.length - 1)]; }
+    else { for (k = zs.length - 1; k >= 0 && zs[k] >= z - 1e-6; k--); this.view.zoom = zs[Math.max(k, 0)]; }
+    this.view.whole = false;
+    this.draw(true);
+  };
+  Viewer.prototype.handle = function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act], [data-fact]') : null;
+    if (!t || !this.host.contains(t)) return;
+    if (t.getAttribute('aria-disabled') === 'true') return;
+    var act = t.getAttribute('data-act'), f = t.getAttribute('data-fact');
+    if (f != null) return this.go(parseInt(f, 10), false, '[data-fact="' + f + '"]');
+    if (act === 'prev') this.go(this.active - 1);
+    else if (act === 'next') this.go(this.active + 1);
+    else if (act === 'zoomin') this.zoom(1);
+    else if (act === 'zoomout') this.zoom(-1);
+    else if (act === 'whole') { this.view.whole = !this.view.whole; this.draw(true, '[data-act="whole"]'); }
+    else if (act === 'close') V.close();
+    else if (act === 'vu-confirm') this.settle(null);
+    else if (act === 'vu-type') { this.typing = true; this.draw(true, '[data-vu-form] input'); var inp = this.host.querySelector('[data-vu-form] input'); if (inp) inp.select(); }
+    else if (act === 'vu-cancel') { this.typing = false; this.draw(true, '[data-act="vu-type"]'); }
+    else if (act === 'vu-undo') this.unsettle();
+  };
+  Viewer.prototype.submit = function (e) {
+    var form = e.target; if (!form.hasAttribute || !form.hasAttribute('data-vu-form')) return;
+    e.preventDefault();
+    var v = form.elements.v.value.trim(); if (!v) { form.elements.v.focus(); return; }
+    this.settle(v);
+  };
+  Viewer.prototype.key = function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-fact');
+    if (f != null && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); var k = parseInt(f, 10) + (e.key === 'ArrowDown' ? 1 : -1); if (k >= 0 && k < this.file.facts.length) this.go(k, false, '[data-fact="' + k + '"]'); }
+  };
+  function wire(v) {
+    v.host.addEventListener('click', function (e) { v.handle(e); });
+    v.host.addEventListener('keydown', function (e) { v.key(e); });
+    v.host.addEventListener('submit', function (e) { v.submit(e); });
+  }
+
+  V.mount = function (container, file, active) {
+    container.classList.add('ft-sheet', 'ft-sheet--inline');
+    container.setAttribute('aria-labelledby', 'ftv-title');
+    var v = new Viewer(container, file, active, true); wire(v); return v;
+  };
+
+  var cur = null;
+  V.open = function (file, active, opener) {
+    if (cur) V.close(true);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var sheet = document.createElement('section');
+    sheet.className = 'ft-sheet' + (reduce ? '' : ' ft-sheet--in');
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'ftv-title'); sheet.tabIndex = -1;
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
+    var v = new Viewer(sheet, file, active, false); wire(v);
+    scrim.addEventListener('click', function () { V.close(); });
+    sheet.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); V.close(); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(sheet.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    cur = { v: v, scrim: scrim, sheet: sheet, opener: opener, app: app };
+    sheet.focus({ preventScroll: true });
+    v.reveal(false);
+    return v;
+  };
+  V.close = function (silent) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    if (c.app) c.app.removeAttribute('inert');
+    c.scrim.remove(); c.sheet.remove();
+    if (!silent && c.opener && c.opener.isConnected) c.opener.focus();
+    if (V.onclose) V.onclose();
+  };
+  V.isOpen = function () { return !!cur; };
+})();
+
+/* FundTrail viewer: plain text and email renderers, with files F1 to F4.
+   Plain ES5, no dependencies. See viewer-spec.md for the interface. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* Wrap the active fact's exact text in a mark, if this is its line. */
+  function markText(str, n, file, active) {
+    var f = file.facts[active];
+    if (!f || f.line !== n) return esc(str);
+    var i = str.indexOf(f.text);
+    if (i < 0) return '<mark class="ft-mark-hl is-active">' + esc(str) + '</mark>';
+    return esc(str.slice(0, i)) + '<mark class="ft-mark-hl is-active">' + esc(f.text) + '</mark>' + esc(str.slice(i + f.text.length));
+  }
+  function isCited(n, file, active) { var f = file.facts[active]; return !!f && f.line === n; }
+
+  function row(n, html, file, active, extra) {
+    return '<div class="ft-doc-text__row' + (isCited(n, file, active) ? ' is-cited' : '') + '" data-line="' + n + '">' +
+      '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span>' +
+      '<span class="ft-doc-text__t' + (extra || '') + '">' + (html || '&#8203;') + '</span></div>';
+  }
+
+  /* ---------- plain text: every line with its number ---------- */
+  V.text = {
+    render: function (file, active) {
+      var out = '<div class="ft-doc-text" role="document" aria-label="' + esc(file.name) + '">';
+      for (var i = 0; i < file.lines.length; i++) out += row(i + 1, markText(file.lines[i], i + 1, file, active), file, active);
+      return out + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- email: headers as key-value rows, then the body ---------- */
+  var SHOWN = { From: 1, To: 1, Subject: 1, Date: 1, Cc: 1 };
+  V.email = {
+    render: function (file, active) {
+      var lines = file.lines, head = '', body = '', i = 0;
+      for (; i < lines.length && lines[i] !== ''; i++) {
+        var m = /^([A-Za-z-]+):\s?(.*)$/.exec(lines[i]);
+        if (!m || !SHOWN[m[1]]) continue;
+        var n = i + 1, f = file.facts[active], val = m[2];
+        var v = f && f.line === n ? markText(val, n, file, active) : esc(val);
+        head += '<div class="ft-doc-email__hrow' + (isCited(n, file, active) ? ' is-cited' : '') + (m[1] === 'Subject' ? ' is-subject' : '') + '" data-line="' + n + '">' +
+          '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span><span class="ft-doc-email__k">' + esc(m[1]) + '</span><span class="ft-doc-email__v">' + v + '</span></div>';
+      }
+      for (i = i + 1; i < lines.length; i++) {
+        var ln = lines[i], reply = /^>/.test(ln);
+        body += row(i + 1, markText(reply ? ln.replace(/^>\s?/, '') : ln, i + 1, file, active), file, active, reply ? ' is-reply' : '');
+      }
+      return '<div class="ft-doc-text ft-doc-email" role="document" aria-label="' + esc(file.name) + '"><div class="ft-doc-email__head">' + head + '</div>' + body + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- the files ---------- */
+  V.files.F1 = {
+    id: 'F1', type: 'text', name: 'award_letter.txt', title: 'Award letter', meta: 'Uploaded by you · Jan 12, 2023',
+    links: [], note: 'Grant terms. Confirmed by you, Jan 12, 2023.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD NOTICE',
+      'Award Number: SYN-2300117',
+      'Date: January 10, 2023',
+      'Recipient: Example State University',
+      'Project Title: Sediment Microbiome Survey of Example Bay',
+      '',
+      'Principal Investigator: Dr. Robin Example, robin.example@university.example',
+      '',
+      'Program Officer: Dr. Jesse Sample, jesse.sample@funder.example',
+      '',
+      'Grants Officer: Casey Placeholder, casey.placeholder@funder.example',
+      '',
+      'Period of Performance. The period of performance for this award is February 1, 2023 through January 31, 2026. Costs must be incurred within the period of performance to be charged to this award.',
+      '',
+      'Budget. Materials and Supplies: $40,000. Other Direct Costs: $60,000. Participant Support Costs: $20,000.',
+      '',
+      'Prior Approval. Funds budgeted for Participant Support Costs may not be used for other categories of expense without prior written approval from the Program Officer, requested through Research.gov.'
+    ],
+    facts: [
+      { label: 'Award', value: 'SYN-2300117', line: 4, text: 'SYN-2300117' },
+      { label: 'Dated', value: 'Jan 10, 2023', line: 5, text: 'January 10, 2023' },
+      { label: 'Principal investigator', value: 'Dr. Robin Example', line: 9, text: 'Dr. Robin Example, robin.example@university.example' },
+      { label: 'Program officer', value: 'Dr. Jesse Sample', line: 11, text: 'Dr. Jesse Sample, jesse.sample@funder.example' },
+      { label: 'Grants officer', value: 'Casey Placeholder', line: 13, text: 'Casey Placeholder, casey.placeholder@funder.example' },
+      { label: 'End date', value: 'Jan 31, 2026', line: 15, text: 'February 1, 2023 through January 31, 2026' },
+      { label: 'Materials and Supplies', value: '$40,000.00', line: 17, text: 'Materials and Supplies: $40,000' },
+      { label: 'Other Direct Costs', value: '$60,000.00', line: 17, text: 'Other Direct Costs: $60,000' },
+      { label: 'Participant Support Costs', value: '$20,000.00', line: 17, text: 'Participant Support Costs: $20,000' },
+      { label: 'Approval rule', value: 'Program officer, through Research.gov', line: 19, text: 'without prior written approval from the Program Officer, requested through Research.gov' }
+    ],
+    active: 5
+  };
+
+  V.files.F2 = {
+    id: 'F2', type: 'text', name: 'extension_notice.txt', title: 'Award amendment 01', meta: 'Google Drive · Apr 10, 2026',
+    links: [], note: 'Waiting for you: confirm or reject the new end date.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD AMENDMENT',
+      'Award Number: SYN-2300117',
+      'Amendment Number: 01',
+      'Date: January 15, 2026',
+      '',
+      'No-Cost Extension. The end date of the period of performance for this award is changed from January 31, 2026 to January 31, 2027. No additional funds are provided by this amendment.',
+      '',
+      'All other terms and conditions of the award remain unchanged.',
+      '',
+      'Casey Placeholder, Grants Officer'
+    ],
+    facts: [
+      { label: 'Amendment', value: '01', line: 5, text: 'Amendment Number: 01' },
+      { label: 'Dated', value: 'Jan 15, 2026', line: 6, text: 'January 15, 2026' },
+      { label: 'New end date', value: 'Jan 31, 2027', line: 8, text: 'changed from January 31, 2026 to January 31, 2027' },
+      { label: 'Signed by', value: 'Casey Placeholder, Grants Officer', line: 12, text: 'Casey Placeholder, Grants Officer' }
+    ],
+    active: 2
+  };
+
+  V.files.F3 = {
+    id: 'F3', type: 'email', name: 'sequencing_invoice.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Feb 21, 2026',
+    links: [{ id: 'L-1002', name: 'Sediment DNA sequencing run 7', amount: '$2,180.00 of $2,180.00' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: grant-inbox@fundtrail.example',
+      'Subject: Sequencing invoice for run 7',
+      'Date: Sat, 21 Feb 2026 09:30:00 -0800',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail golden fixture.',
+      '',
+      'Hi, the sequencing core invoice for the Example Bay samples is below.',
+      '',
+      'INVOICE SEQ-0207',
+      'Example Sequencing Core',
+      'Invoice Date: February 20, 2026',
+      'Service: Sediment DNA sequencing, run 7, 48 samples',
+      '',
+      'Total Due: $2,180.00'
+    ],
+    facts: [
+      { label: 'Sender', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Invoice', value: 'SEQ-0207', line: 11, text: 'INVOICE SEQ-0207' },
+      { label: 'Invoice date', value: 'Feb 20, 2026', line: 13, text: 'February 20, 2026' },
+      { label: 'Service', value: 'Sequencing run 7, 48 samples', line: 14, text: 'Sediment DNA sequencing, run 7, 48 samples' },
+      { label: 'Total', value: '$2,180.00', line: 16, text: '$2,180.00' }
+    ],
+    active: 4
+  };
+
+  V.files.F4 = {
+    id: 'F4', type: 'email', name: 'approval_email.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Oct 6, 2025',
+    links: [{ id: 'L-0981', name: 'Conference registration', amount: 'Approval' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: Sam Example <sam.example@university.example>',
+      'Subject: Re: Ocean Sciences Meeting registration',
+      'Date: Thu, 2 Oct 2025 16:12:00 -0700',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail demo.',
+      '',
+      'Approved, go ahead and register.',
+      '',
+      'Robin',
+      '',
+      '> Could I register for the Example Ocean Sciences Meeting? The fee is $650.'
+    ],
+    facts: [
+      { label: 'Approver', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Approval', value: 'Approved by email', line: 9, text: 'Approved, go ahead and register.' },
+      { label: 'What it approves', value: 'Meeting registration, $650.00', line: 13, text: 'The fee is $650.' }
+    ],
+    active: 1
+  };
+})();
+
+/* FundTrail viewer: PDF renderer (FTViewer.pdf) and the F5 demo file.
+   Pages are drawn in HTML at US Letter proportions: 612 x 792 at 100%, sized in em so
+   one CSS variable (--ft-pdf-z) scales the whole page. The active fact's exact text gets
+   mark.ft-mark-hl.is-active. Plain ES5, no dependencies. */
+(function () {
+  window.FTViewer = window.FTViewer || {};
+  FTViewer.files = FTViewer.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+
+  /* Write a block's text, marking the active fact's passage when it lives in this block.
+     A fact names its page, its exact text and, when the text appears twice, its block. */
+  function writeText(blockId, pageIndex, text, fact) {
+    var hit = fact && fact.page === pageIndex + 1 && (!fact.block || fact.block === blockId) ? text.indexOf(fact.text) : -1;
+    if (hit < 0) return esc(text);
+    return esc(text.slice(0, hit)) +
+      '<mark class="ft-mark-hl is-active" data-ft-active="1">' + esc(fact.text) + '</mark>' +
+      esc(text.slice(hit + fact.text.length));
+  }
+
+  function block(b, p, fact) {
+    var t = function (id, text) { return writeText(id, p, text, fact); };
+    switch (b.kind) {
+      case 'notice': return '<p class="ft-pdf__notice">' + t(b.id, b.text) + '</p>';
+      case 'cols':
+        return '<div class="ft-pdf__cols">' + b.cols.map(function (col, i) {
+          return '<div class="ft-pdf__col' + (i ? ' ft-pdf__col--end' : '') + '">' + col.map(function (c) { return block(c, p, fact); }).join('') + '</div>';
+        }).join('') + '</div>';
+      case 'h1': return '<p class="ft-pdf__vendor">' + t(b.id, b.text) + '</p>';
+      case 'h2': return '<p class="ft-pdf__docno">' + t(b.id, b.text) + '</p>';
+      case 'table':
+        return '<table class="ft-pdf__table"><thead><tr>' + b.head.map(function (h, i) {
+          return '<th' + (i ? ' class="is-num"' : '') + '>' + esc(h) + '</th>';
+        }).join('') + '</tr></thead><tbody>' + b.rows.map(function (row, r) {
+          return '<tr>' + row.map(function (cell, c) {
+            return '<td' + (c ? ' class="is-num"' : '') + '>' + t(b.id + '.' + r + '.' + c, cell) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+      case 'total': return '<p class="ft-pdf__total">' + t(b.id, b.text) + '</p>';
+      case 'small': return '<p class="ft-pdf__small">' + t(b.id, b.text) + '</p>';
+      default: return '<p class="ft-pdf__p">' + t(b.id, b.text) + '</p>';
+    }
+  }
+
+  FTViewer.pdf = {
+    zooms: [0.75, 1, 1.25, 1.5, 2],
+    initialView: function () { return { zoom: 1, whole: false }; },
+    render: function (file, active, view) {
+      var fact = file.facts[active], z = (view && view.zoom) || 1, n = file.pages.length;
+      return '<div class="ft-pdf" style="--ft-pdf-z:' + z + '">' + file.pages.map(function (page, p) {
+        return '<figure class="ft-pdf__sheet" aria-label="Page ' + (p + 1) + ' of ' + n + '">' +
+          '<div class="ft-pdf__page"><div class="ft-pdf__text">' + page.blocks.map(function (b) { return block(b, p, fact); }).join('') + '</div></div>' +
+          '<figcaption class="ft-pdf__label">Page ' + (p + 1) + ' of ' + n + '</figcaption></figure>';
+      }).join('') + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-ft-active]'); }
+  };
+
+  FTViewer.files.F5 = {
+    id: 'F5', type: 'pdf', name: 'invoice_SEQ-0311.pdf', title: 'Invoice SEQ-0311',
+    meta: 'Gmail attachment · from billing@sequencing.example · Jan 12, 2026',
+    links: [{ id: 'L-1010', name: 'Sequencing core, shared run 6', amount: '$5,833.33 charged. This grant’s part isn’t on file.' }],
+    note: '',
+    pages: [
+      { blocks: [
+        { kind: 'notice', id: 'notice', text: 'SYNTHETIC DEMO DOCUMENT. Not issued by any company. Created for the FundTrail demo.' },
+        { kind: 'cols', cols: [
+          [{ kind: 'h1', id: 'vendor', text: 'Example Sequencing Core' }, { kind: 'p', id: 'addr', text: '1 Example Way, Example City' }],
+          [{ kind: 'h2', id: 'docno', text: 'INVOICE SEQ-0311' }, { kind: 'p', id: 'date', text: 'Invoice Date: January 6, 2026' }]
+        ] },
+        { kind: 'p', id: 'bill', text: 'Bill To: Dr. Robin Example, Example State University' },
+        { kind: 'table', id: 'items', head: ['Description', 'Qty', 'Amount'], rows: [['Sediment DNA sequencing, shared run 6', '96 samples', '$10,000.00']] },
+        { kind: 'small', id: 'note', text: 'Note: Run shared by awards SYN-2300117 and SYN-2300245.' },
+        { kind: 'total', id: 'total', text: 'Total Due: $10,000.00' }
+      ] },
+      { blocks: [
+        { kind: 'p', id: 'terms', text: 'Payment terms. Net 30 days from the invoice date. Remit to Example Sequencing Core, 1 Example Way, Example City.' },
+        { kind: 'p', id: 'questions', text: 'Questions: billing@sequencing.example' }
+      ] }
+    ],
+    facts: [
+      { label: 'Invoice', value: 'SEQ-0311', page: 1, block: 'docno', text: 'INVOICE SEQ-0311' },
+      { label: 'Invoice date', value: 'Jan 6, 2026', page: 1, block: 'date', text: 'January 6, 2026' },
+      { label: 'Service', value: 'Shared run 6, 96 samples', page: 1, block: 'items.0.0', text: 'Sediment DNA sequencing, shared run 6' },
+      { label: 'Shared by', value: 'SYN-2300117 and SYN-2300245', page: 1, block: 'note', text: 'Run shared by awards SYN-2300117 and SYN-2300245.' },
+      { label: 'Total', value: '$10,000.00', page: 1, block: 'total', text: '$10,000.00' },
+      { label: 'Payment terms', value: 'Net 30 days', page: 2, block: 'terms', text: 'Net 30 days from the invoice date.' }
+    ],
+    active: 4
+  };
+})();
+
+/* FundTrail viewer: photos and scans (F6, F7).
+   A photo has no text layer and no OCR. The agent returns a box around each value, and a second look at the
+   boxed area has to read the same value (decision 0012), so the box is drawn as checked, not approximate.
+   A fact the second look couldn't confirm has confirmed:false; the frame then shows the whole photo with no box.
+   Plain ES5, no dependencies. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  var W = 480, H = 640;          /* the photo's own pixel size; 100% zoom shows it at this size */
+  var PAD = 22, ANGLE = -2.5;    /* receipt margin and tilt, like a phone photo */
+  var ZOOMS = [0.5, 0.75, 1, 1.5, 2, 2.5, 3];
+  var DOC_W = 680;               /* the doc area's usual inner width in the sheet, used for the first view */
+  var MONO = "'Geist Mono', ui-monospace, Menlo, monospace";
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function r1(n) { return Math.round(n * 10) / 10; }
+
+  /* Lay the receipt's lines out in the paper's own coordinates. */
+  function layout(rc) {
+    var y = 34, out = [], pw = rc.paperW;
+    rc.lines.forEach(function (ln) {
+      if (ln.gap) { y += ln.gap; return; }
+      if (ln.rule) { out.push({ rule: true, y: y + 5 }); y += 12; return; }
+      var size = ln.size || 12.5, lh = Math.round(size * 1.6), cw = size * 0.6;
+      var x0, x1, tw = ln.text.length * cw;
+      if (ln.align === 'center') { x0 = (pw - tw) / 2; x1 = x0 + tw; }
+      else { x0 = PAD; x1 = ln.right ? pw - PAD : PAD + tw; }
+      out.push({ text: ln.text, right: ln.right, align: ln.align, size: size, weight: ln.weight || 400, muted: ln.muted, key: ln.key,
+        top: y, bottom: y + lh, base: y + Math.round(size * 1.15), x0: x0, x1: x1 });
+      y += lh;
+    });
+    return { lines: out, h: y + 30 };
+  }
+  function place(rc) {
+    var L = layout(rc), w = rc.paperW, h = L.h;
+    var x = (W - w) / 2, y = Math.max(28, (H - h) / 2 - 8);
+    return { L: L, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 };
+  }
+  function rotate(P, lx, ly) {
+    var a = ANGLE * Math.PI / 180, X = P.x + lx - P.cx, Y = P.y + ly - P.cy;
+    return [P.cx + X * Math.cos(a) - Y * Math.sin(a), P.cy + X * Math.sin(a) + Y * Math.cos(a)];
+  }
+  /* The agent's estimate: the lines for a fact, a little generous, as fractions of the photo. */
+  function boxFor(rc, key) {
+    var P = place(rc), ls = P.L.lines.filter(function (l) { return l.key === key; });
+    var x0 = Math.min.apply(null, ls.map(function (l) { return l.x0; })) - 7, x1 = Math.max.apply(null, ls.map(function (l) { return l.x1; })) + 7;
+    var y0 = Math.min.apply(null, ls.map(function (l) { return l.top; })) - 4, y1 = Math.max.apply(null, ls.map(function (l) { return l.bottom; })) + 3;
+    var pts = [rotate(P, x0, y0), rotate(P, x1, y0), rotate(P, x1, y1), rotate(P, x0, y1)];
+    var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+    var bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
+    var f = function (n) { return Math.round(n * 1000) / 1000; };
+    return [f(bx / W), f(by / H), f((Math.max.apply(null, xs) - bx) / W), f((Math.max.apply(null, ys) - by) / H)];
+  }
+  function paperPath(w, h) {
+    var t = 9, d = 3.5, s = 'M0 ' + d, x;
+    for (x = 0; x < w; x += t) s += ' L' + r1(Math.min(w, x + t / 2)) + ' 0 L' + r1(Math.min(w, x + t)) + ' ' + d;
+    s += ' L' + w + ' ' + (h - d);
+    for (x = w; x > 0; x -= t) s += ' L' + r1(Math.max(0, x - t / 2)) + ' ' + h + ' L' + r1(Math.max(0, x - t)) + ' ' + (h - d);
+    return s + ' Z';
+  }
+  function svg(file) {
+    var rc = file.receipt, P = place(rc), id = 'ph-' + file.id;
+    var s = '<svg class="ft-photo__img" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<defs>' +
+        '<linearGradient id="' + id + '-surf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#454a50"/><stop offset="1" stop-color="#2a2e33"/></linearGradient>' +
+        '<radialGradient id="' + id + '-vig" cx="0.5" cy="0.45" r="0.78"><stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.34"/></radialGradient>' +
+        '<linearGradient id="' + id + '-paper" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="#f8f6f0"/><stop offset="1" stop-color="#e9e5da"/></linearGradient>' +
+        '<filter id="' + id + '-sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#000" flood-opacity="0.38"/></filter>' +
+      '</defs>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-surf)"/>' +
+      '<g transform="rotate(' + ANGLE + ' ' + r1(P.cx) + ' ' + r1(P.cy) + ') translate(' + r1(P.x) + ' ' + r1(P.y) + ')">' +
+      '<path d="' + paperPath(P.w, P.h) + '" fill="url(#' + id + '-paper)" filter="url(#' + id + '-sh)"/>' +
+      '<g font-family="' + MONO + '" fill="#2b2c30" fill-opacity="0.86">';
+    P.L.lines.forEach(function (l) {
+      if (l.rule) { s += '<line x1="' + PAD + '" x2="' + (P.w - PAD) + '" y1="' + l.y + '" y2="' + l.y + '" stroke="#8b8a85" stroke-width="1" stroke-dasharray="3 3"/>'; return; }
+      var attrs = ' font-size="' + l.size + '" font-weight="' + l.weight + '"' + (l.muted ? ' fill-opacity="0.6"' : '');
+      if (l.align === 'center') s += '<text x="' + r1(P.w / 2) + '" y="' + l.base + '" text-anchor="middle"' + attrs + '>' + esc(l.text) + '</text>';
+      else {
+        s += '<text x="' + PAD + '" y="' + l.base + '"' + attrs + '>' + esc(l.text) + '</text>';
+        if (l.right) s += '<text x="' + (P.w - PAD) + '" y="' + l.base + '" text-anchor="end"' + attrs + '>' + esc(l.right) + '</text>';
+      }
+    });
+    return s + '</g></g><rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-vig)"/></svg>';
+  }
+  function snap(z) {
+    var best = ZOOMS[0];
+    ZOOMS.forEach(function (s) { if (Math.abs(s - z) < Math.abs(best - z)) best = s; });
+    return best;
+  }
+  function padOf(el) { var cs = getComputedStyle(el); return { x: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), y: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) }; }
+
+  V.photo = {
+    zooms: ZOOMS,
+    /* Opens zoomed to the fact's box: the box takes about half the visible width. */
+    initialView: function (file, active) {
+      var b = file.facts[active].box;
+      return { zoom: snap(DOC_W * 0.5 / (b[2] * W)), whole: false };
+    },
+    render: function (file, active, view) {
+      view = view || V.photo.initialView(file, active);
+      var f = file.facts[active], b = f.box;
+      var size = view.whole ? '' : ' style="width:' + Math.round(W * view.zoom) + 'px;height:' + Math.round(H * view.zoom) + 'px"';
+      return '<div class="ft-photo' + (view.whole ? ' ft-photo--whole' : '') + '">' +
+        '<div class="ft-photo__tools"><button type="button" class="ft-btn ft-btn--sm ft-photo__toggle" data-act="whole" aria-pressed="' + !!view.whole + '">' + V.photo.toggleLabel(view) + '</button></div>' +
+        '<div class="ft-photo__stage"><div class="ft-photo__frame"' + size + ' role="img" aria-label="' + esc('Photo of a receipt from ' + file.receipt.vendor + '. The outlined box around ' + f.label.toLowerCase() + ' was checked by a second look.') + '">' +
+        svg(file) +
+        '<span class="ft-box ft-photo__box" data-photo-box style="left:' + r1(b[0] * 100) + '%;top:' + r1(b[1] * 100) + '%;width:' + r1(b[2] * 100) + '%;height:' + r1(b[3] * 100) + '%"></span>' +
+        '</div></div></div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-photo-box]'); },
+    /* Optional helpers for the frame. */
+    center: function (docEl, smooth) {
+      var box = docEl.querySelector('[data-photo-box]'); if (!box) return;
+      var d = docEl.getBoundingClientRect(), b = box.getBoundingClientRect();
+      docEl.scrollTo({ top: Math.max(0, docEl.scrollTop + b.top - d.top + b.height / 2 - docEl.clientHeight / 2),
+        left: Math.max(0, docEl.scrollLeft + b.left - d.left + b.width / 2 - docEl.clientWidth / 2), behavior: smooth ? 'smooth' : 'instant' });
+    },
+    fitZoom: function (docEl) { var p = padOf(docEl); return Math.min((docEl.clientWidth - p.x) / W, (docEl.clientHeight - p.y) / H); },
+    levelText: function (view, docEl) { return Math.round((view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom) * 100) + '%'; },
+    toggleLabel: function (view) { return view.whole ? 'Zoom to the box' : 'Show whole photo'; },
+    /* Zoom one step in (dir 1) or out (dir -1). From the whole photo, it starts at the fitted size. */
+    step: function (view, dir, docEl) {
+      var z = view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom, next = null;
+      ZOOMS.forEach(function (s) { if (dir > 0 && s > z + 0.001 && next === null) next = s; if (dir < 0 && s < z - 0.001) next = s; });
+      return next === null ? view : { zoom: next, whole: false };
+    },
+    canStep: function (view, dir, docEl) { return V.photo.step(view, dir, docEl) !== view; }
+  };
+
+  function photoFile(f) {
+    f.facts.forEach(function (x) { x.box = boxFor(f.receipt, x.key); x.loc = ''; });
+    return f;
+  }
+  V.files.F6 = photoFile({
+    id: 'F6', type: 'photo', name: 'boat_rental_receipt.jpg', title: 'Receipt photo',
+    meta: 'Gmail · from robin.example@university.example · Apr 12, 2026',
+    receipt: { vendor: 'Example Marina', paperW: 286, lines: [
+      { text: 'EXAMPLE MARINA', align: 'center', size: 19, weight: 700, key: 'vendor' },
+      { text: 'Harbor Rd, Example Bay', align: 'center', size: 11, muted: true },
+      { gap: 6 }, { rule: true },
+      { text: 'Jan 14, 2026', size: 12.5, key: 'date' },
+      { rule: true },
+      { text: 'Boat rental, full day', right: '$1,400.00', size: 12 },
+      { text: 'Fuel', right: '$80.00', size: 12 },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,480.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 14 },
+      { text: 'Thank you.', align: 'center', size: 11.5 },
+      { gap: 10 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Marina', key: 'vendor' },
+      { label: 'Date', value: 'Jan 14, 2026', key: 'date' },
+      { label: 'Total', value: '$1,480.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1015', name: 'Field boat rental', amount: '$1,480.00 of $1,480.00' }], note: '',
+    active: 2
+  });
+  V.files.F7 = photoFile({
+    id: 'F7', type: 'photo', name: 'field_camera_receipt.jpg', title: 'Receipt photo',
+    meta: 'Uploaded by you · Jan 22, 2026',
+    receipt: { vendor: 'Example Optics Supply', paperW: 292, lines: [
+      { text: 'EXAMPLE OPTICS SUPPLY', align: 'center', size: 16.5, weight: 700, key: 'vendor' },
+      { gap: 6 }, { rule: true },
+      { text: 'Field camera,', size: 12, key: 'item' },
+      { text: 'microscope mount', right: '$1,325.00', size: 12, key: 'item' },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,325.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 8 },
+      { text: 'Jan 21, 2026', size: 12.5, key: 'date' },
+      { gap: 14 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Optics Supply', key: 'vendor' },
+      { label: 'Date', value: 'Jan 21, 2026', key: 'date' },
+      { label: 'Item', value: 'Field camera, microscope mount', key: 'item' },
+      { label: 'Total', value: '$1,325.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1019', name: 'Field microscope camera', amount: '$1,325.00 of $1,325.00' }], note: '',
+    active: 3
+  });
+})();
+
+/* The evidence report in the viewer sheet: its pages in the document area, its parts in the side list.
+   FTReport.open(opener) needs window.FTReportPages (the pages' HTML), built into the card. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.report = {
+    zooms: [0.5, 0.65, 0.8, 1, 1.25],
+    initialView: function () { return { zoom: 0.8, whole: false }; },
+    cite: function (file, f) { return '<b>' + f.label + '</b><span>Page ' + f.page + ' of ' + file.pages + '</span>'; },
+    render: function (file, active, view) { return '<div class="ft-report ft-report--sheet" style="zoom:' + view.zoom + '">' + file.html + '</div>'; },
+    target: function (docEl, file, active) {
+      var f = file.facts[active], el = f.sel ? docEl.querySelector(f.sel) : null;
+      return el || docEl.querySelector('#rp-' + f.page);
+    }
+  };
+  window.FTReport = {
+    file: function () {
+      var signed = document.documentElement.classList.contains('is-signed');
+      var d = window.FTReportData || { counts: {}, grant: {} };
+      var open = (d.counts.conflict || 0) + (d.counts.human || 0) + (d.counts.missing || 0);
+      return {
+        id: 'R1', type: 'report', name: 'evidence_report_SYN-2300117.pdf', title: 'Evidence report', pages: 9,
+        meta: (signed ? 'Signed off by you · Apr 12, 2026' : 'Draft · As of Apr 12, 2026') + ' · 9 pages',
+        html: (function (h) {
+          if (!signed || !window.FTReportNote) return h;
+          var t = document.createElement('div'); t.innerHTML = h;
+          var n = t.querySelector('.ft-rso-note'); if (n) n.textContent = window.FTReportNote;
+          return t.innerHTML;
+        })(window.FTReportPages || ''),
+        facts: [
+          { label: 'Summary', value: 'The award, its total and its buckets', page: 1 },
+          { label: 'All charges', value: (d.charges ? d.charges.length : 51) + ' charges, ' + (d.grant.charged || ''), page: 2 },
+          { label: 'Charge sections', value: 'Checks, quotes and history', page: 4 },
+          { label: 'Open at sign-off', value: open + ' charges', page: 7 },
+          { label: 'Sign-off', value: signed ? 'Signed off Apr 12, 2026' : 'Not signed off yet', page: 7, sel: '#rp-7 .ft-rso-party' },
+          { label: 'Sources', value: 'Every file the report cites', page: 8 }
+        ],
+        links: [],
+        note: signed ? 'Signed off. Attach it to the Award Closeout Certification in BFS.' : 'Draft. It regenerates whenever a record changes, until you sign off.'
+      };
+    },
+    open: function (opener, part) { var f = this.file(); V.open(f, part || 0, opener); }
+  };
+})();
+
+</script>
+<!-- /viewer-scripts -->
+<!-- @pr6-scripts -->
+<script>
+/* FundTrail review thread: one charge's (or one record's) conversation. Code's reasons, the agent's comments,
+   suggestions and disputes, the accountant's replies and decisions, and a box to ask the agent.
+   FTThread.render(thread, opts)            returns HTML for a thread
+   FTThread.bind(container, thread, opts)   draws it into container and wires Accept, Reject, Undo and Ask
+   thread: { id, about: 'L-1019', entries: [entry] }
+   entry:  { who: 'code'|'agent'|'you', date, text, kind: 'reason'|'comment'|'suggestion'|'dispute'|'answer'|'decision',
+             result?: 'fails'|'passes'|'missing', answer?: 'supports'|'contradicts'|'unsure',
+             quote?: { text, loc }, change?: { now, suggested }, check?: 'the check a dispute names',
+             effect?: 'what accepting does', state?: 'waiting'|'accepted'|'rejected', decided?: date, pending?: true }
+   opts:   { heading: 'Thread', ask: true, today: 'Apr 12, 2026', undoMs: 8000,
+             onAccept(entry), onReject(entry), onUndo(entry, was), onAsk(question, reply(entry)) }
+   Plain ES5, no dependencies. */
+(function () {
+  var T = window.FTThread = window.FTThread || {};
+  var WHO = { code: 'Code', agent: 'Agent', you: 'You' };
+  var RESULT = { fails: 'Fails', passes: 'Passes', missing: 'Missing' };
+  var ANSWER = { supports: 'Supports', contradicts: 'Contradicts', unsure: 'Unsure' };
+  var seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function boxHtml(e, i, tid) {
+    var head = e.kind === 'dispute' ? 'Dispute' : 'Suggestion', st = e.state || 'waiting';
+    var h = '<div class="ft-th__box is-' + st + '" role="group" aria-labelledby="' + tid + '-bh' + i + '">' +
+      '<p class="ft-th__boxhead" id="' + tid + '-bh' + i + '"><span>' + head + '</span>' +
+      (st === 'waiting' ? '<span class="ft-th__boxstate">waiting for you</span>' : '') + '</p>';
+    if (e.kind === 'dispute' && e.check) h += '<p class="ft-th__check">Disputes the check: <b>' + esc(e.check) + '</b></p>';
+    if (e.change) h += '<dl class="ft-th__change"><dt>Now</dt><dd>' + esc(e.change.now) + '</dd><dt>Suggested</dt><dd>' + esc(e.change.suggested) + '</dd></dl>';
+    if (e.effect && st === 'waiting') h += '<p class="ft-th__effect">' + esc(e.effect) + '</p>';
+    if (st === 'waiting') {
+      h += '<div class="ft-th__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve ft-btn--main" data-th-act="accept" data-th-i="' + i + '">Accept</button>' +
+        '<button type="button" class="ft-btn ft-btn--sm ft-btn--reject" data-th-act="reject" data-th-i="' + i + '">Reject</button></div>';
+    } else {
+      h += '<p class="ft-th__decided" tabindex="-1" id="' + tid + '-dec' + i + '">' + (st === 'accepted' ? 'Accepted' : 'Rejected') + ' by you' + (e.decided ? ', ' + esc(e.decided) : '') + '.' +
+        (st === 'rejected' ? ' The agent can raise it again only if new evidence arrives.' : '') + '</p>';
+    }
+    if (e.undo) h += '<div class="ft-trail__done ft-th__done" role="status"><span>' + esc(e.undo) + '</span><button type="button" data-th-act="undo" data-th-i="' + i + '">Undo</button></div>';
+    return h + '</div>';
+  }
+
+  function entryHtml(e, i, tid) {
+    if (e.pending) {
+      return '<li class="ft-th__entry ft-th__entry--agent is-pending"><span class="ft-th__mark ft-th__mark--agent" aria-hidden="true"></span>' +
+        '<div class="ft-th__meta"><span class="ft-th__who">Agent</span></div>' +
+        '<p class="ft-th__body"><span class="ft-working"><span class="ft-working-dot" aria-hidden="true"></span>Agent is reading this charge</span></p></li>';
+    }
+    var who = e.who || 'agent';
+    var lead = '';
+    if (e.result) lead = '<b class="ft-th__result ft-th__result--' + e.result + '">' + RESULT[e.result] + '.</b> ';
+    if (e.answer) lead = '<b class="ft-chip ft-chip--' + e.answer + '">' + ANSWER[e.answer] + '.</b> ';
+    var h = '<li class="ft-th__entry ft-th__entry--' + who + (e.kind === 'decision' ? ' is-decision' : '') + '">' +
+      '<span class="ft-th__mark ft-th__mark--' + who + '" aria-hidden="true"></span>' +
+      '<div class="ft-th__meta"><span class="ft-th__who">' + WHO[who] + '</span>' + (e.date ? '<span class="ft-th__date">' + esc(e.date) + '</span>' : '') + '</div>';
+    if (e.text) h += '<p class="ft-th__body">' + lead + esc(e.text) + '</p>';
+    if (e.quote) h += '<p class="ft-th__quote">&ldquo;' + esc(e.quote.text) + '&rdquo; <span class="ft-loc">' + esc(e.quote.loc) + '</span></p>';
+    if (e.kind === 'suggestion' || e.kind === 'dispute') h += boxHtml(e, i, tid);
+    return h + '</li>';
+  }
+
+  T.render = function (thread, opts) {
+    opts = opts || {};
+    var tid = thread.uid || (thread.uid = 'ft-th-' + (++seq));
+    var n = thread.entries.filter(function (e) { return !e.pending; }).length;
+    var waiting = thread.entries.filter(function (e) { return (e.kind === 'suggestion' || e.kind === 'dispute') && (e.state || 'waiting') === 'waiting'; }).length;
+    var h = '<section class="ft-th" aria-labelledby="' + tid + '-h">' +
+      '<div class="ft-th__head"><h3 class="ft-th__title" id="' + tid + '-h">' + esc(opts.heading || 'Thread') + '</h3>' +
+      '<span class="ft-th__count">' + n + ' ' + (n === 1 ? 'entry' : 'entries') + (waiting ? ' <span class="ft-sep">&middot;</span> <b class="ft-th__waiting">' + waiting + ' waiting for you</b>' : '') + '</span></div>' +
+      '<ol class="ft-th__list" aria-label="' + esc((opts.heading || 'Thread') + (thread.about ? ', ' + thread.about : '')) + '">' +
+      thread.entries.map(function (e, i) { return entryHtml(e, i, tid); }).join('') + '</ol>';
+    if (opts.ask !== false) {
+      var busy = thread.entries.some(function (e) { return e.pending; });
+      h += '<form class="ft-th__ask" data-th-ask novalidate><label class="ft-th__asklabel" for="' + tid + '-q">Ask the agent about ' + esc(thread.about || 'this charge') + '</label>' +
+        '<div class="ft-th__askrow"><textarea class="ft-textarea ft-th__q" id="' + tid + '-q" name="q" rows="1" aria-describedby="' + tid + '-qn"' + (busy ? ' disabled' : '') + ' placeholder="' + esc(opts.placeholder || 'For example: what would close this?') + '">' + esc(thread.draft || '') + '</textarea>' +
+        '<button type="submit" class="ft-btn ft-btn--sm"' + (busy ? ' disabled' : '') + '>Ask</button></div>' +
+        '<p class="ft-th__note" id="' + tid + '-qn">It answers about ' + esc(thread.about || 'this charge') + ' only. If it proposes a change, the change comes back here as a suggestion for you to accept.</p></form>';
+    }
+    h += '<div class="ft-sr-only" role="status" aria-live="polite" id="' + tid + '-live">' + esc(thread.live || '') + '</div>';
+    return h + '</section>';
+  };
+
+  T.bind = function (container, thread, opts) {
+    opts = opts || {};
+    var timers = {};
+    function draw(focusSel) {
+      var a = document.activeElement, q = container.querySelector('.ft-th__q');
+      if (q) thread.draft = q.value;
+      container.innerHTML = T.render(thread, opts);
+      if (focusSel) { var f = container.querySelector(focusSel); if (f) f.focus(); }
+      else if (a && !a.isConnected && container.contains(document.activeElement) === false && a.getAttribute && a.getAttribute('data-th-act')) {
+        var h = container.querySelector('.ft-th__title'); if (h) { h.tabIndex = -1; h.focus(); }
+      }
+    }
+    function decide(i, st) {
+      var e = thread.entries[i]; e.state = st; e.decided = opts.today || '';
+      e.undo = st === 'accepted' ? (e.kind === 'dispute' ? 'Dispute accepted. The check is set aside for this charge, with the agent’s reasoning as your note.' : 'Suggestion accepted. Code rechecks the charge.')
+        : 'Rejected. It stays as it was.';
+      draw('[data-th-act="undo"][data-th-i="' + i + '"]');
+      if (st === 'accepted' && opts.onAccept) opts.onAccept(e); if (st === 'rejected' && opts.onReject) opts.onReject(e);
+      clearTimeout(timers[i]);
+      timers[i] = setTimeout(function () {
+        var had = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-th-i') === String(i);
+        e.undo = null; draw(had ? '#' + thread.uid + '-dec' + i : null);
+      }, opts.undoMs == null ? 8000 : opts.undoMs);
+    }
+    container.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-th-act]') : null; if (!b || !container.contains(b)) return;
+      var i = parseInt(b.getAttribute('data-th-i'), 10), act = b.getAttribute('data-th-act');
+      if (act === 'accept') decide(i, 'accepted');
+      else if (act === 'reject') decide(i, 'rejected');
+      else if (act === 'undo') {
+        var e = thread.entries[i], was = e.state; clearTimeout(timers[i]);
+        e.state = 'waiting'; e.decided = null; e.undo = null;
+        draw('[data-th-act="' + (was === 'accepted' ? 'accept' : 'reject') + '"][data-th-i="' + i + '"]');
+        if (opts.onUndo) opts.onUndo(e, was);
+      }
+    });
+    container.addEventListener('submit', function (ev) {
+      if (!ev.target.hasAttribute || !ev.target.hasAttribute('data-th-ask')) return;
+      ev.preventDefault();
+      var q = container.querySelector('.ft-th__q'), text = q ? q.value.trim() : '';
+      if (!text) { if (q) q.focus(); return; }
+      thread.draft = ''; if (q) q.value = '';
+      thread.entries.push({ who: 'you', kind: 'comment', date: opts.today || '', text: text });
+      thread.entries.push({ pending: true });
+      thread.live = 'Question sent. The agent is reading.';
+      draw('#' + thread.uid + '-live');
+      var h = container.querySelector('.ft-th__title'); if (h) { h.tabIndex = -1; h.focus(); }
+      function reply(entry) {
+        for (var k = thread.entries.length - 1; k >= 0; k--) if (thread.entries[k].pending) { thread.entries.splice(k, 1); break; }
+        entry.who = entry.who || 'agent'; entry.date = entry.date || opts.today || ''; thread.entries.push(entry);
+        thread.live = 'The agent answered: ' + (entry.text || '');
+        var ae = document.activeElement, mine = !ae || ae === document.body || container.contains(ae);
+        draw(mine ? '.ft-th__q' : null);
+      }
+      if (opts.onAsk) opts.onAsk(text, reply);
+      else setTimeout(function () { reply({ kind: 'comment', text: 'Noted. I have nothing on file that answers that yet.' }); }, 1200);
+    });
+    container.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey) && ev.target.classList && ev.target.classList.contains('ft-th__q')) {
+        ev.preventDefault(); var f = ev.target.form; if (f) { if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+      }
+    });
+    draw();
+    return { redraw: draw, thread: thread };
+  };
+})();
+
+/* FundTrail evidence checklist (PR 6, decision 0011): what a charge should have, filled or missing, who added each item,
+   and any removal the agent suggests, waiting for the accountant.
+   FTChecklist.render(items, opts)          pure: returns HTML
+   FTChecklist.summary(items)               {filled, missing, partial, waiting, total}
+   FTChecklist.mount(container, items, opts) stateful: Accept, Reject, Undo and Add item, with an inline done line
+     opts: {account, total:'$2,300.00', sum:{parts:['$1,800.00','$500.00'], total:'$2,300.00'}, title, onChange(items, action)}
+   Item: {need, by:'default'|'code'|'agent'|'you', state:'filled'|'missing'|'partial', filledBy:{name, amount, of, note},
+          period, expected, due:'late'|'not-due', rule:{kind:'adds-up'|'rate', math}, removal:{by:'agent', reason, state:'waiting'|'accepted'|'rejected'},
+          removed:{by, note}} */
+(function () {
+  var C = window.FTChecklist = {};
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var BY = { 'default': 'Account default', code: 'Added by code', agent: 'Added by the agent', you: 'Added by you' };
+  var STATE = { filled: 'Filled', missing: 'Missing', partial: 'Not complete' };
+
+  C.summary = function (items) {
+    var s = { filled: 0, missing: 0, partial: 0, waiting: 0, total: 0 };
+    items.forEach(function (it) {
+      if (it.removed) return;
+      s.total++; s[it.state] = (s[it.state] || 0) + 1;
+      if (it.removal && it.removal.state === 'waiting') s.waiting++;
+    });
+    return s;
+  };
+
+  function itemHtml(it, i) {
+    var removed = !!it.removed;
+    var st = removed ? 'removed' : it.state;
+    var stateText = removed ? 'Removed' : (it.state === 'missing' && it.due === 'not-due') ? 'Not due yet' : STATE[it.state];
+    var detail = '';
+    if (removed) detail = '<span class="ft-cl-detail">' + esc(it.removed.note) + '</span>';
+    else if (it.filledBy) {
+      detail = '<span class="ft-cl-detail"><span class="ft-cl-file">' + esc(it.filledBy.name) + '</span>' +
+        (it.filledBy.amount ? ' <span class="ft-sep">&middot;</span> <span class="ft-amount">' + esc(it.filledBy.amount) + '</span>' + (it.filledBy.of ? ' of <span class="ft-amount">' + esc(it.filledBy.of) + '</span>' : '') : '') +
+        (it.filledBy.note ? ' <span class="ft-sep">&middot;</span> ' + esc(it.filledBy.note) : '') + '</span>';
+    } else if (it.state === 'missing') {
+      detail = '<span class="ft-cl-detail">' + (it.expected ? (it.due === 'not-due' ? 'Expected ' : 'Expected since ') + esc(it.expected) : 'Nothing on file yet') + '</span>';
+    } else if (it.note) detail = '<span class="ft-cl-detail">' + esc(it.note) + '</span>';
+    var math = it.rule && it.rule.kind === 'rate' && it.rule.math && !removed ? '<span class="ft-cl-math">' + esc(it.rule.math) + ' <span class="ft-cl-checked">checked by code</span></span>' : '';
+    var waiting = it.removal && it.removal.state === 'waiting' && !removed;
+    var removal = waiting ? '<div class="ft-cl-removal" role="group" aria-label="The agent suggests removing ' + esc(it.need) + '">' +
+      '<p class="ft-cl-removal__text"><span class="ft-cl-removal__who">Agent suggests removing this item.</span> ' + esc(it.removal.reason) + '</p>' +
+      '<div class="ft-actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-cl-act="accept" data-cl-i="' + i + '">Accept</button>' +
+      '<button type="button" class="ft-btn ft-btn--sm ft-btn--reject" data-cl-act="reject" data-cl-i="' + i + '">Reject</button></div></div>' : '';
+    return '<li class="ft-cl-item is-' + st + (waiting ? ' has-removal' : '') + '" data-cl-i="' + i + '">' +
+      '<span class="ft-cl-mark" aria-hidden="true"></span>' +
+      '<div class="ft-cl-main"><span class="ft-cl-need">' + esc(it.need) + (it.period ? ' <span class="ft-cl-period">' + esc(it.period) + '</span>' : '') + '</span>' + detail + math + '</div>' +
+      '<span class="ft-cl-meta"><span class="ft-cl-state">' + stateText + '</span><span class="ft-cl-by">' + (removed ? '' : BY[it.by]) + '</span></span>' +
+      removal + '</li>';
+  }
+
+  C.render = function (items, opts) {
+    opts = opts || {};
+    var s = C.summary(items);
+    var head = '<div class="ft-cl-head"><span class="ft-cl-title">' + esc(opts.title || 'Evidence needed') + '</span>' +
+      '<span class="ft-cl-count">' + s.filled + ' of ' + s.total + ' filled' + (s.waiting ? ' <span class="ft-sep">&middot;</span> ' + s.waiting + ' waiting for you' : '') + '</span>' +
+      (opts.account ? '<span class="ft-cl-account">Ledger account: ' + esc(opts.account) + '</span>' : '') + '</div>';
+    var list = '<ul class="ft-cl-list">' + items.map(itemHtml).join('') + '</ul>';
+    var sum = opts.sum ? '<p class="ft-cl-sum">' + opts.sum.parts.map(esc).join(' + ') + ' = <span class="ft-amount">' + esc(opts.sum.total) + '</span> <span class="ft-sep">&middot;</span> adds up to the charge <span class="ft-cl-checked">checked by code</span></p>' : '';
+    var add = opts.adding ? '<form class="ft-cl-add" data-cl-form="add"><label class="ft-sr-only" for="' + opts.uid + '-add">New item</label>' +
+      '<input class="ft-input" id="' + opts.uid + '-add" name="need" placeholder="For example: Signed honorarium letter" autocomplete="off" value="' + esc(opts.draft || '') + '">' +
+      '<button class="ft-btn ft-btn--sm" type="submit">Add</button><button class="ft-overrule" type="button" data-cl-act="cancel">Cancel</button></form>'
+      : '<button type="button" class="ft-overrule ft-cl-addbtn" data-cl-act="add">Add item</button>';
+    var done = opts.done ? '<div class="ft-trail__done ft-cl-done" role="status" tabindex="-1"><span>' + esc(opts.done) + '</span><button type="button" data-cl-act="undo">Undo</button></div>' : '';
+    return '<section class="ft-cl" aria-label="' + esc(opts.title || 'Evidence needed') + '">' + head + list + sum + done + '<div class="ft-cl-foot">' + add + '</div></section>';
+  };
+
+  var uidN = 0;
+  C.mount = function (container, items, opts) {
+    opts = opts || {};
+    var st = { items: items, done: null, undo: null, adding: false, draft: '' };
+    var uid = 'ftcl' + (++uidN);
+    function clone(x) { return JSON.parse(JSON.stringify(x)); }
+    function draw(focusSel) {
+      container.innerHTML = C.render(st.items, { account: opts.account, sum: opts.sum, title: opts.title, done: st.done, adding: st.adding, draft: st.draft, uid: uid });
+      var t = focusSel && container.querySelector(focusSel);
+      if (t) t.focus();
+    }
+    function act(text, before, focusSel) { st.undo = before; st.done = text; draw(focusSel || '.ft-cl-done'); if (opts.onChange) opts.onChange(st.items); }
+    container.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-cl-act]') : null; if (!b || !container.contains(b)) return;
+      var a = b.getAttribute('data-cl-act'), i = parseInt(b.getAttribute('data-cl-i'), 10), before = clone(st.items);
+      if (a === 'accept') {
+        var it = st.items[i]; it.removal.state = 'accepted'; it.removed = { by: 'you', note: 'Removed by you, accepting the agent’s suggestion: ' + it.removal.reason };
+        act('Removed “' + it.need + '”. Code rechecks the charge without it.', before);
+      } else if (a === 'reject') {
+        var r = st.items[i]; r.removal.state = 'rejected';
+        act('Kept “' + r.need + '”. The agent can’t suggest this again unless new evidence arrives.', before);
+      } else if (a === 'undo') {
+        var back = st.undo; st.items = back; st.undo = null; st.done = null; draw('[data-cl-act="accept"], [data-cl-act="add"]');
+        if (opts.onChange) opts.onChange(st.items);
+      } else if (a === 'add') { st.adding = true; st.draft = ''; draw('#' + uid + '-add'); }
+      else if (a === 'cancel') { st.adding = false; draw('[data-cl-act="add"]'); }
+    });
+    container.addEventListener('input', function (e) { if (e.target.name === 'need' && container.contains(e.target)) st.draft = e.target.value; });
+    container.addEventListener('submit', function (e) {
+      if (!container.contains(e.target)) return; e.preventDefault();
+      var v = st.draft.trim(); if (!v) { var inp = container.querySelector('#' + uid + '-add'); if (inp) inp.focus(); return; }
+      var before = clone(st.items); st.items.push({ need: v, by: 'you', state: 'missing', expected: opts.today || null });
+      st.adding = false; st.draft = '';
+      act('Added “' + v + '”. It takes effect right away.', before);
+    });
+    draw();
+    return { state: st, draw: draw };
+  };
+})();
+
+/* FundTrail problem list: records with problems of their own, the row actions (Snooze, Accept with a note),
+   the two dialogs, and the standing notes list. Follows PR 6 (decision 0010), not merged yet.
+
+   FTProblems.recordRowHtml(rec, opts)   a record row that sits in the same .ft-ledger list as charge rows
+     rec: { id, kind: 'term'|'unlinked'|'overlinked'|'disagree'|'duplicate'|'flag', title, why, listed (date text),
+            by: 'code'|'agent', amount? (text), actions? (array of act ids; default per kind), selected? }
+   FTProblems.rowActionsHtml(id, acts)   the quiet row actions for a charge row: put it inside .ft-row__desc
+     acts default ['snooze', 'accept']; other ids: 'confirm-dup', 'not-dup', 'open'
+   FTProblems.bind(container, handlers)  delegated clicks on [data-pb-act]: handlers[act](id, button); stops the row's own click
+   FTProblems.acceptDialog(opts, onDone) opts: { target: {id, title, problem, account?, vendor?, amount?, kind: 'charge'|'record'},
+                                                 opener, alsoCovers? (number of other charges a standing note would cover today) }
+                                          onDone({ note, standing }) ; returns nothing. Esc, Cancel and the scrim close it.
+   FTProblems.snoozeDialog(opts, onDone) opts: { target, opener, today: 'YYYY-MM-DD', windowOpens: 'YYYY-MM-DD' }
+                                          onDone({ until: 'YYYY-MM-DD', untilText, reason })
+   FTProblems.acceptDialogHtml / snoozeDialogHtml(opts)   the same markup, for static cards
+   FTProblems.doneText(kind, target, result)   the sentence for the inline done line (ft-trail__done) after an action
+   FTProblems.stateTagHtml(state)        { state: 'snoozed'|'accepted'|'standing', until? } for a charge that left the list
+   FTProblems.standingNotesHtml(notes, opts)  notes: [{ id, note, by, date, problem, account, vendor, covers: [{id, name, amount}] }]
+   FTProblems.fmtDate('YYYY-MM-DD') -> 'Apr 30, 2026' */
+(function () {
+  var P = window.FTProblems = window.FTProblems || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function parse(iso) { var p = String(iso).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function iso(d) { function z(n) { return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+  P.fmtDate = function (s) { var d = parse(s); return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
+
+  /* What each kind of record is called, and what you can do about it on the row */
+  var KINDS = {
+    term: { tag: 'Term to confirm', acts: ['open', 'snooze'] },
+    unlinked: { tag: 'Bill not charged', acts: ['snooze', 'accept'] },
+    overlinked: { tag: 'Bill over-linked', acts: ['open', 'snooze'] },
+    disagree: { tag: 'Terms disagree', acts: ['open', 'snooze'] },
+    duplicate: { tag: 'Duplicate file', acts: ['confirm-dup', 'not-dup'] },
+    flag: { tag: 'Agent flag', acts: ['snooze', 'accept'] }
+  };
+  var ACT_LABEL = { snooze: 'Snooze', accept: 'Accept with a note', open: 'Review', 'confirm-dup': 'Confirm duplicate', 'not-dup': 'Not a duplicate' };
+  P.KINDS = KINDS;
+
+  P.rowActionsHtml = function (id, acts, name) {
+    acts = acts || ['snooze', 'accept'];
+    return '<span class="ft-pb-actions" role="group" aria-label="Actions for ' + esc(name || id) + '">' + acts.map(function (a) {
+      return '<button type="button" class="ft-pb-act" data-pb-act="' + a + '" data-pb-id="' + esc(id) + '">' + ACT_LABEL[a] + '</button>';
+    }).join('') + '</span>';
+  };
+
+  P.recordRowHtml = function (rec, opts) {
+    opts = opts || {};
+    var k = KINDS[rec.kind] || KINDS.flag;
+    var by = rec.by === 'agent' ? 'Flagged by the agent' : 'Raised by code';
+    return '<div class="ft-row ft-pb-row ft-pb-row--' + rec.kind + (rec.selected ? ' is-selected' : '') + '" role="row" tabindex="0" data-id="' + esc(rec.id) + '" data-row="record">' +
+      '<span class="ft-row__date">' + esc(rec.listed) + '<span class="ft-id ft-pb-rec">Record</span></span>' +
+      '<span class="ft-row__desc"><span class="ft-row__name">' + esc(rec.title) + '</span>' +
+        '<span class="ft-row__reason">' + esc(rec.why) + ' <span class="ft-pb-by">' + by + '.</span></span>' +
+        (opts.actions === false ? '' : P.rowActionsHtml(rec.id, rec.actions || k.acts, rec.title)) + '</span>' +
+      '<span class="ft-row__amount ft-amount">' + esc(rec.amount || '') + '</span>' +
+      '<span class="ft-row__bucket"><span class="ft-pb-kind">' + k.tag + '</span></span></div>';
+  };
+
+  P.bind = function (container, handlers) {
+    container.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-pb-act]') : null;
+      if (!b || !container.contains(b)) return;
+      /* stopImmediatePropagation: a row-select listener on the same list would redraw it and drop the button the dialog returns focus to */
+      e.stopImmediatePropagation(); e.stopPropagation(); e.preventDefault();
+      var f = handlers && handlers[b.getAttribute('data-pb-act')];
+      if (f) f(b.getAttribute('data-pb-id'), b);
+    });
+    container.addEventListener('keydown', function (e) {
+      if (e.target.closest && e.target.closest('[data-pb-act]') && (e.key === 'Enter' || e.key === ' ')) e.stopPropagation();
+    });
+  };
+
+  P.stateTagHtml = function (s) {
+    var t = s.state === 'snoozed' ? 'Snoozed until ' + P.fmtDate(s.until) : s.state === 'standing' ? 'Accepted under the accountant’s note' : 'Accepted with your note';
+    return '<span class="ft-pb-state ft-pb-state--' + s.state + '">' + esc(t) + '</span>';
+  };
+
+  P.doneText = function (kind, target, r) {
+    var who = target.id && target.kind !== 'record' ? target.id : target.title;
+    if (kind === 'snooze') return who + ' snoozed until ' + r.untilText + '. It comes back then if it isn’t fixed.';
+    if (r.standing) return who + ' accepted with a standing note. It also covers every charge with the same problem, account and vendor.';
+    return who + ' accepted with your note. It leaves the problem list, and comes back if the facts change.';
+  };
+
+  /* ---------- the dialogs ---------- */
+  var seq = 0;
+  function summary(t) {
+    return '<div class="ft-pb-target"><span class="ft-pb-target__name">' + (t.kind === 'record' ? '' : '<span class="ft-id">' + esc(t.id) + '</span> ') + esc(t.title) +
+      (t.amount ? ' <span class="ft-sep">&middot;</span> <span class="ft-amount">' + esc(t.amount) + '</span>' : '') + '</span>' +
+      '<span class="ft-pb-target__problem">' + esc(t.problem) + '</span></div>';
+  }
+  P.acceptDialogHtml = function (o, id) {
+    id = id || 'ft-pb-' + (++seq);
+    var t = o.target, charge = t.kind !== 'record', canStand = charge && !!t.vendor;
+    var stand = '';
+    if (charge) {
+      stand = '<div class="ft-pb-standing' + (canStand ? '' : ' is-off') + '">' +
+        '<label class="ft-pb-check"><input type="checkbox" name="standing"' + (canStand ? '' : ' disabled') + (o.standing && canStand ? ' checked' : '') + ' aria-describedby="' + id + '-st"> Make it a standing note</label>' +
+        '<p id="' + id + '-st">' + (canStand
+          ? 'It also covers every charge on this grant, past and future, with this same problem, ledger account and vendor. Every other check still runs.'
+          : 'This charge has no vendor, so the note can only cover this charge.') + '</p>' +
+        (canStand ? '<dl class="ft-pb-covers"><dt>Problem</dt><dd>' + esc(t.problemShort || t.problem) + '</dd><dt>Account</dt><dd>' + esc(t.account) + '</dd><dt>Vendor</dt><dd>' + esc(t.vendor) + '</dd>' +
+          '<dt>Today</dt><dd>This charge' + (o.alsoCovers ? ' and ' + o.alsoCovers + ' other' + (o.alsoCovers > 1 ? 's' : '') : ' only. Later charges that match are covered as they arrive.') + '</dd></dl>' : '') +
+        '</div>';
+    }
+    return '<form class="ft-dialog-form" novalidate data-pb-form="accept"><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Accept with a note</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d" class="ft-pb-lede">It will never fix itself, and you’re fine with it. It leaves the problem list, and comes back if the facts change.</p>' + summary(t) +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-note">Note</label>' +
+      '<textarea class="ft-textarea" id="' + id + '-note" name="note" rows="3" aria-required="true" aria-describedby="' + id + '-help" placeholder="For example: moving it off the grant in the adjustment period.">' + esc(o.note || '') + '</textarea>' +
+      '<span class="ft-field__hint" id="' + id + '-help">Goes into the evidence report under your name.</span></div>' + stand + '</div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-pb-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main">Accept with a note</button></div></form>';
+  };
+  P.snoozeDialogHtml = function (o, id) {
+    id = id || 'ft-pb-' + (++seq);
+    var t = o.target, today = o.today || iso(new Date()), win = o.windowOpens;
+    var min = iso(new Date(parse(today).getTime() + 86400000));
+    var def = o.until || iso(new Date(parse(today).getTime() + 14 * 86400000));
+    if (win && def > win) def = win;
+    return '<form class="ft-dialog-form" novalidate data-pb-form="snooze"><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Snooze until a date</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d" class="ft-pb-lede">You expect it to fix itself. It comes back on that date if it isn’t fixed, or sooner if a new problem shows up.</p>' + summary(t) +
+      '<div class="ft-pb-grid"><div class="ft-field" id="' + id + '-dfield"><label class="ft-field__label" for="' + id + '-date">Bring it back on</label>' +
+      '<input class="ft-input" type="date" id="' + id + '-date" name="until" value="' + def + '" min="' + min + '"' + (win ? ' max="' + win + '"' : '') + ' aria-describedby="' + id + '-dhelp">' +
+      '<span class="ft-field__hint" id="' + id + '-dhelp">' + (win ? 'Every snooze ends ' + P.fmtDate(win) + ', when the 90-day closeout window opens.' : 'Every snooze ends when the 90-day closeout window opens.') + '</span></div>' +
+      '<div class="ft-field" id="' + id + '-rfield"><label class="ft-field__label" for="' + id + '-reason">Why</label>' +
+      '<input class="ft-input" id="' + id + '-reason" name="reason" autocomplete="off" aria-required="true" aria-describedby="' + id + '-rhelp" placeholder="For example: refund coming, check Mar 1" value="' + esc(o.reason || '') + '">' +
+      '<span class="ft-field__hint" id="' + id + '-rhelp">Shows on the charge while it’s snoozed.</span></div></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-pb-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main">Snooze</button></div></form>';
+  };
+
+  var cur = null;
+  function close(returnFocus) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    c.dlg.parentNode.removeChild(c.dlg); c.scrim.parentNode.removeChild(c.scrim);
+    var app = document.querySelector('.ft-app');
+    if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && c.opener && c.opener.isConnected) c.opener.focus();
+  }
+  P.close = function () { close(true); };
+  function setError(dlg, fieldId, helpId, msg, hint) {
+    var f = dlg.querySelector('#' + fieldId), h = dlg.querySelector('#' + helpId), inp = f && f.querySelector('input, textarea');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); h.className = 'ft-field__error'; h.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); h.className = 'ft-field__hint'; h.textContent = hint; }
+  }
+  function open(kind, o, onDone) {
+    close(false);
+    var id = 'ft-pb-' + (++seq);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var dlg = document.createElement('section');
+    dlg.className = 'ft-dialog ft-pb-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.innerHTML = kind === 'accept' ? P.acceptDialogHtml(o, id) : P.snoozeDialogHtml(o, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    cur = { dlg: dlg, scrim: scrim, opener: o.opener || document.activeElement };
+    scrim.addEventListener('click', function () { close(true); });
+    dlg.addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('[data-pb-dialog="cancel"]') : null; if (b) close(true); });
+    dlg.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    var form = dlg.querySelector('form');
+    if (kind === 'accept') {
+      var note = form.elements.note, noteHint = 'Goes into the evidence report under your name.';
+      note.addEventListener('input', function () { if (note.value.trim()) setError(dlg, id + '-field', id + '-help', null, noteHint); });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var v = note.value.replace(/\s+/g, ' ').trim();
+        if (!v) { setError(dlg, id + '-field', id + '-help', 'Add a note. It goes into the evidence report.', noteHint); note.focus(); return; }
+        var st = form.elements.standing ? form.elements.standing.checked : false;
+        close(true); if (onDone) onDone({ note: v, standing: st });
+      });
+      note.focus();
+    } else {
+      var d = form.elements.until, r = form.elements.reason, win = o.windowOpens, today = o.today || iso(new Date());
+      var dHint = win ? 'Every snooze ends ' + P.fmtDate(win) + ', when the 90-day closeout window opens.' : 'Every snooze ends when the 90-day closeout window opens.';
+      var rHint = 'Shows on the charge while it’s snoozed.';
+      d.addEventListener('input', function () { setError(dlg, id + '-dfield', id + '-dhelp', null, dHint); });
+      r.addEventListener('input', function () { if (r.value.trim()) setError(dlg, id + '-rfield', id + '-rhelp', null, rHint); });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var until = d.value, why = r.value.replace(/\s+/g, ' ').trim(), bad = false;
+        if (!until || until <= today) { setError(dlg, id + '-dfield', id + '-dhelp', 'Pick a date after ' + P.fmtDate(today) + '.', dHint); bad = d; }
+        else if (win && until > win) { setError(dlg, id + '-dfield', id + '-dhelp', 'Pick a date by ' + P.fmtDate(win) + '. The closeout window ends every snooze.', dHint); bad = d; }
+        if (!why) { setError(dlg, id + '-rfield', id + '-rhelp', 'Say why you expect it to fix itself.', rHint); bad = bad || r; }
+        if (bad) { bad.focus(); return; }
+        close(true); if (onDone) onDone({ until: until, untilText: P.fmtDate(until), reason: why });
+      });
+      r.focus();
+    }
+  }
+  P.acceptDialog = function (o, onDone) { open('accept', o, onDone); };
+  P.snoozeDialog = function (o, onDone) { open('snooze', o, onDone); };
+  P.isOpen = function () { return !!cur; };
+
+  /* ---------- standing notes ---------- */
+  P.standingNotesHtml = function (notes, opts) {
+    opts = opts || {};
+    var head = '<div class="ft-pb-notes__head"><h3 class="ft-heading" id="ft-pb-notes-h">Standing notes</h3>' +
+      '<span class="ft-caption">Each covers every charge with the same problem, account and vendor. Every other check still runs.</span></div>';
+    if (!notes || !notes.length) return '<section class="ft-pb-notes" aria-labelledby="ft-pb-notes-h">' + head +
+      '<p class="ft-pb-notes__empty">No standing notes. When you accept a problem with a note, you can make it cover every charge like it.</p></section>';
+    return '<section class="ft-pb-notes" aria-labelledby="ft-pb-notes-h">' + head + '<ul class="ft-pb-notes__list">' + notes.map(function (n) {
+      return '<li class="ft-pb-note"><div class="ft-pb-note__main"><p class="ft-pb-note__text">“' + esc(n.note) + '”</p>' +
+        '<dl class="ft-pb-covers"><dt>Problem</dt><dd>' + esc(n.problem) + '</dd><dt>Account</dt><dd>' + esc(n.account) + '</dd><dt>Vendor</dt><dd>' + esc(n.vendor) + '</dd></dl>' +
+        '<span class="ft-caption">Written by ' + esc(n.by) + ', ' + esc(n.date) + '</span></div>' +
+        '<div class="ft-pb-note__covers"><span class="ft-pb-note__label">Covers ' + n.covers.length + ' charge' + (n.covers.length === 1 ? '' : 's') + '</span><ul>' +
+        n.covers.map(function (c) { return '<li><span class="ft-id">' + esc(c.id) + '</span><span>' + esc(c.name) + '</span><span class="ft-amount">' + esc(c.amount) + '</span></li>'; }).join('') + '</ul>' +
+        '<button type="button" class="ft-pb-act ft-pb-act--withdraw" data-pb-act="withdraw" data-pb-id="' + esc(n.id) + '">Withdraw note</button>' +
+        '<span class="ft-caption">Withdrawing brings these charges back to the problem list.</span></div></li>';
+    }).join('') + '</ul></section>';
+  };
+})();
+
+</script>
+<!-- /pr6-scripts -->
+<script>
+(function () {
+  var NAMES = { conflict: 'Possible conflict', human: 'Needs a human', missing: 'Missing evidence', complete: 'Evidence complete' };
+  var ORDER = ['conflict', 'human', 'missing'];
+  var TOTAL = 51, ALREADY_COMPLETE = 46;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function T(kind, title, verdict, what, extra) { var n = { kind: kind, title: title, verdict: verdict, what: what }; for (var k in (extra || {})) n[k] = extra[k]; return n; }
+
+  /* PR 6 (not merged yet): every charge has an evidence checklist and a review thread; records can be problems too */
+  function E(who, kind, date, text, extra) { var e = { who: who, kind: kind, date: date, text: text }; for (var k in (extra || {})) e[k] = extra[k]; return e; }
+  var BILL = 'A bill that adds up to the charge';
+  function decorate(st) {
+    var add = {
+      'L-1002': { vendor: 'Example Sequencing Core',
+        checklist: [{ need: BILL, by: 'default', state: 'filled', filledBy: { name: 'Invoice SEQ-0207', amount: '$2,180.00', of: '$2,180.00' } }],
+        thread: [E('code', 'reason', 'Feb 24, 2026', 'Work done Feb 20, 2026, after the end date in force, Jan 31, 2026.', { result: 'fails' })] },
+      'L-0981': { vendor: 'Example Ocean Sciences Meeting',
+        checklist: [{ need: BILL, by: 'default', state: 'filled', filledBy: { name: 'Registration receipt', amount: '$650.00', of: '$650.00' } },
+                    { need: 'Program officer’s written approval, through Research.gov', by: 'code', state: 'missing', expected: 'Oct 3, 2025' }],
+        thread: [E('code', 'reason', 'Oct 6, 2025', 'Approved by the principal investigator by email. Using participant support money for this needs the program officer’s written approval, through Research.gov.', { result: 'fails' }),
+                 E('agent', 'comment', 'Oct 6, 2025', 'The email is Dr. Robin Example’s reply to Sam Example. No approval from the program officer is on file.', { quote: { text: 'Approved, go ahead and register.', loc: 'approval_email.eml, line 9' } })] },
+      'L-1010': { vendor: 'Example Sequencing Core',
+        checklist: [{ need: BILL, by: 'default', state: 'partial', filledBy: { name: 'Invoice SEQ-0311', note: 'needs this grant’s part' } }],
+        thread: [E('code', 'reason', 'Jan 13, 2026', 'Invoice SEQ-0311 is for $10,000.00 and this charge is $5,833.33. Nothing on file gives this grant’s part.'),
+                 E('agent', 'comment', 'Jan 13, 2026', 'The invoice says the run is shared by SYN-2300117 and SYN-2300245. No email on file gives the split.', { quote: { text: 'Run shared by awards SYN-2300117 and SYN-2300245.', loc: 'invoice_SEQ-0311.pdf, page 1' } })] },
+      'L-1019': { vendor: 'Example Optics Supply',
+        checklist: [{ need: BILL, by: 'default', state: 'filled', filledBy: { name: 'Receipt photo', amount: '$1,325.00', of: '$1,325.00', note: 'box checked by a second look' } }],
+        thread: [E('agent', 'answer', 'Jan 23, 2026', 'The receipt names a field camera, but nothing on file ties it to the sediment survey.', { answer: 'unsure' })] },
+      'L-1015': { vendor: 'Example Marina', posted: '2026-01-16',
+        checklist: [{ need: BILL, by: 'default', state: 'missing', expected: 'Jan 16, 2026' }],
+        thread: [E('code', 'reason', 'Jan 16, 2026', 'No bill on file for $1,480.00.', { result: 'missing' }),
+                 E('code', 'reason', 'Mar 17, 2026', 'Missing for 60 days, so it’s on the problem list.')] }
+    };
+    st.charges.forEach(function (c) { var a = add[c.id]; c.vendor = a.vendor; c.posted = a.posted || null; c.checklist = a.checklist; c.thread = { about: c.id, entries: a.thread }; c.off = null; });
+    return st;
+  }
+
+  function initial() {
+    return decorate({
+      clock: 'Apr 9, 2026', clockISO: '2026-04-09', endISO: '2026-01-31', step: 0, filter: 'all', selected: 'L-1002', termsWaiting: 0, records: [],
+      charges: [
+        { id: 'L-1002', date: 'Feb 20, 2026', name: 'Sediment DNA sequencing run 7', amount: '$2,180.00', line: 'Other Direct Costs', bucket: 'conflict',
+          rowReason: "Work done after the grant's end date, Jan 31, 2026.",
+          trail: [T('charge', 'Ledger line L-1002', 'Charged', '$2,180.00 to Other Direct Costs, work done Feb 20, 2026'),
+                  T('ok', 'Invoice SEQ-0207', 'Amount matches', 'Example Sequencing Core, $2,180.00 of $2,180.00', { source: true }),
+                  T('ok', 'Email from Dr. Robin Example', 'Known sender', 'The principal investigator forwarded the invoice, Feb 21', { source: true }),
+                  T('ok', 'Necessary, reasonable and for this project', 'Agent supports', 'The agent read the invoice against the award.', { source: true }),
+                  T('fail', 'Award letter', 'Breaks the trail', 'The ledger dates the work after the grant ended.', { source: true, dates: true, quote: 'February 1, 2023 through January 31, 2026', loc: 'award_letter.txt, line 15' })],
+          history: [{ date: 'Feb 24, 2026', trigger: 'Ledger line L-1002 arrived', to: 'conflict' }] },
+        { id: 'L-0981', date: 'Oct 3, 2025', name: 'Conference registration', amount: '$650.00', line: 'Participant Support Costs', bucket: 'conflict',
+          rowReason: 'Approved by the principal investigator, not the program officer.',
+          trail: [T('charge', 'Ledger line L-0981', 'Charged', '$650.00 to Participant Support Costs, Oct 3, 2025'),
+                  T('ok', 'Registration receipt', 'Amount matches', 'Example Ocean Sciences Meeting, $650.00 of $650.00', { source: true }),
+                  T('fail', 'Approval email', 'Wrong approver', 'Approved by the principal investigator by email. The award needs the program officer.', { source: true, quote: 'Approved, go ahead and register.', loc: 'approval_email.eml' }),
+                  T('missing', "Program officer's approval", 'Not on file', 'Written approval through Research.gov, required for participant support costs.')],
+          history: [{ date: 'Oct 6, 2025', trigger: 'Approval email arrived', from: 'missing', to: 'conflict' }] },
+        { id: 'L-1010', date: 'Jan 9, 2026', name: 'Sequencing core, shared run 6', amount: '$5,833.33', line: 'Other Direct Costs', bucket: 'human',
+          rowReason: "Invoice SEQ-0311 covers two grants; nothing gives this grant's part.",
+          trail: [T('charge', 'Ledger line L-1010', 'Charged', '$5,833.33 to Other Direct Costs, Jan 9, 2026'),
+                  T('human', 'Invoice SEQ-0311', 'Split unknown', 'Example Sequencing Core, $10,000.00 for a run shared with another grant', { source: true }),
+                  T('missing', "This grant's part", 'Not on file', 'Nothing on file gives the split. Enter it, or find an email or itemized invoice that does.', { action: 'split' })],
+          history: [{ date: 'Jan 13, 2026', trigger: 'Ledger line L-1010 arrived', to: 'human' }] },
+        { id: 'L-1019', date: 'Jan 21, 2026', name: 'Field microscope camera', amount: '$1,325.00', line: 'Materials and Supplies', bucket: 'human',
+          rowReason: 'The agent is unsure the cost is for this project.',
+          trail: [T('charge', 'Ledger line L-1019', 'Charged', '$1,325.00 to Materials and Supplies, Jan 21, 2026'),
+                  T('ok', 'Receipt photo', 'Amount matches', 'Example Optics Supply, $1,325.00, box checked by a second look', { source: true }),
+                  T('human', 'Is it for this project?', 'Agent unsure', 'The receipt names a field camera, but nothing on file ties it to the sediment survey.', { source: true, action: 'answer' })],
+          history: [{ date: 'Jan 23, 2026', trigger: 'Ledger line L-1019 arrived', to: 'human' }] },
+        { id: 'L-1015', date: 'Jan 14, 2026', name: 'Field boat rental', amount: '$1,480.00', line: 'Other Direct Costs', bucket: 'missing',
+          rowReason: 'No bill on file.',
+          trail: [T('charge', 'Ledger line L-1015', 'Charged', '$1,480.00 to Other Direct Costs, Jan 14, 2026'),
+                  T('missing', 'Bill', 'Not on file', 'Nothing from Example Marina yet.')],
+          history: [{ date: 'Jan 16, 2026', trigger: 'Ledger line L-1015 arrived', to: 'missing' }] }
+      ]
+    });
+  }
+
+  var state = initial(), undoState = null, toastTimer = null, doneTimer = null;
+  var $ = function (id) { return document.getElementById(id); };
+  function charge(id) { for (var i = 0; i < state.charges.length; i++) if (state.charges[i].id === id) return state.charges[i]; return null; }
+  /* PR 6: Missing evidence goes on the problem list 60 days past the date it was expected (the posting date here),
+     or 90 days before the end date in force, whichever comes first. Snoozed and accepted charges are off the list. */
+  var P = window.FTProblems;
+  function addDays(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function windowOpens(endISO) { return addDays(endISO || state.endISO, -90); }
+  function windowOpen() { return state.clockISO >= windowOpens(); }
+  function listedFrom(c) { var w = windowOpens(), p = c.posted ? addDays(c.posted, 60) : w; return p < w ? p : w; }
+  function onList(c) { if (c.bucket === 'complete' || c.off) return false; return c.bucket !== 'missing' || state.clockISO >= listedFrom(c); }
+  function record(id) { for (var i = 0; i < state.records.length; i++) if (state.records[i].id === id) return state.records[i]; return null; }
+  /* Records first (a proposal: the PR leaves the sort open), then charges, most serious first */
+  function problems() { return state.records.concat(state.charges.filter(onList).sort(function (a, b) { return ORDER.indexOf(a.bucket) - ORDER.indexOf(b.bucket); })); }
+  function visible() { return problems().filter(function (x) { return state.filter === 'all' || (!x.rec && x.bucket === state.filter); }); }
+  function visibleIds() { return visible().map(function (x) { return x.id; }); }
+  /* When the selected item leaves the problem list, open the one that took its place, else the one before it, else nothing */
+  function reselect(before) {
+    var now = visibleIds();
+    if (state.selected && now.indexOf(state.selected) >= 0) return false;
+    var i = before ? before.indexOf(state.selected) : -1, pick = null, k;
+    if (i >= 0) {
+      for (k = i + 1; k < before.length && !pick; k++) if (now.indexOf(before[k]) >= 0) pick = before[k];
+      for (k = i - 1; k >= 0 && !pick; k--) if (now.indexOf(before[k]) >= 0) pick = before[k];
+    } else if (now.length) pick = now[0];
+    if (pick === state.selected) return false;
+    state.selected = pick;
+    return true;
+  }
+  /* Redraw after a reselect: focus stays on the done line (or its Undo) while it shows; focus that was in the removed row or panel moves to the newly selected row */
+  function redrawKeepingFocus(fn, moved) {
+    var a = document.activeElement, inDone = !!(a && a.closest && a.closest('#demo-done')), wasUndo = !!(a && a.id === 'demo-undo-inline');
+    /* Focus that was in the list or the panel, or already lost to the page because an earlier redraw removed it */
+    var inList = !!(a && a.closest && (a.closest('#demo-detail') || a.closest('.ft-row'))) || !!(moved && a === document.body);
+    fn();
+    if (inDone) { var t = wasUndo ? $('demo-undo-inline') : $('demo-done'); if (t) { t.focus(); return; } }
+    if ((inDone || inList) && (document.activeElement === document.body || !(a && a.isConnected && document.activeElement === a))) {
+      var r = state.selected && document.querySelector('.ft-row[data-id="' + state.selected + '"]');
+      if (r) r.focus();
+    }
+  }
+  function count(b) { return state.charges.filter(function (c) { return c.bucket === b; }).length; }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function later(fn, ms, instant) { if (instant || reduce) fn(); else setTimeout(fn, ms); }
+  function badge(b, extra) { return '<span class="ft-badge ft-badge--' + b + (extra ? ' ' + extra : '') + '">' + NAMES[b] + '</span>'; }
+
+  var ARRIVALS = [
+    { date: 'Apr 10, 2026', iso: '2026-04-10', label: 'extension notice, Apr 10', file: 'extension_notice.txt from Google Drive',
+      apply: function () {
+        var c = charge('L-1002');
+        c.trail.push(T('wait', 'Amendment 01', 'Waiting for you', 'Proposes a new end date, Jan 31, 2027. Signed by the grants officer; read by the agent from Google Drive.', { source: true, action: 'review', quote: 'changed from January 31, 2026 to January 31, 2027', loc: 'extension_notice.txt, line 8' }));
+        c.thread.entries.push(E('agent', 'comment', 'Apr 10, 2026', 'Amendment 01 moves the end date to Jan 31, 2027. It’s waiting for you on the problem list. Once you confirm it, this charge passes.', { quote: { text: 'changed from January 31, 2026 to January 31, 2027', loc: 'extension_notice.txt, line 8' } }));
+        state.records.push({ rec: true, id: 'R-01', kind: 'term', title: 'New end date, Jan 31, 2027', why: 'From amendment 01. No check uses it until you confirm it.', listed: 'Apr 10, 2026', by: 'code', actions: ['open'], isNew: true,
+          thread: { about: 'this term', entries: [E('agent', 'comment', 'Apr 10, 2026', 'Read from extension_notice.txt, line 8. It changes the end date and touches 1 charge now: L-1002.')] } });
+        c.isNew = true; state.termsWaiting = 1; state.selected = 'R-01';
+        return 'Extension notice read. A new end date is waiting for you on the problem list.';
+      } },
+    { date: 'Apr 12, 2026', iso: '2026-04-12', label: 'receipt photo, Apr 12', file: 'boat_rental_receipt.jpg from Gmail',
+      apply: function (instant) {
+        var c = charge('L-1015');
+        resolveCharge(c, function () {
+          c.checklist[0] = { need: BILL, by: 'default', state: 'filled', filledBy: { name: 'Receipt photo', amount: '$1,480.00', of: '$1,480.00', note: 'box checked by a second look' } };
+          c.thread.entries.push(E('agent', 'comment', 'Apr 12, 2026', 'Linked the receipt photo from Example Marina, $1,480.00 of $1,480.00.'));
+          c.thread.entries.push(E('code', 'reason', 'Apr 12, 2026', 'The bill adds up to the charge.', { result: 'passes' }));
+          c.trail = [c.trail[0], T('ok', 'Receipt photo', 'Amount matches', 'Example Marina, $1,480.00, box checked by a second look', { source: true }),
+                     T('ok', 'Necessary, reasonable and for this project', 'Agent supports', 'A boat for sampling in Example Bay, the project site', { source: true })];
+          c.history.unshift({ date: 'Apr 12, 2026', trigger: 'Receipt photo arrived', from: 'missing', to: 'complete' });
+        }, instant);
+        return 'Receipt photo linked to L-1015. Field boat rental is now Evidence complete.';
+      } }
+  ];
+
+  /* ---------- the grant header and timeline ---------- */
+  function renderReady() {
+    var n = { conflict: count('conflict'), human: count('human'), missing: count('missing') };
+    var done = ALREADY_COMPLETE + count('complete');
+    $('demo-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">' + done + '</span><span class="ft-ready__of">of ' + TOTAL + ' charges ready for closeout</span></div>' +
+      '<div class="ft-ready__bar" aria-hidden="true">' + (n.conflict ? '<span class="is-conflict" style="flex:' + n.conflict + '"></span>' : '') + (n.human ? '<span class="is-human" style="flex:' + n.human + '"></span>' : '') +
+      (n.missing ? '<span class="is-missing" style="flex:' + n.missing + '"></span>' : '') + '<span class="is-complete" style="flex:' + done + '"></span></div>' +
+      '<div class="ft-ready__legend"><span><b>' + n.conflict + '</b> conflict</span><span><b>' + n.human + '</b> need you</span><span><b>' + n.missing + '</b> missing</span><span><b>' + done + '</b> complete</span></div>';
+  }
+  var START = Date.parse('2023-02-01'), STOP = Date.parse('2027-04-30');
+  function pct(iso) { return +((Date.parse(iso) - START) / (STOP - START) * 100).toFixed(2); }
+  function fmt(iso) { var d = new Date(iso + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  function mark(cls, iso, title, date) { return '<div class="ft-timeline__mark ' + cls + '" style="left:' + pct(iso) + '%"><span class="ft-timeline__tick"></span><span class="ft-timeline__label"><b>' + title + '</b>' + (date || fmt(iso)) + '</span></div>'; }
+  function renderTimeline() {
+    var late = Date.parse(state.clockISO) > Date.parse(state.endISO);
+    var h = '<div class="ft-timeline__track"></div><div class="ft-timeline__past" style="width:' + pct(late ? state.endISO : state.clockISO) + '%"></div>';
+    if (late) h += '<div class="ft-timeline__late" style="left:' + pct(state.endISO) + '%;width:' + (pct(state.clockISO) - pct(state.endISO)) + '%"></div>';
+    if (state.termsWaiting) h += '<div class="ft-timeline__ghost" style="left:' + pct(state.clockISO) + '%;width:' + (pct('2027-01-31') - pct(state.clockISO)) + '%"></div>';
+    h += mark('ft-timeline__mark--below', '2023-02-01', 'Start');
+    h += mark('ft-timeline__mark--above ft-timeline__mark--right', state.endISO, 'End date');
+    h += mark('ft-timeline__mark--below' + (late ? ' ft-timeline__mark--late' : ''), state.clockISO, late ? 'Today, after the end date' : 'Today');
+    if (state.termsWaiting) h += mark('ft-timeline__mark--above ft-timeline__mark--right ft-timeline__mark--ghost', '2027-01-31', 'Proposed end date');
+    $('demo-timeline').innerHTML = h;
+    $('demo-timeline').setAttribute('aria-label', 'Grant timeline: started Feb 1, 2023, ends ' + fmt(state.endISO) + ', today is ' + state.clock + (late ? ', after the end date' : ''));
+  }
+
+  /* ---------- the list ---------- */
+  function renderTabs() {
+    var p = problems(), n = function (b) { return p.filter(function (c) { return !c.rec && c.bucket === b; }).length; };
+    var tabs = [['all', 'All', p.length]].concat(ORDER.map(function (b) { return [b, NAMES[b], n(b)]; }));
+    $('demo-tabs').innerHTML = tabs.map(function (t) {
+      return '<button type="button" role="tab" class="ft-tab" data-filter="' + t[0] + '" aria-selected="' + (state.filter === t[0]) + '">' +
+        (t[0] === 'all' ? '' : '<span class="ft-tab-mark ft-tab-mark--' + t[0] + '" aria-hidden="true"></span>') + t[1] +
+        ' <span class="ft-count" data-count="' + t[0] + '">' + t[2] + '</span></button>';
+    }).join('');
+  }
+  /* The row actions, on the selected row only. Snooze needs the 90-day closeout window to be closed: it ends every snooze. */
+  function actsFor(c) { return windowOpen() ? ['accept'] : ['snooze', 'accept']; }
+  function rowHtml(c) {
+    if (c.rec) {
+      var r = {}; for (var k in c) r[k] = c[k]; r.selected = c.id === state.selected;
+      var html = P.recordRowHtml(r, { actions: r.selected ? undefined : false });
+      return html;
+    }
+    var sel = c.id === state.selected;
+    return '<div class="ft-row' + (sel ? ' is-selected' : '') + '" role="row" tabindex="0" data-id="' + c.id + '">' +
+      '<span class="ft-row__date">' + c.date + '<span class="ft-id">' + c.id + '</span></span>' +
+      '<span class="ft-row__desc"><span class="ft-row__name">' + (c.isNew ? '<span class="ft-new" title="New">New</span>' : '') + c.name + '</span><span class="ft-row__reason">' + c.rowReason + '</span>' +
+      (sel ? P.rowActionsHtml(c.id, actsFor(c), c.name) : '') + '</span>' +
+      '<span class="ft-row__amount ft-amount">' + c.amount + '</span><span class="ft-row__bucket">' + badge(c.bucket) + '</span></div>';
+  }
+  function renderRows() {
+    var v = visible();
+    $('demo-rows').innerHTML = v.length ? v.map(rowHtml).join('') : '<div class="ft-empty">Nothing in this bucket needs you.</div>';
+  }
+
+  /* ---------- the charge: its evidence trail ---------- */
+  /* Which file and fact each trail link opens in the viewer (FTViewer.files, by fact label) */
+  var LINKS = { 'Invoice SEQ-0207': ['F3', 'Total'], 'Email from Dr. Robin Example': ['F3', 'Sender'], 'Award letter': ['F1', 'End date'], 'Amendment 01': ['F2', 'New end date'],
+    'Approval email': ['F4', 'Approval'], 'Invoice SEQ-0311': ['F5', 'Total'], 'L-1019|Receipt photo': ['F7', 'Total'], 'L-1015|Receipt photo': ['F6', 'Total'] };
+  function linkFor(c, n) {
+    var m = LINKS[c.id + '|' + n.title] || LINKS[n.title], V = window.FTViewer;
+    if (!m || !V || !V.files || !V.files[m[0]]) return null;
+    var facts = V.files[m[0]].facts, k = 0;
+    for (var i = 0; i < facts.length; i++) if (facts[i].label === m[1]) { k = i; break; }
+    return [m[0], k];
+  }
+  function syncFiles() {
+    var V = window.FTViewer; if (!V || !V.files || !V.files.F2) return;
+    var done = charge('L-1002') && charge('L-1002').bucket === 'complete';
+    V.files.F2.note = done ? 'New end date confirmed by you, ' + state.clock + '.' : 'Waiting for you: confirm or reject the new end date.';
+    if (V.files.F1) V.files.F1.note = done ? 'Grant terms. Its end date was replaced by amendment 01, confirmed ' + state.clock + '.' : 'Grant terms. Confirmed by you, Jan 12, 2023.';
+  }
+  function trailHtml(c) {
+    syncFiles();
+    return '<ol class="ft-trail">' + c.trail.map(function (n, i) {
+      var next = c.trail[i + 1], line = '';
+      if (next) line = (n.kind === 'fail' || n.kind === 'human') ? (next.kind === 'missing' ? ' ft-trail__item--gap-missing' : ' ft-trail__item--gap') : (next.kind === 'missing' ? ' ft-trail__item--gap-missing' : '');
+      var quiet = (n.kind === 'ok' || n.kind === 'charge' || n.kind === 'replaced') && !n.keep;
+      var detail = quiet ? '' : '<div class="ft-trail__what">' + n.what + '</div>';
+      var dates = n.dates ? '<p class="ft-trail__dates">Grant ended <b>Jan 31, 2026</b><span class="ft-arrow">&rarr;</span>Work done (ledger) <b>' + c.date + '</b>' + (state.termsWaiting ? '<span class="ft-arrow">&rarr;</span>Proposed end <b>Jan 31, 2027</b>' : '') + '</p>' : '';
+      var ln0 = linkFor(c, n), q = '&ldquo;' + n.quote + '&rdquo;<span class="ft-loc">' + n.loc + '</span>';
+      var quote = n.quote && !quiet ? '<p class="ft-trail__quote">' + (ln0 ? '<a class="ft-trail__qlink" href="#" data-file="' + ln0[0] + '" data-fact="' + ln0[1] + '" aria-label="Open ' + n.loc + ' at this passage">' + q + '</a>' : q) + '</p>' : '';
+      var acts = '';
+      if (n.action === 'review') acts = '<div class="ft-actions ft-trail__actions"><button type="button" class="ft-btn ft-btn--sm" id="demo-review-term">Review the term</button></div><p class="ft-trail__scope">It\u2019s on the problem list as a term waiting for you.</p>';
+      if (n.action === 'answer') acts = answerFormHtml();
+      if (n.action === 'split') acts = splitFormHtml();
+      var ln = linkFor(c, n), at = ln ? ' href="#" data-file="' + ln[0] + '" data-fact="' + ln[1] + '"' : '';
+      var title = ln ? '<a class="ft-trail__link"' + at + '>' + n.title + '</a>' : n.title;
+      return '<li class="ft-trail__item ft-trail__item--' + n.kind + line + '"><span class="ft-trail__node ft-trail__node--' + n.kind + '" aria-hidden="true"></span>' +
+        '<div class="ft-trail__row"><span class="ft-trail__title">' + title + '</span><span class="ft-trail__verdict ft-trail__verdict--' + n.kind + '">' + n.verdict + '</span></div>' + detail + dates + quote + acts + '</li>';
+    }).join('') + '</ol>';
+  }
+  /* ---------- the accountant's forms ---------- */
+  var form = { ans: '', why: '', err: false, by: 'units', u: '', n: '96', amt: '', basis: '' };
+  var INVOICE = 10000, CHARGE = 5833.33;
+  function money(x) { return '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  function answerFormHtml() {
+    var ready = form.ans !== '';
+    return '<form class="ft-form" id="demo-answer-form" novalidate><p class="ft-form__title">Your answer</p>' +
+      '<fieldset class="ft-field"><legend class="ft-field__label" style="position:absolute;left:-9999px">Is it for this project?</legend><div class="ft-choice">' +
+      '<label><input type="radio" name="ans" value="yes"' + (form.ans === 'yes' ? ' checked' : '') + '> For this project</label>' +
+      '<label><input type="radio" name="ans" value="no"' + (form.ans === 'no' ? ' checked' : '') + '> Not for this project</label></div></fieldset>' +
+      '<div class="ft-field' + (form.err ? ' is-invalid' : '') + '"><label class="ft-field__label" for="demo-why">Why</label>' +
+      '<textarea class="ft-textarea" id="demo-why" name="why" placeholder="For example: the camera is in the approved budget justification for field imaging.">' + esc(form.why) + '</textarea>' +
+      (form.err ? '<span class="ft-field__error">Add a reason. It goes into the evidence report.</span>' : '<span class="ft-field__hint">Goes into the evidence report as your reasoning, labeled as yours.</span>') + '</div>' +
+      '<div class="ft-form__actions"><button type="submit" class="ft-btn ft-btn--main" id="demo-answer-save"' + (ready ? '' : ' disabled') + '>Save answer</button><span class="ft-trail__scope" style="margin:0">Code rechecks L-1019 with your answer.</span></div></form>';
+  }
+  function splitPart() {
+    if (form.by === 'units') { var u = parseFloat(form.u), n = parseFloat(form.n); return u > 0 && n > 0 && u <= n ? Math.round(INVOICE * u / n * 100) / 100 : null; }
+    var a = parseFloat(String(form.amt).replace(/[$,]/g, '')); return a > 0 && a <= INVOICE ? a : null;
+  }
+  function splitCheckHtml() {
+    var part = splitPart();
+    if (part === null) return '<div class="ft-check" id="demo-split-check">Enter this grant\u2019s share to check it against the charge.</div>';
+    var ok = Math.abs(part - CHARGE) < 0.01;
+    return ok ? '<div class="ft-check is-ok" id="demo-split-check"><span>Covers this charge: <b>' + money(part) + '</b> of <b>' + money(CHARGE) + '</b>. The other grant\u2019s part is <b>' + money(INVOICE - part) + '</b>.</span></div>'
+              : '<div class="ft-check is-off" id="demo-split-check"><span>This part, <b>' + money(part) + '</b>, doesn\u2019t match the charge, <b>' + money(CHARGE) + '</b>. The charge would stay with you.</span></div>';
+  }
+  function splitFormHtml() {
+    var ready = splitPart() !== null && form.basis.trim() !== '';
+    return '<form class="ft-form" id="demo-split-form" novalidate><p class="ft-form__title">This grant\u2019s part of invoice SEQ-0311, ' + money(INVOICE) + '</p>' +
+      '<fieldset class="ft-field"><legend class="ft-field__label">Split by</legend><div class="ft-choice">' +
+      '<label><input type="radio" name="by" value="units"' + (form.by === 'units' ? ' checked' : '') + '> Share of units</label>' +
+      '<label><input type="radio" name="by" value="amount"' + (form.by === 'amount' ? ' checked' : '') + '> Amount</label></div></fieldset>' +
+      (form.by === 'units'
+        ? '<div class="ft-field"><span class="ft-field__label" id="demo-units-label">This grant\u2019s share</span><div class="ft-units" role="group" aria-labelledby="demo-units-label"><input class="ft-input" name="u" inputmode="numeric" aria-label="Units for this grant" placeholder="56" value="' + esc(form.u) + '"> of <input class="ft-input" name="n" inputmode="numeric" aria-label="Total units" value="' + esc(form.n) + '"> samples</div></div>'
+        : '<div class="ft-field"><label class="ft-field__label" for="demo-amt">This grant\u2019s part</label><div class="ft-money"><span class="ft-money__prefix" aria-hidden="true">$</span><input class="ft-input" id="demo-amt" name="amt" inputmode="decimal" placeholder="0.00" value="' + esc(form.amt) + '"></div></div>') +
+      '<div class="ft-field"><label class="ft-field__label" for="demo-basis">Basis</label><input class="ft-input" id="demo-basis" name="basis" placeholder="For example: 56 of 96 samples were from Example Bay, per the lab manifest" value="' + esc(form.basis) + '"><span class="ft-field__hint">Goes into the evidence report with the split.</span></div>' +
+      splitCheckHtml() +
+      '<div class="ft-form__actions"><button type="submit" class="ft-btn ft-btn--main" id="demo-split-save"' + (ready ? '' : ' disabled') + '>Save split</button></div></form>';
+  }
+  function refreshFormBits() {
+    var s1 = $('demo-answer-save'); if (s1) s1.disabled = form.ans === '';
+    var chk = $('demo-split-check'); if (chk) chk.outerHTML = splitCheckHtml();
+    var s2 = $('demo-split-save'); if (s2) s2.disabled = !(splitPart() !== null && form.basis.trim() !== '');
+  }
+  function saveSplit() {
+    var part = splitPart(); if (part === null) return;
+    undoState = clone(state);
+    var c = charge('L-1010'), ok = Math.abs(part - CHARGE) < 0.01, basis = form.basis.trim();
+    markDone('L-1010', 'split', ok ? 'Split saved. L-1010 is now Evidence complete.' : 'Split saved, but it doesn\u2019t match the charge. L-1010 stays with you.');
+    resolveCharge(c, function () {
+      c.trail = [c.trail[0],
+        T('ok', 'Invoice SEQ-0311', 'Split entered', '', { source: true }),
+        T(ok ? 'ok' : 'human', 'This grant\u2019s part', ok ? money(part) + ' of ' + money(INVOICE) : 'Doesn\u2019t match', basis.replace(/\.?$/, '.') + ' Entered by the accountant, ' + state.clock + '.', { keep: true })];
+      c.history.unshift({ date: state.clock, trigger: 'Split entered by the accountant', from: 'human', to: ok ? 'complete' : 'human' });
+      if (ok) c.checklist[0] = { need: BILL, by: 'default', state: 'filled', filledBy: { name: 'Invoice SEQ-0311', amount: money(part), of: money(INVOICE), note: 'split entered by you' } };
+      c.thread.entries.push(E('you', 'decision', state.clock, 'Entered this grant\u2019s part: ' + money(part) + ' of ' + money(INVOICE) + '. ' + basis.replace(/\.?$/, '.')));
+      c.thread.entries.push(E('code', 'reason', state.clock, ok ? 'The bill adds up to the charge.' : 'The part doesn\u2019t match the charge, ' + money(CHARGE) + '.', { result: ok ? 'passes' : 'fails' }));
+    }, false, ok ? 'complete' : 'human');
+    form = { ans: '', why: '', err: false, by: 'units', u: '', n: '96', amt: '', basis: '' };
+    later(function () { var el = $('demo-done'); if (el) el.focus(); }, 320);
+  }
+
+  /* The agent answers in the thread after a short read. Scripted for the demo. */
+  function askAgent(about) {
+    return function (q, reply) {
+      later(function () {
+        var text = about === 'L-1019'
+          ? 'The award letter on file has no budget justification, so I can’t tie the camera to the project from the grant’s own files. Add the justification to Evidence, or answer the question yourself.'
+          : about === 'this term'
+            ? 'Amendment 01 changes only the end date. It adds no money and changes no other term. It is signed by Casey Placeholder, the grants officer named in the award letter.'
+            : 'I’ve read everything linked to ' + about + '. Nothing on file answers that yet. Add a file to Evidence and I’ll read it and answer here.';
+        var host = $('demo-th');
+        reply({ kind: 'comment', text: text });
+        if (host && !host.isConnected) renderDetail();
+      }, 1400);
+    };
+  }
+  function mountThread(thread) {
+    var host = $('demo-th'); if (!host || !window.FTThread) return;
+    window.FTThread.bind(host, thread, { heading: 'Thread', today: state.clock, onAsk: askAgent(thread.about), placeholder: thread.about === 'L-1019' ? 'For example: is the camera in the budget justification?' : 'For example: what would close this?' });
+  }
+  function doneHtml(id, anywhere) {
+    if (!(state.done && undoState && (anywhere || state.done.id === id))) return '';
+    var ready = ALREADY_COMPLETE + count('complete');
+    var text = state.done.kind === 'confirm' ? 'Extension confirmed. ' + ready + ' of ' + TOTAL + ' charges ready.' : state.done.text;
+    return '<div class="ft-trail__done" role="status" tabindex="-1" id="demo-done"><span>' + text + '</span><button type="button" id="demo-undo-inline">Undo</button></div>';
+  }
+  function recordHtml(r) {
+    var f2 = linkFor({ id: '' }, { title: 'Amendment 01' });
+    var q = '&ldquo;changed from January 31, 2026 to January 31, 2027&rdquo;<span class="ft-loc">extension_notice.txt, line 8</span>';
+    return '<div class="ft-panel__section"><div class="ft-charge-meta"><span class="ft-meta"><span class="ft-id">Record</span> <span class="ft-sep">&middot;</span> Raised by code, ' + r.listed + '</span><span class="ft-pb-kind">Term to confirm</span></div>' +
+      '<div class="ft-charge-titlerow"><h2 class="ft-charge-title">New end date, Jan 31, 2027</h2></div>' +
+      '<p class="ft-meta demo-lines">Amendment 01 <span class="ft-sep">&middot;</span> extension_notice.txt <span class="ft-sep">&middot;</span> Google Drive, Apr 10, 2026</p></div>' +
+      '<div class="ft-panel__section"><span class="ft-trail-label">The term</span>' +
+      '<p class="demo-term">The end date moves from <b>Jan 31, 2026</b> to <b>Jan 31, 2027</b>. No new money.</p>' +
+      '<p class="ft-trail__quote">' + (f2 ? '<a class="ft-trail__qlink" href="#" data-file="' + f2[0] + '" data-fact="' + f2[1] + '" aria-label="Open extension_notice.txt, line 8 at this passage">' + q + '</a>' : q) + '</p>' +
+      '<div class="ft-actions ft-trail__actions"><button type="button" class="ft-btn ft-btn--approve ft-btn--main" id="demo-confirm">Confirm grant extension</button><button type="button" class="ft-btn ft-btn--reject" id="demo-reject">Reject amendment</button></div>' +
+      '<p class="ft-trail__scope">Updates the grant end date to Jan 31, 2027 and rechecks its charges. 1 charge would become ready: L-1002.</p></div>' +
+      '<div class="ft-panel__section"><div id="demo-th"></div></div>';
+  }
+  function renderDetail() {
+    var r = record(state.selected);
+    var doneTop = state.done && undoState && state.done.id !== state.selected ? '<div class="ft-panel__section demo-done-top">' + doneHtml(null, true) + '</div>' : '';
+    if (r) { $('demo-detail').innerHTML = doneTop + recordHtml(r); $('demo-detail').setAttribute('aria-label', 'Term waiting for you'); mountThread(r.thread); return; }
+    var c = charge(state.selected);
+    if (!c) { $('demo-detail').innerHTML = doneTop + '<div class="ft-empty">No charge in this view. Pick another tab to see one.</div>'; return; }
+    var head = badge(c.bucket, c.bucket === 'conflict' ? 'ft-swap' : 'ft-appear ft-swap');
+    var listed = onList(c);
+    var h = doneTop + '<div class="ft-panel__section"><div class="ft-charge-meta"><span class="ft-meta"><span class="ft-id">' + c.id + '</span> <span class="ft-sep">&middot;</span> ' + c.date + ' <span class="ft-sep">&middot;</span> ' + c.vendor + '</span><span id="demo-head-badge">' + head + '</span></div>' +
+      '<div class="ft-charge-titlerow"><h2 class="ft-charge-title">' + c.name + '</h2><span class="ft-charge-amount">' + c.amount + '</span></div>' +
+      '<p class="ft-meta demo-lines">Account <b>' + c.line + '</b> <span class="ft-sep">&middot;</span> Budget line <b>' + c.line + '</b></p>' +
+      (c.off ? '<div class="demo-off">' + P.stateTagHtml({ state: c.off.state, until: c.off.until }) + '</div>' : '') +
+      (listed ? '<div class="demo-acts">' + P.rowActionsHtml(c.id, actsFor(c), c.name) + '</div>' : '') + '</div>';
+    h += '<div class="ft-panel__section"><span class="ft-trail-label">Evidence trail</span>' + trailHtml(c) + doneHtml(c.id) + '</div>';
+    h += '<div class="ft-panel__section">' + (window.FTChecklist ? window.FTChecklist.render(c.checklist, { title: 'Evidence needed' }) : '') + '</div>';
+    h += '<div class="ft-panel__section"><div id="demo-th"></div></div>';
+    h += '<div class="ft-panel__section"><details class="ft-more"><summary>History <span class="ft-sep">&middot;</span> ' + c.history.length + ' change' + (c.history.length > 1 ? 's' : '') + '</summary><ol class="ft-history">' +
+      c.history.map(function (e) {
+        return '<li class="ft-history__entry"><span class="ft-history__date">' + e.date + '</span><div class="ft-history__body"><a class="ft-trigger" href="#">' + e.trigger + '</a><div class="ft-history__change">' +
+          (e.from ? badge(e.from) + '<span class="ft-arrow" aria-label="changed to">&rarr;</span>' : '') + badge(e.to) + '</div>' + (e.by ? '<span class="ft-caption">' + e.by + '</span>' : '') + '</div></li>';
+      }).join('') + '</ol></details></div>';
+    $('demo-detail').innerHTML = h;
+    $('demo-detail').setAttribute('aria-label', 'Charge ' + c.id);
+    mountThread(c.thread);
+  }
+
+  function renderChrome() {
+    $('demo-side-problems').textContent = problems().length;
+    $('demo-side-terms').hidden = !state.termsWaiting;
+    $('demo-clock').textContent = state.clock;
+    var nx = ARRIVALS[state.step];
+    $('demo-next').textContent = nx ? 'Next: ' + nx.label : 'Nothing else scheduled';
+    $('demo-next').disabled = !nx;
+    renderReady(); renderTimeline();
+  }
+  function renderAll() { renderChrome(); renderTabs(); renderRows(); renderDetail(); }
+  function bump(keys) {
+    keys.concat(['side']).forEach(function (k) {
+      var el = k === 'side' ? $('demo-side-problems') : document.querySelector('[data-count="' + k + '"]');
+      if (el) { el.classList.add('is-bumped'); setTimeout(function () { el.classList.remove('is-bumped'); }, 1200); }
+    });
+  }
+
+  /* ---------- the recheck: a charge leaves the problem list ---------- */
+  function resolveCharge(c, mutate, instant, toBucket) {
+    var from = c.bucket, to = toBucket || 'complete', before = visibleIds();
+    var row = document.querySelector('.ft-row[data-id="' + c.id + '"]');
+    var stamp = state.selected === c.id ? document.querySelector('#demo-head-badge .ft-swap') : null;
+    if (stamp && !instant) stamp.classList.add('is-out');
+    later(function () {
+      mutate(); c.bucket = to; c.isNew = false;
+      if (state.selected === c.id) renderDetail();
+      renderReady();
+      if (to !== 'complete') { renderChrome(); renderTabs(); renderRows(); bump(['all', from, to]); return; }
+      if (row && !instant) { row.querySelector('.ft-row__bucket').innerHTML = badge('complete', 'ft-appear'); row.classList.add('is-resolved'); }
+      later(function () {
+        var leaving = row && !instant ? [row] : [];
+        if (!instant) Array.prototype.forEach.call(document.querySelectorAll('.ft-row'), function (r) { var x = charge(r.getAttribute('data-id')); if (r !== row && x && !onList(x)) leaving.push(r); });
+        leaving.forEach(function (r) {
+          r.style.height = r.offsetHeight + 'px'; r.classList.add('ft-collapse');
+          void r.offsetHeight; r.style.height = '0px'; r.style.opacity = '0'; r.style.paddingTop = '0'; r.style.paddingBottom = '0';
+        });
+        later(function () { var moved = reselect(before); redrawKeepingFocus(function () { renderChrome(); renderTabs(); renderRows(); if (moved) renderDetail(); }, moved && !instant); bump(['all', from]); }, 380, instant);
+      }, 900, instant);
+    }, 300, instant);
+  }
+
+  /* ---------- actions ---------- */
+  function toast(text, canUndo, instant) {
+    $('demo-toast-text').textContent = text; $('demo-undo').hidden = !canUndo; $('demo-toast-open').hidden = true; $('demo-toast').hidden = false;
+    clearTimeout(toastTimer); if (!instant) toastTimer = setTimeout(function () { $('demo-toast').hidden = true; }, 8000);
+  }
+  function nextArrival(instant) {
+    var a = ARRIVALS[state.step]; if (!a) return;
+    state.clock = a.date; state.clockISO = a.iso; state.step++; undoState = null; renderChrome();
+    $('demo-next').disabled = true; $('demo-next').textContent = 'Reading…';
+    $('demo-working-text').textContent = 'Agent is reading ' + a.file; $('demo-working').hidden = false;
+    later(function () {
+      $('demo-working').hidden = true;
+      var msg = a.apply(instant);
+      renderAll(); toast(msg, false, instant);
+      if (a.iso === '2026-04-12') $('demo-toast-open').hidden = false;
+    }, 1600, instant);
+  }
+  function confirmTerm(instant) {
+    undoState = clone(state);
+    var c = charge('L-1002');
+    state.records = []; state.selected = 'L-1002';
+    state.endISO = '2027-01-31'; state.termsWaiting = 0;
+    c.thread.entries.push(E('you', 'decision', state.clock, 'Confirmed amendment 01.'));
+    c.thread.entries.push(E('code', 'reason', state.clock, 'Work done inside the period, which now ends Jan 31, 2027.', { result: 'passes' }));
+    renderChrome(); renderTabs(); renderRows(); renderDetail();
+    resolveCharge(c, function () {
+      c.trail = c.trail.map(function (n) {
+        if (n.kind === 'fail') return T('replaced', 'Award letter', 'End date superseded', 'Its end date, Jan 31, 2026, no longer applies.', { source: true });
+        if (n.kind === 'wait') return T('ok', 'Amendment 01', 'Confirmed', 'The grant now ends Jan 31, 2027. Confirmed by the accountant, ' + state.clock + '.', { source: true });
+        return n;
+      });
+      c.history.unshift({ date: state.clock, trigger: 'New end date confirmed', from: 'conflict', to: 'complete', by: 'Confirmed by the accountant, ' + state.clock + '.' });
+    }, instant);
+    markDone('L-1002', 'confirm', '', instant); renderDetail();
+    later(function () { var el = $('demo-done'); if (el && !instant) el.focus(); }, 320, instant);
+  }
+  function rejectTerm() {
+    undoState = clone(state);
+    var c = charge('L-1002'); c.trail = c.trail.filter(function (n) { return n.kind !== 'wait'; }); c.isNew = false; state.termsWaiting = 0;
+    state.records = []; state.selected = 'L-1002';
+    c.thread.entries.push(E('you', 'decision', state.clock, 'Rejected amendment 01. The grant still ends Jan 31, 2026.'));
+    markDone('L-1002', 'reject', 'Amendment rejected. The grant still ends Jan 31, 2026.'); renderAll(); var el = $('demo-done'); if (el) el.focus();
+  }
+  function answer(yes, why) {
+    undoState = clone(state);
+    var c = charge('L-1019');
+    markDone('L-1019', 'answer', yes ? 'Answer saved. L-1019 is now Evidence complete.' : 'Answer saved. L-1019 is now Possible conflict.');
+    resolveCharge(c, function () {
+      c.trail = c.trail.map(function (n) { return n.action === 'answer' ? T(yes ? 'ok' : 'fail', 'Your answer: ' + (yes ? 'for this project' : 'not for this project'), yes ? 'You support' : 'You contradict', why + ' Answered by the accountant, ' + state.clock + '.', { keep: true }) : n; });
+      c.rowReason = yes ? c.rowReason : 'The accountant answered: not for this project.';
+      c.thread.entries.push(E('you', 'answer', state.clock, why, { answer: yes ? 'supports' : 'contradicts' }));
+      c.history.unshift({ date: state.clock, trigger: 'Answered by the accountant', from: 'human', to: yes ? 'complete' : 'conflict' });
+    }, false, yes ? 'complete' : 'conflict');
+    form = { ans: '', why: '', err: false, by: 'units', u: '', n: '96', amt: '', basis: '' };
+    later(function () { var el = $('demo-done'); if (el) el.focus(); }, 320);
+  }
+
+  function targetFor(c) { return { id: c.id, title: c.name, problem: c.rowReason, problemShort: NAMES[c.bucket], kind: 'charge', account: c.line, vendor: c.vendor, amount: c.amount }; }
+  function takeOff(id, kind, r) {
+    var c = charge(id); if (!c) return;
+    undoState = clone(state);
+    var before = visibleIds(), cc = charge(id), t = targetFor(cc);
+    cc.off = kind === 'snooze' ? { state: 'snoozed', until: r.until, reason: r.reason } : { state: r.standing ? 'standing' : 'accepted', note: r.note };
+    cc.thread.entries.push(E('you', 'decision', state.clock, kind === 'snooze' ? 'Snoozed until ' + r.untilText + '. ' + String(r.reason || '').replace(/\.?$/, '.') : 'Accepted with a note: ' + String(r.note).replace(/\.?$/, '.') + (r.standing ? ' A standing note.' : '')));
+    markDone(id, kind, P.doneText(kind, t, r));
+    reselect(before);
+    renderAll(); bump(['all', cc.bucket]);
+    var el = $('demo-done'); if (el) el.focus();
+  }
+  var problemActions = {
+    snooze: function (id, btn) { var c = charge(id); if (c) P.snoozeDialog({ target: targetFor(c), opener: btn, today: state.clockISO, windowOpens: windowOpens() }, function (r) { takeOff(id, 'snooze', r); }); },
+    accept: function (id, btn) { var c = charge(id); if (c) P.acceptDialog({ target: targetFor(c), opener: btn }, function (r) { takeOff(id, 'accept', r); }); },
+    open: function (id) { state.selected = id; renderRows(); renderDetail(); var h = document.querySelector('#demo-detail .ft-charge-title'); if (h) { h.tabIndex = -1; h.focus(); } }
+  };
+  P.bind($('demo-rows'), problemActions);
+  P.bind($('demo-detail'), problemActions);
+
+  /* After Undo, or when the done line expires, put focus somewhere visible: the action to redo, else the selected row, else the charge title */
+  function focusSafe() {
+    var t = document.querySelector('#demo-confirm') || (state.selected && document.querySelector('.ft-row[data-id="' + state.selected + '"]')) || document.querySelector('#demo-detail .ft-charge-title, #demo-detail h2');
+    if (!t) return;
+    if (t.tagName !== 'BUTTON' && t.tagName !== 'A' && !t.hasAttribute('tabindex')) t.tabIndex = -1;
+    t.focus();
+  }
+  function undo() { if (!undoState) return; clearTimeout(doneTimer); state = undoState; undoState = null; $('demo-toast').hidden = true; renderAll(); focusSafe(); }
+  function markDone(id, kind, text, instant) {
+    state.done = { id: id, kind: kind, text: text }; $('demo-toast').hidden = true;
+    clearTimeout(doneTimer);
+    if (!instant) doneTimer = setTimeout(function () { var had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#demo-done'); undoState = null; state.done = null; renderDetail(); if (had) focusSafe(); }, 8000);
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, .ft-row, a') : null; if (!t) return;
+    if (t.tagName === 'A') { e.preventDefault(); var fid = t.getAttribute('data-file'); if (fid && window.FTViewer && window.FTViewer.files[fid]) window.FTViewer.open(window.FTViewer.files[fid], parseInt(t.getAttribute('data-fact'), 10), t); return; }
+    if (window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen() && t.closest('.ft-sheet')) return;
+    if (t.id === 'demo-next') nextArrival();
+    else if (t.id === 'demo-confirm') confirmTerm();
+    else if (t.id === 'demo-review-term') problemActions.open('R-01');
+    else if (t.id === 'demo-reject') rejectTerm();
+    else if (t.id === 'demo-undo' || t.id === 'demo-undo-inline') undo();
+    else if (t.id === 'demo-toast-open' && window.FTViewer) { clearTimeout(toastTimer); window.FTViewer.onclose = function () { window.FTViewer.onclose = null; toastTimer = setTimeout(function () { $('demo-toast').hidden = true; }, 8000); }; window.FTViewer.open(window.FTViewer.files.F6, 2, t); }
+    else if (t.classList.contains('ft-tab')) { state.filter = t.getAttribute('data-filter'); var v = visible(); if (!v.length) state.selected = null; else if (!v.some(function (c) { return c.id === state.selected; })) state.selected = v[0].id; renderTabs(); renderRows(); renderDetail(); }
+    else if (t.classList.contains('ft-row')) { state.selected = t.getAttribute('data-id'); renderRows(); renderDetail(); var r = document.querySelector('.ft-row[data-id="' + state.selected + '"]'); if (r) r.focus(); }
+  });
+  document.addEventListener('input', function (e) {
+    var el = e.target; if (!el.name || !el.closest('.ft-form')) return;
+    if (el.name === 'ans' || el.name === 'by') return;
+    form[el.name] = el.value; if (el.name === 'why' && form.err && el.value.trim()) { form.err = false; renderDetail(); var w = $('demo-why'); if (w) { w.focus(); w.setSelectionRange(w.value.length, w.value.length); } return; }
+    refreshFormBits();
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target; if (!el.closest || !el.closest('.ft-form')) return;
+    if (el.name === 'ans') { form.ans = el.value; refreshFormBits(); }
+    if (el.name === 'by') { form.by = el.value; renderDetail(); var f = document.querySelector('#demo-split-form input[name="' + (form.by === 'units' ? 'u' : 'amt') + '"]'); if (f) f.focus(); }
+  });
+  document.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (e.target.id === 'demo-answer-form') {
+      if (!form.ans) return;
+      if (!form.why.trim()) { form.err = true; renderDetail(); var w = $('demo-why'); if (w) w.focus(); return; }
+      answer(form.ans === 'yes', form.why.trim().replace(/\.?$/, '.'));
+    }
+    if (e.target.id === 'demo-split-form') saveSplit();
+  });
+  document.addEventListener('keydown', function (e) {
+    var row = e.target.closest ? e.target.closest('.ft-row') : null; if (!row) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var sib = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling; if (sib && sib.classList.contains('ft-row')) sib.click(); }
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var t = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === t)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* ---------- a hash can jump to a step, for screenshots: #s=0..4&f=human&t=dark&sel=L-1010 ---------- */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme(); renderAll();
+  var s = parseInt(h.s || '0', 10);
+  if (s === 1) { var a0 = ARRIVALS[0]; state.clock = a0.date; state.clockISO = a0.iso; state.step = 1; renderChrome(); $('demo-next').disabled = true; $('demo-next').textContent = 'Reading…'; $('demo-working-text').textContent = 'Agent is reading ' + a0.file; $('demo-working').hidden = false; }
+  if (s >= 2) nextArrival(true);
+  if (s >= 3) confirmTerm(true);
+  if (s >= 4) nextArrival(true);
+  if (h.play === 'confirm') setTimeout(function () { confirmTerm(); }, 300);
+  if (h.fill === '1' && h.sel === 'L-1019') { form.ans = 'yes'; form.why = 'The camera is in the approved budget justification for field imaging of sediment cores.'; }
+  if (h.err === '1') { form.ans = 'yes'; form.why = ''; form.err = true; }
+  if (h.fill === '1' && h.sel === 'L-1010') { form.u = '56'; form.basis = '56 of 96 samples were from Example Bay, per the lab manifest'; }
+  if (h.by === 'amount') { form.by = 'amount'; form.amt = decodeURIComponent(h.amt || ''); form.basis = 'Agreed with the other grant\u2019s accountant'; }
+  if (h.sel) { state.selected = h.sel; $('demo-toast').hidden = true; renderRows(); renderDetail(); }
+  if (h.save === '1' && h.sel === 'L-1010') { reduce = true; saveSplit(); }
+  if (h.v && window.FTViewer && window.FTViewer.files[h.v]) { var vf = window.FTViewer.files[h.v], vk = vf.active || 0; if (h.vf) vf.facts.forEach(function (x, k) { if (x.label === decodeURIComponent(h.vf)) vk = k; }); setTimeout(function () { window.FTViewer.open(vf, vk, document.querySelector('.ft-trail__link')); }, 0); }
+  if (h.f) { state.filter = h.f; var v = visible(); if (v.length) state.selected = v[0].id; $('demo-toast').hidden = true; renderTabs(); renderRows(); renderDetail(); }
+  if (!h.sel && reselect(null)) { renderRows(); renderDetail(); }
+})();
+</script>
+<!-- @menu-scripts -->
+<script>
+/* FundTrail workspace and account menus, with the New workspace and Reset dialogs.
+   Drop into any page that has the app shell: FTWorkspaceMenu.attach(options).
+   It turns the sidebar's .ft-workspace block and its Account button into menu buttons.
+   options: workspaces [{id, name, note, demo}], current (id), user {name, email},
+            onNavigate(kind, value): kind is 'workspace' (value: id), 'new' (value: name), 'reset' (value: id) or 'signout'.
+            Return false from onNavigate to skip the default (the default only updates the workspace button's label).
+   Also: FTWorkspaceMenu.open('workspace' | 'account'), .dialog('new' | 'reset'), .close(). Plain ES5, no dependencies. */
+(function () {
+  var M = window.FTWorkspaceMenu = window.FTWorkspaceMenu || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var opts = null, wsBtn = null, acBtn = null, menu = null, menuKind = null, dlg = null, scrim = null, seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function current() { for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === opts.current) return opts.workspaces[i]; return opts.workspaces[0]; }
+  function nav(kind, value) { var r = opts.onNavigate ? opts.onNavigate(kind, value) : undefined; if (r !== false) feedback(kind, value); return r !== false; }
+  /* Without a page handler, say what happened, so a choice never looks like it did nothing */
+  var toastEl = null, toastTimer = null;
+  function feedback(kind, value) {
+    var name = value;
+    if (kind === 'workspace' || kind === 'reset') for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === value) name = opts.workspaces[i].name;
+    var text = kind === 'workspace' ? 'Switched to ' + name + '.' : kind === 'new' ? 'Created ' + name + '. It has no grants yet.' :
+      kind === 'reset' ? name + ' is back to how it started.' : kind === 'signout' ? 'Signed out. The sign-in page opens next.' : '';
+    if (!text) return;
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'ft-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+    toastEl.textContent = text; toastEl.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 6000);
+  }
+  function syncLabel() { if (!wsBtn) return; var s = wsBtn.querySelector('span'); if (s) s.textContent = current().name; }
+
+  /* ---------- menus ---------- */
+  function items() { return menu ? Array.prototype.slice.call(menu.querySelectorAll('.ft-menu-item')) : []; }
+  function focusItem(i) { var all = items(); if (!all.length) return; i = (i + all.length) % all.length; all[i].focus(); }
+  function menuHtml(kind) {
+    if (kind === 'account') {
+      var u = opts.user;
+      return '<div class="ft-menu-who" aria-hidden="true"><b>' + esc(u.name) + '</b><span>' + esc(u.email) + '</span><span>Signed in with Google</span></div>' +
+        '<div class="ft-menu-sep" role="separator"></div>' +
+        '<button type="button" class="ft-menu-item ft-menu-item--plain" role="menuitem" tabindex="-1" data-ft-menu="signout"><span class="ft-menu-item__text">Sign out</span></button>';
+    }
+    var h = '<div class="ft-menu-label" aria-hidden="true">Workspaces</div><div role="group" aria-label="Workspaces">';
+    opts.workspaces.forEach(function (w) {
+      var on = w.id === opts.current;
+      h += '<button type="button" class="ft-menu-item" role="menuitemradio" aria-checked="' + on + '" tabindex="-1" data-ft-menu="workspace" data-ft-value="' + esc(w.id) + '">' +
+        '<span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text"><span>' + esc(w.name) + '</span>' + (w.note ? '<span class="ft-menu-item__sub">' + esc(w.note) + '</span>' : '') + '</span></button>';
+    });
+    h += '</div><div class="ft-menu-sep" role="separator"></div>' +
+      '<button type="button" class="ft-menu-item" role="menuitem" tabindex="-1" data-ft-menu="new"><span class="ft-menu-item__mark ft-menu-item__mark--plus" aria-hidden="true"></span><span class="ft-menu-item__text">New workspace</span></button>';
+    if (current().demo) h += '<button type="button" class="ft-menu-item ft-menu-item--danger" role="menuitem" tabindex="-1" data-ft-menu="reset"><span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text">Reset demo workspace</span></button>';
+    return h;
+  }
+  function open(kind, focusLast) {
+    var btn = kind === 'account' ? acBtn : wsBtn; if (!btn) return;
+    close(false);
+    menu = document.createElement('div');
+    menu.className = 'ft-menu' + (reduce ? '' : ' ft-menu--in');
+    menu.id = 'ft-menu-' + kind; menu.setAttribute('role', 'menu');
+    if (kind === 'account') menu.setAttribute('aria-label', 'Account: ' + opts.user.name + ', ' + opts.user.email + ', signed in with Google');
+    else menu.setAttribute('aria-labelledby', btn.id);
+    menu.innerHTML = menuHtml(kind);
+    document.body.appendChild(menu); menuKind = kind;
+    place();
+    btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', menu.id);
+    menu.addEventListener('keydown', menuKey);
+    menu.addEventListener('click', menuClick);
+    var all = items(), checked = menu.querySelector('[aria-checked="true"]');
+    if (focusLast) focusItem(all.length - 1); else if (checked) checked.focus(); else focusItem(0);
+  }
+  /* Keeps the menu next to its button: below the workspace block, above the Account button */
+  function place() {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn, r = btn.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    menu.style.minWidth = Math.max(r.width, 248) + 'px';
+    menu.style.left = Math.max(8, Math.min(r.left, vw - menu.offsetWidth - 8)) + 'px';
+    if (menuKind === 'account') { menu.style.top = ''; menu.style.bottom = Math.max(8, vh - r.top + 6) + 'px'; }
+    else { menu.style.bottom = ''; menu.style.top = Math.max(8, Math.min(r.bottom + 6, vh - menu.offsetHeight - 8)) + 'px'; }
+  }
+  function close(returnFocus) {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn;
+    menu.parentNode.removeChild(menu); menu = null; menuKind = null;
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-controls'); if (returnFocus) btn.focus(); }
+  }
+  function menuKey(e) {
+    var all = items(), i = all.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(i + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); focusItem(0); }
+    else if (e.key === 'End') { e.preventDefault(); focusItem(all.length - 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); close(true); }
+    else if (e.key.length === 1 && /\S/.test(e.key)) {
+      var k = e.key.toLowerCase();
+      for (var n = 1; n <= all.length; n++) { var it = all[(i + n) % all.length]; if (it.textContent.trim().toLowerCase().charAt(0) === k) { it.focus(); break; } }
+    }
+  }
+  function menuClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-menu]') : null; if (!t) return;
+    select(t.getAttribute('data-ft-menu'), t.getAttribute('data-ft-value'));
+  }
+  function select(kind, value) {
+    if (kind === 'workspace') {
+      close(true);
+      if (value !== opts.current && nav('workspace', value)) { opts.current = value; syncLabel(); }
+    } else if (kind === 'new' || kind === 'reset') { close(false); dialog(kind); }
+    else if (kind === 'signout') { close(true); nav('signout'); }
+  }
+
+  /* ---------- dialogs ---------- */
+  function dialogHtml(kind, id) {
+    if (kind === 'reset') {
+      return '<div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Reset the demo workspace?</h2></div>' +
+        '<div class="ft-dialog-body" id="' + id + '-d"><p>It goes back to how it started. This can’t be undone.</p>' +
+        '<ul class="ft-dialog-list"><li>Your answers, confirmations, splits and sign-offs are removed.</li><li>Files you uploaded or forwarded to its grants are removed.</li>' +
+        '<li>The clock goes back to where the demo starts.</li><li>Your other workspaces don’t change.</li></ul></div>' +
+        '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="button" class="ft-btn ft-btn--reject" data-ft-dialog="reset">Reset workspace</button></div>';
+    }
+    return '<form class="ft-dialog-form" novalidate><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">New workspace</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d">A workspace holds its own grants, ledgers and evidence. Only you can see it.</p>' +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-name">Name</label>' +
+      '<input class="ft-input" id="' + id + '-name" name="name" autocomplete="off" placeholder="For example: Biology department" aria-describedby="' + id + '-help">' +
+      '<span class="ft-field__hint" id="' + id + '-help">Add grants to it after you create it.</span></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main" data-ft-dialog="create">Create workspace</button></div></form>';
+  }
+  function dialog(kind) {
+    closeDialog(false); close(false);
+    var id = 'ft-dialog-' + (++seq);
+    scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    dlg = document.createElement('section');
+    dlg.className = 'ft-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', kind === 'reset' ? 'alertdialog' : 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.setAttribute('data-ft-kind', kind);
+    dlg.innerHTML = dialogHtml(kind, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    scrim.addEventListener('click', function () { closeDialog(true); });
+    dlg.addEventListener('keydown', dialogKey);
+    dlg.addEventListener('click', dialogClick);
+    var form = dlg.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function (e) { e.preventDefault(); e.stopPropagation(); create(id); });
+      form.elements.name.addEventListener('input', function () { if (form.elements.name.value.trim()) fieldError(id, null); });
+    }
+    var first = kind === 'reset' ? dlg.querySelector('[data-ft-dialog="cancel"]') : dlg.querySelector('input');
+    if (first) first.focus(); else dlg.focus();
+  }
+  function fieldError(id, msg) {
+    var f = document.getElementById(id + '-field'), help = document.getElementById(id + '-help'), inp = document.getElementById(id + '-name');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); help.className = 'ft-field__error'; help.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); help.className = 'ft-field__hint'; help.textContent = 'Add grants to it after you create it.'; }
+  }
+  function create(id) {
+    var inp = document.getElementById(id + '-name'), name = inp.value.replace(/\s+/g, ' ').trim();
+    if (!name) { fieldError(id, 'Add a name.'); inp.focus(); return; }
+    var taken = opts.workspaces.some(function (w) { return w.name.toLowerCase() === name.toLowerCase(); });
+    if (taken) { fieldError(id, 'You already have a workspace with that name.'); inp.focus(); return; }
+    if (nav('new', name)) {
+      var wid = 'ws-' + Date.now().toString(36);
+      opts.workspaces.push({ id: wid, name: name, note: 'No grants yet' }); opts.current = wid; syncLabel();
+    }
+    closeDialog(true);
+  }
+  function dialogClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-dialog]') : null; if (!t) return;
+    var a = t.getAttribute('data-ft-dialog');
+    if (a === 'cancel') closeDialog(true);
+    else if (a === 'reset') { var cur = opts.current; closeDialog(true); nav('reset', cur); }
+  }
+  function dialogKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(true); return; }
+    if (e.key !== 'Tab') return;
+    var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!els.length) return;
+    var first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  function closeDialog(returnFocus) {
+    if (!dlg) return;
+    dlg.parentNode.removeChild(dlg); scrim.parentNode.removeChild(scrim); dlg = null; scrim = null;
+    var app = document.querySelector('.ft-app'); if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && wsBtn) wsBtn.focus();
+  }
+
+  /* ---------- attach ---------- */
+  function wire(btn, kind) {
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', function (e) { e.preventDefault(); if (menu && menuKind === kind) close(true); else open(kind); });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(kind); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); open(kind, true); }
+    });
+  }
+  M.attach = function (o) {
+    o = o || {};
+    opts = {
+      workspaces: [{ id: 'demo', name: 'Demo workspace', note: 'Sample grants. All data is synthetic.', demo: true }, { id: 'bio', name: 'Biology department', note: 'No grants yet' }],
+      current: 'demo',
+      user: { name: 'Taylor Example', email: 'taylor.example@university.example' },
+      onNavigate: null
+    };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) opts[k] = o[k];
+    var ws = document.querySelector('.ft-sidebar .ft-workspace');
+    if (ws && ws.tagName !== 'BUTTON') {
+      var b = document.createElement('button'); b.type = 'button'; b.className = ws.className; b.innerHTML = ws.innerHTML;
+      ws.parentNode.replaceChild(b, ws); ws = b;
+    }
+    if (ws && !ws.classList.contains('ft-menu-trigger')) { ws.classList.add('ft-menu-trigger'); ws.id = ws.id || 'ft-menu-ws-btn'; wire(ws, 'workspace'); }
+    wsBtn = ws; syncLabel();
+    var ac = document.querySelector('.ft-sidebar .demo-footrow .ft-btn');
+    if (!ac) { var bs = document.querySelectorAll('.ft-sidebar button'); for (var i = 0; i < bs.length; i++) if (bs[i].textContent.trim() === 'Account') { ac = bs[i]; break; } }
+    if (ac && !ac.classList.contains('ft-menu-trigger')) { ac.classList.add('ft-menu-trigger'); ac.id = ac.id || 'ft-menu-ac-btn'; wire(ac, 'account'); }
+    acBtn = ac;
+    if (!M.attached) {
+      document.addEventListener('mousedown', function (e) {
+        if (!menu) return;
+        var btn = menuKind === 'account' ? acBtn : wsBtn;
+        if (!menu.contains(e.target) && !(btn && btn.contains(e.target))) close(false);
+      }, true);
+      window.addEventListener('resize', place);
+      window.addEventListener('scroll', place, true);
+    }
+    M.attached = true;
+    return M;
+  };
+  M.open = function (kind) { open(kind === 'account' ? 'account' : 'workspace'); };
+  M.dialog = function (kind) { dialog(kind === 'reset' ? 'reset' : 'new'); };
+  M.close = function () { close(false); closeDialog(false); };
+  M.options = function () { return opts; };
+})();
+
+window.FTWorkspaceMenu && window.FTWorkspaceMenu.attach();
+</script>
+<!-- /menu-scripts -->
+<!-- @layout-scripts -->
+<script>
+/* Chat option C: the grant header stays put; under it the problem list and the selected problem fill the
+   rest of the screen and scroll on their own. The problem's details scroll in the panel, and its review
+   thread is docked at the bottom of the panel, always on screen, with the ask box pinned last.
+   One conversation: the dock holds the charge's own thread section, moved there after each redraw. */
+(function () {
+  var css = '' +
+    '.ft-app { min-height: 0 !important; height: 100vh; }' +
+    '.ft-sidebar { position: sticky !important; top: 0; height: 100vh !important; overflow-y: auto; }' +
+    '.ft-main { height: 100vh; min-height: 0; overflow: hidden; }' +
+    '.ft-content { flex: 1; min-height: 0; overflow: hidden; }' +
+    '.ft-content > .ft-split { flex: 1; min-height: 0; align-items: stretch; }' +
+    '.ft-content .demo-col { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: var(--space-4); }' +
+    '#demo-detail.ft-cc { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }' +
+    '.ft-cc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }' +
+    '.ft-cc-dock { flex: none; display: flex; flex-direction: column; min-height: 0; height: var(--ft-cc-dock, 42%); border-top: 1px solid var(--rule-strong); background: var(--paper-raised); }' +
+    '.ft-cc-dockbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px var(--space-4) 0; }' +
+    '.ft-cc-dockbar span { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink-muted); }' +
+    '.ft-cc-grow { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }' +
+    '.ft-cc-grow:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }' +
+    '.ft-cc-dock > .ft-panel__section { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 4px !important; padding-bottom: var(--space-3) !important; }' +
+    '.ft-cc-dock #demo-th, .ft-cc-dock .ft-th { flex: 1; min-height: 0; display: flex; flex-direction: column; }' +
+    '.ft-cc-dock .ft-th__head { display: none; }' +
+    '.ft-cc-dock .ft-th__list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }' +
+    '.ft-cc-dock .ft-th__ask { flex: none; }' + '.ft-cc-dock .ft-th__q::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' + '.ft-cc-dock .ft-th__note { font-size: 11px; line-height: 15px; }' +
+    '.ft-toast { left: calc(var(--sidebar-width) + 24px) !important; transform: none !important; }' +
+    '@media (prefers-reduced-motion: no-preference) { .ft-cc-in { animation: ft-cc-in 160ms ease both; } }' +
+    '@keyframes ft-cc-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }' +
+    '@media (max-width: 1023px) { .ft-app, .ft-main, .ft-content { height: auto; overflow: visible; } .ft-content .demo-col, .ft-cc-scroll { overflow: visible; } #demo-detail.ft-cc { overflow: visible; } .ft-cc-dock { height: auto; } }';
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  /* The dock is its own part: a tinted surface, a firm top edge, and a header naming what the thread is about.
+     While there is more of the charge above it, the details fade out and the dock casts a soft edge. */
+  var dockCss = [
+    '.ft-cc-dock { position: relative; background: color-mix(in srgb, var(--paper-sunken) 70%, var(--paper-raised)); border-top: 1px solid var(--rule-strong); }',
+    '.ft-cc-dockbar { padding: 10px var(--space-4) 8px; border-bottom: 1px solid var(--rule); }',
+    '.ft-cc-dockhead { display: flex; align-items: baseline; gap: 8px; min-width: 0; }',
+    '.ft-cc-dockbar .ft-cc-title { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }',
+    '.ft-cc-dockbar .ft-cc-title .ft-id { font-size: 12px; color: var(--ink); }',
+    '.ft-cc-dockbar .ft-cc-title .ft-sep { color: var(--ink-muted); font-weight: 400; }',
+    '.ft-cc-dockbar .ft-cc-count { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--ink-muted); white-space: nowrap; }',
+    '.ft-cc-dockbar .ft-cc-count b { font-weight: 600; }',
+    '.ft-cc-dock > .ft-panel__section { padding-top: 8px !important; }',
+    '.ft-cc-dock .ft-th__ask { border-top: 1px solid var(--rule); padding-top: 10px; margin-top: 4px; }',
+    '.ft-cc-dock::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px; margin-bottom: 1px; pointer-events: none; opacity: 0; background: linear-gradient(to bottom, color-mix(in srgb, var(--paper-raised) 0%, transparent), var(--paper-raised)); }',
+    '.ft-cc--more .ft-cc-dock { box-shadow: 0 -10px 16px -14px rgba(16, 18, 22, 0.32); }',
+    '[data-theme="dark"] .ft-cc--more .ft-cc-dock { box-shadow: 0 -10px 16px -12px rgba(0, 0, 0, 0.7); }',
+    '.ft-cc--more .ft-cc-dock::before { opacity: 1; }',
+    '@media (prefers-reduced-motion: no-preference) { .ft-cc-dock::before { transition: opacity 160ms ease; } .ft-cc-dock { transition: box-shadow 160ms ease; } }',
+    '@media (max-width: 1023px) { .ft-cc-dock::before { display: none; } .ft-cc--more .ft-cc-dock { box-shadow: none; } }'
+  ].join('\n');
+  var st2 = document.createElement('style'); st2.textContent = dockCss; document.head.appendChild(st2);
+
+  /* The dock's header: what the thread is about (the charge's ledger line, or a record's name) and its count */
+  function label(det, dock) {
+    var t = dock && dock.querySelector('.ft-cc-title'), c = dock && dock.querySelector('.ft-cc-count'); if (!t) return;
+    var idEl = det.querySelector('.ft-cc-scroll .ft-id'), id = idEl ? idEl.textContent.trim() : '';
+    if (!/^L-\d+/.test(id)) { var h = det.querySelector('.ft-cc-scroll .ft-charge-title, .ft-cc-scroll h2'); id = h ? h.textContent.trim().split(',')[0] : ''; }
+    var about = /^L-\d+/.test(id) ? '<span class="ft-id">' + id + '</span>' : id.replace(/[&<>"]/g, '');
+    t.innerHTML = 'Agent thread' + (about ? ' <span class="ft-sep">&middot;</span> ' + about : '');
+    var src = dock.querySelector('.ft-th__count'); if (c) c.innerHTML = src ? src.innerHTML : '';
+  }
+  /* The scroll cue is on while the details have more below what's visible */
+  function cue(det) {
+    var s = det && det.querySelector(':scope > .ft-cc-scroll'); if (!s) return;
+    det.classList.toggle('ft-cc--more', s.scrollHeight - s.scrollTop - s.clientHeight > 4);
+  }
+
+  var tall = false, last = null, busy = false;
+  function key(det) { var t = det.querySelector('.ft-charge-title, h2'); return t ? t.textContent : ''; }
+  function toEnd(dock) { var l = dock && dock.querySelector('.ft-th__list'); if (l) l.scrollTop = l.scrollHeight; }
+
+  function arrange() {
+    var det = document.getElementById('demo-detail'); if (!det || busy) return;
+    if (det.firstElementChild && det.firstElementChild.classList.contains('ft-cc-scroll') && det.querySelector('.ft-cc-dock #demo-th, .ft-cc-dock .ft-th')) return;
+    busy = true;
+    var focused = document.activeElement, prevScroll = 0, k = key(det);
+    var old = det.querySelector(':scope > .ft-cc-scroll'); if (old) prevScroll = old.scrollTop;
+    det.classList.add('ft-cc');
+    var host = document.getElementById('demo-th'), section = null;
+    if (host) { section = host; while (section.parentElement && section.parentElement !== det) section = section.parentElement; if (section.parentElement !== det) section = null; }
+    var scroll = document.createElement('div'); scroll.className = 'ft-cc-scroll';
+    var kids = Array.prototype.slice.call(det.childNodes);
+    kids.forEach(function (n) { if (n !== section) scroll.appendChild(n); });
+    det.appendChild(scroll);
+    if (section) {
+      var dock = document.createElement('div'); dock.className = 'ft-cc-dock';
+      dock.style.setProperty('--ft-cc-dock', tall ? '67%' : '42%');
+      dock.innerHTML = '<div class="ft-cc-dockbar"><div class="ft-cc-dockhead"><span class="ft-cc-title">Agent thread</span><span class="ft-cc-count"></span></div><button type="button" class="ft-cc-grow" aria-expanded="' + tall + '">' + (tall ? 'Show less' : 'Show more') + '</button></div>';
+      dock.appendChild(section); det.appendChild(dock); label(det, dock);
+      size(dock);
+      toEnd(dock);
+      setTimeout(function () { size(dock); }, 60);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { size(dock); });
+      new MutationObserver(function () { size(dock); toEnd(dock); label(det, dock); cue(det); }).observe(section, { childList: true, subtree: true });
+    }
+    if (k === last) scroll.scrollTop = prevScroll;
+    else if (last !== null) { scroll.classList.add('ft-cc-in'); if (section) section.parentElement.classList.add('ft-cc-in'); }
+    last = k;
+    scroll.addEventListener('scroll', function () { cue(det); }, { passive: true });
+    cue(det); setTimeout(function () { cue(det); }, 60);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { cue(det); });
+    if (focused && focused.isConnected && focused !== document.activeElement) focused.focus({ preventScroll: true });
+    busy = false;
+  }
+
+  /* The dock fits its content: the bar, the entries and the ask box, up to 40% of the panel (67% with Show more),
+     never less than the bar, the newest entry and the ask box. Show more appears only when there is more to show. */
+  var asked = false;
+  try { asked = sessionStorage.getItem('ft-cc-asked') === '1'; } catch (e) {}
+  (function () {
+    var st = document.createElement('style');
+    st.textContent = '.ft-cc-asked .ft-th__note { display: none; } .ft-cc-grow[hidden] { display: none !important; }';
+    document.head.appendChild(st);
+    if (asked) document.documentElement.classList.add('ft-cc-asked');
+  })();
+  function size(dock) {
+    if (!dock || !dock.isConnected) return;
+    var det = dock.parentElement, h = det ? det.clientHeight : 0;
+    if (!h || window.innerWidth < 1024) { dock.style.height = ''; return; }
+    var list = dock.querySelector('.ft-th__list'), grow = dock.querySelector('.ft-cc-grow');
+    var keep = list ? list.scrollTop : 0, atEnd = list ? list.scrollHeight - list.scrollTop - list.clientHeight < 4 : true;
+    dock.style.height = 'auto';
+    var natural = dock.offsetHeight;
+    var items = list ? list.querySelectorAll(':scope > *') : [], newest = items.length ? items[items.length - 1] : null;
+    var floor = natural - (list ? list.offsetHeight : 0) + (newest ? newest.offsetHeight : 0) + 8;
+    var cap = h * (tall ? 0.67 : 0.40);
+    var target = Math.max(Math.min(natural, cap), Math.min(floor, h * 0.67));
+    dock.style.height = Math.round(target) + 'px';
+    if (grow) grow.hidden = !tall && natural <= h * 0.40 + 1;
+    if (list) list.scrollTop = atEnd ? list.scrollHeight : keep;
+  }
+  /* The helper line under the ask box shows until the first question in this session, then hides everywhere */
+  /* A page may clear the question before this runs, so it counts as asked when the thread grows after the submit */
+  document.addEventListener('submit', function (e) {
+    var f = e.target; if (!f || !f.closest || !f.closest('.ft-cc-dock')) return;
+    var count = function () { var d = document.querySelector('.ft-cc-dock'), l = d && d.querySelector('.ft-th__list'); return l ? l.children.length : 0; };
+    var q = f.querySelector('.ft-th__q'), had = !!(q && q.value.trim()), n0 = count();
+    setTimeout(function () {
+      if ((had || count() > n0) && !asked) { asked = true; try { sessionStorage.setItem('ft-cc-asked', '1'); } catch (e2) {} document.documentElement.classList.add('ft-cc-asked'); }
+      size(document.querySelector('.ft-cc-dock'));
+    }, 0);
+  }, true);
+  window.addEventListener('resize', function () { Array.prototype.forEach.call(document.querySelectorAll('.ft-cc-dock'), size); Array.prototype.forEach.call(document.querySelectorAll('.ft-cc'), cue); });
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.ft-cc-grow'); if (!b) return;
+    tall = !tall; var dock = b.closest('.ft-cc-dock');
+    size(dock);
+    b.textContent = tall ? 'Show less' : 'Show more'; b.setAttribute('aria-expanded', String(tall));
+    toEnd(dock); cue(dock.parentElement);
+  });
+  /* Keep a selected row in view inside the list when arrow keys move the selection */
+  document.addEventListener('keydown', function (e) {
+    var row = e.target.closest && e.target.closest('.ft-row');
+    if (row && (e.key === 'Home' || e.key === 'End')) {
+      var rows = Array.prototype.filter.call(row.parentElement.querySelectorAll('.ft-row'), function (r) { return r.offsetParent !== null; });
+      var to = e.key === 'Home' ? rows[0] : rows[rows.length - 1];
+      if (to && to !== row) { e.preventDefault(); to.click(); var again = document.querySelector('.ft-row[data-id="' + to.getAttribute('data-id') + '"]'); if (again) { again.focus(); again.scrollIntoView({ block: 'nearest' }); } }
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    setTimeout(function () { var r = document.activeElement; if (r && r.classList && r.classList.contains('ft-row') && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' }); }, 0);
+  });
+
+  function start() {
+    var det = document.getElementById('demo-detail'); if (!det) return;
+    new MutationObserver(function () { if (!busy) arrange(); }).observe(det, { childList: true });
+    arrange();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+</script>
+<!-- /layout-scripts -->
+</body>
+</html>

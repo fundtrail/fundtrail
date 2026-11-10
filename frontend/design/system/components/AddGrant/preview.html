@@ -1,0 +1,608 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: add a grant from its award letter, confirm the terms, upload the ledger, send in the evidence" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add a grant preview</title>
+<style>
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item" href="#">Example Bay <span class="ft-count ft-count--alert">3</span></a>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <div id="ag-nav-new" style="display:contents"></div>
+      <a class="ft-nav__item ft-nav__item--add" href="#" id="ag-nav-add">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs" id="ag-crumbs"></span></div>
+      <div><button type="button" class="ft-btn ft-btn--quiet" id="ag-later" hidden>Finish later</button></div>
+    </header>
+
+    <div class="ft-content">
+      <div class="ft-setup">
+        <div class="ft-setup-head">
+          <div><span class="ft-caption" id="ag-kicker"></span><h1 class="ft-setup-title" id="ag-title"></h1></div>
+          <ol class="ft-steps" id="ag-steps" aria-label="Steps"></ol>
+        </div>
+        <div id="ag-body"></div>
+        <div id="ag-live" class="ft-sr-only" role="status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var STEPS = ['Award letter', 'Terms', 'Ledger', 'Evidence'];
+  var TODAY = 'Apr 12, 2026';
+  var READY = { conflict: 1, human: 2, missing: 4, complete: 31 }, CHARGES = 38, FILES = 14;
+  function L(n) { return 'award_letter.txt, line ' + n; }
+  function terms0() {
+    return [
+      { k: 'period', kind: 'Period of performance', value: 'Sep 1, 2022 to Aug 31, 2025', quote: 'September 1, 2022 through August 31, 2025', loc: L(12) },
+      { k: 'psc', kind: 'Budget line', value: 'Participant Support Costs, <span class="ft-amount">$30,000.00</span>', quote: 'Funds budgeted for participant support costs ($30,000)', loc: L(16) },
+      { k: 'budget', kind: 'Budget lines', notTerm: true, check: true, value: 'The other budget lines aren’t in the letter', quote: 'allocated according to the approved budget attached to this notice', loc: L(14),
+        note: 'The approved budget isn’t on file. Without it, code can’t check budget room on the other lines.', action: 'budget', label: 'Add the budget' },
+      { k: 'pi', kind: 'Person', value: 'Dr. Jordan Rivera, Principal Investigator', quote: 'Principal Investigator: Dr. Jordan Rivera, Department of Biology', loc: L(6), check: true,
+        note: 'No email address in the letter. Add one so their emails count as the principal investigator’s.', action: 'email', label: 'Add email' },
+      { k: 'po', kind: 'Person', value: 'Dr. Alex Morgan, Program Officer, alex.morgan@funder.example', quote: 'Program Officer: Dr. Alex Morgan, alex.morgan@funder.example', loc: L(18) },
+      { k: 'go', kind: 'Person', value: 'Casey Lin, Grants Officer, casey.lin@funder.example', quote: 'Grants Officer: Casey Lin, casey.lin@funder.example', loc: L(20) },
+      { k: 'rule', kind: 'Approval rule', value: 'Moving participant support money to other costs needs the program officer’s written approval, through Research.gov', quote: 'without prior written approval from the cognizant Program Officer, requested through Research.gov', loc: L(16) },
+      { k: 'other', kind: 'Other term', value: 'The Grant General Conditions (GC-1) and the Prior Approval Matrix apply', quote: 'The Grant General Conditions (GC-1) in effect on the award date and the agency Prior Approval Matrix are incorporated into this award by reference.', loc: L(10) }
+    ];
+  }
+  var BUDGET = [
+    { k: 'mat', kind: 'Budget line', value: 'Materials and Supplies, <span class="ft-amount">$95,000.00</span>', quote: 'Materials and Supplies: $95,000', loc: 'approved_budget.pdf, page 1', isNew: true },
+    { k: 'odc', kind: 'Budget line', value: 'Other Direct Costs, <span class="ft-amount">$140,000.00</span>', quote: 'Other Direct Costs: $140,000', loc: 'approved_budget.pdf, page 1', isNew: true },
+    { k: 'trv', kind: 'Budget line', value: 'Travel, <span class="ft-amount">$35,000.00</span>', quote: 'Travel: $35,000', loc: 'approved_budget.pdf, page 1', isNew: true }
+  ];
+
+  function initial() {
+    return { step: 1, readN: 0, terms: terms0(), editing: null, adding: null, budgetReading: false,
+      confirmed: false, justConfirmed: false, ledger: null, ev: null, evN: 0, finished: false, copied: false, draft: {} };
+  }
+  var state = initial(), timers = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function later(fn, ms) { timers.push(setTimeout(fn, reduce ? 0 : ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function strip(s) { var d = document.createElement('div'); d.innerHTML = s; return d.textContent; }
+  function term(k) { for (var i = 0; i < state.terms.length; i++) if (state.terms[i].k === k) return state.terms[i]; return null; }
+  function shown() { return state.terms.slice(0, state.readN); }
+  function reading() { return state.readN < state.terms.length; }
+  function toConfirm() { return state.terms.filter(function (t) { return !t.notTerm && !t.rejected; }).length; }
+  function letterRead() { return state.step > 1 || state.readN > 0; }
+  function fromFile(f) { return state.terms.filter(function (t) { return !t.notTerm && t.loc.indexOf(f) === 0; }).length; }
+  function shortName(t) { return t.kind === 'Person' || t.kind === 'Budget line' ? strip(t.value).split(',')[0] : t.kind; }
+  function announce(text) { var el = $('ag-live'); el.textContent = ''; setTimeout(function () { el.textContent = text; }, 50); }
+  function problemCount() { var c = readyCounts(); return c.conflict + c.human + c.missing; }
+
+  /* ---------- chrome ---------- */
+  function renderChrome() {
+    var named = letterRead();
+    $('ag-kicker').innerHTML = named ? 'SYN-2400042 <span class="ft-sep">&middot;</span> National Science Foundation (NSF) <span class="ft-sep">&middot;</span> <span class="ft-amount">$300,000.00</span> awarded' : 'New grant';
+    $('ag-title').textContent = named ? 'Microbial Community Sequencing in Coastal Wetlands' : 'Add a grant';
+    $('ag-crumbs').innerHTML = state.finished ? 'Coastal Wetlands / <b>Set up</b>' : (named ? 'Coastal Wetlands' : 'Add a grant') + ' / <b>' + STEPS[state.step - 1] + '</b>';
+    $('ag-later').hidden = !named || state.finished;
+    $('ag-steps').innerHTML = STEPS.map(function (name, i) {
+      var n = i + 1, done = state.finished || n < state.step, cur = !state.finished && n === state.step;
+      var inner = '<span class="ft-step__n">' + n + '</span><span>' + name + '</span>';
+      if (done && !state.finished && n > 1) inner = '<button type="button" class="ft-step__btn" data-go="' + n + '">' + inner + '</button>';
+      return '<li class="ft-step' + (done ? ' is-done' : '') + (cur ? ' is-current' : '') + '"' + (cur ? ' aria-current="step"' : '') + '>' + inner + '</li>';
+    }).join('');
+    var nav = '';
+    if (named && state.finished) {
+      nav = '<a class="ft-nav__item ft-nav__item--grant" href="#">Coastal Wetlands</a><div class="ft-nav__children">' +
+        '<a class="ft-nav__item is-active" href="#" aria-current="page">Problem list <span class="ft-count ft-count--alert">' + problemCount() + '</span></a>' +
+        '<a class="ft-nav__item" href="#">Charges</a><a class="ft-nav__item" href="#">Evidence</a><a class="ft-nav__item" href="#">Grant terms</a><a class="ft-nav__item" href="#">Closeout</a></div>';
+    } else if (named) {
+      nav = '<a class="ft-nav__item is-active" href="#" aria-current="page">Coastal Wetlands <span class="ft-caption">Setting up</span></a>';
+    }
+    $('ag-nav-new').innerHTML = nav;
+    var add = $('ag-nav-add');
+    add.classList.toggle('is-active', !named);
+    if (!named) add.setAttribute('aria-current', 'page'); else add.removeAttribute('aria-current');
+  }
+
+  /* ---------- step 1: the award letter ---------- */
+  function stepLetter() {
+    var body;
+    if (letterRead()) {
+      body = '<div class="ft-file"><div><div class="ft-file__name">award_letter.txt</div><div class="ft-file__meta">Uploaded by you, ' + TODAY + '</div></div><span class="ft-file__state is-done">Read ' + fromFile('award_letter') + ' terms</span></div>';
+    } else {
+      body = '<button type="button" class="ft-drop" id="ag-drop-letter"><b>Drop the award letter here</b><span>PDF or text, or a photo of it. Or click to choose a file.</span></button>' +
+        '<p class="ft-caption" style="margin:0">The agent reads the letter and writes each term with the passage it came from, checked against the letter. No check uses a term until you confirm it.</p>';
+    }
+    var foot = letterRead() ? '<div class="ft-panel__foot"><span></span><button type="button" class="ft-btn ft-btn--main" data-go="2">Next: terms</button></div>' : '';
+    return panel('Award letter', '<div class="ft-panel__body">' + body + '</div>' + foot);
+  }
+
+  /* ---------- step 2: the terms ---------- */
+  function termHtml(t) {
+    var cls = 'ft-term' + (t.check && !state.confirmed ? ' is-check' : '') + (t.rejected ? ' is-rejected' : '') + (t.edited ? ' is-edited' : '') + (t.fresh ? ' ft-appear' : '');
+    var main = '<div class="ft-term__main">';
+    if (state.editing === t.k) {
+      main += '<form class="ft-inline-edit" data-form="edit" data-k="' + t.k + '"><input class="ft-input" name="v" aria-label="Correct ' + esc(shortName(t)) + '" value="' + esc(state.draft.edit != null ? state.draft.edit : (t.plain || strip(t.value))) + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="cancel" data-k="' + t.k + '">Cancel</button></form>';
+    } else {
+      main += '<span class="ft-term__value ft-fact__value">' + (t.isNew && !state.confirmed ? '<span class="ft-new">New</span>' : '') + t.value + '</span>';
+    }
+    main += '<span class="ft-quote">“' + esc(t.quote) + '” <span class="ft-loc">' + t.loc + '</span></span>';
+    if (t.check && !state.confirmed) main += '<span class="ft-term__note">' + t.note + '</span>';
+    if (state.adding === t.k) main += '<form class="ft-inline-edit" data-form="email" data-k="' + t.k + '"><input class="ft-input" type="email" name="email" placeholder="name@university.example" aria-label="Email address for Dr. Jordan Rivera" value="' + esc(state.draft.email != null ? state.draft.email : 'jordan.rivera@university.example') + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="cancel" data-k="' + t.k + '">Cancel</button></form>';
+    if (t.k === 'budget' && state.budgetReading) main += '<span class="ft-working"><span class="ft-working-dot" aria-hidden="true"></span>Reading approved_budget.pdf</span>';
+    main += '</div>';
+    var acts = '';
+    if (state.confirmed) acts = t.notTerm ? '' : t.rejected ? '<span class="ft-state ft-state--rejected">Rejected</span>' : '<span class="ft-state ft-state--confirmed">Confirmed</span>';
+    else if (t.rejected) acts = '<span class="ft-state ft-state--rejected">Rejected</span><button type="button" class="ft-overrule" data-act="unreject" data-k="' + t.k + '" aria-label="Undo rejecting ' + esc(shortName(t)) + '">Undo</button>';
+    else if (t.check) acts = (state.adding === t.k || state.budgetReading && t.k === 'budget') ? '' : '<button type="button" class="ft-btn ft-btn--sm" data-act="' + t.action + '" data-k="' + t.k + '">' + t.label + '</button>';
+    else if (state.editing !== t.k) acts = '<button type="button" class="ft-overrule" data-act="correct" data-k="' + t.k + '" aria-label="Correct ' + esc(shortName(t)) + '">Correct</button><button type="button" class="ft-overrule" data-act="reject" data-k="' + t.k + '" aria-label="Reject ' + esc(shortName(t)) + '">Reject</button>';
+    return '<li class="' + cls + '" data-k="' + t.k + '"><span class="ft-term__kind">' + t.kind + '</span>' + main + '<div class="ft-term__actions">' + acts + '</div></li>';
+  }
+  function stepTerms() {
+    var rows = shown().map(termHtml).join('');
+    if (reading()) rows += '<li class="ft-term ft-term--pending"><span class="ft-working"><span class="ft-working-dot" aria-hidden="true"></span>Reading the letter</span></li>';
+    state.terms.forEach(function (t) { t.fresh = false; });
+    var reads = function (on) { return '<span class="ft-file__state"><span class="ft-working-dot" aria-hidden="true"></span>' + on + '</span>'; };
+    var fileRow = function (name, st) { return '<div class="ft-file"><div><div class="ft-file__name">' + name + '</div><div class="ft-file__meta">Uploaded by you, ' + TODAY + '</div></div>' + st + '</div>'; };
+    var file = '<div class="ft-panel__section">' + fileRow('award_letter.txt', reading() ? reads('Reading') : '<span class="ft-file__state is-done">Read ' + fromFile('award_letter') + ' terms</span>');
+    if (state.budgetReading || fromFile('approved_budget')) file += fileRow('approved_budget.pdf', state.budgetReading ? reads('Reading') : '<span class="ft-file__state is-done">Read ' + fromFile('approved_budget') + ' terms</span>');
+    file += '</div>';
+    var n = toConfirm(), foot;
+    if (state.confirmed) foot = '<span>Confirmed by you, ' + TODAY + '. Checks use these terms.</span><button type="button" class="ft-btn ft-btn--main" data-go="3">Next: ledger</button>';
+    else if (reading()) foot = '<span>Terms appear as the agent writes them.</span><button type="button" class="ft-btn ft-btn--main" disabled>Reading…</button>';
+    else foot = '<span>No check uses these terms until you confirm them.</span><button type="button" class="ft-btn ft-btn--approve ft-btn--main" data-act="confirm">Confirm ' + n + ' terms</button>';
+    return panel('Terms the agent read', file + '<ul class="ft-terms ft-terms--review ft-terms--flush" aria-label="Terms read from the award letter">' + rows + '</ul><div class="ft-panel__foot">' + foot + '</div>');
+  }
+
+  /* ---------- step 3: the ledger ---------- */
+  function doneLine() {
+    return state.justConfirmed ? '<div class="ft-trail__done" role="status" tabindex="-1" id="ag-done" style="margin-top:0"><span>' + toConfirm() + ' terms confirmed. Checks use them from now on.</span><button type="button" data-act="unconfirm">Undo</button></div>' : '';
+  }
+  function stepLedger() {
+    var body;
+    if (!state.ledger) {
+      body = '<button type="button" class="ft-drop" id="ag-drop-ledger"><b>Drop the ledger file here</b><span>CSV or Excel, one file for this grant. Or click to choose a file.</span></button>' +
+        '<p class="ft-caption" style="margin:0">Needs the columns line_id, transaction_date, posting_date, amount, description and account.</p>';
+    } else {
+      var st = state.ledger === 'reading' ? '<span class="ft-file__state"><span class="ft-working-dot" aria-hidden="true"></span>Reading</span>' : '<span class="ft-file__state is-done">Read</span>';
+      body = '<div class="ft-file"><div><div class="ft-file__name">ledger_SYN-2400042.csv</div><div class="ft-file__meta">39 rows <span class="ft-sep">&middot;</span> Uploaded by you, ' + TODAY + '</div></div>' + st + '</div>';
+      if (state.ledger === 'done') body += '<ul class="ft-found ft-appear"><li><span><b class="ft-amount">38</b> charges added</span></li><li class="is-pending"><span><b class="ft-amount">1</b> row skipped</span></li></ul>' +
+        '<ul class="ft-errors ft-appear" aria-label="Skipped rows"><li><span class="ft-id">Row 27</span><span>The amount is “TBD”, not a dollar amount.</span></li></ul>' +
+        '<p class="ft-caption" style="margin:0">Fix the row and drop the file again. Lines already on file are skipped.</p>';
+    }
+    var ok = state.ledger === 'done';
+    var foot = '<div class="ft-panel__foot"><span>' + (ok ? 'Code checks each charge as soon as it’s added.' : '') + '</span><button type="button" class="ft-btn ft-btn--main" data-go="4"' + (ok ? '' : ' disabled') + '>Next: evidence</button></div>';
+    return (state.justConfirmed ? '<div style="margin-bottom:var(--space-3)">' + doneLine() + '</div>' : '') + panel('Ledger', '<div class="ft-panel__body">' + body + '</div>' + foot);
+  }
+
+  /* ---------- step 4: the evidence ---------- */
+  function readyCounts() {
+    var f = state.ev === 'done' ? 1 : state.evN / FILES;
+    var c = { conflict: Math.round(READY.conflict * f), human: Math.round(READY.human * f), complete: Math.round(READY.complete * f) };
+    c.missing = CHARGES - c.conflict - c.human - c.complete;
+    return c;
+  }
+  function readyHtml() {
+    var c = readyCounts();
+    var span = function (k) { return '<span class="is-' + k + '" id="ag-bar-' + k + '" style="' + barStyle(c[k]) + '"></span>'; };
+    return '<div class="ft-ready ft-ready--legend" style="max-width:560px"><div class="ft-ready__head"><span class="ft-ready__num" id="ag-ready-num">' + c.complete + '</span><span class="ft-ready__of">of ' + CHARGES + ' charges ready for closeout</span></div>' +
+      '<div class="ft-ready__bar" aria-hidden="true">' + span('conflict') + span('human') + span('missing') + span('complete') + '</div>' +
+      '<div class="ft-ready__legend" id="ag-legend">' + legend(c) + '</div></div>';
+  }
+  function barStyle(n) { return n ? 'flex:' + n : 'flex:0;min-width:0'; }
+  function legend(c) { return '<span class="is-conflict"><b>' + c.conflict + '</b> Possible conflict</span><span class="is-human"><b>' + c.human + '</b> Needs a human</span><span class="is-missing"><b>' + c.missing + '</b> Missing evidence</span><span class="is-complete"><b>' + c.complete + '</b> Evidence complete</span>'; }
+  function evFile() {
+    if (!state.ev) return '';
+    var st = state.ev === 'done' ? '<span class="ft-file__state is-done" id="ag-ev-state">Read</span>' : '<span class="ft-file__state" id="ag-ev-state"><span class="ft-working-dot" aria-hidden="true"></span>Reading ' + state.evN + ' of ' + FILES + '</span>';
+    return '<div class="ft-file ft-appear"><div><div class="ft-file__name">' + FILES + ' files</div><div class="ft-file__meta">9 invoices, 4 emails, 1 receipt photo</div></div>' + st + '</div>';
+  }
+  function stepEvidence() {
+    var ways = '<div class="ft-ways">' +
+      '<div class="ft-way"><h3 class="ft-heading">Forward email</h3><p>Send bills and approvals to this grant’s address. The agent reads each one as it arrives.</p>' +
+        '<div class="ft-copy"><code>syn-2400042@grants.fundtrail.example</code><button type="button" class="ft-btn ft-btn--sm" data-act="copy">' + (state.copied ? 'Copied' : 'Copy') + '</button></div></div>' +
+      '<div class="ft-way"><h3 class="ft-heading">Upload</h3><p>Files from your computer: PDF, text, email or photos.</p>' +
+        '<button type="button" class="ft-drop ft-drop--compact" id="ag-drop-ev"><b>Drop bills, emails or photos</b></button></div></div>';
+    var body = '<div class="ft-panel__section">' + ways + '</div>' +
+      '<div class="ft-panel__section" style="border-top:1px solid var(--rule);padding-top:var(--space-4)"><h3 class="ft-heading">This grant so far</h3><div id="ag-ev-file">' + evFile() + '</div>' + readyHtml() + '</div>';
+    var foot = '<div class="ft-panel__foot"><span>Evidence keeps arriving after setup. Statuses update as it does.</span><button type="button" class="ft-btn ft-btn--main" data-act="open">Open the grant</button></div>';
+    return panel('Evidence', body + foot);
+  }
+  function tickEvidence() {
+    var c = readyCounts();
+    ['conflict', 'human', 'missing', 'complete'].forEach(function (k) { var el = $('ag-bar-' + k); if (el) el.setAttribute('style', barStyle(c[k])); });
+    if ($('ag-ready-num')) $('ag-ready-num').textContent = c.complete;
+    if ($('ag-legend')) $('ag-legend').innerHTML = legend(c);
+    if ($('ag-ev-file')) $('ag-ev-file').innerHTML = evFile();
+  }
+
+  /* ---------- done ---------- */
+  function stepFinished() {
+    var c = readyCounts();
+    return panel('Set up', '<div class="ft-panel__body"><div class="ft-trail__done" role="status" tabindex="-1" id="ag-done" style="margin-top:0"><span>Coastal Wetlands is set up. ' + c.complete + ' of ' + CHARGES + ' charges are ready, and ' + problemCount() + ' are on its problem list.</span><button type="button" data-act="restart">Start over</button></div>' + readyHtml() + '</div>');
+  }
+
+  function panel(title, inner) { return '<section class="ft-panel" aria-labelledby="ag-h"><div class="ft-panel__head"><h2 class="ft-heading" id="ag-h" tabindex="-1">' + title + '</h2></div>' + inner + '</section>'; }
+  /* Re-rendering replaces the controls, so render keeps what the person was typing and where focus was. */
+  function keyOf(el) {
+    if (!el || el === document.body) return null;
+    if (el.id) return '#' + el.id;
+    var a = el.getAttribute('data-act'), k = el.getAttribute('data-k'), g = el.getAttribute('data-go');
+    if (a) return '[data-act="' + a + '"]' + (k ? '[data-k="' + k + '"]' : '');
+    if (g) return '[data-go="' + g + '"]';
+    if (el.name && el.form && el.form.getAttribute('data-form')) return '[data-form="' + el.form.getAttribute('data-form') + '"] [name="' + el.name + '"]';
+    return null;
+  }
+  function render(focusSel) {
+    var a = document.activeElement, key = keyOf(a), had = !!a && a !== document.body;
+    document.querySelectorAll('form[data-form] input').forEach(function (i) { state.draft[i.form.getAttribute('data-form')] = i.value; });
+    renderChrome();
+    $('ag-body').innerHTML = state.finished ? stepFinished() : [stepLetter, stepTerms, stepLedger, stepEvidence][state.step - 1]();
+    var t = focusSel ? document.querySelector(focusSel) : key ? document.querySelector(key) : null;
+    if (!t && had && !a.isConnected) t = $('ag-h');
+    if (t && t !== document.activeElement) { t.focus(); if (t.tagName === 'INPUT' && !focusSel) t.setSelectionRange(t.value.length, t.value.length); }
+  }
+  function go(n, focus) { state.step = n; if (n !== 3) state.justConfirmed = false; render(); if (focus !== false) { var h = $('ag-h'); if (h) h.focus(); } }
+
+  /* ---------- actions ---------- */
+  function dropLetter() {
+    state.step = 2; state.readN = 0; render('#ag-h'); announce('Reading the award letter.');
+    (function next() { later(function () {
+      state.readN++; state.terms[state.readN - 1].fresh = true; render();
+      if (reading()) next();
+      else announce('Read ' + fromFile('award_letter') + ' terms from the award letter. ' + state.terms.filter(function (t) { return t.check; }).length + ' need you before you confirm.');
+    }, 420); })();
+  }
+  function addBudget() {
+    state.budgetReading = true; render('#ag-h'); announce('Reading approved_budget.pdf.');
+    later(function () {
+      state.budgetReading = false;
+      var i = state.terms.indexOf(term('budget'));
+      var add = BUDGET.map(function (b) { var c = {}; for (var k in b) c[k] = b[k]; c.fresh = true; return c; });
+      state.terms.splice.apply(state.terms, [i, 1].concat(add));
+      state.readN = state.terms.length;
+      render('[data-act="correct"][data-k="' + BUDGET[0].k + '"]');
+      announce('Read ' + BUDGET.length + ' budget lines from approved_budget.pdf.');
+    }, 1100);
+  }
+  function confirmTerms() { state.editing = null; state.adding = null; state.draft = {}; state.confirmed = true; state.justConfirmed = true; state.step = 3; render('#ag-done'); }
+  function dropLedger() { state.ledger = 'reading'; render('#ag-h'); later(function () { state.ledger = 'done'; render(); announce('38 charges added. 1 row skipped: row 27.'); }, 900); }
+  function dropEvidence() {
+    if (state.ev) return;
+    state.ev = 'reading'; state.evN = 0; render();
+    (function next() { later(function () {
+      state.evN++; if (state.evN >= FILES) state.ev = 'done'; tickEvidence();
+      if (state.ev !== 'done') next(); else { announce('Read ' + FILES + ' files. ' + readyCounts().complete + ' of ' + CHARGES + ' charges ready for closeout.'); if (state.finished) render(); }
+    }, 160); })();
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, a') : null; if (!t) return;
+    if (t.tagName === 'A') { e.preventDefault(); return; }
+    var act = t.getAttribute('data-act'), k = t.getAttribute('data-k'), g = t.getAttribute('data-go');
+    if (g) return go(parseInt(g, 10));
+    if (t.id === 'ag-drop-letter') return dropLetter();
+    if (t.id === 'ag-drop-ledger') return dropLedger();
+    if (t.id === 'ag-drop-ev') return dropEvidence();
+    if (act === 'reject') { term(k).rejected = true; render(); var u = document.querySelector('.ft-term[data-k="' + k + '"] [data-act="unreject"]'); if (u) u.focus(); }
+    else if (act === 'unreject') { term(k).rejected = false; render('[data-act="reject"][data-k="' + k + '"]'); }
+    else if (act === 'correct') { state.editing = k; state.adding = null; state.draft = {}; render('[data-form="edit"] input'); var inp = document.querySelector('[data-form="edit"] input'); if (inp) inp.select(); }
+    else if (act === 'email') { state.adding = k; state.editing = null; state.draft = {}; render('[data-form="email"] input'); }
+    else if (act === 'cancel') { var was = state.adding ? 'email' : 'correct'; state.editing = null; state.adding = null; state.draft = {}; render('[data-act="' + was + '"][data-k="' + k + '"]'); }
+    else if (act === 'budget') addBudget();
+    else if (act === 'confirm') confirmTerms();
+    else if (act === 'unconfirm') { state.confirmed = false; state.justConfirmed = false; go(2); }
+    else if (act === 'copy') { state.copied = true; t.textContent = 'Copied'; later(function () { state.copied = false; if (t.isConnected) t.textContent = 'Copy'; }, 1500); }
+    else if (act === 'open') { state.finished = true; render('#ag-done'); }
+    else if (act === 'restart') { clearTimers(); state = initial(); render('#ag-drop-letter'); }
+  });
+  document.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target, t = term(f.getAttribute('data-k')); if (!t) return;
+    if (f.getAttribute('data-form') === 'edit') {
+      var v = f.elements.v.value.trim(); if (!v) return;
+      if (v !== (t.plain || strip(t.value))) { t.plain = v; t.value = esc(v); t.edited = true; }
+      state.editing = null;
+    } else {
+      var m = f.elements.email.value.trim(); if (!m) return;
+      t.value = 'Dr. Jordan Rivera, Principal Investigator, ' + esc(m); t.plain = strip(t.value); t.check = false; t.edited = true; state.adding = null;
+    }
+    state.draft = {};
+    render('[data-act="correct"][data-k="' + t.k + '"]');
+  });
+  ['dragover', 'dragleave', 'drop'].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+      var z = e.target.closest ? e.target.closest('.ft-drop') : null; if (!z) return;
+      e.preventDefault(); z.classList.toggle('is-over', type === 'dragover');
+      if (type === 'drop') z.click();
+    });
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* ---------- a hash can jump to a state, for screenshots: #step=2&read=partial&email=1&budget=1&rej=go&up=1&ev=1&done=1&t=dark ---------- */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme();
+  var s = parseInt(h.step || '1', 10);
+  if (s >= 2) { state.step = 2; state.readN = h.read === 'partial' ? 4 : state.terms.length; }
+  if (h.email === '1') { var pi = term('pi'); pi.value = 'Dr. Jordan Rivera, Principal Investigator, jordan.rivera@university.example'; pi.check = false; pi.edited = true; }
+  if (h.budget === '1') { var bi = state.terms.indexOf(term('budget')); state.terms.splice.apply(state.terms, [bi, 1].concat(BUDGET.map(function (b) { var c = {}; for (var k in b) c[k] = b[k]; return c; }))); if (s >= 2 && h.read !== 'partial') state.readN = state.terms.length; }
+  if (h.rej) h.rej.split(',').forEach(function (k) { if (term(k)) term(k).rejected = true; });
+  if (h.edit) state.editing = h.edit;
+  if (h.add) state.adding = h.add;
+  if (h.breading === '1') state.budgetReading = true;
+  if (s >= 3) { state.confirmed = true; state.justConfirmed = h.dl !== '0'; state.step = 3; }
+  if (h.up === '1') state.ledger = 'done'; if (h.up === 'reading') state.ledger = 'reading';
+  if (s >= 4) { state.ledger = 'done'; state.step = 4; state.justConfirmed = false; }
+  if (h.ev === '1') state.ev = 'done'; if (h.ev === 'partial') { state.ev = 'reading'; state.evN = 9; }
+  if (h.done === '1') { state.ledger = 'done'; state.ev = 'done'; state.step = 4; state.confirmed = true; state.finished = true; }
+  render();
+})();
+</script>
+<!-- @menu-scripts -->
+<script>
+/* FundTrail workspace and account menus, with the New workspace and Reset dialogs.
+   Drop into any page that has the app shell: FTWorkspaceMenu.attach(options).
+   It turns the sidebar's .ft-workspace block and its Account button into menu buttons.
+   options: workspaces [{id, name, note, demo}], current (id), user {name, email},
+            onNavigate(kind, value): kind is 'workspace' (value: id), 'new' (value: name), 'reset' (value: id) or 'signout'.
+            Return false from onNavigate to skip the default (the default only updates the workspace button's label).
+   Also: FTWorkspaceMenu.open('workspace' | 'account'), .dialog('new' | 'reset'), .close(). Plain ES5, no dependencies. */
+(function () {
+  var M = window.FTWorkspaceMenu = window.FTWorkspaceMenu || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var opts = null, wsBtn = null, acBtn = null, menu = null, menuKind = null, dlg = null, scrim = null, seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function current() { for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === opts.current) return opts.workspaces[i]; return opts.workspaces[0]; }
+  function nav(kind, value) { var r = opts.onNavigate ? opts.onNavigate(kind, value) : undefined; if (r !== false) feedback(kind, value); return r !== false; }
+  /* Without a page handler, say what happened, so a choice never looks like it did nothing */
+  var toastEl = null, toastTimer = null;
+  function feedback(kind, value) {
+    var name = value;
+    if (kind === 'workspace' || kind === 'reset') for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === value) name = opts.workspaces[i].name;
+    var text = kind === 'workspace' ? 'Switched to ' + name + '.' : kind === 'new' ? 'Created ' + name + '. It has no grants yet.' :
+      kind === 'reset' ? name + ' is back to how it started.' : kind === 'signout' ? 'Signed out. The sign-in page opens next.' : '';
+    if (!text) return;
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'ft-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+    toastEl.textContent = text; toastEl.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 6000);
+  }
+  function syncLabel() { if (!wsBtn) return; var s = wsBtn.querySelector('span'); if (s) s.textContent = current().name; }
+
+  /* ---------- menus ---------- */
+  function items() { return menu ? Array.prototype.slice.call(menu.querySelectorAll('.ft-menu-item')) : []; }
+  function focusItem(i) { var all = items(); if (!all.length) return; i = (i + all.length) % all.length; all[i].focus(); }
+  function menuHtml(kind) {
+    if (kind === 'account') {
+      var u = opts.user;
+      return '<div class="ft-menu-who" aria-hidden="true"><b>' + esc(u.name) + '</b><span>' + esc(u.email) + '</span><span>Signed in with Google</span></div>' +
+        '<div class="ft-menu-sep" role="separator"></div>' +
+        '<button type="button" class="ft-menu-item ft-menu-item--plain" role="menuitem" tabindex="-1" data-ft-menu="signout"><span class="ft-menu-item__text">Sign out</span></button>';
+    }
+    var h = '<div class="ft-menu-label" aria-hidden="true">Workspaces</div><div role="group" aria-label="Workspaces">';
+    opts.workspaces.forEach(function (w) {
+      var on = w.id === opts.current;
+      h += '<button type="button" class="ft-menu-item" role="menuitemradio" aria-checked="' + on + '" tabindex="-1" data-ft-menu="workspace" data-ft-value="' + esc(w.id) + '">' +
+        '<span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text"><span>' + esc(w.name) + '</span>' + (w.note ? '<span class="ft-menu-item__sub">' + esc(w.note) + '</span>' : '') + '</span></button>';
+    });
+    h += '</div><div class="ft-menu-sep" role="separator"></div>' +
+      '<button type="button" class="ft-menu-item" role="menuitem" tabindex="-1" data-ft-menu="new"><span class="ft-menu-item__mark ft-menu-item__mark--plus" aria-hidden="true"></span><span class="ft-menu-item__text">New workspace</span></button>';
+    if (current().demo) h += '<button type="button" class="ft-menu-item ft-menu-item--danger" role="menuitem" tabindex="-1" data-ft-menu="reset"><span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text">Reset demo workspace</span></button>';
+    return h;
+  }
+  function open(kind, focusLast) {
+    var btn = kind === 'account' ? acBtn : wsBtn; if (!btn) return;
+    close(false);
+    menu = document.createElement('div');
+    menu.className = 'ft-menu' + (reduce ? '' : ' ft-menu--in');
+    menu.id = 'ft-menu-' + kind; menu.setAttribute('role', 'menu');
+    if (kind === 'account') menu.setAttribute('aria-label', 'Account: ' + opts.user.name + ', ' + opts.user.email + ', signed in with Google');
+    else menu.setAttribute('aria-labelledby', btn.id);
+    menu.innerHTML = menuHtml(kind);
+    document.body.appendChild(menu); menuKind = kind;
+    place();
+    btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', menu.id);
+    menu.addEventListener('keydown', menuKey);
+    menu.addEventListener('click', menuClick);
+    var all = items(), checked = menu.querySelector('[aria-checked="true"]');
+    if (focusLast) focusItem(all.length - 1); else if (checked) checked.focus(); else focusItem(0);
+  }
+  /* Keeps the menu next to its button: below the workspace block, above the Account button */
+  function place() {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn, r = btn.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    menu.style.minWidth = Math.max(r.width, 248) + 'px';
+    menu.style.left = Math.max(8, Math.min(r.left, vw - menu.offsetWidth - 8)) + 'px';
+    if (menuKind === 'account') { menu.style.top = ''; menu.style.bottom = Math.max(8, vh - r.top + 6) + 'px'; }
+    else { menu.style.bottom = ''; menu.style.top = Math.max(8, Math.min(r.bottom + 6, vh - menu.offsetHeight - 8)) + 'px'; }
+  }
+  function close(returnFocus) {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn;
+    menu.parentNode.removeChild(menu); menu = null; menuKind = null;
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-controls'); if (returnFocus) btn.focus(); }
+  }
+  function menuKey(e) {
+    var all = items(), i = all.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(i + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); focusItem(0); }
+    else if (e.key === 'End') { e.preventDefault(); focusItem(all.length - 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); close(true); }
+    else if (e.key.length === 1 && /\S/.test(e.key)) {
+      var k = e.key.toLowerCase();
+      for (var n = 1; n <= all.length; n++) { var it = all[(i + n) % all.length]; if (it.textContent.trim().toLowerCase().charAt(0) === k) { it.focus(); break; } }
+    }
+  }
+  function menuClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-menu]') : null; if (!t) return;
+    select(t.getAttribute('data-ft-menu'), t.getAttribute('data-ft-value'));
+  }
+  function select(kind, value) {
+    if (kind === 'workspace') {
+      close(true);
+      if (value !== opts.current && nav('workspace', value)) { opts.current = value; syncLabel(); }
+    } else if (kind === 'new' || kind === 'reset') { close(false); dialog(kind); }
+    else if (kind === 'signout') { close(true); nav('signout'); }
+  }
+
+  /* ---------- dialogs ---------- */
+  function dialogHtml(kind, id) {
+    if (kind === 'reset') {
+      return '<div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Reset the demo workspace?</h2></div>' +
+        '<div class="ft-dialog-body" id="' + id + '-d"><p>It goes back to how it started. This can’t be undone.</p>' +
+        '<ul class="ft-dialog-list"><li>Your answers, confirmations, splits and sign-offs are removed.</li><li>Files you uploaded or forwarded to its grants are removed.</li>' +
+        '<li>The clock goes back to where the demo starts.</li><li>Your other workspaces don’t change.</li></ul></div>' +
+        '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="button" class="ft-btn ft-btn--reject" data-ft-dialog="reset">Reset workspace</button></div>';
+    }
+    return '<form class="ft-dialog-form" novalidate><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">New workspace</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d">A workspace holds its own grants, ledgers and evidence. Only you can see it.</p>' +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-name">Name</label>' +
+      '<input class="ft-input" id="' + id + '-name" name="name" autocomplete="off" placeholder="For example: Biology department" aria-describedby="' + id + '-help">' +
+      '<span class="ft-field__hint" id="' + id + '-help">Add grants to it after you create it.</span></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main" data-ft-dialog="create">Create workspace</button></div></form>';
+  }
+  function dialog(kind) {
+    closeDialog(false); close(false);
+    var id = 'ft-dialog-' + (++seq);
+    scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    dlg = document.createElement('section');
+    dlg.className = 'ft-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', kind === 'reset' ? 'alertdialog' : 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.setAttribute('data-ft-kind', kind);
+    dlg.innerHTML = dialogHtml(kind, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    scrim.addEventListener('click', function () { closeDialog(true); });
+    dlg.addEventListener('keydown', dialogKey);
+    dlg.addEventListener('click', dialogClick);
+    var form = dlg.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function (e) { e.preventDefault(); e.stopPropagation(); create(id); });
+      form.elements.name.addEventListener('input', function () { if (form.elements.name.value.trim()) fieldError(id, null); });
+    }
+    var first = kind === 'reset' ? dlg.querySelector('[data-ft-dialog="cancel"]') : dlg.querySelector('input');
+    if (first) first.focus(); else dlg.focus();
+  }
+  function fieldError(id, msg) {
+    var f = document.getElementById(id + '-field'), help = document.getElementById(id + '-help'), inp = document.getElementById(id + '-name');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); help.className = 'ft-field__error'; help.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); help.className = 'ft-field__hint'; help.textContent = 'Add grants to it after you create it.'; }
+  }
+  function create(id) {
+    var inp = document.getElementById(id + '-name'), name = inp.value.replace(/\s+/g, ' ').trim();
+    if (!name) { fieldError(id, 'Add a name.'); inp.focus(); return; }
+    var taken = opts.workspaces.some(function (w) { return w.name.toLowerCase() === name.toLowerCase(); });
+    if (taken) { fieldError(id, 'You already have a workspace with that name.'); inp.focus(); return; }
+    if (nav('new', name)) {
+      var wid = 'ws-' + Date.now().toString(36);
+      opts.workspaces.push({ id: wid, name: name, note: 'No grants yet' }); opts.current = wid; syncLabel();
+    }
+    closeDialog(true);
+  }
+  function dialogClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-dialog]') : null; if (!t) return;
+    var a = t.getAttribute('data-ft-dialog');
+    if (a === 'cancel') closeDialog(true);
+    else if (a === 'reset') { var cur = opts.current; closeDialog(true); nav('reset', cur); }
+  }
+  function dialogKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(true); return; }
+    if (e.key !== 'Tab') return;
+    var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!els.length) return;
+    var first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  function closeDialog(returnFocus) {
+    if (!dlg) return;
+    dlg.parentNode.removeChild(dlg); scrim.parentNode.removeChild(scrim); dlg = null; scrim = null;
+    var app = document.querySelector('.ft-app'); if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && wsBtn) wsBtn.focus();
+  }
+
+  /* ---------- attach ---------- */
+  function wire(btn, kind) {
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', function (e) { e.preventDefault(); if (menu && menuKind === kind) close(true); else open(kind); });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(kind); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); open(kind, true); }
+    });
+  }
+  M.attach = function (o) {
+    o = o || {};
+    opts = {
+      workspaces: [{ id: 'demo', name: 'Demo workspace', note: 'Sample grants. All data is synthetic.', demo: true }, { id: 'bio', name: 'Biology department', note: 'No grants yet' }],
+      current: 'demo',
+      user: { name: 'Taylor Example', email: 'taylor.example@university.example' },
+      onNavigate: null
+    };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) opts[k] = o[k];
+    var ws = document.querySelector('.ft-sidebar .ft-workspace');
+    if (ws && ws.tagName !== 'BUTTON') {
+      var b = document.createElement('button'); b.type = 'button'; b.className = ws.className; b.innerHTML = ws.innerHTML;
+      ws.parentNode.replaceChild(b, ws); ws = b;
+    }
+    if (ws && !ws.classList.contains('ft-menu-trigger')) { ws.classList.add('ft-menu-trigger'); ws.id = ws.id || 'ft-menu-ws-btn'; wire(ws, 'workspace'); }
+    wsBtn = ws; syncLabel();
+    var ac = document.querySelector('.ft-sidebar .demo-footrow .ft-btn');
+    if (!ac) { var bs = document.querySelectorAll('.ft-sidebar button'); for (var i = 0; i < bs.length; i++) if (bs[i].textContent.trim() === 'Account') { ac = bs[i]; break; } }
+    if (ac && !ac.classList.contains('ft-menu-trigger')) { ac.classList.add('ft-menu-trigger'); ac.id = ac.id || 'ft-menu-ac-btn'; wire(ac, 'account'); }
+    acBtn = ac;
+    if (!M.attached) {
+      document.addEventListener('mousedown', function (e) {
+        if (!menu) return;
+        var btn = menuKind === 'account' ? acBtn : wsBtn;
+        if (!menu.contains(e.target) && !(btn && btn.contains(e.target))) close(false);
+      }, true);
+      window.addEventListener('resize', place);
+      window.addEventListener('scroll', place, true);
+    }
+    M.attached = true;
+    return M;
+  };
+  M.open = function (kind) { open(kind === 'account' ? 'account' : 'workspace'); };
+  M.dialog = function (kind) { dialog(kind === 'reset' ? 'reset' : 'new'); };
+  M.close = function () { close(false); closeDialog(false); };
+  M.options = function () { return opts; };
+})();
+
+window.FTWorkspaceMenu && window.FTWorkspaceMenu.attach();
+</script>
+<!-- /menu-scripts -->
+</body>
+</html>

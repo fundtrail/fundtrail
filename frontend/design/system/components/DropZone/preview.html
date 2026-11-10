@@ -1,0 +1,45 @@
+<!-- @dsCard group="Adding a grant" height=760 width=720 subtitle="Drop zones, file rows while the agent reads, results, skipped rows and the grant's email address" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>DropZone preview</title>
+<style>.col{display:flex;flex-direction:column;gap:12px;width:100%}.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%}</style></head>
+<body>
+<div class="ft-stage">
+  <div class="pair">
+    <button type="button" class="ft-drop"><b>Drop the ledger file here</b><span>CSV or Excel, one file for this grant.</span></button>
+    <button type="button" class="ft-drop is-over"><b>Drop the ledger file here</b><span>CSV or Excel, one file for this grant.</span></button>
+  </div>
+  <span class="ft-caption">Needs the columns line_id, transaction_date, posting_date, amount, description and account.</span>
+
+  <div style="width:100%">
+    <div class="ft-file"><div><div class="ft-file__name">award_letter.txt</div><div class="ft-file__meta">Uploaded by you, Apr 9, 2026</div></div><span class="ft-file__state"><span class="ft-working-dot" aria-hidden="true"></span>Reading</span></div>
+    <div class="ft-file"><div><div class="ft-file__name">14 files</div><div class="ft-file__meta">9 invoices, 4 emails, 1 receipt photo</div></div><span class="ft-file__state"><span class="ft-working-dot" aria-hidden="true"></span>Reading 9 of 14</span></div>
+    <div class="ft-file"><div><div class="ft-file__name">ledger_SYN-2400042.csv</div><div class="ft-file__meta">39 rows</div></div><span class="ft-file__state is-done">Read</span></div>
+  </div>
+
+  <ul class="ft-found">
+    <li>38 charges added</li>
+    <li class="is-pending">1 row skipped</li>
+  </ul>
+  <div class="col">
+    <ul class="ft-errors" aria-label="Rows skipped">
+      <li><span class="ft-id">Row 27</span><span>The amount is &ldquo;TBD&rdquo;, not a dollar amount.</span></li>
+    </ul>
+    <span class="ft-caption">Fix the row and drop the file again. Lines already on file are skipped.</span>
+  </div>
+
+  <div class="ft-ways" style="width:100%">
+    <div class="ft-way">
+      <h3 class="ft-heading">Forward email</h3>
+      <p>Send receipts, invoices and approvals to this grant's address. The agent reads each one as it arrives.</p>
+      <div class="ft-copy"><code>syn-2400042@grants.fundtrail.example</code><button type="button" class="ft-btn ft-btn--sm">Copy</button></div>
+    </div>
+    <div class="ft-way">
+      <h3 class="ft-heading">Upload</h3>
+      <p>Files from your computer, read the same way.</p>
+      <button type="button" class="ft-drop ft-drop--compact"><b>Drop bills, emails or photos</b><span>Or click to choose files.</span></button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

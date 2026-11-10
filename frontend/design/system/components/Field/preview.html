@@ -1,0 +1,18 @@
+<!-- @dsCard group="Forms" height=430 width=900 subtitle="Inputs, choices, money, units and the live check, in every state" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Field preview</title>
+<style>.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 28px;width:100%}</style></head>
+<body>
+<div class="ft-stage"><div class="grid">
+  <div class="ft-field"><label class="ft-field__label" for="f1">Basis</label><input class="ft-input" id="f1" placeholder="For example: 56 of 96 samples were from Example Bay"><span class="ft-field__hint">Goes into the evidence report.</span></div>
+  <div class="ft-field"><label class="ft-field__label" for="f2">Basis, focused</label><input class="ft-input is-focus" id="f2" value="56 of 96 samples, per the lab manifest"></div>
+  <div class="ft-field is-invalid"><label class="ft-field__label" for="f3">Why</label><textarea class="ft-textarea" id="f3" placeholder="Your reasoning"></textarea><span class="ft-field__error">Add a reason. It goes into the evidence report.</span></div>
+  <div class="ft-field"><label class="ft-field__label" for="f4">Why, disabled</label><textarea class="ft-textarea" id="f4" disabled>Answered by the accountant, Apr 10, 2026.</textarea></div>
+  <div class="ft-field"><label class="ft-field__label" for="f5">This grant's part</label><div class="ft-money"><span class="ft-money__prefix" aria-hidden="true">$</span><input class="ft-input" id="f5" inputmode="decimal" value="5,833.33"></div></div>
+  <div class="ft-field"><span class="ft-field__label" id="f6">This grant's share</span><div class="ft-units" role="group" aria-labelledby="f6"><input class="ft-input" aria-label="Units for this grant" value="56"> of <input class="ft-input" aria-label="Total units" value="96"> samples</div></div>
+  <fieldset class="ft-field"><legend class="ft-field__label">Split by</legend><div class="ft-choice"><label><input type="radio" name="c1" checked> Share of units</label><label><input type="radio" name="c1"> Amount</label></div></fieldset>
+  <div class="ft-field"><span class="ft-field__label">Live check</span><div class="ft-check">Enter this grant's share to check it against the charge.</div><div class="ft-check is-ok"><span>Covers this charge: <b>$5,833.33</b> of <b>$5,833.33</b>.</span></div><div class="ft-check is-off"><span>This part, <b>$5,000.00</b>, doesn't match the charge, <b>$5,833.33</b>.</span></div></div>
+</div></div>
+</body>
+</html>

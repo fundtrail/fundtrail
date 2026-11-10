@@ -1,0 +1,36 @@
+<!-- @dsCard group="Charges" height=300 subtitle="The problem list and closeout table" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ChargeRow preview</title></head>
+<body>
+<div class="ft-stage">
+  <div class="ft-ledger" role="table" aria-label="Charges">
+    <div class="ft-ledger__head" role="row"><span role="columnheader">Date</span><span role="columnheader">Charge</span><span role="columnheader" class="ft-row__amount">Amount</span><span role="columnheader">Bucket</span></div>
+    <div class="ft-row" role="row" tabindex="0">
+      <span class="ft-row__date">Feb 20, 2026<span class="ft-id">L-1002</span></span>
+      <span class="ft-row__desc"><span>Sediment DNA sequencing run 7</span><span class="ft-row__reason">Work done after the grant's end date, Jan 31, 2026.</span></span>
+      <span class="ft-row__amount ft-amount">$2,180.00</span>
+      <span><span class="ft-badge ft-badge--conflict">Possible conflict</span></span>
+    </div>
+    <div class="ft-row is-selected" role="row" tabindex="0">
+      <span class="ft-row__date">Jan 9, 2026<span class="ft-id">L-1010</span></span>
+      <span class="ft-row__desc"><span>Sequencing core, shared run 6</span><span class="ft-row__reason">Invoice SEQ-0311 covers two grants, and nothing on file gives this grant's part.</span></span>
+      <span class="ft-row__amount ft-amount">$5,833.33</span>
+      <span><span class="ft-badge ft-badge--human">Needs a human</span></span>
+    </div>
+    <div class="ft-row" role="row" tabindex="0">
+      <span class="ft-row__date">Jan 14, 2026<span class="ft-id">L-1015</span></span>
+      <span class="ft-row__desc"><span>Field boat rental</span><span class="ft-row__reason">No receipt on file.</span></span>
+      <span class="ft-row__amount ft-amount">$1,480.00</span>
+      <span><span class="ft-badge ft-badge--missing">Missing evidence</span></span>
+    </div>
+    <div class="ft-row" role="row" tabindex="0">
+      <span class="ft-row__date">Nov 12, 2025<span class="ft-id">L-1001</span></span>
+      <span class="ft-row__desc"><span>Sediment core liners</span><span class="ft-row__reason">Invoice INV-1001 covers the full amount.</span></span>
+      <span class="ft-row__amount ft-amount">$1,240.00</span>
+      <span><span class="ft-badge ft-badge--complete">Evidence complete</span></span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

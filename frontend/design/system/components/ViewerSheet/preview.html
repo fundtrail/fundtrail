@@ -1,0 +1,758 @@
+<!-- @dsCard group="Viewer" height=600 width=1040 subtitle="The frame around any file: what the passage is, the pager, zoom, and the side list of facts and links" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ViewerSheet preview</title>
+<style>body { margin: 0; background: var(--paper); } .vs-host { height: 600px; }</style></head>
+<body>
+<section class="vs-host" id="vs" aria-label="Viewer"></section>
+<!-- @viewer-scripts -->
+<script>
+/* FundTrail viewer frame: builds the sheet, moves between passages, zooms, and handles the keyboard.
+   Renderers (FTViewer.text, .email, .pdf, .photo) draw the document; this file draws everything around it.
+   FTViewer.mount(container, file, active)  inline, for design system cards
+   FTViewer.open(file, active, opener)      over the app, with a scrim; Esc closes and focus returns to the opener
+   Checked quotes (decision 0012): a fact with confirmed:false couldn't be placed in its file. The viewer opens its
+   page with no guessed highlight and shows the quote beside it, with two ways to settle it: confirm the value, or
+   type the right one. Either marks the fact confirmed by the accountant and still unplaced (placed:false). */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function where(file, f) { return file.type === 'pdf' || file.type === 'report' ? 'page ' + f.page : file.type === 'photo' ? '' : 'line ' + f.line; }
+  /* A fact is unplaced when its quote couldn't be found (unconfirmed), or when the accountant settled it by hand */
+  function unplaced(f) { return f.confirmed === false || f.placed === false; }
+  /* Draw the document without the active highlight or box, so nothing is guessed */
+  function unmark(html) {
+    return html.replace(/<mark class="ft-mark-hl is-active"[^>]*>([\s\S]*?)<\/mark>/g, '$1').replace(/<span class="ft-box ft-photo__box"[^>]*><\/span>/g, '')
+      .replace(/<div class="ft-photo__tools">[\s\S]*?<\/div>/, '');
+  }
+
+  function Viewer(host, file, active, inline) {
+    this.host = host; this.file = file; this.inline = inline;
+    this.r = V[file.type];
+    this.go(active == null ? (file.active || 0) : active, true);
+  }
+  Viewer.prototype.html = function () {
+    var file = this.file, f = file.facts[this.active], r = this.r, n = file.facts.length, i = this.active, z = this.view.zoom;
+    var head = '<header class="ft-sheet__head"><div class="ft-sheet__title"><h2 id="ftv-title">' + esc(file.title) + '</h2>' +
+      '<span class="ft-sheet__meta"><span class="ft-id">' + esc(file.name) + '</span> <span class="ft-sep">&middot;</span> ' + String(file.meta || '').split(/\s*·\s*/).map(esc).join(' <span class="ft-sep">&middot;</span> ') + '</span></div>' +
+      '<div class="ft-sheet__tools"><button type="button" class="ft-btn ft-btn--sm ft-btn--quiet" data-act="download">Download original</button>' +
+      (this.inline ? '' : '<span class="ft-vr" aria-hidden="true"></span><button type="button" class="ft-iconbtn ft-iconbtn--close" data-act="close" aria-label="Close viewer"></button>') + '</div></header>';
+    var cite;
+    if (f.confirmed === false) cite = '<b>' + esc(f.label) + '</b><span class="ft-vu-flag">Unconfirmed</span><span>' + (file.type === 'photo' ? 'The second look didn’t read the same value' : 'Couldn’t place this quote in the file') + '</span>';
+    else if (f.placed === false) cite = '<b>' + esc(f.label) + '</b><span>Confirmed by you <span class="ft-sep">&middot;</span> not placed in the file</span>';
+    else cite = r.cite ? r.cite(file, f) : file.type === 'photo'
+      ? '<b>' + esc(f.label) + '</b><span>Box checked by a second look</span>'
+      : '<b>' + esc(f.label) + '</b><span>Exact passage <span class="ft-sep">&middot;</span> ' + where(file, f) + '</span>';
+    var zoom = '';
+    if (r.zooms) {
+      var lo = z <= r.zooms[0] + 1e-6, hi = z >= r.zooms[r.zooms.length - 1] - 1e-6;
+      zoom = '<span class="ft-zoom" role="group" aria-label="Zoom"><button type="button" class="ft-iconbtn ft-iconbtn--minus" data-act="zoomout" aria-label="Zoom out"' + (lo ? ' aria-disabled="true"' : '') + '></button>' +
+        '<span class="ft-zoom__level" aria-live="polite">' + Math.round(z * 100) + '%</span><button type="button" class="ft-iconbtn ft-iconbtn--plus" data-act="zoomin" aria-label="Zoom in"' + (hi ? ' aria-disabled="true"' : '') + '></button></span><span class="ft-vr" aria-hidden="true"></span>';
+    }
+    var pager = '<span class="ft-pager" role="group" aria-label="Passage ' + (i + 1) + ' of ' + n + '"><button type="button" class="ft-iconbtn ft-iconbtn--up" data-act="prev" aria-label="Previous passage"' + (i === 0 ? ' aria-disabled="true"' : '') + '></button>' +
+      '<span class="ft-pager__text" aria-hidden="true">' + (i + 1) + ' of ' + n + '</span><button type="button" class="ft-iconbtn ft-iconbtn--down" data-act="next" aria-label="Next passage"' + (i === n - 1 ? ' aria-disabled="true"' : '') + '></button></span>';
+    var bar = '<div class="ft-sheet__bar"><div class="ft-sheet__cite" role="status">' + cite + '</div><div class="ft-sheet__controls">' + zoom + pager + '</div></div>';
+    var facts = file.facts.map(function (x, k) {
+      var loc = where(file, x), mark = '';
+      if (x.confirmed === false) mark = '<span class="ft-sidefact__loc ft-vu-side">Unconfirmed</span>';
+      else if (x.placed === false) mark = '<span class="ft-sidefact__loc">Confirmed by you</span>';
+      else if (loc) mark = '<span class="ft-sidefact__loc">' + loc + '</span>';
+      return '<li><button type="button" class="ft-sidefact" data-fact="' + k + '"' + (k === i ? ' aria-current="true"' : '') + '><span class="ft-sidefact__label">' + esc(x.label) + '</span>' +
+        '<span class="ft-sidefact__value">' + esc(x.value) + '</span>' + mark + '</button></li>';
+    }).join('');
+    var side = '<div class="ft-sheet__section"><span class="ft-sheet__label" id="ftv-facts">In this file</span><ul class="ft-sidefacts" aria-labelledby="ftv-facts">' + facts + '</ul></div>';
+    if (file.links && file.links.length) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Linked to</span><ul class="ft-sidelinks">' + file.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-caption">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul></div>';
+    else if (file.note) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Status</span><p class="ft-sheet__note" style="margin:0">' + esc(file.note) + '</p></div>';
+    var page = this.r.render(file, i, this.view);
+    if (unplaced(f)) page = unmark(page);
+    var doc = '<div class="ft-sheet__doc" tabindex="0" aria-label="' + esc(file.name) + '">' + this.settleHtml(f) + page + '</div>';
+    return head + bar + '<div class="ft-sheet__body">' + doc + '<aside class="ft-sheet__side" aria-label="Facts and links">' + side + '</aside></div>';
+  };
+  /* The panel beside an unconfirmed fact's page: the quote, why it matters, and the two ways to settle it */
+  Viewer.prototype.settleHtml = function (f) {
+    var file = this.file;
+    if (this.done) return '<div class="ft-vu-wrap"><div class="ft-trail__done ft-vu-done" role="status" tabindex="-1" id="ftv-done"><span>' + esc(this.done) + '</span><button type="button" data-act="vu-undo">Undo</button></div></div>';
+    if (f.confirmed !== false) return '';
+    var photo = file.type === 'photo', loc = where(file, f);
+    var quote = photo
+      ? '<p class="ft-vu__quote"><span class="ft-vu__said">The agent read</span> <span class="ft-quote">“' + esc(f.value) + '”</span></p>'
+      : '<p class="ft-vu__quote ft-quote">“' + esc(f.text || f.value) + '”' + (loc ? ' <span class="ft-loc">' + loc + ', not found there</span>' : '') + '</p>';
+    var form = this.typing
+      ? '<form class="ft-inline-edit ft-vu__form" data-vu-form><input class="ft-input" name="v" aria-label="The right value for ' + esc(f.label.toLowerCase()) + '" value="' + esc(f.value) + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="vu-cancel">Cancel</button></form>'
+      : '<div class="ft-vu__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-act="vu-confirm">Confirm ' + esc(f.value) + '</button><button type="button" class="ft-btn ft-btn--sm" data-act="vu-type">Type the right value</button></div>';
+    return '<div class="ft-vu-wrap"><section class="ft-vu" aria-labelledby="ftv-vu-h">' +
+      '<div class="ft-vu__head"><span class="ft-vu__mark" aria-hidden="true"></span><b id="ftv-vu-h">' + (photo ? 'The second look didn’t confirm this value' : 'Couldn’t place this quote in the file') + '</b></div>' +
+      quote +
+      '<p class="ft-vu__why">' + (photo ? 'No box is drawn, so nothing is guessed. ' : 'No highlight is drawn, so nothing is guessed. ') + 'Anything that rests on this fact is in Needs a human until you confirm the value or type the right one.</p>' +
+      form + '</section></div>';
+  };
+  /* Settle an unconfirmed fact by hand; Undo puts it back as it was */
+  Viewer.prototype.settle = function (value) {
+    var f = this.file.facts[this.active];
+    this.undo = { i: this.active, value: f.value, confirmed: f.confirmed, placed: f.placed, by: f.confirmedBy };
+    var typed = value != null && value !== f.value;
+    if (value != null) f.value = value;
+    f.confirmed = true; f.placed = false; f.confirmedBy = 'you'; this.typing = false;
+    this.done = (typed ? 'Set by you: ' + f.value + '.' : 'Confirmed by you: ' + f.value + '.') + ' Anything that rested on it rechecks.';
+    this.draw(true, '#ftv-done');
+  };
+  Viewer.prototype.unsettle = function () {
+    var u = this.undo; if (!u) return;
+    var f = this.file.facts[u.i];
+    f.value = u.value; f.confirmed = u.confirmed; f.placed = u.placed; f.confirmedBy = u.by;
+    this.undo = null; this.done = null;
+    this.draw(true, '[data-act="vu-confirm"]');
+  };
+  Viewer.prototype.draw = function (smooth, focusSel) {
+    var a = document.activeElement, key = null;
+    if (a && this.host.contains(a)) key = a.getAttribute('data-act') ? '[data-act="' + a.getAttribute('data-act') + '"]' : a.getAttribute('data-fact') ? '[data-fact="' + a.getAttribute('data-fact') + '"]' : a.classList.contains('ft-sheet__doc') ? '.ft-sheet__doc' : null;
+    var doc0 = this.host.querySelector('.ft-sheet__doc'), keepTop = doc0 ? doc0.scrollTop : 0, keepLeft = doc0 ? doc0.scrollLeft : 0;
+    this.host.innerHTML = this.html();
+    var doc = this.host.querySelector('.ft-sheet__doc');
+    if (smooth) doc.scrollTo({ top: keepTop, left: keepLeft, behavior: 'instant' });
+    /* Renderers that fit to the window (the whole photo) know their real zoom only once drawn */
+    var lv = this.host.querySelector('.ft-zoom__level'), zi = this.host.querySelector('[data-act="zoomin"]'), zo = this.host.querySelector('[data-act="zoomout"]');
+    if (lv && this.r.levelText) lv.textContent = this.r.levelText(this.view, doc);
+    if (zi && this.r.canStep) { zi.setAttribute('aria-disabled', String(!this.r.canStep(this.view, 1, doc))); zo.setAttribute('aria-disabled', String(!this.r.canStep(this.view, -1, doc))); }
+    var t = focusSel ? this.host.querySelector(focusSel) : key ? this.host.querySelector(key) : null;
+    if (t) t.focus({ preventScroll: true });
+    this.reveal(smooth);
+    var side = this.host.querySelector('.ft-sheet__side'), sf = side && side.querySelector('[aria-current="true"]');
+    if (sf) { var s = side.getBoundingClientRect(), r = sf.getBoundingClientRect(); if (r.top < s.top || r.bottom > s.bottom) side.scrollTop += r.top - s.top - (side.clientHeight - r.height) / 2; }
+  };
+  Viewer.prototype.reveal = function (smooth, settled) {
+    var doc = this.host.querySelector('.ft-sheet__doc'), f = this.file.facts[this.active], el;
+    if (doc && unplaced(f)) {
+      /* Nothing to point at: open the fact's page when it has one, else the top, with the panel in view */
+      var pages = doc.querySelectorAll('.ft-pdf__sheet, .ft-rpage');
+      el = f.page && pages[f.page - 1] && f.page > 1 ? pages[f.page - 1] : null;
+      if (!el) { doc.scrollTo({ top: 0, left: 0, behavior: 'instant' }); return; }
+    } else el = doc && this.r.target(doc, this.file, this.active);
+    if (!el) return;
+    if (settled) smooth = false;
+    var d = doc.getBoundingClientRect(), e = el.getBoundingClientRect();
+    var top = doc.scrollTop + (e.top - d.top) - (e.height > doc.clientHeight - 32 ? 16 : (doc.clientHeight - e.height) / 2);
+    var left = doc.scrollLeft + (e.left - d.left) - (doc.clientWidth - e.width) / 2;
+    doc.scrollTo({ top: Math.max(0, top), left: Math.max(0, left), behavior: smooth && !reduce ? 'smooth' : 'instant' });
+    if (!smooth && !settled && document.fonts && document.fonts.ready) { var self = this, i = this.active; document.fonts.ready.then(function () { if (self.active === i && self.host.isConnected) self.reveal(false, true); }); }
+  };
+  Viewer.prototype.go = function (i, first, focusSel) {
+    var n = this.file.facts.length; i = Math.max(0, Math.min(n - 1, i));
+    var keepZoom = this.view && this.file.type === 'pdf';
+    if (i !== this.active) { this.typing = false; this.done = null; this.undo = null; }
+    this.active = i;
+    if (!keepZoom) this.view = this.r.initialView ? this.r.initialView(this.file, i) : { zoom: 1, whole: false };
+    /* A photo fact that isn't placed has no box to zoom to: show the whole photo */
+    if (this.file.type === 'photo' && unplaced(this.file.facts[i])) this.view.whole = true;
+    this.draw(!first, focusSel);
+  };
+  Viewer.prototype.zoom = function (dir) {
+    var zs = this.r.zooms; if (!zs) return;
+    if (this.r.step) { this.view = this.r.step(this.view, dir, this.host.querySelector('.ft-sheet__doc')); this.draw(true, dir > 0 ? '[data-act="zoomin"]' : '[data-act="zoomout"]'); return; }
+    var z = this.view.zoom, k;
+    if (dir > 0) { for (k = 0; k < zs.length && zs[k] <= z + 1e-6; k++); this.view.zoom = zs[Math.min(k, zs.length - 1)]; }
+    else { for (k = zs.length - 1; k >= 0 && zs[k] >= z - 1e-6; k--); this.view.zoom = zs[Math.max(k, 0)]; }
+    this.view.whole = false;
+    this.draw(true);
+  };
+  Viewer.prototype.handle = function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act], [data-fact]') : null;
+    if (!t || !this.host.contains(t)) return;
+    if (t.getAttribute('aria-disabled') === 'true') return;
+    var act = t.getAttribute('data-act'), f = t.getAttribute('data-fact');
+    if (f != null) return this.go(parseInt(f, 10), false, '[data-fact="' + f + '"]');
+    if (act === 'prev') this.go(this.active - 1);
+    else if (act === 'next') this.go(this.active + 1);
+    else if (act === 'zoomin') this.zoom(1);
+    else if (act === 'zoomout') this.zoom(-1);
+    else if (act === 'whole') { this.view.whole = !this.view.whole; this.draw(true, '[data-act="whole"]'); }
+    else if (act === 'close') V.close();
+    else if (act === 'vu-confirm') this.settle(null);
+    else if (act === 'vu-type') { this.typing = true; this.draw(true, '[data-vu-form] input'); var inp = this.host.querySelector('[data-vu-form] input'); if (inp) inp.select(); }
+    else if (act === 'vu-cancel') { this.typing = false; this.draw(true, '[data-act="vu-type"]'); }
+    else if (act === 'vu-undo') this.unsettle();
+  };
+  Viewer.prototype.submit = function (e) {
+    var form = e.target; if (!form.hasAttribute || !form.hasAttribute('data-vu-form')) return;
+    e.preventDefault();
+    var v = form.elements.v.value.trim(); if (!v) { form.elements.v.focus(); return; }
+    this.settle(v);
+  };
+  Viewer.prototype.key = function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-fact');
+    if (f != null && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); var k = parseInt(f, 10) + (e.key === 'ArrowDown' ? 1 : -1); if (k >= 0 && k < this.file.facts.length) this.go(k, false, '[data-fact="' + k + '"]'); }
+  };
+  function wire(v) {
+    v.host.addEventListener('click', function (e) { v.handle(e); });
+    v.host.addEventListener('keydown', function (e) { v.key(e); });
+    v.host.addEventListener('submit', function (e) { v.submit(e); });
+  }
+
+  V.mount = function (container, file, active) {
+    container.classList.add('ft-sheet', 'ft-sheet--inline');
+    container.setAttribute('aria-labelledby', 'ftv-title');
+    var v = new Viewer(container, file, active, true); wire(v); return v;
+  };
+
+  var cur = null;
+  V.open = function (file, active, opener) {
+    if (cur) V.close(true);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var sheet = document.createElement('section');
+    sheet.className = 'ft-sheet' + (reduce ? '' : ' ft-sheet--in');
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'ftv-title'); sheet.tabIndex = -1;
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
+    var v = new Viewer(sheet, file, active, false); wire(v);
+    scrim.addEventListener('click', function () { V.close(); });
+    sheet.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); V.close(); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(sheet.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    cur = { v: v, scrim: scrim, sheet: sheet, opener: opener, app: app };
+    sheet.focus({ preventScroll: true });
+    v.reveal(false);
+    return v;
+  };
+  V.close = function (silent) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    if (c.app) c.app.removeAttribute('inert');
+    c.scrim.remove(); c.sheet.remove();
+    if (!silent && c.opener && c.opener.isConnected) c.opener.focus();
+    if (V.onclose) V.onclose();
+  };
+  V.isOpen = function () { return !!cur; };
+})();
+
+/* FundTrail viewer: plain text and email renderers, with files F1 to F4.
+   Plain ES5, no dependencies. See viewer-spec.md for the interface. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* Wrap the active fact's exact text in a mark, if this is its line. */
+  function markText(str, n, file, active) {
+    var f = file.facts[active];
+    if (!f || f.line !== n) return esc(str);
+    var i = str.indexOf(f.text);
+    if (i < 0) return '<mark class="ft-mark-hl is-active">' + esc(str) + '</mark>';
+    return esc(str.slice(0, i)) + '<mark class="ft-mark-hl is-active">' + esc(f.text) + '</mark>' + esc(str.slice(i + f.text.length));
+  }
+  function isCited(n, file, active) { var f = file.facts[active]; return !!f && f.line === n; }
+
+  function row(n, html, file, active, extra) {
+    return '<div class="ft-doc-text__row' + (isCited(n, file, active) ? ' is-cited' : '') + '" data-line="' + n + '">' +
+      '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span>' +
+      '<span class="ft-doc-text__t' + (extra || '') + '">' + (html || '&#8203;') + '</span></div>';
+  }
+
+  /* ---------- plain text: every line with its number ---------- */
+  V.text = {
+    render: function (file, active) {
+      var out = '<div class="ft-doc-text" role="document" aria-label="' + esc(file.name) + '">';
+      for (var i = 0; i < file.lines.length; i++) out += row(i + 1, markText(file.lines[i], i + 1, file, active), file, active);
+      return out + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- email: headers as key-value rows, then the body ---------- */
+  var SHOWN = { From: 1, To: 1, Subject: 1, Date: 1, Cc: 1 };
+  V.email = {
+    render: function (file, active) {
+      var lines = file.lines, head = '', body = '', i = 0;
+      for (; i < lines.length && lines[i] !== ''; i++) {
+        var m = /^([A-Za-z-]+):\s?(.*)$/.exec(lines[i]);
+        if (!m || !SHOWN[m[1]]) continue;
+        var n = i + 1, f = file.facts[active], val = m[2];
+        var v = f && f.line === n ? markText(val, n, file, active) : esc(val);
+        head += '<div class="ft-doc-email__hrow' + (isCited(n, file, active) ? ' is-cited' : '') + (m[1] === 'Subject' ? ' is-subject' : '') + '" data-line="' + n + '">' +
+          '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span><span class="ft-doc-email__k">' + esc(m[1]) + '</span><span class="ft-doc-email__v">' + v + '</span></div>';
+      }
+      for (i = i + 1; i < lines.length; i++) {
+        var ln = lines[i], reply = /^>/.test(ln);
+        body += row(i + 1, markText(reply ? ln.replace(/^>\s?/, '') : ln, i + 1, file, active), file, active, reply ? ' is-reply' : '');
+      }
+      return '<div class="ft-doc-text ft-doc-email" role="document" aria-label="' + esc(file.name) + '"><div class="ft-doc-email__head">' + head + '</div>' + body + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- the files ---------- */
+  V.files.F1 = {
+    id: 'F1', type: 'text', name: 'award_letter.txt', title: 'Award letter', meta: 'Uploaded by you · Jan 12, 2023',
+    links: [], note: 'Grant terms. Confirmed by you, Jan 12, 2023.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD NOTICE',
+      'Award Number: SYN-2300117',
+      'Date: January 10, 2023',
+      'Recipient: Example State University',
+      'Project Title: Sediment Microbiome Survey of Example Bay',
+      '',
+      'Principal Investigator: Dr. Robin Example, robin.example@university.example',
+      '',
+      'Program Officer: Dr. Jesse Sample, jesse.sample@funder.example',
+      '',
+      'Grants Officer: Casey Placeholder, casey.placeholder@funder.example',
+      '',
+      'Period of Performance. The period of performance for this award is February 1, 2023 through January 31, 2026. Costs must be incurred within the period of performance to be charged to this award.',
+      '',
+      'Budget. Materials and Supplies: $40,000. Other Direct Costs: $60,000. Participant Support Costs: $20,000.',
+      '',
+      'Prior Approval. Funds budgeted for Participant Support Costs may not be used for other categories of expense without prior written approval from the Program Officer, requested through Research.gov.'
+    ],
+    facts: [
+      { label: 'Award', value: 'SYN-2300117', line: 4, text: 'SYN-2300117' },
+      { label: 'Dated', value: 'Jan 10, 2023', line: 5, text: 'January 10, 2023' },
+      { label: 'Principal investigator', value: 'Dr. Robin Example', line: 9, text: 'Dr. Robin Example, robin.example@university.example' },
+      { label: 'Program officer', value: 'Dr. Jesse Sample', line: 11, text: 'Dr. Jesse Sample, jesse.sample@funder.example' },
+      { label: 'Grants officer', value: 'Casey Placeholder', line: 13, text: 'Casey Placeholder, casey.placeholder@funder.example' },
+      { label: 'End date', value: 'Jan 31, 2026', line: 15, text: 'February 1, 2023 through January 31, 2026' },
+      { label: 'Materials and Supplies', value: '$40,000.00', line: 17, text: 'Materials and Supplies: $40,000' },
+      { label: 'Other Direct Costs', value: '$60,000.00', line: 17, text: 'Other Direct Costs: $60,000' },
+      { label: 'Participant Support Costs', value: '$20,000.00', line: 17, text: 'Participant Support Costs: $20,000' },
+      { label: 'Approval rule', value: 'Program officer, through Research.gov', line: 19, text: 'without prior written approval from the Program Officer, requested through Research.gov' }
+    ],
+    active: 5
+  };
+
+  V.files.F2 = {
+    id: 'F2', type: 'text', name: 'extension_notice.txt', title: 'Award amendment 01', meta: 'Google Drive · Apr 10, 2026',
+    links: [], note: 'Waiting for you: confirm or reject the new end date.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD AMENDMENT',
+      'Award Number: SYN-2300117',
+      'Amendment Number: 01',
+      'Date: January 15, 2026',
+      '',
+      'No-Cost Extension. The end date of the period of performance for this award is changed from January 31, 2026 to January 31, 2027. No additional funds are provided by this amendment.',
+      '',
+      'All other terms and conditions of the award remain unchanged.',
+      '',
+      'Casey Placeholder, Grants Officer'
+    ],
+    facts: [
+      { label: 'Amendment', value: '01', line: 5, text: 'Amendment Number: 01' },
+      { label: 'Dated', value: 'Jan 15, 2026', line: 6, text: 'January 15, 2026' },
+      { label: 'New end date', value: 'Jan 31, 2027', line: 8, text: 'changed from January 31, 2026 to January 31, 2027' },
+      { label: 'Signed by', value: 'Casey Placeholder, Grants Officer', line: 12, text: 'Casey Placeholder, Grants Officer' }
+    ],
+    active: 2
+  };
+
+  V.files.F3 = {
+    id: 'F3', type: 'email', name: 'sequencing_invoice.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Feb 21, 2026',
+    links: [{ id: 'L-1002', name: 'Sediment DNA sequencing run 7', amount: '$2,180.00 of $2,180.00' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: grant-inbox@fundtrail.example',
+      'Subject: Sequencing invoice for run 7',
+      'Date: Sat, 21 Feb 2026 09:30:00 -0800',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail golden fixture.',
+      '',
+      'Hi, the sequencing core invoice for the Example Bay samples is below.',
+      '',
+      'INVOICE SEQ-0207',
+      'Example Sequencing Core',
+      'Invoice Date: February 20, 2026',
+      'Service: Sediment DNA sequencing, run 7, 48 samples',
+      '',
+      'Total Due: $2,180.00'
+    ],
+    facts: [
+      { label: 'Sender', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Invoice', value: 'SEQ-0207', line: 11, text: 'INVOICE SEQ-0207' },
+      { label: 'Invoice date', value: 'Feb 20, 2026', line: 13, text: 'February 20, 2026' },
+      { label: 'Service', value: 'Sequencing run 7, 48 samples', line: 14, text: 'Sediment DNA sequencing, run 7, 48 samples' },
+      { label: 'Total', value: '$2,180.00', line: 16, text: '$2,180.00' }
+    ],
+    active: 4
+  };
+
+  V.files.F4 = {
+    id: 'F4', type: 'email', name: 'approval_email.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Oct 6, 2025',
+    links: [{ id: 'L-0981', name: 'Conference registration', amount: 'Approval' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: Sam Example <sam.example@university.example>',
+      'Subject: Re: Ocean Sciences Meeting registration',
+      'Date: Thu, 2 Oct 2025 16:12:00 -0700',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail demo.',
+      '',
+      'Approved, go ahead and register.',
+      '',
+      'Robin',
+      '',
+      '> Could I register for the Example Ocean Sciences Meeting? The fee is $650.'
+    ],
+    facts: [
+      { label: 'Approver', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Approval', value: 'Approved by email', line: 9, text: 'Approved, go ahead and register.' },
+      { label: 'What it approves', value: 'Meeting registration, $650.00', line: 13, text: 'The fee is $650.' }
+    ],
+    active: 1
+  };
+})();
+
+/* FundTrail viewer: PDF renderer (FTViewer.pdf) and the F5 demo file.
+   Pages are drawn in HTML at US Letter proportions: 612 x 792 at 100%, sized in em so
+   one CSS variable (--ft-pdf-z) scales the whole page. The active fact's exact text gets
+   mark.ft-mark-hl.is-active. Plain ES5, no dependencies. */
+(function () {
+  window.FTViewer = window.FTViewer || {};
+  FTViewer.files = FTViewer.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+
+  /* Write a block's text, marking the active fact's passage when it lives in this block.
+     A fact names its page, its exact text and, when the text appears twice, its block. */
+  function writeText(blockId, pageIndex, text, fact) {
+    var hit = fact && fact.page === pageIndex + 1 && (!fact.block || fact.block === blockId) ? text.indexOf(fact.text) : -1;
+    if (hit < 0) return esc(text);
+    return esc(text.slice(0, hit)) +
+      '<mark class="ft-mark-hl is-active" data-ft-active="1">' + esc(fact.text) + '</mark>' +
+      esc(text.slice(hit + fact.text.length));
+  }
+
+  function block(b, p, fact) {
+    var t = function (id, text) { return writeText(id, p, text, fact); };
+    switch (b.kind) {
+      case 'notice': return '<p class="ft-pdf__notice">' + t(b.id, b.text) + '</p>';
+      case 'cols':
+        return '<div class="ft-pdf__cols">' + b.cols.map(function (col, i) {
+          return '<div class="ft-pdf__col' + (i ? ' ft-pdf__col--end' : '') + '">' + col.map(function (c) { return block(c, p, fact); }).join('') + '</div>';
+        }).join('') + '</div>';
+      case 'h1': return '<p class="ft-pdf__vendor">' + t(b.id, b.text) + '</p>';
+      case 'h2': return '<p class="ft-pdf__docno">' + t(b.id, b.text) + '</p>';
+      case 'table':
+        return '<table class="ft-pdf__table"><thead><tr>' + b.head.map(function (h, i) {
+          return '<th' + (i ? ' class="is-num"' : '') + '>' + esc(h) + '</th>';
+        }).join('') + '</tr></thead><tbody>' + b.rows.map(function (row, r) {
+          return '<tr>' + row.map(function (cell, c) {
+            return '<td' + (c ? ' class="is-num"' : '') + '>' + t(b.id + '.' + r + '.' + c, cell) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+      case 'total': return '<p class="ft-pdf__total">' + t(b.id, b.text) + '</p>';
+      case 'small': return '<p class="ft-pdf__small">' + t(b.id, b.text) + '</p>';
+      default: return '<p class="ft-pdf__p">' + t(b.id, b.text) + '</p>';
+    }
+  }
+
+  FTViewer.pdf = {
+    zooms: [0.75, 1, 1.25, 1.5, 2],
+    initialView: function () { return { zoom: 1, whole: false }; },
+    render: function (file, active, view) {
+      var fact = file.facts[active], z = (view && view.zoom) || 1, n = file.pages.length;
+      return '<div class="ft-pdf" style="--ft-pdf-z:' + z + '">' + file.pages.map(function (page, p) {
+        return '<figure class="ft-pdf__sheet" aria-label="Page ' + (p + 1) + ' of ' + n + '">' +
+          '<div class="ft-pdf__page"><div class="ft-pdf__text">' + page.blocks.map(function (b) { return block(b, p, fact); }).join('') + '</div></div>' +
+          '<figcaption class="ft-pdf__label">Page ' + (p + 1) + ' of ' + n + '</figcaption></figure>';
+      }).join('') + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-ft-active]'); }
+  };
+
+  FTViewer.files.F5 = {
+    id: 'F5', type: 'pdf', name: 'invoice_SEQ-0311.pdf', title: 'Invoice SEQ-0311',
+    meta: 'Gmail attachment · from billing@sequencing.example · Jan 12, 2026',
+    links: [{ id: 'L-1010', name: 'Sequencing core, shared run 6', amount: '$5,833.33 charged. This grant’s part isn’t on file.' }],
+    note: '',
+    pages: [
+      { blocks: [
+        { kind: 'notice', id: 'notice', text: 'SYNTHETIC DEMO DOCUMENT. Not issued by any company. Created for the FundTrail demo.' },
+        { kind: 'cols', cols: [
+          [{ kind: 'h1', id: 'vendor', text: 'Example Sequencing Core' }, { kind: 'p', id: 'addr', text: '1 Example Way, Example City' }],
+          [{ kind: 'h2', id: 'docno', text: 'INVOICE SEQ-0311' }, { kind: 'p', id: 'date', text: 'Invoice Date: January 6, 2026' }]
+        ] },
+        { kind: 'p', id: 'bill', text: 'Bill To: Dr. Robin Example, Example State University' },
+        { kind: 'table', id: 'items', head: ['Description', 'Qty', 'Amount'], rows: [['Sediment DNA sequencing, shared run 6', '96 samples', '$10,000.00']] },
+        { kind: 'small', id: 'note', text: 'Note: Run shared by awards SYN-2300117 and SYN-2300245.' },
+        { kind: 'total', id: 'total', text: 'Total Due: $10,000.00' }
+      ] },
+      { blocks: [
+        { kind: 'p', id: 'terms', text: 'Payment terms. Net 30 days from the invoice date. Remit to Example Sequencing Core, 1 Example Way, Example City.' },
+        { kind: 'p', id: 'questions', text: 'Questions: billing@sequencing.example' }
+      ] }
+    ],
+    facts: [
+      { label: 'Invoice', value: 'SEQ-0311', page: 1, block: 'docno', text: 'INVOICE SEQ-0311' },
+      { label: 'Invoice date', value: 'Jan 6, 2026', page: 1, block: 'date', text: 'January 6, 2026' },
+      { label: 'Service', value: 'Shared run 6, 96 samples', page: 1, block: 'items.0.0', text: 'Sediment DNA sequencing, shared run 6' },
+      { label: 'Shared by', value: 'SYN-2300117 and SYN-2300245', page: 1, block: 'note', text: 'Run shared by awards SYN-2300117 and SYN-2300245.' },
+      { label: 'Total', value: '$10,000.00', page: 1, block: 'total', text: '$10,000.00' },
+      { label: 'Payment terms', value: 'Net 30 days', page: 2, block: 'terms', text: 'Net 30 days from the invoice date.' }
+    ],
+    active: 4
+  };
+})();
+
+/* FundTrail viewer: photos and scans (F6, F7).
+   A photo has no text layer and no OCR. The agent returns a box around each value, and a second look at the
+   boxed area has to read the same value (decision 0012), so the box is drawn as checked, not approximate.
+   A fact the second look couldn't confirm has confirmed:false; the frame then shows the whole photo with no box.
+   Plain ES5, no dependencies. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  var W = 480, H = 640;          /* the photo's own pixel size; 100% zoom shows it at this size */
+  var PAD = 22, ANGLE = -2.5;    /* receipt margin and tilt, like a phone photo */
+  var ZOOMS = [0.5, 0.75, 1, 1.5, 2, 2.5, 3];
+  var DOC_W = 680;               /* the doc area's usual inner width in the sheet, used for the first view */
+  var MONO = "'Geist Mono', ui-monospace, Menlo, monospace";
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function r1(n) { return Math.round(n * 10) / 10; }
+
+  /* Lay the receipt's lines out in the paper's own coordinates. */
+  function layout(rc) {
+    var y = 34, out = [], pw = rc.paperW;
+    rc.lines.forEach(function (ln) {
+      if (ln.gap) { y += ln.gap; return; }
+      if (ln.rule) { out.push({ rule: true, y: y + 5 }); y += 12; return; }
+      var size = ln.size || 12.5, lh = Math.round(size * 1.6), cw = size * 0.6;
+      var x0, x1, tw = ln.text.length * cw;
+      if (ln.align === 'center') { x0 = (pw - tw) / 2; x1 = x0 + tw; }
+      else { x0 = PAD; x1 = ln.right ? pw - PAD : PAD + tw; }
+      out.push({ text: ln.text, right: ln.right, align: ln.align, size: size, weight: ln.weight || 400, muted: ln.muted, key: ln.key,
+        top: y, bottom: y + lh, base: y + Math.round(size * 1.15), x0: x0, x1: x1 });
+      y += lh;
+    });
+    return { lines: out, h: y + 30 };
+  }
+  function place(rc) {
+    var L = layout(rc), w = rc.paperW, h = L.h;
+    var x = (W - w) / 2, y = Math.max(28, (H - h) / 2 - 8);
+    return { L: L, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 };
+  }
+  function rotate(P, lx, ly) {
+    var a = ANGLE * Math.PI / 180, X = P.x + lx - P.cx, Y = P.y + ly - P.cy;
+    return [P.cx + X * Math.cos(a) - Y * Math.sin(a), P.cy + X * Math.sin(a) + Y * Math.cos(a)];
+  }
+  /* The agent's estimate: the lines for a fact, a little generous, as fractions of the photo. */
+  function boxFor(rc, key) {
+    var P = place(rc), ls = P.L.lines.filter(function (l) { return l.key === key; });
+    var x0 = Math.min.apply(null, ls.map(function (l) { return l.x0; })) - 7, x1 = Math.max.apply(null, ls.map(function (l) { return l.x1; })) + 7;
+    var y0 = Math.min.apply(null, ls.map(function (l) { return l.top; })) - 4, y1 = Math.max.apply(null, ls.map(function (l) { return l.bottom; })) + 3;
+    var pts = [rotate(P, x0, y0), rotate(P, x1, y0), rotate(P, x1, y1), rotate(P, x0, y1)];
+    var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+    var bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
+    var f = function (n) { return Math.round(n * 1000) / 1000; };
+    return [f(bx / W), f(by / H), f((Math.max.apply(null, xs) - bx) / W), f((Math.max.apply(null, ys) - by) / H)];
+  }
+  function paperPath(w, h) {
+    var t = 9, d = 3.5, s = 'M0 ' + d, x;
+    for (x = 0; x < w; x += t) s += ' L' + r1(Math.min(w, x + t / 2)) + ' 0 L' + r1(Math.min(w, x + t)) + ' ' + d;
+    s += ' L' + w + ' ' + (h - d);
+    for (x = w; x > 0; x -= t) s += ' L' + r1(Math.max(0, x - t / 2)) + ' ' + h + ' L' + r1(Math.max(0, x - t)) + ' ' + (h - d);
+    return s + ' Z';
+  }
+  function svg(file) {
+    var rc = file.receipt, P = place(rc), id = 'ph-' + file.id;
+    var s = '<svg class="ft-photo__img" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<defs>' +
+        '<linearGradient id="' + id + '-surf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#454a50"/><stop offset="1" stop-color="#2a2e33"/></linearGradient>' +
+        '<radialGradient id="' + id + '-vig" cx="0.5" cy="0.45" r="0.78"><stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.34"/></radialGradient>' +
+        '<linearGradient id="' + id + '-paper" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="#f8f6f0"/><stop offset="1" stop-color="#e9e5da"/></linearGradient>' +
+        '<filter id="' + id + '-sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#000" flood-opacity="0.38"/></filter>' +
+      '</defs>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-surf)"/>' +
+      '<g transform="rotate(' + ANGLE + ' ' + r1(P.cx) + ' ' + r1(P.cy) + ') translate(' + r1(P.x) + ' ' + r1(P.y) + ')">' +
+      '<path d="' + paperPath(P.w, P.h) + '" fill="url(#' + id + '-paper)" filter="url(#' + id + '-sh)"/>' +
+      '<g font-family="' + MONO + '" fill="#2b2c30" fill-opacity="0.86">';
+    P.L.lines.forEach(function (l) {
+      if (l.rule) { s += '<line x1="' + PAD + '" x2="' + (P.w - PAD) + '" y1="' + l.y + '" y2="' + l.y + '" stroke="#8b8a85" stroke-width="1" stroke-dasharray="3 3"/>'; return; }
+      var attrs = ' font-size="' + l.size + '" font-weight="' + l.weight + '"' + (l.muted ? ' fill-opacity="0.6"' : '');
+      if (l.align === 'center') s += '<text x="' + r1(P.w / 2) + '" y="' + l.base + '" text-anchor="middle"' + attrs + '>' + esc(l.text) + '</text>';
+      else {
+        s += '<text x="' + PAD + '" y="' + l.base + '"' + attrs + '>' + esc(l.text) + '</text>';
+        if (l.right) s += '<text x="' + (P.w - PAD) + '" y="' + l.base + '" text-anchor="end"' + attrs + '>' + esc(l.right) + '</text>';
+      }
+    });
+    return s + '</g></g><rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-vig)"/></svg>';
+  }
+  function snap(z) {
+    var best = ZOOMS[0];
+    ZOOMS.forEach(function (s) { if (Math.abs(s - z) < Math.abs(best - z)) best = s; });
+    return best;
+  }
+  function padOf(el) { var cs = getComputedStyle(el); return { x: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), y: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) }; }
+
+  V.photo = {
+    zooms: ZOOMS,
+    /* Opens zoomed to the fact's box: the box takes about half the visible width. */
+    initialView: function (file, active) {
+      var b = file.facts[active].box;
+      return { zoom: snap(DOC_W * 0.5 / (b[2] * W)), whole: false };
+    },
+    render: function (file, active, view) {
+      view = view || V.photo.initialView(file, active);
+      var f = file.facts[active], b = f.box;
+      var size = view.whole ? '' : ' style="width:' + Math.round(W * view.zoom) + 'px;height:' + Math.round(H * view.zoom) + 'px"';
+      return '<div class="ft-photo' + (view.whole ? ' ft-photo--whole' : '') + '">' +
+        '<div class="ft-photo__tools"><button type="button" class="ft-btn ft-btn--sm ft-photo__toggle" data-act="whole" aria-pressed="' + !!view.whole + '">' + V.photo.toggleLabel(view) + '</button></div>' +
+        '<div class="ft-photo__stage"><div class="ft-photo__frame"' + size + ' role="img" aria-label="' + esc('Photo of a receipt from ' + file.receipt.vendor + '. The outlined box around ' + f.label.toLowerCase() + ' was checked by a second look.') + '">' +
+        svg(file) +
+        '<span class="ft-box ft-photo__box" data-photo-box style="left:' + r1(b[0] * 100) + '%;top:' + r1(b[1] * 100) + '%;width:' + r1(b[2] * 100) + '%;height:' + r1(b[3] * 100) + '%"></span>' +
+        '</div></div></div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-photo-box]'); },
+    /* Optional helpers for the frame. */
+    center: function (docEl, smooth) {
+      var box = docEl.querySelector('[data-photo-box]'); if (!box) return;
+      var d = docEl.getBoundingClientRect(), b = box.getBoundingClientRect();
+      docEl.scrollTo({ top: Math.max(0, docEl.scrollTop + b.top - d.top + b.height / 2 - docEl.clientHeight / 2),
+        left: Math.max(0, docEl.scrollLeft + b.left - d.left + b.width / 2 - docEl.clientWidth / 2), behavior: smooth ? 'smooth' : 'instant' });
+    },
+    fitZoom: function (docEl) { var p = padOf(docEl); return Math.min((docEl.clientWidth - p.x) / W, (docEl.clientHeight - p.y) / H); },
+    levelText: function (view, docEl) { return Math.round((view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom) * 100) + '%'; },
+    toggleLabel: function (view) { return view.whole ? 'Zoom to the box' : 'Show whole photo'; },
+    /* Zoom one step in (dir 1) or out (dir -1). From the whole photo, it starts at the fitted size. */
+    step: function (view, dir, docEl) {
+      var z = view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom, next = null;
+      ZOOMS.forEach(function (s) { if (dir > 0 && s > z + 0.001 && next === null) next = s; if (dir < 0 && s < z - 0.001) next = s; });
+      return next === null ? view : { zoom: next, whole: false };
+    },
+    canStep: function (view, dir, docEl) { return V.photo.step(view, dir, docEl) !== view; }
+  };
+
+  function photoFile(f) {
+    f.facts.forEach(function (x) { x.box = boxFor(f.receipt, x.key); x.loc = ''; });
+    return f;
+  }
+  V.files.F6 = photoFile({
+    id: 'F6', type: 'photo', name: 'boat_rental_receipt.jpg', title: 'Receipt photo',
+    meta: 'Gmail · from robin.example@university.example · Apr 12, 2026',
+    receipt: { vendor: 'Example Marina', paperW: 286, lines: [
+      { text: 'EXAMPLE MARINA', align: 'center', size: 19, weight: 700, key: 'vendor' },
+      { text: 'Harbor Rd, Example Bay', align: 'center', size: 11, muted: true },
+      { gap: 6 }, { rule: true },
+      { text: 'Jan 14, 2026', size: 12.5, key: 'date' },
+      { rule: true },
+      { text: 'Boat rental, full day', right: '$1,400.00', size: 12 },
+      { text: 'Fuel', right: '$80.00', size: 12 },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,480.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 14 },
+      { text: 'Thank you.', align: 'center', size: 11.5 },
+      { gap: 10 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Marina', key: 'vendor' },
+      { label: 'Date', value: 'Jan 14, 2026', key: 'date' },
+      { label: 'Total', value: '$1,480.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1015', name: 'Field boat rental', amount: '$1,480.00 of $1,480.00' }], note: '',
+    active: 2
+  });
+  V.files.F7 = photoFile({
+    id: 'F7', type: 'photo', name: 'field_camera_receipt.jpg', title: 'Receipt photo',
+    meta: 'Uploaded by you · Jan 22, 2026',
+    receipt: { vendor: 'Example Optics Supply', paperW: 292, lines: [
+      { text: 'EXAMPLE OPTICS SUPPLY', align: 'center', size: 16.5, weight: 700, key: 'vendor' },
+      { gap: 6 }, { rule: true },
+      { text: 'Field camera,', size: 12, key: 'item' },
+      { text: 'microscope mount', right: '$1,325.00', size: 12, key: 'item' },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,325.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 8 },
+      { text: 'Jan 21, 2026', size: 12.5, key: 'date' },
+      { gap: 14 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Optics Supply', key: 'vendor' },
+      { label: 'Date', value: 'Jan 21, 2026', key: 'date' },
+      { label: 'Item', value: 'Field camera, microscope mount', key: 'item' },
+      { label: 'Total', value: '$1,325.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1019', name: 'Field microscope camera', amount: '$1,325.00 of $1,325.00' }], note: '',
+    active: 3
+  });
+})();
+
+/* The evidence report in the viewer sheet: its pages in the document area, its parts in the side list.
+   FTReport.open(opener) needs window.FTReportPages (the pages' HTML), built into the card. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.report = {
+    zooms: [0.5, 0.65, 0.8, 1, 1.25],
+    initialView: function () { return { zoom: 0.8, whole: false }; },
+    cite: function (file, f) { return '<b>' + f.label + '</b><span>Page ' + f.page + ' of ' + file.pages + '</span>'; },
+    render: function (file, active, view) { return '<div class="ft-report ft-report--sheet" style="zoom:' + view.zoom + '">' + file.html + '</div>'; },
+    target: function (docEl, file, active) {
+      var f = file.facts[active], el = f.sel ? docEl.querySelector(f.sel) : null;
+      return el || docEl.querySelector('#rp-' + f.page);
+    }
+  };
+  window.FTReport = {
+    file: function () {
+      var signed = document.documentElement.classList.contains('is-signed');
+      var d = window.FTReportData || { counts: {}, grant: {} };
+      var open = (d.counts.conflict || 0) + (d.counts.human || 0) + (d.counts.missing || 0);
+      return {
+        id: 'R1', type: 'report', name: 'evidence_report_SYN-2300117.pdf', title: 'Evidence report', pages: 9,
+        meta: (signed ? 'Signed off by you · Apr 12, 2026' : 'Draft · As of Apr 12, 2026') + ' · 9 pages',
+        html: (function (h) {
+          if (!signed || !window.FTReportNote) return h;
+          var t = document.createElement('div'); t.innerHTML = h;
+          var n = t.querySelector('.ft-rso-note'); if (n) n.textContent = window.FTReportNote;
+          return t.innerHTML;
+        })(window.FTReportPages || ''),
+        facts: [
+          { label: 'Summary', value: 'The award, its total and its buckets', page: 1 },
+          { label: 'All charges', value: (d.charges ? d.charges.length : 51) + ' charges, ' + (d.grant.charged || ''), page: 2 },
+          { label: 'Charge sections', value: 'Checks, quotes and history', page: 4 },
+          { label: 'Open at sign-off', value: open + ' charges', page: 7 },
+          { label: 'Sign-off', value: signed ? 'Signed off Apr 12, 2026' : 'Not signed off yet', page: 7, sel: '#rp-7 .ft-rso-party' },
+          { label: 'Sources', value: 'Every file the report cites', page: 8 }
+        ],
+        links: [],
+        note: signed ? 'Signed off. Attach it to the Award Closeout Certification in BFS.' : 'Draft. It regenerates whenever a record changes, until you sign off.'
+      };
+    },
+    open: function (opener, part) { var f = this.file(); V.open(f, part || 0, opener); }
+  };
+})();
+
+</script>
+<!-- /viewer-scripts -->
+<script>
+(function () {
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) document.documentElement.setAttribute('data-theme', h.t);
+  var f = FTViewer.files['F2'], k = h.fact ? parseInt(h.fact, 10) : null;
+  var v = FTViewer.mount(document.getElementById('vs'), f, k);
+  if (h.zoom && f.type !== 'text' && f.type !== 'email') { v.view.zoom = parseFloat(h.zoom); v.view.whole = false; v.draw(false); }
+  if (h.whole === '1') { v.view.whole = true; v.draw(false); }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!-- @dsCard group="Demo" height=900 width=1440 page subtitle="Sign in with Google, and the first sign-in that sets up the demo workspace" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in preview</title>
+<style>
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  body { margin: 0; }
+</style>
+</head>
+<body>
+<div class="ft-si">
+  <main class="ft-si__main">
+    <section class="ft-si__card" id="si-card" aria-labelledby="si-h"></section>
+  </main>
+  <footer class="ft-si__foot">
+    <span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var STEPS = [
+    { name: 'Three sample grants', detail: 'Example Bay, Kelp Forest Survey and Tidal Marsh Carbon' },
+    { name: 'Their ledgers', detail: '153 charges in all' },
+    { name: 'Their evidence', detail: 'Emails, invoices and receipt photos, already read' },
+    { name: 'Open your workspace', detail: 'Every grant with its readiness and next deadline' }
+  ];
+  var state = { view: 'idle', step: 0 }, timers = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function later(fn, ms) { timers.push(setTimeout(fn, reduce ? Math.min(ms, 200) : ms)); }
+
+  function signInHtml() {
+    var busy = state.view === 'busy', err = state.view === 'error';
+    return '<div><h1 class="ft-si__mark" id="si-h">FundTrail</h1>' +
+      '<p class="ft-si__lede">A running evidence file for every research grant, so the review is done before closeout.</p></div>' +
+      '<div class="ft-si__actions">' +
+        (err ? '<p class="ft-field__error ft-si__error" role="alert">Sign-in didn’t finish. Try again.</p>' : '') +
+        '<button type="button" class="ft-btn ft-btn--main ft-si__btn" id="si-google"' + (busy ? ' aria-disabled="true"' : '') + '>' +
+          (busy ? '<span class="ft-working-dot" aria-hidden="true"></span>Signing in…' : 'Continue with Google') + '</button>' +
+        '<p class="ft-sr-only" id="si-status" role="status">' + (busy ? 'Signing in with Google.' : '') + '</p>' +
+      '</div>' +
+      '<hr class="ft-si__rule">' +
+      '<p class="ft-si__fine">Your first sign-in creates a demo workspace with sample grants. All data in it is synthetic.</p>';
+  }
+  function setupHtml() {
+    var cur = state.view === 'open' ? STEPS.length - 1 : state.step;
+    var steps = STEPS.map(function (s, i) {
+      var cls = i < cur ? ' is-done' : i === cur ? ' is-working' : '';
+      var label = i < cur ? 'Done' : i === cur ? (i === STEPS.length - 1 ? 'Opening' : 'Copying') : 'Waiting';
+      return '<li class="ft-si-step' + cls + '"><span class="ft-si-step__mark" role="img" aria-label="' + label + '"></span>' +
+        '<span class="ft-si-step__text"><b>' + s.name + '</b><span class="ft-si-step__detail">' + s.detail + '</span></span></li>';
+    }).join('');
+    return '<div><h1 class="ft-si__title" id="si-h" tabindex="-1">Setting up your demo workspace</h1>' +
+      '<p class="ft-si__sub">This happens once, on your first sign-in.</p></div>' +
+      '<ol class="ft-si-steps" aria-label="What’s being copied">' + steps + '</ol>' +
+      '<p class="ft-sr-only" id="si-status" role="status">' + (cur === STEPS.length - 1 ? 'Opening your workspace.' : 'Copying ' + STEPS[cur].name.toLowerCase() + '.') + '</p>' +
+      '<hr class="ft-si__rule">' +
+      '<p class="ft-si__fine">Signed in as taylor.example@university.example. All data in this workspace is synthetic.</p>';
+  }
+  function render(focus) {
+    var setup = state.view === 'setup' || state.view === 'open';
+    $('si-card').innerHTML = setup ? setupHtml() : signInHtml();
+    if (focus) { var el = $(focus); if (el) el.focus(); }
+  }
+
+  function signIn() {
+    if (state.view === 'busy') return;
+    state.view = 'busy'; render('si-google');
+    later(function () {
+      /* Focus the card itself: each step redraws what is inside it, so focus on the card never drops */
+      state.view = 'setup'; state.step = 0; render(); var card = $('si-card'); card.tabIndex = -1; card.focus();
+      (function next() {
+        later(function () {
+          state.step++;
+          if (state.step >= STEPS.length - 1) { state.view = 'open'; render(); if (window.FTOpenWorkspace) later(window.FTOpenWorkspace, 900); return; }
+          render(); next();
+        }, 900);
+      })();
+    }, 1200);
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button') : null; if (!t) return;
+    if (t.id === 'si-google' && t.getAttribute('aria-disabled') !== 'true') signIn();
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* a hash can jump to a state, for screenshots: #state=busy|error|setup|open, #step=0..2 (the step being copied, with setup), #t=dark */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme();
+  if (h.state === 'busy' || h.state === 'error' || h.state === 'open') state.view = h.state;
+  if (h.state === 'setup') { state.view = 'setup'; state.step = h.step ? Math.max(0, Math.min(STEPS.length - 2, parseInt(h.step, 10))) : 1; }
+  render();
+})();
+</script>
+</body>
+</html>

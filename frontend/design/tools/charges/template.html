@@ -1,0 +1,326 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: every charge on the grant, filtered and sorted, with each charge's evidence trail" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Charges preview</title>
+<style>
+  .ft-app { min-height: 1080px; }
+  .ft-sidebar { position: relative; height: auto; }
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item" href="#">Problem list <span class="ft-count ft-count--alert" id="ch-side-problems">3</span></a>
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Charges</a>
+        <a class="ft-nav__item" href="#">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms</a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <a class="ft-nav__item ft-nav__item--add" href="#">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Charges</b></span></div>
+      <div><button type="button" class="ft-btn">Evidence report</button></div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption" id="ch-caption"></span>
+          <h1 class="ft-grant-head__title" id="ch-title"></h1>
+        </div>
+        <div class="ft-ready" id="ch-ready"></div>
+      </section>
+
+      <div class="ft-ch-budget" id="ch-budget" role="group" aria-label="Budget by line. Choose a line to filter the charges."></div>
+
+      <div class="ft-split ft-ch-split">
+        <section class="ft-panel" aria-label="Charges">
+          <div class="ft-tabs ft-ch-tabs" role="tablist" aria-label="Filter by bucket" id="ch-tabs"></div>
+          <div class="ft-ch-toolbar">
+            <label class="ft-ch-search"><span class="ft-sr-only">Search charges by description, vendor, ledger line or amount</span><input class="ft-input" type="search" id="ch-q" placeholder="Search charges" autocomplete="off"></label>
+            <span class="ft-ch-filter" id="ch-linefilter" hidden></span>
+            <span class="ft-ch-count" id="ch-count" role="status"></span>
+          </div>
+          <div class="ft-ch-scroll" id="ch-scroll">
+            <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Charges" aria-rowcount="-1">
+              <div class="ft-ledger__head" role="row">
+                <span role="columnheader" id="ch-h-date"><button type="button" class="ft-ch-sort" data-sort="date">Date <span class="ft-ch-sort__dir" aria-hidden="true"></span></button></span>
+                <span role="columnheader">Charge</span>
+                <span role="columnheader" class="ft-row__amount" id="ch-h-amount"><button type="button" class="ft-ch-sort" data-sort="amount">Amount <span class="ft-ch-sort__dir" aria-hidden="true"></span></button></span>
+                <span role="columnheader">Bucket</span>
+              </div>
+              <div class="ft-ch-rows" id="ch-rows"></div>
+            </div>
+          </div>
+        </section>
+        <section class="ft-panel" id="ch-detail" aria-live="off"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ft-toast" id="ch-toast" role="status" hidden><span id="ch-toast-text"></span></div>
+
+<!-- @pr6-scripts -->
+<!-- @viewer-scripts -->
+<script>
+(function () {
+  var DATA = /*@DATA@*/null;
+  var NAMES = { conflict: 'Possible conflict', human: 'Needs a human', missing: 'Missing evidence', complete: 'Evidence complete' };
+  var TABS = ['all', 'conflict', 'human', 'missing', 'complete'];
+  var state = { f: 'all', line: '', q: '', sort: 'date', dir: -1, sel: 'L-1002' };
+  var TODAY = 'Apr 12, 2026';
+  var $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function charge(id) { for (var i = 0; i < DATA.charges.length; i++) if (DATA.charges[i].id === id) return DATA.charges[i]; return null; }
+  function badge(b) { return '<span class="ft-badge ft-badge--' + b + '">' + NAMES[b] + '</span>'; }
+  function lineOf(key) { for (var i = 0; i < DATA.budget.length; i++) if (DATA.budget[i].key === key) return DATA.budget[i]; return null; }
+
+  /* ---------- filtering and sorting ---------- */
+  function matches(c, ignoreBucket) {
+    if (!ignoreBucket && state.f !== 'all' && c.bucket !== state.f) return false;
+    if (state.line && c.line !== lineOf(state.line).line) return false;
+    if (state.q) {
+      var q = state.q.toLowerCase().replace(/[$,]/g, '');
+      var hay = (c.name + ' ' + c.vendor + ' ' + c.id + ' ' + c.line + ' ' + c.amount.replace(/[$,]/g, '') + ' ' + c.date).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  }
+  function visible() {
+    return DATA.charges.filter(function (c) { return matches(c); }).sort(function (a, b) {
+      var k = state.sort === 'amount' ? a.cents - b.cents : (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0);
+      return k * state.dir || (a.id < b.id ? 1 : -1);
+    });
+  }
+
+  /* ---------- the grant band and budget lines ---------- */
+  function renderHead() {
+    var g = DATA.grant, n = DATA.counts, total = DATA.charges.length;
+    $('ch-caption').innerHTML = '<span class="ft-id">' + g.award + '</span> <span class="ft-sep">&middot;</span> ' + esc(g.funder) + ' <span class="ft-sep">&middot;</span> ' + g.awarded + ' awarded <span class="ft-sep">&middot;</span> ' + g.charged + ' charged';
+    $('ch-title').textContent = g.title;
+    $('ch-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">' + n.complete + '</span><span class="ft-ready__of">of ' + total + ' charges ready for closeout</span></div>' +
+      '<div class="ft-ready__bar" aria-hidden="true">' + ['conflict', 'human', 'missing', 'complete'].map(function (b) { return n[b] ? '<span class="is-' + b + '" style="flex:' + n[b] + '"></span>' : ''; }).join('') + '</div>';
+  }
+  function renderBudget() {
+    $('ch-budget').innerHTML = DATA.budget.map(function (b) {
+      return '<button type="button" class="ft-ch-line" data-line="' + b.key + '" aria-pressed="' + (state.line === b.key) + '">' +
+        '<span class="ft-ch-line__name">' + esc(b.line) + '</span><span class="ft-ch-line__left">' + b.left + ' left</span>' +
+        '<span class="ft-ch-line__amt"><b>' + b.charged + '</b> of ' + b.budget + '</span>' +
+        '<span class="ft-ch-line__bar" aria-hidden="true"><span style="width:' + (b.pct * 100).toFixed(1) + '%"></span></span></button>';
+    }).join('');
+  }
+
+  /* ---------- the list ---------- */
+  function renderTabs() {
+    $('ch-tabs').innerHTML = TABS.map(function (t) {
+      var n = DATA.charges.filter(function (c) { return matches(c, true) && (t === 'all' || c.bucket === t); }).length;
+      return '<button type="button" role="tab" class="ft-tab" data-filter="' + t + '" aria-selected="' + (state.f === t) + '"' + (t === 'complete' ? ' aria-label="Evidence complete, ' + n + '"' : '') + ' tabindex="' + (state.f === t ? 0 : -1) + '">' +
+        (t === 'all' || t === 'complete' ? '' : '<span class="ft-tab-mark ft-tab-mark--' + t + '" aria-hidden="true"></span>') + (t === 'all' ? 'All' : t === 'complete' ? 'Complete' : NAMES[t]) +
+        ' <span class="ft-count">' + n + '</span></button>';
+    }).join('');
+  }
+  function rowHtml(c) {
+    var problem = c.bucket !== 'complete';
+    return '<div class="ft-row' + (problem ? ' is-problem' : '') + (c.id === state.sel ? ' is-selected' : '') + '" role="row" tabindex="' + (c.id === state.sel ? 0 : -1) + '" data-id="' + c.id + '" aria-selected="' + (c.id === state.sel) + '">' +
+      '<span class="ft-row__date" role="cell">' + c.date + '<span class="ft-id">' + c.id + '</span></span>' +
+      '<span class="ft-row__desc" role="cell"><span class="ft-row__name">' + esc(c.name) + '</span><span class="ft-row__reason">' + esc(problem ? c.reason : c.vendor + ' · ' + c.line) + '</span></span>' +
+      '<span class="ft-row__amount ft-amount" role="cell">' + c.amount + '</span>' +
+      '<span class="ft-row__bucket" role="cell">' + (problem ? badge(c.bucket) : '<span class="ft-ch-done">Evidence complete</span>') + '</span></div>';
+  }
+  function renderRows() {
+    var v = visible();
+    /* A filter that hides the selected charge moves the selection to the first row shown, or clears it when nothing matches */
+    var moved = false;
+    if (!v.some(function (c) { return c.id === state.sel; })) { var next = v.length ? v[0].id : null; if (next !== state.sel) { state.sel = next; moved = true; } }
+    $('ch-rows').innerHTML = v.length ? v.map(rowHtml).join('') : '<div class="ft-empty">' + (state.f === 'missing' && !state.q && !state.line ? 'No charge is missing evidence.' : 'No charges match. Clear the search or the budget line.') + '</div>';
+    var total = DATA.charges.length;
+    $('ch-count').textContent = v.length === total ? total + ' charges' : v.length + ' of ' + total + ' charges';
+    if (moved) renderDetail();
+    var lf = $('ch-linefilter');
+    if (state.line) { lf.hidden = false; lf.innerHTML = '<span>' + esc(lineOf(state.line).line) + '</span><button type="button" class="ft-overrule" data-act="clearline">Clear</button>'; }
+    else { lf.hidden = true; lf.innerHTML = ''; }
+    [['date', 'ch-h-date'], ['amount', 'ch-h-amount']].forEach(function (p) {
+      var on = state.sort === p[0], h = $(p[1]), b = h.querySelector('.ft-ch-sort');
+      h.setAttribute('aria-sort', on ? (state.dir < 0 ? 'descending' : 'ascending') : 'none');
+      b.setAttribute('aria-pressed', String(on));
+      b.querySelector('.ft-ch-sort__dir').textContent = on ? (state.dir < 0 ? '↓' : '↑') : '';
+    });
+  }
+
+  /* ---------- the charge: the same evidence trail as the problem list ---------- */
+  var LINKS = { 'Invoice SEQ-0207': ['F3', 'Total'], 'Email from Dr. Robin Example': ['F3', 'Sender'], 'Award letter': ['F1', 'End date'], 'Amendment 01': ['F2', 'New end date'],
+    'Approval email': ['F4', 'Approval'], 'Invoice SEQ-0311': ['F5', 'Total'], 'L-1019|Receipt photo': ['F7', 'Total'], 'L-1015|Receipt photo': ['F6', 'Total'] };
+  function factIndex(fid, label) {
+    var V = window.FTViewer; if (!V || !V.files || !V.files[fid]) return -1;
+    var f = V.files[fid].facts; for (var i = 0; i < f.length; i++) if (f[i].label === label) return i; return 0;
+  }
+  function linkFor(c, n) { var m = LINKS[c.id + '|' + n.title] || LINKS[n.title]; if (!m) return null; var k = factIndex(m[0], m[1]); return k < 0 ? null : [m[0], k]; }
+  function trailHtml(c) {
+    return '<ol class="ft-trail">' + c.trail.map(function (n, i) {
+      var next = c.trail[i + 1], line = '';
+      if (next) line = (n.kind === 'fail' || n.kind === 'human') ? (next.kind === 'missing' ? ' ft-trail__item--gap-missing' : ' ft-trail__item--gap') : (next.kind === 'missing' ? ' ft-trail__item--gap-missing' : '');
+      var quiet = n.kind === 'ok' || n.kind === 'charge' || n.kind === 'replaced';
+      var detail = quiet || !n.what ? '' : '<div class="ft-trail__what">' + esc(n.what) + '</div>';
+      var ln = linkFor(c, n), q = n.quote ? '&ldquo;' + esc(n.quote) + '&rdquo;<span class="ft-loc">' + esc(n.loc) + '</span>' : '';
+      var quote = n.quote && !quiet ? '<p class="ft-trail__quote">' + (ln ? '<a class="ft-trail__qlink" href="#" data-file="' + ln[0] + '" data-fact="' + ln[1] + '" aria-label="Open ' + esc(n.loc) + ' at this passage">' + q + '</a>' : q) + '</p>' : '';
+      var acts = '';
+      if (n.action === 'split') acts = '<div class="ft-actions ft-trail__actions"><button type="button" class="ft-btn ft-btn--sm" data-act="goto" data-what="Opens ' + c.id + ' on the problem list, where you enter the split.">Enter the split</button></div>';
+      if (n.action === 'answer') acts = '<div class="ft-actions ft-trail__actions"><button type="button" class="ft-btn ft-btn--sm" data-act="goto" data-what="Opens ' + c.id + ' on the problem list, where you answer the agent.">Answer the agent</button></div>';
+      var title = ln ? '<a class="ft-trail__link" href="#" data-file="' + ln[0] + '" data-fact="' + ln[1] + '">' + esc(n.title) + '</a>' : esc(n.title);
+      return '<li class="ft-trail__item ft-trail__item--' + n.kind + line + '"><span class="ft-trail__node ft-trail__node--' + n.kind + '" aria-hidden="true"></span>' +
+        '<div class="ft-trail__row"><span class="ft-trail__title">' + title + '</span><span class="ft-trail__verdict ft-trail__verdict--' + n.kind + '">' + esc(n.verdict) + '</span></div>' + detail + quote + acts + '</li>';
+    }).join('') + '</ol>';
+  }
+  function coversLabel(c) { return c.covers.some(function (v) { return /^Approval/.test(v.kind); }) ? 'Bills and approvals covering this charge' : 'Bills covering this charge'; }
+  function coversHtml(c) {
+    return '<ul class="ft-ch-cover">' + c.covers.map(function (v) {
+      var k = v.open ? factIndex(v.open[0], v.open[1]) : -1;
+      var name = k >= 0 ? '<a href="#" data-file="' + v.open[0] + '" data-fact="' + k + '">' + esc(v.file) + '</a>' : esc(v.file);
+      return '<li' + (v.short ? ' class="is-short"' : '') + '><span class="ft-ch-cover__file">' + name + '</span><span class="ft-ch-cover__uses">' + esc(v.uses) + '</span><span class="ft-ch-cover__kind">' + esc(v.kind) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  function renderDetail() {
+    var c = charge(state.sel);
+    if (!c) { $('ch-detail').innerHTML = '<div class="ft-empty">' + (visible().length ? 'Select a charge.' : 'No charge to show. Nothing matches the search or the filters.') + '</div>'; return; }
+    var h = '<div class="ft-panel__section"><div class="ft-charge-meta"><span class="ft-meta"><span class="ft-id">' + c.id + '</span> <span class="ft-sep">&middot;</span> ' + c.date + ' <span class="ft-sep">&middot;</span> ' + esc(c.vendor) + '</span>' + badge(c.bucket) + '</div>' +
+      '<div class="ft-charge-titlerow"><h2 class="ft-charge-title">' + esc(c.name) + '</h2><span class="ft-charge-amount">' + c.amount + '</span></div>' +
+      '<p class="ft-ch-sides"><span>Ledger account <b>' + esc(c.account) + '</b></span><span>Budget line <b>' + esc(c.line) + '</b>, assigned by the agent</span>' +
+      (c.account === c.line ? '' : '<span class="ft-ch-sides__off">They disagree, so the charge waits for you</span>') + '</p></div>';
+    h += '<div class="ft-panel__section"><span class="ft-trail-label">Evidence trail</span>' + trailHtml(c) + '</div>';
+    h += '<div class="ft-panel__section ft-ch-needs"><div id="ch-cl"></div><span class="ft-trail-label ft-ch-billslabel">' + coversLabel(c) + '</span>' + coversHtml(c) + '</div>';
+    h += '<div class="ft-panel__section"><div id="ch-th"></div></div>';
+    h += '<div class="ft-panel__section"><details class="ft-more"><summary>History <span class="ft-sep">&middot;</span> ' + c.history.length + ' change' + (c.history.length > 1 ? 's' : '') + '</summary><ol class="ft-history">' +
+      c.history.map(function (e) {
+        return '<li class="ft-history__entry"><span class="ft-history__date">' + e.date + '</span><div class="ft-history__body"><a class="ft-trigger" href="#">' + esc(e.trigger) + '</a><div class="ft-history__change">' +
+          (e.frm ? badge(e.frm) + '<span class="ft-arrow" aria-label="changed to">&rarr;</span>' : '') + badge(e.to) + '</div>' + (e.by ? '<span class="ft-caption">' + esc(e.by) + '</span>' : '') + '</div></li>';
+      }).join('') + '</ol></details></div>';
+    $('ch-detail').innerHTML = h;
+    $('ch-detail').setAttribute('aria-label', 'Charge ' + c.id);
+    /* PR 6: the evidence checklist and the review thread keep their state per charge while you move between rows */
+    if (window.FTChecklist) window.FTChecklist.mount($('ch-cl'), c.checklist, { title: 'Evidence needed', today: TODAY, onChange: function (items) { c.checklist = items; } });
+    if (window.FTThread) {
+      c._thread = c._thread || { about: c.id, entries: c.thread };
+      window.FTThread.bind($('ch-th'), c._thread, { heading: 'Thread', today: TODAY, onAsk: function (q, reply) { askReply(c, reply); },
+        placeholder: c.id === 'L-1019' ? 'For example: is it in the budget justification?' : c.bucket === 'complete' ? 'For example: why does this pass?' : 'For example: what would close this?' });
+    }
+  }
+  /* The agent's scripted answers in the demo. It answers about this charge only and changes nothing. */
+  function askReply(c, reply) {
+    var text = c.id === 'L-1019' ? "The award letter on file has no budget justification, so I can't tie the camera to the project from the grant's own files. Add the justification to Evidence, or answer the question yourself."
+      : c.id === 'L-0981' ? "Only the program officer's written approval, through Research.gov, would close this. If the charge is moving off the grant instead, accept it with a note on the problem list."
+      : c.id === 'L-1010' ? "This grant's part of invoice SEQ-0311. An email or an itemized invoice that gives the split would close it, or you can enter the split on the problem list."
+      : 'Every check on ' + c.id + ' passes, and its bill covers ' + c.amount + ' of ' + c.amount + '. Nothing is open on it.';
+    setTimeout(function () { reply({ who: 'agent', kind: 'comment', text: text }); }, reduce ? 0 : 1400);
+  }
+  function renderList() { renderTabs(); renderRows(); renderBudget(); }
+  function select(id, focus) {
+    state.sel = id; renderRows(); renderDetail();
+    var r = document.querySelector('.ft-row[data-id="' + id + '"]');
+    if (r) { if (focus) r.focus({ preventScroll: true }); keepInView(r); }
+  }
+  function keepInView(r) {
+    var box = $('ch-scroll'), head = box.querySelector('.ft-ledger__head').offsetHeight;
+    var bb = box.getBoundingClientRect(), rb = r.getBoundingClientRect();
+    if (rb.top < bb.top + head) box.scrollTop -= (bb.top + head) - rb.top;
+    else if (rb.bottom > bb.bottom) box.scrollTop += rb.bottom - bb.bottom;
+  }
+  var toastTimer = null;
+  function toast(text) { $('ch-toast-text').textContent = text; $('ch-toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { $('ch-toast').hidden = true; }, 5000); }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, a, .ft-row') : null; if (!t) return;
+    if (t.closest('.ft-sheet')) return;
+    if (t.tagName === 'A') {
+      e.preventDefault();
+      var fid = t.getAttribute('data-file');
+      if (fid && window.FTViewer && window.FTViewer.files[fid]) window.FTViewer.open(window.FTViewer.files[fid], parseInt(t.getAttribute('data-fact'), 10), t);
+      return;
+    }
+    if (t.classList.contains('ft-row')) return select(t.getAttribute('data-id'), true);
+    if (t.classList.contains('ft-tab')) { state.f = t.getAttribute('data-filter'); renderTabs(); renderRows(); var tb = document.querySelector('.ft-tab[aria-selected="true"]'); if (tb) tb.focus(); return; }
+    if (t.classList.contains('ft-ch-line')) { var k = t.getAttribute('data-line'); state.line = state.line === k ? '' : k; renderList(); var lb = document.querySelector('.ft-ch-line[data-line="' + k + '"]'); if (lb) lb.focus(); return; }
+    if (t.classList.contains('ft-ch-sort')) {
+      var s = t.getAttribute('data-sort');
+      if (state.sort === s) state.dir = -state.dir; else { state.sort = s; state.dir = -1; }
+      renderRows(); var sb = document.querySelector('.ft-ch-sort[data-sort="' + s + '"]'); if (sb) sb.focus(); return;
+    }
+    var act = t.getAttribute('data-act');
+    if (act === 'clearline') { state.line = ''; renderList(); $('ch-q').focus(); }
+    else if (act === 'goto') toast(t.getAttribute('data-what'));
+  });
+  document.addEventListener('input', function (e) { if (e.target.id === 'ch-q') { state.q = e.target.value.trim(); renderTabs(); renderRows(); } });
+  document.addEventListener('keydown', function (e) {
+    var row = e.target.closest ? e.target.closest('.ft-row') : null;
+    if (row && row.closest('#ch-rows')) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(row.getAttribute('data-id'), true); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#ch-rows .ft-row')), i = rows.indexOf(row);
+        var j = e.key === 'Home' ? 0 : e.key === 'End' ? rows.length - 1 : i + (e.key === 'ArrowDown' ? 1 : -1);
+        if (rows[j]) select(rows[j].getAttribute('data-id'), true);
+      }
+      return;
+    }
+    var tab = e.target.closest ? e.target.closest('.ft-tab') : null;
+    if (tab && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      e.preventDefault(); var i2 = TABS.indexOf(tab.getAttribute('data-filter')) + (e.key === 'ArrowRight' ? 1 : -1);
+      if (i2 >= 0 && i2 < TABS.length) { state.f = TABS[i2]; renderTabs(); renderRows(); document.querySelector('.ft-tab[aria-selected="true"]').focus(); }
+    }
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* On Apr 12, amendment 01 is confirmed: the viewer's side notes say so */
+  var V = window.FTViewer;
+  if (V && V.files) {
+    if (V.files.F2) V.files.F2.note = 'New end date confirmed by you, Apr 10, 2026.';
+    if (V.files.F1) V.files.F1.note = 'Grant terms. Its end date was replaced by amendment 01, confirmed Apr 10, 2026.';
+  }
+
+  /* a hash can jump to a state, for screenshots: #f=human, #line=ms|odc|psc, #sel=L-0347, #q=pipette, #sort=amount, #t=dark */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  if (h.f && TABS.indexOf(h.f) >= 0) state.f = h.f;
+  if (h.line && lineOf(h.line)) state.line = h.line;
+  if (h.q) { state.q = h.q; $('ch-q').value = h.q; }
+  if (h.sort === 'amount') state.sort = 'amount';
+  if (h.sel && charge(h.sel)) state.sel = h.sel;
+  else if (h.f && h.f !== 'all') { var v0 = visible(); if (v0.length) state.sel = v0[0].id; }
+  markTheme(); renderHead(); renderList(); renderDetail();
+  var r0 = document.querySelector('.ft-row[data-id="' + state.sel + '"]'); if (r0) keepInView(r0);
+})();
+</script>
+</body>
+</html>

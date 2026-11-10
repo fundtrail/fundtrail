@@ -1,0 +1,330 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: every evidence file on the grant, the facts read from it, whether each is confirmed in the file, and what it pays for" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidence preview</title>
+<style>
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .demo-right { display: flex; gap: var(--space-2); align-items: center; }
+  .demo-col { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .demo-col .ft-banner { padding: 0 var(--space-1); }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item" href="#">Problem list <span class="ft-count ft-count--alert">3</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms</a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <a class="ft-nav__item ft-nav__item--add" href="#">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Evidence</b></span></div>
+      <div class="demo-right"><button class="ft-btn">Evidence report</button></div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption">SYN-2300117 <span class="ft-sep">&middot;</span> National Science Foundation (NSF) <span class="ft-sep">&middot;</span> $120,000.00 awarded <span class="ft-sep">&middot;</span> $96,412.18 charged</span>
+          <h1 class="ft-grant-head__title">Sediment Microbiome Survey of Example Bay</h1>
+        </div>
+        <div class="ft-ready" id="ev-ready"></div>
+      </section>
+
+      <div class="ft-split">
+        <div class="demo-col">
+          <section class="ft-panel" aria-label="Evidence files">
+            <div class="ft-ev-bar">
+              <div class="ft-tabs" role="tablist" aria-label="Filter files" id="ev-tabs"></div>
+              <label class="ft-ev-kindsel">Kind <select id="ev-kind" aria-label="Filter by kind"></select></label>
+            </div>
+            <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Evidence files, newest first">
+              <div class="ft-ledger__head ft-ev-row" role="row"><span role="columnheader">File</span><span role="columnheader">Pays for</span><span role="columnheader" class="ft-ev-date">Arrived</span></div>
+              <div class="ft-ev-scroll" id="ev-rows"></div>
+            </div>
+          </section>
+        </div>
+        <section class="ft-panel" id="ev-detail" aria-live="polite"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ft-toast" id="ev-toast" role="status" hidden><span id="ev-toast-text"></span><button type="button" id="ev-undo" hidden>Undo</button></div>
+
+<!-- @viewer-scripts -->
+<!-- @pr6-scripts -->
+<script>
+/*@EVIDENCE_DATA@*/
+(function () {
+  var E = window.FTEvidence, V = window.FTViewer || { files: {} };
+  /* invoice_1001.txt is a real golden document, so it opens in the viewer too; F1 and F2 read as they stand on Apr 12, 2026 */
+  V.files.F8 = E.F8;
+  if (V.files.F1) V.files.F1.note = 'Grant terms. Its end date was replaced by amendment 01, confirmed Apr 10, 2026.';
+  if (V.files.F2) V.files.F2.note = 'New end date confirmed by you, Apr 10, 2026.';
+  /* The viewer can settle an unconfirmed fact, so redraw the card when it closes, keeping focus on the fact that opened it */
+  V.onclose = function () {
+    var a = document.activeElement, f = a && a.getAttribute && a.getAttribute('data-file'), k = a && a.getAttribute && a.getAttribute('data-fact');
+    renderRows(); renderDetail();
+    var back = f ? document.querySelector('#ev-detail [data-file="' + f + '"]' + (k != null ? '[data-fact="' + k + '"]' : '[data-act="open"]')) : null;
+    if (back) back.focus();
+  };
+
+  var KINDS = [['all', 'All kinds'], ['award', 'Award documents'], ['receipts', 'Bills'], ['emails', 'Emails'], ['photos', 'Photos']];
+  var state = { filter: 'all', kind: 'all', sel: 'sequencing_invoice.eml', rec: null, done: null };
+  var P = window.FTProblems || null, TODAY = '2026-04-12', WINDOW_OPENS = '2026-11-02';
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function file(name) { for (var i = 0; i < E.files.length; i++) if (E.files[i].name === name) return E.files[i]; return null; }
+  function visible() {
+    return E.files.filter(function (f) { return (state.filter === 'all' || f.unlinked) && (state.kind === 'all' || f.group === state.kind); });
+  }
+
+  /* ---------- the grant's readiness, as on the problem list ---------- */
+  $('ev-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">48</span><span class="ft-ready__of">of 51 charges ready for closeout</span></div>' +
+    '<div class="ft-ready__bar" aria-hidden="true"><span class="is-conflict" style="flex:1"></span><span class="is-human" style="flex:2"></span><span class="is-complete" style="flex:48"></span></div>';
+
+  /* ---------- the list ---------- */
+  function renderBar() {
+    var tabs = [['all', 'All', E.counts.all], ['unlinked', 'Not linked', E.counts.unlinked]];
+    $('ev-tabs').innerHTML = tabs.map(function (t) {
+      return '<button type="button" role="tab" class="ft-tab" data-filter="' + t[0] + '" aria-selected="' + (state.filter === t[0]) + '">' +
+        (t[0] === 'unlinked' ? '<span class="ft-ev-unmark" aria-hidden="true"></span>' : '') + t[1] + ' <span class="ft-count">' + t[2] + '</span></button>';
+    }).join('');
+    $('ev-kind').innerHTML = KINDS.map(function (k) {
+      return '<option value="' + k[0] + '"' + (state.kind === k[0] ? ' selected' : '') + '>' + k[1] + (k[0] === 'all' ? '' : ' (' + E.counts[k[0]] + ')') + '</option>';
+    }).join('');
+  }
+  function pays(f) {
+    if (f.unlinked) return '<span class="ft-ev-unlinked">' + (state.rec ? (state.rec.state === 'snoozed' ? 'Snoozed' : 'Accepted') : 'Not linked') + '</span>';
+    if (f.group === 'award') return 'Terms';
+    return f.links.map(function (l) { return '<span class="ft-id">' + esc(l.id) + '</span>'; }).join(' ');
+  }
+  function rowHtml(f) {
+    var on = f.name === state.sel;
+    return '<div class="ft-row ft-ev-row' + (on ? ' is-selected' : '') + '" role="row" tabindex="0" data-name="' + esc(f.name) + '"' + (on ? ' aria-current="true"' : '') + '>' +
+      '<span class="ft-ev-file" role="cell"><span class="ft-ev-name">' + esc(f.name) + '</span><span class="ft-ev-kind">' + esc(f.kind) + ' <span class="ft-sep">&middot;</span> ' + esc(f.channel) + '</span></span>' +
+      '<span class="ft-ev-pays" role="cell">' + pays(f) + '</span><span class="ft-ev-date" role="cell">' + esc(f.arrived) + '</span></div>';
+  }
+  function renderRows() {
+    var v = visible();
+    $('ev-rows').innerHTML = v.length ? v.map(rowHtml).join('') : '<div class="ft-empty">No files of this kind.</div>';
+  }
+
+  /* ---------- the selected file: its evidence card ---------- */
+  var ABBR = /(?:^|[\s(])(Dr|Mr|Ms|Mrs|No)$/;
+  function sentence(s, t) {
+    var i = s.indexOf(t); if (i < 0) return { before: '', after: '' };
+    var start = 0, p = i;
+    while (p > 0) { var j = s.lastIndexOf('. ', p - 1); if (j < 0) break; if (ABBR.test(s.slice(0, j))) { p = j; continue; } start = j + 2; break; }
+    var end = s.length, q = i + t.length;
+    while (true) { var k = s.indexOf('. ', q); if (k < 0) break; if (ABBR.test(s.slice(0, k))) { q = k + 2; continue; } end = k + 1; break; }
+    return { before: s.slice(start, i), after: s.slice(i + t.length, end) };
+  }
+  function findBlock(blocks, id) {
+    var parts = id.split('.');
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.cols) for (var c = 0; c < b.cols.length; c++) { var r = findBlock(b.cols[c], id); if (r) return r; }
+      if (b.id === parts[0]) return parts.length === 3 && b.rows ? b.rows[+parts[1]][+parts[2]] : b.text;
+    }
+    return null;
+  }
+  function sourceText(vf, x) {
+    if (vf.lines) return vf.lines[x.line - 1] || x.text;
+    if (vf.pages && x.block) return findBlock(vf.pages[x.page - 1].blocks, x.block) || x.text;
+    return x.text;
+  }
+  /* Decision 0012: every quote is checked against its file, so each fact says whether it's confirmed there */
+  function unconfirmed(x) { return x.confirmed === false; }
+  function confHtml(x) {
+    if (unconfirmed(x)) return '<span class="ft-ev-conf is-unconf">Unconfirmed</span>';
+    if (x.placed === false) return '<span class="ft-ev-conf">Confirmed by you</span>';
+    return '<span class="ft-ev-conf">Confirmed</span>';
+  }
+  function factHtml(f, vf, x, k) {
+    var cls = 'ft-fact' + (unconfirmed(x) ? ' ft-ev-fact--unconf' : '');
+    var head = '<li class="' + cls + '"><span class="ft-fact__label">' + esc(x.label) + '</span><span class="ft-fact__value">' + esc(x.value) + '</span>';
+    var note = unconfirmed(x) ? '<p class="ft-ev-unconfnote">' + (vf && vf.type === 'photo' ? 'The second look didn’t read the same value.' : 'Couldn’t place this quote in the file.') +
+      ' Anything that rests on it is in Needs a human until you confirm the value or type the right one in the viewer.</p>' : '';
+    if (!vf) return head + '<span class="ft-ev-factconf">' + confHtml(x) + '</span></li>';
+    if (vf.type === 'photo') {
+      return head + '<button type="button" class="ft-fact__quote ft-ev-area" data-file="' + vf.id + '" data-fact="' + k + '" aria-label="Open ' + esc(vf.name) + ' at the ' + esc(x.label.toLowerCase()) + '">' +
+        '<span>' + (unconfirmed(x) ? 'No box: shows the whole photo' : 'Box checked by a second look') + '</span><span class="ft-loc">' + (unconfirmed(x) ? 'Open the photo' : 'Open at the box') + '</span>' + confHtml(x) + '</button>' + note + '</li>';
+    }
+    var s = sentence(sourceText(vf, x), x.text), loc = vf.type === 'pdf' ? 'page ' + x.page : 'line ' + x.line;
+    /* Plain quote style, as in the trail: no yellow on the card. The highlight is the viewer's, when the fact opens. */
+    var q = esc(s.before) + esc(x.text) + esc(s.after);
+    return head + '<button type="button" class="ft-fact__quote ft-ev-quote" data-file="' + vf.id + '" data-fact="' + k + '" aria-label="Open ' + esc(vf.name) + ' at ' + loc + '">' +
+      '<span class="ft-quote">&ldquo;' + q + '&rdquo;</span><span class="ft-loc">' + loc + '</span>' + confHtml(x) + '</button>' + note + '</li>';
+  }
+  function confSummary(facts) {
+    var n = facts.length, u = facts.filter(unconfirmed).length, you = facts.filter(function (x) { return !unconfirmed(x) && x.placed === false; }).length;
+    if (!n) return '';
+    var t = u ? u + ' of ' + n + ' unconfirmed' : you ? (n - you) + ' confirmed in the file, ' + you + ' by you' : (n === 1 ? 'Confirmed in the file' : 'All ' + n + ' confirmed in the file');
+    return '<span class="ft-ev-confsum' + (u ? ' is-unconf' : '') + '">' + t + '</span>';
+  }
+  function doneHtml() {
+    return state.done ? '<div class="ft-trail__done" role="status" tabindex="-1" id="ev-done"><span>' + esc(state.done) + '</span><button type="button" data-act="undo">Undo</button></div>' : '';
+  }
+  function paysHtml(f) {
+    if (f.unlinked) {
+      var r = state.rec, h = '<div class="ft-ev-unlinkedbox ft-ev-record">';
+      h += '<div class="ft-ev-rechead"><span class="ft-ev-unlinked">' + (r ? (r.state === 'snoozed' ? 'Snoozed' : 'Accepted') : 'Not linked to a charge') + '</span><span class="ft-ev-reckind">Record <span class="ft-sep">&middot;</span> raised by code</span></div>';
+      if (!r) {
+        h += '<p class="ft-ev-note">' + esc(f.note) + '</p><p class="ft-ev-muted2">' + esc(f.listing) + '</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-btn ft-btn--sm" data-act="link">Link to a charge</button></div>';
+      } else if (r.state === 'snoozed') {
+        h += '<p class="ft-ev-note">' + (P ? P.stateTagHtml({ state: 'snoozed', until: r.until }) : 'Snoozed until ' + esc(r.untilText)) + ' <span class="ft-ev-why">' + esc(r.reason) + '</span></p>' +
+          '<p class="ft-ev-muted2">It stays off the problem list until ' + esc(r.untilText) + ', then goes on it if it’s still linked to no charge. A new problem on it ends the snooze early.</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-overrule" data-act="unsnooze" style="margin:0">End the snooze</button></div>';
+      } else {
+        h += '<p class="ft-ev-note">' + (P ? P.stateTagHtml({ state: 'accepted' }) : 'Accepted with your note') + '</p><p class="ft-ev-quotenote">' + esc(r.note) + '</p>' +
+          '<p class="ft-ev-muted2">It stays off the problem list. If the facts change, it comes back.</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-overrule" data-act="unaccept" style="margin:0">Withdraw the note</button></div>';
+      }
+      return h + '</div>' + doneHtml();
+    }
+    if (f.group === 'award') return '<p class="ft-ev-note">' + esc(f.note) + '</p>';
+    return '<ul class="ft-ev-paylist">' + f.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-ev-amt">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  function renderDetail() {
+    var f = file(state.sel); if (!f) { $('ev-detail').innerHTML = '<div class="ft-empty">Select a file.</div>'; return; }
+    var vf = f.viewer ? V.files[f.viewer] : null;
+    var meta = esc(f.kind) + ' <span class="ft-sep">&middot;</span> ' + esc(f.channel) + (f.sender ? ' from ' + esc(f.sender) : '') + ' <span class="ft-sep">&middot;</span> arrived ' + esc(f.arrived);
+    var h = '<div class="ft-panel__section"><div class="ft-charge-meta"><span class="ft-meta">' + meta + '</span>' +
+      (vf ? '<button type="button" class="ft-btn ft-btn--sm" data-act="open" data-file="' + vf.id + '">Open original</button>' : '') + '</div>' +
+      '<div class="ft-charge-titlerow"><h2 class="ft-charge-title">' + esc(f.title) + '</h2></div><span class="ft-ev-filename">' + esc(f.name) + '</span></div>';
+    var list = vf ? vf.facts : f.facts;
+    var facts = vf ? vf.facts.map(function (x, k) { return factHtml(f, vf, x, k); }).join('') : f.facts.map(function (x) { return factHtml(f, null, x); }).join('');
+    h += '<div class="ft-panel__section"><div class="ft-ev-sechead"><span class="ft-trail-label">Read from this file</span><span class="ft-tag ft-tag--agent">Agent</span>' + confSummary(list) + '</div>' +
+      '<ul class="ft-facts">' + facts + '</ul>' +
+      (vf ? '' : '<p class="ft-ev-muted">This demo has no original for this file, so its quotes and the viewer are left out.</p>') + '</div>';
+    h += '<div class="ft-panel__section"><span class="ft-trail-label">' + (f.group === 'award' ? 'Used for' : 'Pays for') + '</span>' + paysHtml(f) + '</div>';
+    $('ev-detail').innerHTML = h;
+    $('ev-detail').setAttribute('aria-label', 'File ' + f.name);
+  }
+  function renderAll() {
+    renderBar(); renderRows(); renderDetail();
+  }
+  function select(name, focus) {
+    state.sel = name; renderRows(); renderDetail();
+    var r = document.querySelector('.ft-ev-row[data-name="' + name + '"]');
+    if (r) { r.scrollIntoView({ block: 'nearest' }); if (focus) r.focus(); }
+  }
+  function refilter() {
+    var v = visible(); if (v.length && !v.some(function (f) { return f.name === state.sel; })) state.sel = v[0].name;
+    renderAll();
+  }
+
+  /* ---------- the toast, for what the demo doesn't build ---------- */
+  var toastTimer = null, undoFn = null;
+  function toast(text, undo) {
+    $('ev-toast-text').textContent = text; undoFn = undo || null; $('ev-undo').hidden = !undo; $('ev-toast').hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { $('ev-toast').hidden = true; }, 6000);
+  }
+
+  /* ---------- the unlinked bill: Snooze or Accept with a note (decision 0010), with the problem list's own dialogs ---------- */
+  var doneTimer = null;
+  function setRecord(rec, done) {
+    state.rec = rec; state.done = done; clearTimeout(doneTimer);
+    renderRows(); renderDetail();
+    if (done) { var d = $('ev-done'); if (d) d.focus(); doneTimer = setTimeout(function () { var had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#ev-done'); state.done = null; renderDetail(); if (had) { var b = document.querySelector('.ft-ev-record .ft-overrule'); if (b) b.focus(); } }, 8000); }
+  }
+  function recordAction(act, opener) {
+    var f = file(state.sel); if (!f) return;
+    var target = { id: f.name, title: f.title, problem: f.problem, amount: f.facts[f.facts.length - 1].value, vendor: f.facts[0].value, kind: 'record' };
+    if (!P) return toast(act === 'snooze' ? 'Snoozing needs the problem list’s dialogs, which aren’t on this page.' : 'Accepting needs the problem list’s dialogs, which aren’t on this page.');
+    if (act === 'snooze') {
+      P.snoozeDialog({ target: target, opener: opener, today: TODAY, windowOpens: WINDOW_OPENS, until: '2026-06-30' }, function (r) {
+        setRecord({ state: 'snoozed', until: r.until, untilText: r.untilText, reason: r.reason }, P.doneText('snooze', target, r));
+      });
+    } else {
+      P.acceptDialog({ target: target, opener: opener }, function (r) {
+        setRecord({ state: 'accepted', note: r.note }, P.doneText('accept', target, r));
+      });
+    }
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, .ft-ev-row, a') : null; if (!t) return;
+    if (t.closest('.ft-sheet, .ft-menu, .ft-dialog')) return;
+    if (t.tagName === 'A') { e.preventDefault(); return; }
+    var act = t.getAttribute('data-act');
+    if (t.classList.contains('ft-ev-row')) return select(t.getAttribute('data-name'), true);
+    if (t.classList.contains('ft-tab')) { state.filter = t.getAttribute('data-filter'); refilter(); var tb = document.querySelector('.ft-tab[data-filter="' + state.filter + '"]'); if (tb) tb.focus(); return; }
+    if (t.hasAttribute('data-fact') && V.open) return V.open(V.files[t.getAttribute('data-file')], parseInt(t.getAttribute('data-fact'), 10), t);
+    if (act === 'open' && V.open) { var vf = V.files[t.getAttribute('data-file')]; return V.open(vf, vf.active || 0, t); }
+    if (act === 'link') return toast('Linking a file by hand isn’t in this demo yet.');
+    if (act === 'snooze' || act === 'accept') return recordAction(act, t);
+    if (act === 'undo' || act === 'unsnooze' || act === 'unaccept') { setRecord(null, null); var a = document.querySelector('[data-act="link"]'); if (a) a.focus(); return; }
+    if (t.id === 'ev-undo' && undoFn) { var u = undoFn; undoFn = null; $('ev-toast').hidden = true; u(); }
+  });
+  $('ev-kind').addEventListener('change', function (e) { state.kind = e.target.value; refilter(); $('ev-kind').focus(); });
+  document.addEventListener('keydown', function (e) {
+    var row = e.target.closest ? e.target.closest('.ft-ev-row') : null; if (!row) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); var sib = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+      if (sib && sib.classList.contains('ft-ev-row')) select(sib.getAttribute('data-name'), true);
+    }
+    if (e.key === 'Home' || e.key === 'End') {
+      var rows = Array.prototype.filter.call(row.parentNode.querySelectorAll('.ft-ev-row'), function (r) { return r.offsetParent !== null; });
+      if (!rows.length) return;
+      e.preventDefault(); var to = e.key === 'Home' ? rows[0] : rows[rows.length - 1];
+      select(to.getAttribute('data-name'), true);
+    }
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* ---------- a hash can jump to a state, for screenshots: #sel=F3 or a file name, #f=unlinked, #kind=photos, #state=unconfirmed, #t=dark ---------- */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme();
+  if (h.f === 'unlinked') state.filter = 'unlinked';
+  if (h.kind) state.kind = h.kind;
+  if (h.state === 'unconfirmed' && V.files.F5) {
+    V.files.F5.facts.forEach(function (x) { if (x.label === 'Shared by') x.confirmed = false; });
+    if (!h.sel) h.sel = 'F5';
+  }
+  if (h.sel) { var m = E.files.filter(function (f) { return f.viewer === h.sel || f.name === h.sel; })[0]; if (m) state.sel = m.name; }
+  refilter();
+  var cur = document.querySelector('.ft-ev-row.is-selected'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+})();
+</script>
+</body>
+</html>
