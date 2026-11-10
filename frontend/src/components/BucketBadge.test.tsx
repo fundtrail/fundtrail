@@ -57,8 +57,10 @@ describe("ChargeStatusBadge", () => {
 
   it("shows Accepted with the bucket the checks gave underneath, never as Evidence complete", () => {
     render(<ChargeStatusBadge status={status("missing_evidence", { accepted: true })} />);
-    expect(screen.getByText("Accepted")).toBeInTheDocument();
-    expect(screen.getByText("Missing evidence")).toBeInTheDocument();
+    const accepted = screen.getByText("Accepted");
+    const bucket = screen.getByText("Missing evidence");
+    // Accepted comes first, the bucket underneath.
+    expect(accepted.compareDocumentPosition(bucket) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText("Evidence complete")).toBeNull();
   });
 

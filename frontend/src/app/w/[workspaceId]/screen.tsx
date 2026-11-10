@@ -13,6 +13,7 @@ export function WorkspaceScreen() {
 
   return (
     <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "Grants"]}>
+      <h1 className="ft-sr">Grants in {workspace?.name ?? "this workspace"}</h1>
       <Loadable result={grants}>{(data) => <GrantList grants={data} />}</Loadable>
     </AppShell>
   );

@@ -1,6 +1,26 @@
-import type { ProblemRow, Reason } from "@/lib/api";
-import { date, money, SOURCE_LABELS } from "@/lib/format";
+import type { FtRecord, ProblemRow, Reason } from "@/lib/api";
+import { date, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
 import { ChargeStatusBadge } from "./BucketBadge";
+
+/** A reason's text as the server sends it, with when a missing item is expected and whether it was accepted. */
+function ReasonLine({ reason }: { reason: Reason }) {
+  return (
+    <p className="ft-problem__text">
+      {reason.text}
+      {reason.expected_by && <span className="ft-caption"> · Expected by {date(reason.expected_by)}</span>}
+      {reason.accepted_by && (
+        <>
+          {" "}
+          <span className="ft-tag">Accepted</span>
+        </>
+      )}
+    </p>
+  );
+}
+
+function recordName(record: FtRecord): string {
+  return `${recordKindLabel(record.data.kind)}, written ${date(record.written_at)}`;
+}
 
 /** The reasons a charge is on the list: every reason that isn't a pass, in the server's order and words. */
 function failing(reasons: Reason[]): Reason[] {
@@ -60,6 +80,7 @@ function Row({ row }: { row: ProblemRow }) {
           </div>
           <div className="ft-problem__main">
             {row.file && <p className="ft-problem__name">{row.file.name}</p>}
+            {!row.file && row.record && <p className="ft-problem__name">{recordName(row.record)}</p>}
             {row.status.problems.map((p) => (
               <p className="ft-problem__text" key={`${p.check}:${p.problem}`}>
                 {p.text}
@@ -85,9 +106,7 @@ function Row({ row }: { row: ProblemRow }) {
               {row.charge.vendor && <span className="ft-caption"> · {row.charge.vendor}</span>}
             </p>
             {failing(row.status.reasons).map((r) => (
-              <p className="ft-problem__text" key={`${r.check}:${r.problem}`}>
-                {r.text}
-              </p>
+              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} />
             ))}
           </div>
           <div className="ft-problem__side">

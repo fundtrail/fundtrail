@@ -159,6 +159,29 @@ p {
   padding: var(--space-2) 0;
 }
 
+/* Read by screen readers, not shown. */
+.ft-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Fake mode, on every page. */
+.ft-fake-banner {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px dashed var(--rule-strong);
+  background: var(--paper-sunken);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* --- App shell --- */
 
 .ft-app {
@@ -443,6 +466,16 @@ p {
 }
 .ft-tag--rechecking {
   border-style: dashed;
+}
+.ft-status--accepted {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.ft-problem__side .ft-status--accepted {
+  align-items: flex-end;
+}
+.ft-tag--accepted {
+  border-color: var(--ink);
 }
 
 /* --- Problem list --- */

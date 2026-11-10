@@ -4,16 +4,14 @@
 // from the generated OpenAPI types later; the hooks and the client interface
 // stay the same.
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import useSWR, { SWRConfig, useSWRConfig } from "swr";
-import { useAuth } from "../auth";
-import { config, fakeApi } from "../config";
-import { HttpApiClient, type ApiClient } from "./client";
-import { FakeApiClient } from "./fake";
+import { useUserId } from "../auth";
+import type { ApiClient } from "./client";
 import type { Id } from "./types";
 
 export * from "./types";
-export { ApiError, type ApiClient } from "./client";
+export { ApiError, HttpApiClient, type ApiClient } from "./client";
 
 const ApiContext = createContext<ApiClient | null>(null);
 
@@ -30,16 +28,17 @@ const swrOptions = {
   shouldRetryOnError: false,
 } as const;
 
-export function ApiProvider({ client, children }: { client?: ApiClient; children: ReactNode }) {
-  const auth = useAuth();
-  const getAccessToken = auth.getAccessToken;
-  const value = useMemo<ApiClient>(
-    () => client ?? (fakeApi ? new FakeApiClient() : new HttpApiClient(config.apiUrl!, getAccessToken)),
-    [client, getAccessToken],
-  );
+/**
+ * Serves `client` to the screens. Each signed-in user gets a fresh cache, so
+ * after a sign-out nothing the last user loaded is left to show.
+ */
+export function ApiProvider({ client, children }: { client: ApiClient; children: ReactNode }) {
+  const userId = useUserId();
   return (
-    <ApiContext.Provider value={value}>
-      <SWRConfig value={swrOptions}>{children}</SWRConfig>
+    <ApiContext.Provider value={client}>
+      <SWRConfig key={userId ?? "signed-out"} value={{ ...swrOptions, provider: () => new Map() }}>
+        {children}
+      </SWRConfig>
     </ApiContext.Provider>
   );
 }
@@ -56,36 +55,37 @@ export function useRefresh(): () => Promise<unknown> {
   return () => mutate(() => true);
 }
 
-function useResource<T>(key: readonly unknown[] | null, load: () => Promise<T>) {
-  return useSWR<T>(key, load);
+/**
+ * One piece of server data. Nothing is requested until a user is signed in
+ * (the request carries their token), and the key names the user, so one
+ * user's data is never served to another.
+ */
+function useResource<T>(key: readonly unknown[] | null, load: (api: ApiClient) => Promise<T>) {
+  const api = useApi();
+  const userId = useUserId();
+  return useSWR<T>(userId && key ? [userId, ...key] : null, () => load(api));
 }
 
 export function useWorkspaces() {
-  const api = useApi();
-  return useResource(["workspaces"], () => api.listWorkspaces());
+  return useResource(["workspaces"], (api) => api.listWorkspaces());
 }
 
 export function useClock(workspaceId: Id | null) {
-  const api = useApi();
-  return useResource(workspaceId ? ["clock", workspaceId] : null, () => api.getClock(workspaceId!));
+  return useResource(workspaceId ? ["clock", workspaceId] : null, (api) => api.getClock(workspaceId!));
 }
 
 export function useGrants(workspaceId: Id | null) {
-  const api = useApi();
-  return useResource(workspaceId ? ["grants", workspaceId] : null, () => api.listGrants(workspaceId!));
+  return useResource(workspaceId ? ["grants", workspaceId] : null, (api) => api.listGrants(workspaceId!));
 }
 
 export function useGrant(grantId: Id) {
-  const api = useApi();
-  return useResource(["grant", grantId], () => api.getGrant(grantId));
+  return useResource(["grant", grantId], (api) => api.getGrant(grantId));
 }
 
 export function useProblemList(grantId: Id) {
-  const api = useApi();
-  return useResource(["problems", grantId], () => api.getProblemList(grantId));
+  return useResource(["problems", grantId], (api) => api.getProblemList(grantId));
 }
 
 export function useCharges(grantId: Id) {
-  const api = useApi();
-  return useResource(["charges", grantId], () => api.listCharges(grantId));
+  return useResource(["charges", grantId], (api) => api.listCharges(grantId));
 }

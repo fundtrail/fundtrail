@@ -40,4 +40,32 @@ export const CATEGORY_LABELS: Record<BudgetCategory, string> = {
   other: "Other",
 };
 
+/** Plain names for record kinds, for a row that has no file to name it by. */
+const RECORD_KIND_LABELS: Record<string, string> = {
+  period_of_performance: "Period of performance",
+  budget_line: "Budget line",
+  person: "Person",
+  approval_rule: "Approval rule",
+  rate: "Rate",
+  notice: "Funding notice",
+  other_term: "Other term",
+  bill: "Bill",
+  approval: "Approval",
+  note: "Note",
+  link: "Link",
+  budget_assignment: "Budget line assignment",
+  judgment: "Answer",
+  checklist_item: "Checklist item",
+  checklist_removal: "Checklist removal",
+  dispute: "Dispute",
+  duplicate: "Duplicate mark",
+};
+
+export function recordKindLabel(kind: string): string {
+  return RECORD_KIND_LABELS[kind] ?? kind.replaceAll("_", " ");
+}
+
+/** Funders, spelled out with their short form. NSF only for now. */
+export const FUNDER_LABELS: Record<string, string> = { NSF: "National Science Foundation (NSF)" };
+
 export const SOURCE_LABELS = { gmail: "Gmail", drive: "Google Drive", upload: "Upload" } as const;

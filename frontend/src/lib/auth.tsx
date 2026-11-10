@@ -1,10 +1,11 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { config, fakeAuth } from "./config";
 
 export interface SignedInUser {
+  /** The Supabase auth user ID. */
+  id: string;
   email: string;
   name: string | null;
 }
@@ -16,7 +17,7 @@ export type AuthState =
 
 export interface Auth {
   state: AuthState;
-  /** True when sign-in is faked because no Supabase project is configured. */
+  /** True in fake mode: a synthetic user, no Supabase project. */
   fake: boolean;
   signIn(): Promise<void>;
   signOut(): Promise<void>;
@@ -26,64 +27,63 @@ export interface Auth {
 
 const AuthContext = createContext<Auth | null>(null);
 
-// --- Supabase: Google sign-in through Supabase Auth ---
+// --- Real: Google sign-in through Supabase Auth ---
 
 let supabase: SupabaseClient | null = null;
-function supabaseClient(): SupabaseClient {
+function supabaseClient(url: string, anonKey: string): SupabaseClient {
   if (!supabase) {
-    supabase = createClient(config.supabaseUrl!, config.supabaseAnonKey!, {
+    supabase = createClient(url, anonKey, {
       auth: { flowType: "pkce", persistSession: true, detectSessionInUrl: true, autoRefreshToken: true },
     });
   }
   return supabase;
 }
 
-function useSupabaseAuth(): Auth {
+function userFrom(session: Session): SignedInUser {
+  const meta = session.user.user_metadata ?? {};
+  const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
+  return { id: session.user.id, email: session.user.email ?? "", name };
+}
+
+function useSupabaseAuth(url: string, anonKey: string): Auth {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   useEffect(() => {
-    const client = supabaseClient();
-    const show = (session: { user: { email?: string; user_metadata?: Record<string, unknown> } } | null) => {
-      if (!session) {
-        setState({ status: "signed_out" });
-        return;
-      }
-      const meta = session.user.user_metadata ?? {};
-      const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
-      setState({ status: "signed_in", user: { email: session.user.email ?? "", name } });
-    };
+    const client = supabaseClient(url, anonKey);
+    const show = (session: Session | null) =>
+      setState(session ? { status: "signed_in", user: userFrom(session) } : { status: "signed_out" });
     client.auth.getSession().then(({ data }) => show(data.session));
     const { data } = client.auth.onAuthStateChange((_event, session) => show(session));
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [url, anonKey]);
 
   return useMemo<Auth>(
     () => ({
       state,
       fake: false,
       async signIn() {
-        const { error } = await supabaseClient().auth.signInWithOAuth({
+        const { error } = await supabaseClient(url, anonKey).auth.signInWithOAuth({
           provider: "google",
           options: { redirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
       },
       async signOut() {
-        await supabaseClient().auth.signOut();
+        await supabaseClient(url, anonKey).auth.signOut();
       },
       async getAccessToken() {
-        const { data } = await supabaseClient().auth.getSession();
+        const { data } = await supabaseClient(url, anonKey).auth.getSession();
         return data.session?.access_token ?? null;
       },
     }),
-    [state],
+    [state, url, anonKey],
   );
 }
 
-// --- The fake: no Supabase project needed. The session lives in this browser tab's storage. ---
+// --- Fake mode: a synthetic user. The session lives in this browser's storage. ---
 
 const FAKE_KEY = "fundtrail.fake-session";
-const FAKE_USER: SignedInUser = { email: "accountant@university.example", name: "Demo accountant" };
+export const FAKE_USER: SignedInUser = { id: "user-fake", email: "accountant@university.example", name: "Demo accountant" };
 
 function readFakeSession(): boolean {
   try {
@@ -134,16 +134,12 @@ function useFakeAuth(): Auth {
   );
 }
 
-function SupabaseAuthProvider({ children }: { children: ReactNode }) {
-  return <AuthContext.Provider value={useSupabaseAuth()}>{children}</AuthContext.Provider>;
+export function SupabaseAuthProvider({ url, anonKey, children }: { url: string; anonKey: string; children: ReactNode }) {
+  return <AuthContext.Provider value={useSupabaseAuth(url, anonKey)}>{children}</AuthContext.Provider>;
 }
 
-function FakeAuthProvider({ children }: { children: ReactNode }) {
+export function FakeAuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={useFakeAuth()}>{children}</AuthContext.Provider>;
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  return fakeAuth ? <FakeAuthProvider>{children}</FakeAuthProvider> : <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
 }
 
 /** For tests: a fixed auth state. */
@@ -153,6 +149,12 @@ export function StaticAuthProvider({ value, children }: { value: Auth; children:
 
 export function useAuth(): Auth {
   const auth = useContext(AuthContext);
-  if (!auth) throw new Error("useAuth needs an AuthProvider");
+  if (!auth) throw new Error("useAuth needs an auth provider");
   return auth;
+}
+
+/** The signed-in user's ID, or null. */
+export function useUserId(): string | null {
+  const { state } = useAuth();
+  return state.status === "signed_in" ? state.user.id : null;
 }

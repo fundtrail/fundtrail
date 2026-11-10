@@ -4,7 +4,7 @@ import { date } from "@/lib/format";
 
 /** A grant's name before its award letter has been read. */
 export function grantName(summary: GrantSummary): string {
-  return summary.grant.title || summary.grant.award_number || "New grant, award letter being read";
+  return summary.grant.title || summary.grant.award_number || "Untitled grant";
 }
 
 /**
@@ -46,7 +46,10 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
               </td>
               <td>
                 {g.on_problem_list > 0 ? (
-                  <span className="ft-count ft-count--alert">{g.on_problem_list}</span>
+                  <span className="ft-count ft-count--alert">
+                    {g.on_problem_list}
+                    <span className="ft-sr"> on the problem list</span>
+                  </span>
                 ) : (
                   <span className="ft-caption">None</span>
                 )}

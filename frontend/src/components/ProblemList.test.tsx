@@ -114,6 +114,30 @@ describe("ProblemList", () => {
     expect(shownOrder()).toEqual(["terms_waiting:1 term waiting to be confirmed", "charge:L-1002"]);
   });
 
+  it("shows when a missing item is expected and marks an accepted reason", () => {
+    const missing = { ...reason("missing_evidence", "A bill isn't on file."), expected_by: "2025-12-18" };
+    const accepted = { ...reason("needs_human", "The agent is unsure."), accepted_by: "rec-accept" };
+    render(<ProblemList rows={[{ kind: "charge", charge: charge("c1", "L-1", "2025-01-01", "A charge"), status: status("needs_human", [missing, accepted]) }]} />);
+    expect(screen.getByText(/Expected by Dec 18, 2025/)).toBeInTheDocument();
+    expect(within(screen.getByText("The agent is unsure.")).getByText("Accepted")).toBeInTheDocument();
+  });
+
+  it("names a record that has no file by its kind and date", () => {
+    render(
+      <ProblemList
+        rows={[
+          {
+            kind: "record",
+            status: { grant_id: "g", record_id: "r1", file_id: null, problems: [{ check: "terms", problem: "disagree", text: "Confirmed terms disagree.", record_ids: [] }], flagged: true, accepted: false, snoozed: false },
+            record: { id: "r1", workspace_id: "ws", grant_id: "g", author: "agent", author_user_id: null, written_at: "2026-03-02T10:00:00Z", replaces_id: null, data: { kind: "approval_rule" } },
+            file: null,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Approval rule, written Mar 2, 2026")).toBeInTheDocument();
+  });
+
   it("says so when nothing is on the list", () => {
     render(<ProblemList rows={[]} />);
     expect(screen.getByText("Nothing on the problem list.")).toBeInTheDocument();

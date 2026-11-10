@@ -1,5 +1,5 @@
 import type { GrantSummary } from "@/lib/api";
-import { date } from "@/lib/format";
+import { date, FUNDER_LABELS } from "@/lib/format";
 import { grantName } from "./GrantList";
 
 /** Where a grant stands, at the top of its pages: its name, readiness and dates. Counts only, never a percentage. */
@@ -10,7 +10,8 @@ export function GrantHeader({ summary }: { summary: GrantSummary }) {
       <div>
         <p className="ft-caption">
           {grant.award_number && <span className="ft-id">{grant.award_number}</span>}
-          {grant.award_number && " · "}National Science Foundation (NSF)
+          {grant.award_number && " · "}
+          {FUNDER_LABELS[grant.funder] ?? grant.funder}
         </p>
         <h1 className="ft-title">{grantName(summary)}</h1>
         <p className="ft-caption">

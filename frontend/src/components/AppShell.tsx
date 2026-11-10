@@ -14,7 +14,12 @@ function NavLink({ href, children, count }: { href: string; children: ReactNode;
   return (
     <Link href={href} className={`ft-nav__item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
       <span>{children}</span>
-      {count !== undefined && count > 0 && <span className="ft-count ft-count--alert">{count}</span>}
+      {count !== undefined && count > 0 && (
+        <span className="ft-count ft-count--alert">
+          {count}
+          <span className="ft-sr"> on the problem list</span>
+        </span>
+      )}
     </Link>
   );
 }

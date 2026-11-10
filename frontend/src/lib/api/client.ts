@@ -41,8 +41,9 @@ export class HttpApiClient implements ApiClient {
 
   private async get<T>(path: string): Promise<T> {
     const token = await this.getAccessToken();
-    const headers: Record<string, string> = { Accept: "application/json" };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    // Every request carries the token. Without one, nothing is sent.
+    if (!token) throw new ApiError(401, "Not signed in");
+    const headers = { Accept: "application/json", Authorization: `Bearer ${token}` };
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, { headers });
     if (!response.ok) {
       let detail: unknown = null;

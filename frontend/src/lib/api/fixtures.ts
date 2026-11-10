@@ -5,7 +5,8 @@
 // The sample grant is shown on Apr 9, 2026: the extension notice has arrived
 // from Drive and waits for the accountant, so the old end date stays in force
 // and L-1002 is in Possible conflict. The second grant is a made-up companion
-// so the fake shows a grant problem, a record problem and a grant note.
+// so the fake shows a grant problem (spending over the award's limit, one of
+// the four code raises), a file problem and a grant note.
 //
 // Every status text here stands in for text the server builds. The screens show
 // it as it comes.
@@ -224,6 +225,41 @@ const kelpLines = {
   ms: budgetLine("kelp-ms", KELP_GRANT_ID, kelpLetter.id, "Materials and Supplies", 2_500_000, "materials_and_supplies", "2024-08-20T16:10:00Z"),
 };
 
+// The award letter: its period, and the funding notice that sets the award's
+// limit, "Total Amount Obligated to Date".
+const kelpPeriod: FtRecord = {
+  id: "kelp-period",
+  workspace_id: DEMO_WORKSPACE_ID,
+  grant_id: KELP_GRANT_ID,
+  author: "agent",
+  author_user_id: null,
+  written_at: "2024-08-20T16:10:00Z",
+  replaces_id: null,
+  data: {
+    kind: "period_of_performance",
+    dated: cited("2024-08-15", kelpLetter.id, "August 15, 2024", 40),
+    start: cited("2024-09-01", kelpLetter.id, "September 1, 2024", 410),
+    end: cited("2026-06-30", kelpLetter.id, "June 30, 2026", 438),
+  },
+};
+const kelpNotice: FtRecord = {
+  id: "kelp-notice",
+  workspace_id: DEMO_WORKSPACE_ID,
+  grant_id: KELP_GRANT_ID,
+  author: "agent",
+  author_user_id: null,
+  written_at: "2024-08-20T16:10:00Z",
+  replaces_id: null,
+  data: {
+    kind: "notice",
+    dated: cited("2024-08-15", kelpLetter.id, "August 15, 2024", 40),
+    amendment_number: cited("000", kelpLetter.id, "000", 120),
+    amendment_type: cited("New Project", kelpLetter.id, "New Project", 140),
+    obligated_by_amendment: cited(600_000, kelpLetter.id, "6,000", 180),
+    obligated_to_date: cited(600_000, kelpLetter.id, "6,000", 220),
+  },
+};
+
 const k201 = charge("charge-k201", KELP_GRANT_ID, "K-0201", "2025-10-03", "2025-10-07", 182_450, "Field season flights, Example Harbor", "52010 Domestic Travel", "Example Air", "TRV-0931");
 const k202 = charge("charge-k202", KELP_GRANT_ID, "K-0202", "2025-12-15", "2025-12-18", 98_000, "Dive tank refills, December", "55016 Lab Instruments and Supplies", "Example Dive Supply", null);
 const k203 = charge("charge-k203", KELP_GRANT_ID, "K-0203", "2026-01-09", "2026-01-12", 420_000, "Underwater camera housing", "55016 Lab Instruments and Supplies", "Example Optics Ltd.", "KF-2210");
@@ -234,11 +270,11 @@ const k201Status = status(k201, "needs_human", [
   pass("checklist", "Bills on file cover $1,824.50 of $1,824.50."),
 ], { flagged: true });
 const k202Status = status(k202, "missing_evidence", [
-  reason("checklist", "missing_item", "missing_evidence", "A bill that adds up to the charge isn't on file. Expected by Dec 18, 2025.", { expected_by: "2025-12-18" }),
+  reason("checklist", "missing_item", "missing_evidence", "A bill that adds up to the charge isn't on file.", { expected_by: "2025-12-18" }),
 ], { flagged: true });
 const k203Status = status(k203, "evidence_complete", [pass("checklist", "Bills on file cover $4,200.00 of $4,200.00.")], { rechecking: true });
 const k204Status = status(k204, "missing_evidence", [
-  reason("checklist", "missing_item", "missing_evidence", "A written justification isn't on file. Expected by Feb 4, 2026.", { expected_by: "2026-02-04", accepted_by: "rec-accept-k204" }),
+  reason("checklist", "missing_item", "missing_evidence", "A written justification isn't on file.", { expected_by: "2026-02-04", accepted_by: "rec-accept-k204" }),
 ], { accepted: true });
 
 const kelpSummary: GrantSummary = {
@@ -284,6 +320,8 @@ export const grantDetails: Record<string, GrantDetail> = {
   [KELP_GRANT_ID]: {
     summary: kelpSummary,
     terms: terms([
+      [kelpPeriod, "counts"],
+      [kelpNotice, "counts"],
       [kelpLines.travel, "counts"],
       [kelpLines.odc, "counts"],
       [kelpLines.ms, "counts"],
@@ -294,7 +332,7 @@ export const grantDetails: Record<string, GrantDetail> = {
         { line: kelpLines.odc, amount_cents: 4_000_000, spent_cents: 503_000 },
         { line: kelpLines.ms, amount_cents: 2_500_000, spent_cents: 503_000 },
       ],
-      limit_cents: null,
+      limit_cents: 600_000,
       spent_cents: 685_450,
     },
     grant_notes: [{ grant_id: KELP_GRANT_ID, check: "budget", text: "Travel: $1,824.50 of $1,500.00", record_ids: [kelpLines.travel.id] }],
@@ -319,9 +357,9 @@ export const problemLists: Record<string, ProblemList> = {
         kind: "grant",
         problem: {
           check: "budget",
-          problem: "no_award_limit",
-          text: "No confirmed funding notice gives the award's limit.",
-          record_ids: [],
+          problem: "over_award_limit",
+          text: "Spending of $6,854.50 is over the award's limit of $6,000.00.",
+          record_ids: [kelpNotice.id],
           flagged: true,
           accepted: false,
           snoozed: false,
