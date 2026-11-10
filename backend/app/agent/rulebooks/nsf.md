@@ -7,10 +7,27 @@ Each rule below was checked against its source on the date it shows. A rule goes
 **Sources and editions.**
 
 - 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200), the federal Uniform Guidance, as published on the Electronic Code of Federal Regulations (eCFR), current as of November 6, 2026.
-- NSF's Grant General Conditions (GC-1), the edition dated July 31, 2026. GC-1 numbers its parts "Term and Condition No.". An award notice states which conditions govern it and their date.
+- NSF's Grant General Conditions (GC-1), the edition dated July 31, 2026. GC-1 numbers its parts "Term and Condition No.".
+- NSF's Prior Approval Matrix, dated October 1, 2024.
+- The older conditions: the Research Terms and Conditions (RTC) overlay dated November 12, 2020, its Appendix A, Prior Approval Matrix (November 12, 2020), and NSF's RTC Agency Specific Requirements (ASR) dated May 20, 2024.
 - NSF's Proposal and Award Policies and Procedures Guide (PAPPG), NSF 24-1, with Supplement 1 (NSF 26-200, for awards made on or after December 8, 2025) and Supplement 2 (NSF 26-202, for awards made on or after January 22, 2026, on public access and data sharing).
 
 Where a rule says "the university", it means the recipient of the award.
+
+**Which conditions govern an award.** GC-1 applies to NSF grants issued on or after October 1, 2024, and each GC-1 edition applies to new grants and to funding amendments dated on or after its own date. A grant issued before October 1, 2024 follows the conditions issued at the time of award: for a university, the RTC with NSF's ASR. The award notice, and each later amendment, states which conditions govern and their date.
+
+**On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made, which this rulebook hasn't compared.
+
+**Older citations for the terms code checks.** These six terms are checked by code, not by a rule below; the older conditions say the same thing in these places.
+
+| Term | GC-1 (July 31, 2026) and the Prior Approval Matrix (October 1, 2024) | RTC (November 12, 2020) and NSF's ASR (May 20, 2024) |
+|---|---|---|
+| Pre-award costs within 90 days | [GC-1 No. 5.a](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf) | [RTC overlay, 200.308(e)(1)](https://nsf-gov-resources.nsf.gov/files/rtcoverlay-nov20-r.pdf); [Appendix A, 200.308(e)(1), NSF: Waived](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf) |
+| The first extension, with ten days' notice | [GC-1 No. 6.a and 6.b](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf) | [RTC overlay, 200.308(e)(2)](https://nsf-gov-resources.nsf.gov/files/rtcoverlay-nov20-r.pdf); [Appendix A, 200.308(e)(2), NSF: Waived for the first, Required for a later one or one over 12 months](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf) |
+| Moving money between budget categories | [Prior Approval Matrix, 200.308(i), Waived](https://nsf-gov-resources.nsf.gov/files/NSF-prior-approval-matrix-20241001-r.pdf); PAPPG X.A.3 | [Appendix A, 200.308(f), NSF: Waived](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf); PAPPG X.A.3 |
+| Moving participant support to other uses needs the Program Officer's written approval | [GC-1 No. 3.b](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf); [Prior Approval Matrix, 200.308(f)(5), footnote 2](https://nsf-gov-resources.nsf.gov/files/NSF-prior-approval-matrix-20241001-r.pdf) | [ASR Article 13.b](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf); [Appendix A, 200.308(c)(5), footnote 2](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf) |
+| Prior approval requests go through Research.gov | [GC-1 No. 2.b](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf) | [ASR Article 2](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf) |
+| U.S.-flag air carriers | [GC-1 No. 10.c and 10.d](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf) | [ASR Article 14.c and 14.d](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf) |
 
 **How a rule's kind decides the answer.** Each rule sits under one of three kinds, and each rule repeats its kind on a `- Kind:` line. A not-allowed rule gives contradicts when the documents show that kind of cost, unless they show the exception the rule states. An allowed-under-a-condition rule gives supports when a document shows the condition is met, and contradicts when no document does. A judgment rule gives a flag, not contradicts, unless the rule itself names a comparison that gives contradicts.
 
@@ -19,7 +36,7 @@ Where a rule says "the university", it means the recipient of the award.
 - 2 CFR 200 Subpart E: 200.400 to 200.402, 200.404 to 200.412, 200.414 to 200.419, 200.427, 200.428, 200.436, 200.440, 200.443, 200.452, 200.457, 200.460, 200.462, 200.468, 200.474 and 200.476, and most of 200.430. Parts of 200.431, 200.435, 200.446, 200.449, 200.450, 200.464, 200.465 and 200.470 are unread too. Every section from 200.420 to 200.476 was searched for "unallowable" and "not allowable", and each hit was read.
 - NSF PAPPG 24-1: every chapter except Chapter X and Chapter II.D.2.f(v) and II.D.2.f(xiii) is unread, including Chapter VI.D.3.c on further extensions. Of Supplement 1, only its list of changes and items 4 and 13 were read. Supplement 2 was read in full.
 - NSF GC-1 beyond Term and Condition Nos. 1 to 12.
-- NSF's Prior Approval Matrix, and the Research Terms and Conditions that govern awards made before October 1, 2024.
+- The older conditions beyond the parts named here: NSF's ASR editions before May 20, 2024 (an award made before that date cites one of them), RTC editions before November 12, 2020, and RTC Appendices B and C. Of the RTC overlay, only its 200.308 clarification was read, and the rest was searched by keyword. Of the ASR of May 20, 2024, Articles 1 to 7, 13, 14.a to 14.d and 24 were read, and the rest was searched by keyword.
 
 A cost that no rule here names isn't thereby allowed. The agent still answers whether it is necessary, reasonable and allocable to the award.
 
@@ -32,6 +49,7 @@ Airfare above the basic least expensive unrestricted class is not allowed. A hig
 - Kind: allowed under a condition
 - Source: [2 CFR 200.475(e)](https://www.ecfr.gov/current/title-2/part-200/section-200.475#p-200.475(e))
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 10.a.2](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
+- Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 14.a.2](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
 - Quote: "the difference between economy airfare and a higher-class airfare is unallowable" (GC-1 No. 10.a.2)
 - Checked: 2026-11-10
 
@@ -41,6 +59,7 @@ Air travel to, from, between or within countries other than the U.S. paid with N
 
 - Kind: allowed under a condition
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 10.c and 10.d](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
+- Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 14.c and 14.d](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
 - Checked: 2026-11-10
 
 ### NSF-MEALS-NOT-TRAVELING
@@ -80,14 +99,17 @@ Consultant and professional service costs are allowed only for people who are no
 - Kind: allowed under a condition
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 7](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Source: [2 CFR 200.459(a)](https://www.ecfr.gov/current/title-2/part-200/section-200.459#p-200.459(a))
+- Older status: unread (GC-1 No. 7's sentence on justifying the rate of pay wasn't found in the RTC overlay or the ASR of May 20, 2024; the 2 CFR 200.459 part applies to both)
 - Checked: 2026-11-10
 
 ### NSF-ADMIN-SALARIES
 
-Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs.
+Administrative and clerical staff salaries are normally indirect costs. They may be charged directly only when all three hold: the services are integral to the award, the people can be specifically identified with the award, and the costs are not also recovered as indirect costs. On an award under the older conditions, RTC Appendix A also marks NSF's prior approval as required to charge them directly.
 
 - Kind: allowed under a condition
 - Source: [2 CFR 200.413(c)](https://www.ecfr.gov/current/title-2/part-200/section-200.413#p-200.413(c))
+- Older source: [RTC Appendix A, Prior Approval Matrix (November 12, 2020), 200.413(c), NSF column: Required](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf)
+- Quote: "Direct charge the salaries of administrative and clerical staff if all conditions in 200.413 are met, excluding 200.413(c)(3)." (RTC Appendix A, row 200.413(c))
 - Checked: 2026-11-10
 
 ### NSF-VISAS
@@ -119,6 +141,7 @@ Promotional items and memorabilia are not allowed, and neither is advertising or
 - Kind: not allowed
 - Source: [2 CFR 200.421(e)](https://www.ecfr.gov/current/title-2/part-200/section-200.421#p-200.421(e))
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 3.a](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
+- Older source: [NSF RTC Agency Specific Requirements (May 20, 2024), Article 13.a](https://nsf-gov-resources.nsf.gov/files/nsf-research-terms-conditions-20240520-r.pdf)
 - Checked: 2026-11-10
 
 ### NSF-NEVER-ENTERTAINMENT
@@ -283,6 +306,11 @@ The university may extend the end date once, by up to 12 months, on its own, but
 - Kind: judgment
 - Source: [NSF GC-1 (July 31, 2026), Term and Condition No. 6.a to 6.c and footnote 4](https://nsf-gov-resources.nsf.gov/files/gc1_7_31_2026.pdf)
 - Source: [2 CFR 200.308(g)(2)](https://www.ecfr.gov/current/title-2/part-200/section-200.308#p-200.308(g)(2))
+- Older source: [RTC overlay (November 12, 2020), 200.308(e)(2)](https://nsf-gov-resources.nsf.gov/files/rtcoverlay-nov20-r.pdf)
+- Older source: [RTC Appendix A, Prior Approval Matrix (November 12, 2020), 200.308(e)(2), NSF column](https://nsf-gov-resources.nsf.gov/files/appendix-a-r.pdf)
+- Older status: partly unread (no older equivalent was found for filing the notice through Research.gov or for the zero-balance limit)
+- Quote: "For one-time extensions, the recipient must notify the Federal awarding agency in writing with the supporting reasons and revised end date at least 10 days before the final end date of the period of performance specified in the award." (RTC overlay, 200.308(e)(2))
+- Quote: "Subsequent no-cost extension or extension of more than 12 months." (RTC Appendix A, row 200.308(e)(2), NSF: Required)
 - Quote: "this one-time extension may not be exercised merely for the purpose of using any unliquidated balances" (GC-1 No. 6.a)
 - Quote: "The recipient is not authorized to extend an award that contains a zero balance." (GC-1 No. 6, footnote 4)
 - Checked: 2026-11-10
