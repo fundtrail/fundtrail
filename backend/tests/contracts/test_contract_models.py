@@ -9,7 +9,15 @@ from pydantic import BaseModel, ValidationError
 
 from app.contracts import api
 from app.contracts.charges import Charge, LedgerRow
-from app.contracts.checks import Bucket, ChargeStatus, ChecklistEntry, ChecksInput, ItemSource, Reason, run_checks
+from app.contracts.checks import (
+    Bucket,
+    ChargeStatus,
+    ChecklistEntry,
+    ChecksInput,
+    ItemSource,
+    Reason,
+    run_checks,
+)
 from app.contracts.records import (
     BudgetCategory,
     Citation,
@@ -65,7 +73,11 @@ def test_timestamps_are_aware_and_stored_in_utc():
 
 
 def test_record_rules():
-    uncited = {"kind": "period_of_performance", "dated": {"value": "2023-01-10"}, "end": {"value": "2026-01-31"}}
+    uncited = {
+        "kind": "period_of_performance",
+        "dated": {"value": "2023-01-10"},
+        "end": {"value": "2026-01-31"},
+    }
     record(data=uncited)  # the accountant enters a value with no citation
     flag = answer("supports", question="flag", text="Odd?")
     for bad in (
@@ -78,7 +90,14 @@ def test_record_rules():
     for bad in (
         {"data": {"kind": "sign_off"}},  # only the accountant signs off
         {"data": {"kind": "confirmation", "record_ids": ["x"]}},
-        {"data": {"kind": "snooze", "until": "2026-03-01", "note": "n", "reasons": [{"check": "c", "problem": "p"}]}},
+        {
+            "data": {
+                "kind": "snooze",
+                "until": "2026-03-01",
+                "note": "n",
+                "reasons": [{"check": "c", "problem": "p"}],
+            }
+        },
         {"data": uncited},  # the agent always cites
         {"data": link(part=None)},  # the agent's link has a part
         {"data": flag},  # the agent's flag is unsure
@@ -97,7 +116,9 @@ def test_nested_values_need_citations_too():
     paths = [
         p
         for p, _ in cited_values(
-            agent_record(data=bill() | {"items": [{"description": cited("x", "x"), "amount": cited(1, "1")}]}).data
+            agent_record(
+                data=bill() | {"items": [{"description": cited("x", "x"), "amount": cited(1, "1")}]}
+            ).data
         )
     ]
     assert paths == ["total", "items[0].description", "items[0].amount"]
@@ -108,11 +129,18 @@ def test_citation_rules():
     Citation.model_validate({"file_id": "f", "passage": None, "location": box, "match": "exact"})
     pages = {"type": "page_location", "start_page_number": 1, "end_page_number": 2}
     highlight = [{"page": 1, "left": 0.1, "top": 0.1, "width": 0.5, "height": 0.02}]
-    Citation.model_validate({"file_id": "f", "passage": "p", "location": pages, "highlight": highlight})
+    Citation.model_validate(
+        {"file_id": "f", "passage": "p", "location": pages, "highlight": highlight}
+    )
     for bad in (
         {"file_id": "f", "passage": "typed by the model", "location": box},
         {"file_id": "f", "passage": None, "location": pages},
-        {"file_id": "f", "passage": "p", "location": citation()["location"], "highlight": highlight},
+        {
+            "file_id": "f",
+            "passage": "p",
+            "location": citation()["location"],
+            "highlight": highlight,
+        },
         {"file_id": "f", "passage": None, "location": box | {"left": 0.9}},  # off the page
         {
             "file_id": "f",
@@ -165,15 +193,27 @@ def test_accepted_reasons_and_snoozes_are_about_at_most_one_thing():
     reason = {"check": "budget", "problem": "over_limit"}
     record(data={"kind": "accepted_reason", "reason": reason, "note": "Known."})  # the grant itself
     with pytest.raises(ValidationError):
-        record(data={"kind": "accepted_reason", "reason": reason, "note": "n", "charge_id": "c", "file_id": "f"})
+        record(
+            data={
+                "kind": "accepted_reason",
+                "reason": reason,
+                "note": "n",
+                "charge_id": "c",
+                "file_id": "f",
+            }
+        )
 
 
 def test_budget_categories():
-    assert categories_match(BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER_DIRECT_COSTS)
+    assert categories_match(
+        BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER_DIRECT_COSTS
+    )
     assert categories_match(BudgetCategory.OTHER_DIRECT_COSTS, BudgetCategory.OTHER)
     assert categories_match(BudgetCategory.TRAVEL, BudgetCategory.TRAVEL)
     assert not categories_match(BudgetCategory.MATERIALS_AND_SUPPLIES, BudgetCategory.OTHER)
-    assert not categories_match(BudgetCategory.PARTICIPANT_SUPPORT, BudgetCategory.OTHER_DIRECT_COSTS)
+    assert not categories_match(
+        BudgetCategory.PARTICIPANT_SUPPORT, BudgetCategory.OTHER_DIRECT_COSTS
+    )
 
 
 def test_ledger_row_becomes_a_charge():
@@ -195,14 +235,29 @@ def test_ledger_row_becomes_a_charge():
 def test_a_charges_bucket_is_its_most_serious_reason():
     reasons = [
         Reason(check="checklist", problem="missing", bucket=Bucket.MISSING_EVIDENCE, text="x"),
-        Reason(check="period_of_performance", problem="after_end_date", bucket=Bucket.POSSIBLE_CONFLICT, text="y"),
+        Reason(
+            check="period_of_performance",
+            problem="after_end_date",
+            bucket=Bucket.POSSIBLE_CONFLICT,
+            text="y",
+        ),
     ]
     ChargeStatus(
-        grant_id="g", charge_id="c", bucket=Bucket.POSSIBLE_CONFLICT, reasons=reasons, checklist=[], flagged=True
+        grant_id="g",
+        charge_id="c",
+        bucket=Bucket.POSSIBLE_CONFLICT,
+        reasons=reasons,
+        checklist=[],
+        flagged=True,
     )
     with pytest.raises(ValidationError):
         ChargeStatus(
-            grant_id="g", charge_id="c", bucket=Bucket.MISSING_EVIDENCE, reasons=reasons, checklist=[], flagged=True
+            grant_id="g",
+            charge_id="c",
+            bucket=Bucket.MISSING_EVIDENCE,
+            reasons=reasons,
+            checklist=[],
+            flagged=True,
         )
 
 
@@ -224,7 +279,13 @@ def test_triggers_name_what_changed_except_the_clock():
 
 
 def test_thread_message_rules():
-    base: dict[str, Any] = {"id": "m", "workspace_id": "w", "grant_id": "g", "text": "Why?", "written_at": at(0)}
+    base: dict[str, Any] = {
+        "id": "m",
+        "workspace_id": "w",
+        "grant_id": "g",
+        "text": "Why?",
+        "written_at": at(0),
+    }
     ThreadMessage.model_validate(base | {"charge_id": "c", "author": "user", "author_user_id": "u"})
     ThreadMessage.model_validate(base | {"record_id": "r", "author": "agent", "run_id": "run1"})
     for bad in (

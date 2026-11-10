@@ -35,7 +35,12 @@ class Bucket(StrEnum):
 
 
 # Most serious first. A charge's bucket is the most serious among its reasons.
-SEVERITY = (Bucket.POSSIBLE_CONFLICT, Bucket.NEEDS_HUMAN, Bucket.MISSING_EVIDENCE, Bucket.EVIDENCE_COMPLETE)
+SEVERITY = (
+    Bucket.POSSIBLE_CONFLICT,
+    Bucket.NEEDS_HUMAN,
+    Bucket.MISSING_EVIDENCE,
+    Bucket.EVIDENCE_COMPLETE,
+)
 
 
 def most_serious(buckets: list[Bucket]) -> Bucket:
@@ -54,12 +59,14 @@ class Problem(Model):
 
 
 class Reason(Problem):
-    """One reason on a charge. A charge's reasons include the checks that pass; a pass is evidence_complete."""
+    """One reason on a charge. The reasons include the checks that pass, as evidence_complete."""
 
     bucket: Bucket  # the bucket this reason puts the charge in
     expected_by: date | None = None  # for a missing item: when it's expected
     accepted_by: Id | None = None  # the accepted reason, or the confirmed dispute, that accepts it
-    offered_note_id: Id | None = None  # a reusable note offered for it: the accepted reason that holds the note
+    offered_note_id: Id | None = (
+        None  # a reusable note offered for it: the accepted reason that holds the note
+    )
 
 
 class ItemSource(StrEnum):
@@ -110,7 +117,7 @@ class ChargeStatus(Model):
 
 
 class RecordStatus(Model):
-    """A record or a file with a problem of its own, such as a bill linked for more than its total."""
+    """A record or file with a problem of its own, such as a bill linked over its total."""
 
     grant_id: Id
     record_id: Id | None = None
@@ -128,7 +135,7 @@ class RecordStatus(Model):
 
 
 class GrantStatus(Model):
-    """Problems on the grant itself, such as spending over the award's limit. They go on the problem list."""
+    """Problems on the grant itself, such as spending over the award's limit. They're listed."""
 
     grant_id: Id
     problems: list[Problem]
@@ -138,7 +145,7 @@ class GrantStatus(Model):
 
 
 class GrantNote(Model):
-    """Anything else about the grant as a whole, such as an overspent budget line. A note isn't a problem."""
+    """Anything else about the whole grant, such as an overspent budget line. Not a problem."""
 
     grant_id: Id
     check: Id
@@ -197,8 +204,10 @@ class RunChecks(Protocol):
 
 
 def run_checks(checks_input: ChecksInput) -> ChecksOutput:
-    """Rerun every check: each charge's status, records and files with problems, the grant's problems,
-    the open questions and the grant notes.
+    """Rerun every check.
+
+    Returns each charge's status, records and files with problems, the grant's
+    problems, the open questions and the grant notes.
 
     Declared here as the interface only. W2 implements it in backend/app/checks/.
     """

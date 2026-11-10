@@ -60,7 +60,12 @@ def test_pointed_records_and_charges_exist_and_are_current():
 
 def test_records_may_point_to_a_waiting_term():
     term = agent("t1", budget_line())
-    assignment = {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1", "reason": "Supplies."}
+    assignment = {
+        "kind": "budget_assignment",
+        "charge_id": "c1",
+        "record_id": "t1",
+        "reason": "Supplies.",
+    }
     assert problems(agent("a1", assignment, 1), [term]) == []
 
 
@@ -73,8 +78,14 @@ def test_the_agent_replaces_only_the_accountants_links_and_answers():
     assert problems(agent("l2", link(amount=600), 2, replaces_id="l1"), written) == []
     assert problems(agent("x", {"kind": "retraction"}, 2, replaces_id="l1"), written) == []
     assert problems(agent("j2", answer("supports"), 2, replaces_id="j1"), written) == []
-    assert has(problems(agent("x", {"kind": "retraction"}, 2, replaces_id="j1"), written), "links and answers")
-    assert has(problems(agent("b3", bill(1400, "$14.00"), 2, replaces_id="b2"), [b, their_bill]), "links and answers")
+    assert has(
+        problems(agent("x", {"kind": "retraction"}, 2, replaces_id="j1"), written),
+        "links and answers",
+    )
+    assert has(
+        problems(agent("b3", bill(1400, "$14.00"), 2, replaces_id="b2"), [b, their_bill]),
+        "links and answers",
+    )
 
 
 def test_a_replacement_is_the_same_kind_or_a_retraction():
@@ -90,24 +101,41 @@ def test_a_new_answer_is_to_the_same_question():
 
 def test_a_link_points_to_a_bill_approval_or_note():
     t = user("t1", budget_line())
-    assert has(problems(agent("l1", link(record_id="t1", part=citation(file_id="f3"))), [t]), "not a budget_line")
+    assert has(
+        problems(agent("l1", link(record_id="t1", part=citation(file_id="f3"))), [t]),
+        "not a budget_line",
+    )
 
 
 def test_a_link_carries_an_amount_only_when_its_item_does():
     b, a = agent("b1", bill()), agent("a1", approval())
-    approval_link = link(record_id="a1", amount=None, default_item=None, part=citation("Approved: travel", "f2"))
+    approval_link = link(
+        record_id="a1", amount=None, default_item=None, part=citation("Approved: travel", "f2")
+    )
     assert problems(agent("l1", approval_link, 1), [b, a]) == []
-    assert has(problems(agent("l1", approval_link | {"amount_cents": 100}, 1), [b, a]), "carries an amount only")
+    assert has(
+        problems(agent("l1", approval_link | {"amount_cents": 100}, 1), [b, a]),
+        "carries an amount only",
+    )
     assert has(problems(agent("l1", link(amount=None), 1), [b]), "says how much")
 
 
 def test_a_link_names_an_item_on_its_charge():
     b = agent("b1", bill())
-    assert has(problems(agent("l1", link(default_item="nope"), 1), [b]), "isn't one of this charge's default")
-    item: dict[str, Any] = {"kind": "checklist_item", "charge_id": "c2", "needed": "Receipt", "amount_cents": 1200}
+    assert has(
+        problems(agent("l1", link(default_item="nope"), 1), [b]),
+        "isn't one of this charge's default",
+    )
+    item: dict[str, Any] = {
+        "kind": "checklist_item",
+        "charge_id": "c2",
+        "needed": "Receipt",
+        "amount_cents": 1200,
+    }
     added = agent("i1", item)
     assert has(
-        problems(agent("l1", link(default_item=None, item_record_id="i1"), 1), [b, added]), "isn't a checklist item"
+        problems(agent("l1", link(default_item=None, item_record_id="i1"), 1), [b, added]),
+        "isn't a checklist item",
     )
     mine = agent("i2", item | {"charge_id": "c1"})
     assert problems(agent("l1", link(default_item=None, item_record_id="i2"), 1), [b, mine]) == []
@@ -136,10 +164,14 @@ def test_the_agent_doesnt_answer_beside_the_accountant():
 
 def test_a_judgments_question_is_about_the_right_kind_of_record():
     a, t = agent("a1", approval()), user("t1", other_term())
-    covers = answer("supports", question="covers", record_id="a1", text="Does this approval cover this charge?")
+    covers = answer(
+        "supports", question="covers", record_id="a1", text="Does this approval cover this charge?"
+    )
     assert problems(agent("j1", covers, 1), [a, t]) == []
     assert has(problems(agent("j1", covers | {"record_id": "t1"}, 1), [a, t]), "about an approval")
-    unusual = answer("supports", question="unusual_term", record_id="t1", text="Does this term change anything?")
+    unusual = answer(
+        "supports", question="unusual_term", record_id="t1", text="Does this term change anything?"
+    )
     assert problems(agent("j2", unusual, 1), [a, t]) == []
 
 
@@ -213,10 +245,20 @@ def test_each_grant_is_isolated():
 
 def test_accepted_reasons_and_snoozes_point_at_what_exists():
     reason = {"check": "period_of_performance", "problem": "after_end_date"}
-    accepted = {"kind": "accepted_reason", "charge_id": "c1", "reason": reason, "note": "Ordered before the end date."}
+    accepted = {
+        "kind": "accepted_reason",
+        "charge_id": "c1",
+        "reason": reason,
+        "note": "Ordered before the end date.",
+    }
     assert problems(user("a1", accepted), []) == []
     assert has(problems(user("a1", accepted | {"charge_id": "nope"}), []), "doesn't exist")
-    on_grant = {"kind": "snooze", "until": "2026-03-01", "note": "Refund coming.", "reasons": [reason]}
+    on_grant = {
+        "kind": "snooze",
+        "until": "2026-03-01",
+        "note": "Refund coming.",
+        "reasons": [reason],
+    }
     assert problems(user("s1", on_grant), []) == []
     reuse = accepted | {"reuses_id": "a1"}
     assert has(problems(user("a2", reuse, 1), [user("a1", accepted)]), "isn't a reusable note")

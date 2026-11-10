@@ -35,7 +35,9 @@ class ExpectedBudgetLine(Model):
 class ExpectedAnswer(Model):
     line_id: Id
     question: Question
-    about_file: str | None = None  # for covers and unusual_term: the file the approval or term was read from
+    about_file: str | None = (
+        None  # for covers and unusual_term: the file the approval or term was read from
+    )
     answer: Answer
 
 

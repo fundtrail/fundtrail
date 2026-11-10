@@ -1,4 +1,6 @@
-"""The sample grant: one small synthetic grant every area tests against (docs/contracts.md section 15).
+"""The sample grant: one small synthetic grant every area tests against.
+
+It's described in docs/contracts.md section 15.
 
     from app.contracts.fixtures import load_sample_grant, load_sample_answer_key
 

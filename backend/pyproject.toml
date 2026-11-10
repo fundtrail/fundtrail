@@ -5,6 +5,7 @@ description = "FundTrail backend: FastAPI app"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.162.2",
+    "pydantic>=2.9",
 ]
 
 [dependency-groups]

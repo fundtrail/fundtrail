@@ -1,4 +1,6 @@
-"""Writes the sample grant's JSON from its documents, so every citation's characters are counted, not typed.
+"""Writes the sample grant's JSON from its documents.
+
+Every citation's characters are counted, not typed.
 
     cd backend && uv run python -m app.contracts.fixtures.build_sample
 
@@ -54,11 +56,17 @@ def cite(file_id: str, passage: str) -> dict[str, Any]:
     """A char_location citation of a passage that appears exactly once in the file."""
     text = text_of(file_id)
     start = text.find(passage)
-    assert start >= 0 and text.find(passage, start + 1) < 0, f"{passage!r} must appear once in {file_id}"
+    assert start >= 0 and text.find(passage, start + 1) < 0, (
+        f"{passage!r} must appear once in {file_id}"
+    )
     return {
         "file_id": file_id,
         "passage": passage,
-        "location": {"type": "char_location", "start_char_index": start, "end_char_index": start + len(passage)},
+        "location": {
+            "type": "char_location",
+            "start_char_index": start,
+            "end_char_index": start + len(passage),
+        },
         "match": "exact",
     }
 
@@ -127,9 +135,9 @@ def records() -> list[dict[str, Any]]:
         )
 
     rule = (
-        "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to "
-        "other categories of expense without the prior written approval of the cognizant NSF Program Officer, "
-        "requested through Research.gov."
+        "Special conditions: Funds budgeted for Participant Support Costs may not be diverted "
+        "by the awardee to other categories of expense without the prior written approval of "
+        "the cognizant NSF Program Officer, requested through Research.gov."
     )
     at = "2023-01-12T15:00:00Z"
     terms = [
@@ -139,8 +147,16 @@ def records() -> list[dict[str, Any]]:
             term(
                 {
                     "kind": "period_of_performance",
-                    "start": day(award, "Period of Performance Start Date: February 1, 2023", "February 1, 2023"),
-                    "end": day(award, "Period of Performance End Date: January 31, 2026", "January 31, 2026"),
+                    "start": day(
+                        award,
+                        "Period of Performance Start Date: February 1, 2023",
+                        "February 1, 2023",
+                    ),
+                    "end": day(
+                        award,
+                        "Period of Performance End Date: January 31, 2026",
+                        "January 31, 2026",
+                    ),
                 }
             ),
         ),
@@ -177,13 +193,19 @@ def records() -> list[dict[str, Any]]:
         record(
             "rec-budget-other",
             at,
-            budget_line("6. Other                                               $60,000", "Other", "$60,000", "other"),
+            budget_line(
+                "6. Other                                               $60,000",
+                "Other",
+                "$60,000",
+                "other",
+            ),
         ),
         record(
             "rec-person-pi",
             at,
             person(
-                "Principal Investigator: Dr. Robin Example, robin.example@university.example, Example State University",
+                "Principal Investigator: Dr. Robin Example, robin.example@university.example, "
+                "Example State University",
                 "Dr. Robin Example",
                 "robin.example@university.example",
                 "Principal Investigator",
@@ -229,8 +251,12 @@ def records() -> list[dict[str, Any]]:
                     "kind": "notice",
                     "amendment_number": words(award, "Amendment Number: 000", "000"),
                     "amendment_type": words(award, "Amendment Type: New Project", "New Project"),
-                    "obligated_by_amendment": money(award, "Amount Obligated by this Amendment: $120,000", "$120,000"),
-                    "obligated_to_date": money(award, "Total Amount Obligated to Date: $120,000", "$120,000"),
+                    "obligated_by_amendment": money(
+                        award, "Amount Obligated by this Amendment: $120,000", "$120,000"
+                    ),
+                    "obligated_to_date": money(
+                        award, "Total Amount Obligated to Date: $120,000", "$120,000"
+                    ),
                 }
             ),
         ),
@@ -273,7 +299,11 @@ def records() -> list[dict[str, Any]]:
         {
             "kind": "bill",
             "total": statement_total,
-            "vendor": words(statement, "Example Sequencing Core, a campus core facility", "Example Sequencing Core"),
+            "vendor": words(
+                statement,
+                "Example Sequencing Core, a campus core facility",
+                "Example Sequencing Core",
+            ),
             "dated": day(statement, "Statement Date: February 20, 2026", "February 20, 2026"),
             "description": words(statement, service, "Sediment DNA sequencing, run 7, 48 samples"),
             "document_number": words(statement, "USAGE STATEMENT SEQ-0207", "SEQ-0207"),
@@ -281,7 +311,13 @@ def records() -> list[dict[str, Any]]:
     )
 
     def charge_records(
-        line: str, at: str, bill: dict[str, Any], total: dict[str, Any], item: str, budget: str, why: str
+        line: str,
+        at: str,
+        bill: dict[str, Any],
+        total: dict[str, Any],
+        item: str,
+        budget: str,
+        why: str,
     ) -> list[dict[str, Any]]:
         charge = f"chg-{line.lower()}"
         amount = total["value"]
@@ -319,7 +355,8 @@ def records() -> list[dict[str, Any]]:
                     "text": ALLOWABLE,
                     "answer": "supports",
                     "reasoning": (
-                        "The bill is for field and lab work on the sediment survey this award funds, "
+                        "The bill is for field and lab work on the sediment survey "
+                        "this award funds, "
                         "at an ordinary price for the quantity."
                     ),
                     "quotes": [bill["data"]["description"]["citation"]],
@@ -356,7 +393,8 @@ def records() -> list[dict[str, Any]]:
             "dated": day(extension, "Amendment Date: January 15, 2026", "January 15, 2026"),
             "end": day(
                 extension,
-                "Amendment Description: This amendment extends the end date from January 31, 2026 to "
+                "Amendment Description: This amendment extends the end date from "
+                "January 31, 2026 to "
                 "January 31, 2027. No additional funds are provided.",
                 "January 31, 2027",
             ),
@@ -389,7 +427,16 @@ def sample_grant() -> dict[str, Any]:
             }
         )
 
-    def charge(line: str, cost: str, posted: str, cents: int, description: str, account: str, vendor: str, ref: str):
+    def charge(
+        line: str,
+        cost: str,
+        posted: str,
+        cents: int,
+        description: str,
+        account: str,
+        vendor: str,
+        ref: str,
+    ):
         return {
             "id": f"chg-{line.lower()}",
             "workspace_id": WORKSPACE,
@@ -397,7 +444,9 @@ def sample_grant() -> dict[str, Any]:
             "ledger_line_id": line,
             "transaction_date": cost,
             "posting_date": posted,
-            "arrived_at": datetime.combine(date.fromisoformat(posted), datetime.min.time(), UTC).isoformat(),
+            "arrived_at": datetime.combine(
+                date.fromisoformat(posted), datetime.min.time(), UTC
+            ).isoformat(),
             "amount_cents": cents,
             "description": description,
             "account": account,
@@ -406,7 +455,11 @@ def sample_grant() -> dict[str, Any]:
         }
 
     return {
-        "user": {"id": ACCOUNTANT, "email": "accountant@university.example", "name": "Sample Accountant"},
+        "user": {
+            "id": ACCOUNTANT,
+            "email": "accountant@university.example",
+            "name": "Sample Accountant",
+        },
         "workspace": {
             "id": WORKSPACE,
             "name": "Sample grant",
@@ -445,8 +498,20 @@ def sample_grant() -> dict[str, Any]:
         "files": files,
         "records": records(),
         "default_items": {
-            "L-1001": [{"key": "bill", "needed": "A bill that adds up to the charge", "amount_cents": 124000}],
-            "L-1002": [{"key": "usage_statement", "needed": "The facility's usage statement", "amount_cents": 218000}],
+            "L-1001": [
+                {
+                    "key": "bill",
+                    "needed": "A bill that adds up to the charge",
+                    "amount_cents": 124000,
+                }
+            ],
+            "L-1002": [
+                {
+                    "key": "usage_statement",
+                    "needed": "The facility's usage statement",
+                    "amount_cents": 218000,
+                }
+            ],
         },
     }
 
@@ -463,7 +528,9 @@ def answer_key() -> dict[str, Any]:
         "award_number": "SYN-2300117",
         "records": [
             expect("period_of_performance", award, **dated, start="2023-02-01", end="2026-01-31"),
-            expect("budget_line", award, **dated, name="Participant Support Costs", amount="2000000"),
+            expect(
+                "budget_line", award, **dated, name="Participant Support Costs", amount="2000000"
+            ),
             expect("budget_line", award, **dated, name="Other Direct Costs", amount="10000000"),
             expect("budget_line", award, **dated, name="Materials and Supplies", amount="4000000"),
             expect("budget_line", award, **dated, name="Other", amount="6000000"),

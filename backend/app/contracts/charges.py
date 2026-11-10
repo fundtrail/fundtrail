@@ -18,7 +18,9 @@ class Charge(Model):
     # Unique within a workspace. The same line twice adds nothing.
     ledger_line_id: Id
     transaction_date: date  # when the cost happened; the checks use this one
-    posting_date: date  # when the ledger recorded it; the 60 days for missing evidence count from here
+    posting_date: (
+        date  # when the ledger recorded it; the 60 days for missing evidence count from here
+    )
     # When it reached FundTrail; the clock uses this one. For an uploaded ledger
     # file, 00:00 UTC on the posting date.
     arrived_at: UtcDatetime
@@ -59,7 +61,7 @@ class LedgerRow(Model):
         return datetime.combine(self.posting_date, time(), tzinfo=UTC)
 
     def to_charge(self, *, id: str, workspace_id: str, grant_id: str) -> Charge:
-        """The charge this row becomes. line_id becomes ledger_line_id and amount becomes amount_cents."""
+        """The charge this row becomes: line_id is ledger_line_id, amount is amount_cents."""
         return Charge(
             id=id,
             workspace_id=workspace_id,

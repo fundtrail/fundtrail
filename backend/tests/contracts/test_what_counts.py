@@ -37,7 +37,11 @@ def test_a_rejected_record_never_counts():
 
 def test_the_latest_decision_wins():
     term = agent("t1", budget_line())
-    records = [term, user("no", confirm("t1", decision="rejected"), 1), user("ok", confirm("t1"), 2)]
+    records = [
+        term,
+        user("no", confirm("t1", decision="rejected"), 1),
+        user("ok", confirm("t1"), 2),
+    ]
     assert RecordState(records).decision("t1") == Decision.CONFIRMED
     assert "t1" in ids(current_records(records))
 
@@ -58,7 +62,11 @@ def test_the_agents_first_link_counts_right_away():
 
 
 def test_a_fix_waits_and_the_old_link_stays_in_force():
-    written = [agent("b1", bill()), agent("l1", link()), agent("l2", link(amount=600), 1, replaces_id="l1")]
+    written = [
+        agent("b1", bill()),
+        agent("l1", link()),
+        agent("l2", link(amount=600), 1, replaces_id="l1"),
+    ]
     assert ids(waiting_records(written)) == ["l2"]
     assert ids(current_records(written)) == ["b1", "l1"]
 
@@ -70,7 +78,11 @@ def test_a_fix_waits_and_the_old_link_stays_in_force():
 
 
 def test_the_agents_retraction_waits():
-    written = [agent("b1", bill()), agent("l1", link()), agent("x", {"kind": "retraction"}, 1, replaces_id="l1")]
+    written = [
+        agent("b1", bill()),
+        agent("l1", link()),
+        agent("x", {"kind": "retraction"}, 1, replaces_id="l1"),
+    ]
     assert ids(waiting_records(written)) == ["x"]
     assert ids(current_records([*written, user("ok", confirm("x"), 2)])) == ["b1", "ok"]
 
@@ -84,7 +96,11 @@ def test_a_second_link_between_a_bill_and_a_charge_waits():
     written = [agent("b1", bill()), agent("l1", link()), agent("l2", link(amount=1200), 1)]
     assert ids(waiting_records(written)) == ["l2"]
     # The same bill linked to another charge is a split, and counts right away.
-    split = [agent("b1", bill()), agent("l1", link(amount=600)), agent("l2", link(charge_id="c2", amount=600), 1)]
+    split = [
+        agent("b1", bill()),
+        agent("l1", link(amount=600)),
+        agent("l2", link(charge_id="c2", amount=600), 1),
+    ]
     assert waiting_records(split) == []
 
 
@@ -101,7 +117,11 @@ def test_removals_disputes_and_duplicate_marks_wait():
                 {
                     "file_id": "f1",
                     "passage": "x",
-                    "location": {"type": "char_location", "start_char_index": 0, "end_char_index": 1},
+                    "location": {
+                        "type": "char_location",
+                        "start_char_index": 0,
+                        "end_char_index": 1,
+                    },
                 }
             ],
         },
@@ -153,7 +173,10 @@ def test_unsure_to_supports_counts_once_a_term_is_confirmed_after_it():
 
 
 def test_the_agents_new_answer_to_the_accountants_waits():
-    records = [user("j1", answer("contradicts")), agent("j2", answer("supports"), 1, replaces_id="j1")]
+    records = [
+        user("j1", answer("contradicts")),
+        agent("j2", answer("supports"), 1, replaces_id="j1"),
+    ]
     assert ids(waiting_records(records)) == ["j2"]
     assert ids(current_records(records)) == ["j1"]
 

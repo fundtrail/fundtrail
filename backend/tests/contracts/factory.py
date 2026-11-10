@@ -49,22 +49,36 @@ CHARGE = Charge(
 CHARGES = [CHARGE, CHARGE.model_copy(update={"id": "c2", "ledger_line_id": "L-2"})]
 
 
-def citation(passage: str = "Total Due: $12.00", file_id: str = "f1", match: str | None = "exact") -> dict[str, Any]:
+def citation(
+    passage: str = "Total Due: $12.00", file_id: str = "f1", match: str | None = "exact"
+) -> dict[str, Any]:
     c: dict[str, Any] = {
         "file_id": file_id,
         "passage": passage,
-        "location": {"type": "char_location", "start_char_index": 0, "end_char_index": len(passage)},
+        "location": {
+            "type": "char_location",
+            "start_char_index": 0,
+            "end_char_index": len(passage),
+        },
     }
     if match is not None:
         c["match"] = match
     return c
 
 
-def cited(value: Any, text: str, passage: str | None = None, file_id: str = "f1", match: str | None = "exact"):
+def cited(
+    value: Any,
+    text: str,
+    passage: str | None = None,
+    file_id: str = "f1",
+    match: str | None = "exact",
+):
     return {"value": value, "text": text, "citation": citation(passage or text, file_id, match)}
 
 
-def bill(total: int = 1200, text: str = "$12.00", file_id: str = "f1", match: str | None = "exact") -> dict[str, Any]:
+def bill(
+    total: int = 1200, text: str = "$12.00", file_id: str = "f1", match: str | None = "exact"
+) -> dict[str, Any]:
     return {"kind": "bill", "total": cited(total, text, f"Total Due: {text}", file_id, match)}
 
 
@@ -96,7 +110,9 @@ def other_term(file_id: str = "f3") -> dict[str, Any]:
     }
 
 
-def link(record_id: str = "b1", charge_id: str = "c1", amount: int | None = 1200, **changes: Any) -> dict[str, Any]:
+def link(
+    record_id: str = "b1", charge_id: str = "c1", amount: int | None = 1200, **changes: Any
+) -> dict[str, Any]:
     data: dict[str, Any] = {
         "kind": "link",
         "record_id": record_id,
@@ -108,7 +124,9 @@ def link(record_id: str = "b1", charge_id: str = "c1", amount: int | None = 1200
     return data | changes
 
 
-def answer(answer: str, question: str = "allowable", charge_id: str | None = "c1", **changes: Any) -> dict[str, Any]:
+def answer(
+    answer: str, question: str = "allowable", charge_id: str | None = "c1", **changes: Any
+) -> dict[str, Any]:
     data = {
         "kind": "judgment",
         "charge_id": charge_id,
@@ -124,7 +142,9 @@ def confirm(*record_ids: str, decision: str = "confirmed") -> dict[str, Any]:
     return {"kind": "confirmation", "record_ids": list(record_ids), "decision": decision}
 
 
-def agent(id: str, data: dict[str, Any], hours: float = 0, replaces_id: str | None = None) -> Record:
+def agent(
+    id: str, data: dict[str, Any], hours: float = 0, replaces_id: str | None = None
+) -> Record:
     return Record.model_validate(
         {
             "id": id,
@@ -155,10 +175,16 @@ def user(id: str, data: dict[str, Any], hours: float = 0, replaces_id: str | Non
 
 def defaults(charge: Charge, records: Sequence[Record]) -> list[DefaultItem]:
     """A supplies charge's one default: a bill that adds up to the charge."""
-    return [DefaultItem(key="bill", needed="A bill that adds up to the charge", amount_cents=charge.amount_cents)]
+    return [
+        DefaultItem(
+            key="bill", needed="A bill that adds up to the charge", amount_cents=charge.amount_cents
+        )
+    ]
 
 
-def problems(new: Record, written: Sequence[Record], files: Sequence[EvidenceFile] = FILES) -> list[str]:
+def problems(
+    new: Record, written: Sequence[Record], files: Sequence[EvidenceFile] = FILES
+) -> list[str]:
     return check_new_record(new, written, CHARGES, files, default_items=defaults)
 
 

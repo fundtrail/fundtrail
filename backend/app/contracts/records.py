@@ -111,7 +111,8 @@ Location = Annotated[
 class Match(StrEnum):
     """How a citation was matched against its file, once, when the record was saved."""
 
-    EXACT = "exact"  # the passage is in the file as cited; for an image box, the second look saw the same value
+    # The passage is in the file as cited. For an image box: the second look saw the same value.
+    EXACT = "exact"
     CLOSE = "close"  # a PDF passage found on its page by a close match
     NOT_FOUND = "not_found"  # couldn't be placed: the value is unconfirmed
 
@@ -137,7 +138,9 @@ class Citation(Model):
     def _shape(self):
         is_box = isinstance(self.location, ImageBox)
         if is_box != (self.passage is None):
-            raise ValueError("an image_box citation has no passage, and every other citation has one")
+            raise ValueError(
+                "an image_box citation has no passage, and every other citation has one"
+            )
         if self.passage == "":
             raise ValueError("a passage can't be empty")
         if self.highlight is not None and not isinstance(self.location, PageLocation):
@@ -260,7 +263,9 @@ TERM_KINDS = frozenset(
         RecordKind.OTHER_TERM,
     }
 )
-FACT_KINDS = frozenset({RecordKind.BILL, RecordKind.APPROVAL, RecordKind.NOTE})  # what a link points to
+FACT_KINDS = frozenset(
+    {RecordKind.BILL, RecordKind.APPROVAL, RecordKind.NOTE}
+)  # what a link points to
 ACCOUNTANT_KINDS = frozenset(
     {RecordKind.CONFIRMATION, RecordKind.ACCEPTED_REASON, RecordKind.SNOOZE, RecordKind.SIGN_OFF}
 )
@@ -367,8 +372,12 @@ class Notice(_Term):
     kind: Literal[RecordKind.NOTICE] = RecordKind.NOTICE
     amendment_number: CitedText  # for example "000" for the new project
     amendment_type: CitedText  # for example "New Project", "Increment" or "No Cost Extensions"
-    obligated_by_amendment: CitedMoney | None = None  # "Amount Obligated by this Amendment": what it adds
-    obligated_to_date: CitedMoney | None = None  # "Total Amount Obligated to Date": the award's limit
+    obligated_by_amendment: CitedMoney | None = (
+        None  # "Amount Obligated by this Amendment": what it adds
+    )
+    obligated_to_date: CitedMoney | None = (
+        None  # "Total Amount Obligated to Date": the award's limit
+    )
 
 
 class OtherTerm(_Term):
@@ -391,7 +400,9 @@ class BillItem(Model):
 
 
 class Bill(Model):
-    """Any document that bills for a cost: an invoice, a receipt, a card slip, a credit memo, a usage statement.
+    """Any document that bills for a cost.
+
+    An invoice, a receipt, a card slip, a credit memo or a usage statement.
 
     A credit has a negative total.
     """
@@ -403,12 +414,14 @@ class Bill(Model):
     # Anything else that identifies the document goes here: names, order numbers,
     # and the project or award number it mentions.
     description: CitedText | None = None
-    document_number: CitedText | None = None  # the invoice or order number, often on the ledger line too
+    document_number: CitedText | None = (
+        None  # the invoice or order number, often on the ledger line too
+    )
     items: list[BillItem] = Field(default_factory=list[BillItem])
 
 
 class Approval(Model):
-    """An approval found in evidence. Code decides the approver's role from the people named on the grant."""
+    """An approval found in evidence. Code decides the approver's role from the grant's people."""
 
     kind: Literal[RecordKind.APPROVAL] = RecordKind.APPROVAL
     approver_email: CitedText  # for a forwarded email, the original sender's
@@ -446,7 +459,9 @@ class Link(Model):
     kind: Literal[RecordKind.LINK] = RecordKind.LINK
     record_id: Id  # the bill, approval or note
     charge_id: Id
-    amount_cents: Cents | None = None  # only when the item it fills carries an amount; negative for a credit
+    amount_cents: Cents | None = (
+        None  # only when the item it fills carries an amount; negative for a credit
+    )
     part: Citation | None = None  # the agent always gives one
     item_record_id: Id | None = None
     default_item: Id | None = None
@@ -580,7 +595,7 @@ class ChecklistRemoval(Model):
 
 
 class DefaultItem(Model):
-    """One of a charge's default checklist items. Code works these out each time; they're never stored.
+    """One of a charge's default checklist items, worked out each time and never stored.
 
     The checks (W2) own the table of account groups and their defaults. A link
     or a removal names a default by its key, which is stable for that charge.
@@ -588,7 +603,9 @@ class DefaultItem(Model):
 
     key: Id  # for example "bill" or "usage_statement"
     needed: Text
-    amount_cents: Cents | None = None  # for example the charge's amount, for "a bill that adds up to the charge"
+    amount_cents: Cents | None = (
+        None  # for example the charge's amount, for "a bill that adds up to the charge"
+    )
     period: Period | None = None
     expected_by: date | None = None
 
@@ -634,7 +651,9 @@ class Decision(StrEnum):
 
 
 class Confirmation(Model):
-    """Confirms or rejects the agent's records that wait, or a record with a value nobody could confirm in its file.
+    """Confirms or rejects the agent's records that wait.
+
+    It also confirms a record with a value nobody could confirm in its file.
 
     The latest decision on a record wins, and a rejected record never counts.
     """
@@ -678,7 +697,9 @@ class AcceptedReason(_Subject):
     # When accepting a note offered on a similar charge: the accepted reason whose
     # note this reuses. reusable then says whether the note's amount limit rises.
     reuses_id: Id | None = None
-    rests_on: list[Id] = Field(default_factory=list[Id])  # the records the reason rested on when accepted
+    rests_on: list[Id] = Field(
+        default_factory=list[Id]
+    )  # the records the reason rested on when accepted
 
 
 class Snooze(_Subject):
@@ -687,7 +708,9 @@ class Snooze(_Subject):
     kind: Literal[RecordKind.SNOOZE] = RecordKind.SNOOZE
     until: date
     note: Text
-    reasons: list[ReasonRef] = Field(min_length=1)  # the reasons it covered, so a new one brings it back
+    reasons: list[ReasonRef] = Field(
+        min_length=1
+    )  # the reasons it covered, so a new one brings it back
 
 
 class SignOff(Model):
@@ -754,7 +777,7 @@ def cited_values(model: BaseModel, prefix: str = "") -> Iterator[tuple[str, Cite
 
 
 def citations(model: BaseModel) -> Iterator[Citation]:
-    """Every citation anywhere in a record's data: its values', a link's part, an answer's quotes."""
+    """Every citation in a record's data: its values', a link's part, an answer's quotes."""
     for _, value in model:
         if isinstance(value, Citation):
             yield value
@@ -811,6 +834,10 @@ class Record(Model):
             if isinstance(self.data, Link) and self.data.part is None:
                 raise ValueError("the agent's link needs a part")
             data = self.data
-            if isinstance(data, Judgment) and data.question == Question.FLAG and data.answer != Answer.UNSURE:
+            if (
+                isinstance(data, Judgment)
+                and data.question == Question.FLAG
+                and data.answer != Answer.UNSURE
+            ):
                 raise ValueError("the agent's flag is always unsure")
         return self

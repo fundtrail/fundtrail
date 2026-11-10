@@ -29,7 +29,9 @@ class Trigger(Model):
     @model_validator(mode="after")
     def _id(self):
         if (self.kind == TriggerKind.CLOCK) != (self.id is None):
-            raise ValueError("a trigger names its record, charge, file or message, and only the clock has no ID")
+            raise ValueError(
+                "a trigger names its record, charge, file or message, and only the clock has no ID"
+            )
         return self
 
 

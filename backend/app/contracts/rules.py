@@ -1,4 +1,6 @@
-"""What counts, and the write check (docs/contracts.md section 1, "What counts" and "Checking a write").
+"""What counts, and the write check.
+
+From docs/contracts.md section 1, "What counts" and "Checking a write".
 
 Every area applies these rules through the same functions:
 
@@ -91,7 +93,7 @@ class RecordState:
         return self._waits[record_id]
 
     def decision(self, record_id: str) -> Decision | None:
-        """The accountant's latest decision on a record, from their confirmations that nothing replaced."""
+        """The accountant's latest decision on a record, from confirmations nothing replaced."""
         found = self._decision_at(record_id, self._end)
         return found[0] if found else None
 
@@ -108,7 +110,7 @@ class RecordState:
         return self._current_at(record_id, self._end)
 
     def is_waiting(self, record_id: str) -> bool:
-        """Waits for the accountant and has no decision yet, and what it replaces is still current."""
+        """Waits for the accountant with no decision yet, and what it replaces is current."""
         r = self.by_id[record_id]
         if not self._waits[record_id] or self.decision(record_id) is not None:
             return False
@@ -145,8 +147,12 @@ class RecordState:
             if value.citation is None or value.citation.match not in FOUND
         ]
 
-    def new_evidence_between(self, after: datetime, until: datetime, *, before: int | None = None) -> bool:
-        """Whether new evidence arrived in (after, until]: a file that arrived, or a grant term confirmed.
+    def new_evidence_between(
+        self, after: datetime, until: datetime, *, before: int | None = None
+    ) -> bool:
+        """Whether new evidence arrived in (after, until].
+
+        New evidence is a file that arrived, or a grant term confirmed.
 
         Something the agent links later from what was already on file doesn't count.
         `before` limits it to the records written before that position.
@@ -162,7 +168,9 @@ class RecordState:
             if (
                 isinstance(data, Confirmation)
                 and data.decision == Decision.CONFIRMED
-                and any(t in self.by_id and self.by_id[t].kind in TERM_KINDS for t in data.record_ids)
+                and any(
+                    t in self.by_id and self.by_id[t].kind in TERM_KINDS for t in data.record_ids
+                )
             ):
                 return True
         return False
@@ -173,7 +181,10 @@ class RecordState:
         for conf_id in reversed(self._confirmations_of.get(record_id, [])):
             if self._pos[conf_id] >= i:
                 continue
-            if any(self._pos[r] < i and self._effective_at(r, i) for r in self._replacers.get(conf_id, [])):
+            if any(
+                self._pos[r] < i and self._effective_at(r, i)
+                for r in self._replacers.get(conf_id, [])
+            ):
                 continue  # only confirmations that nothing has replaced are counted
             conf = self.by_id[conf_id].data
             assert isinstance(conf, Confirmation)
@@ -194,7 +205,11 @@ class RecordState:
         return self._effective_memo[key]
 
     def _replaced_at(self, record_id: str, i: int) -> list[str]:
-        return [r for r in self._replacers.get(record_id, []) if self._pos[r] < i and self._effective_at(r, i)]
+        return [
+            r
+            for r in self._replacers.get(record_id, [])
+            if self._pos[r] < i and self._effective_at(r, i)
+        ]
 
     def _current_at(self, record_id: str, i: int) -> bool:
         r = self.by_id.get(record_id)
@@ -231,7 +246,9 @@ class RecordState:
             return self._second_bill_link(r.data, i)
         return False
 
-    def _new_answer_waits(self, old: Record, before: Answer, new: Record, after: Answer, i: int) -> bool:
+    def _new_answer_waits(
+        self, old: Record, before: Answer, new: Record, after: Answer, i: int
+    ) -> bool:
         if _CONCERN[after] >= _CONCERN[before]:
             return False  # the same answer refreshed, or a change toward a concern
         if before == Answer.CONTRADICTS:
@@ -257,7 +274,9 @@ class RecordState:
 # The module's functions, for a single question.
 
 
-def effective_records(records: Iterable[Record], files: Iterable[EvidenceFile] = ()) -> list[Record]:
+def effective_records(
+    records: Iterable[Record], files: Iterable[EvidenceFile] = ()
+) -> list[Record]:
     """The records that count: all except those waiting for, or rejected by, the accountant."""
     return RecordState(records, files).effective()
 
@@ -272,8 +291,10 @@ def waiting_records(records: Iterable[Record], files: Iterable[EvidenceFile] = (
     return RecordState(records, files).waiting()
 
 
-def current_version(record_id: str, records: Iterable[Record], files: Iterable[EvidenceFile] = ()) -> Record | None:
-    """Where a pointer to record_id leads now, following corrections. See RecordState.current_version."""
+def current_version(
+    record_id: str, records: Iterable[Record], files: Iterable[EvidenceFile] = ()
+) -> Record | None:
+    """Where a pointer to record_id leads now. See RecordState.current_version."""
     return RecordState(records, files).current_version(record_id)
 
 
@@ -296,7 +317,10 @@ def _referenced_records(new: Record) -> list[str]:
         if data.item_record_id is not None:
             ids.append(data.item_record_id)
     elif isinstance(data, AcceptedReason):
-        ids += [*([data.record_id] if data.record_id else []), *([data.reuses_id] if data.reuses_id else [])]
+        ids += [
+            *([data.record_id] if data.record_id else []),
+            *([data.reuses_id] if data.reuses_id else []),
+        ]
         ids += data.rests_on
     elif isinstance(data, Snooze):
         if data.record_id is not None:
@@ -346,7 +370,9 @@ def check_new_record(
     *,
     default_items: DefaultItems,
 ) -> list[str]:
-    """The problems with a record about to be written, as plain sentences. Empty means it can be saved.
+    """The problems with a record about to be written, as plain sentences.
+
+    Empty means it can be saved.
 
     The backend runs this on every write, and the agent sees the problems so it
     can fix them. `records` is everything already written in the workspace, in
@@ -361,17 +387,21 @@ def check_new_record(
     agent = new.author == Author.AGENT
 
     def pointable(record_id: str, what: str) -> Record | None:
-        """A record a new record may point to: current, or new and still waiting (such as a waiting term)."""
+        """A record a new record may point to: current, or new and waiting (a waiting term)."""
         r = state.by_id.get(record_id)
         if r is None:
             problems.append(f"{what} {record_id} doesn't exist")
             return None
         if r.grant_id != new.grant_id:
-            problems.append(f"for now each grant is isolated, and {what} {record_id} is on another grant")
+            problems.append(
+                f"for now each grant is isolated, and {what} {record_id} is on another grant"
+            )
             return None
         new_and_waiting = state.is_waiting(record_id) and r.replaces_id is None
         if not (state.is_current(record_id) or new_and_waiting):
-            problems.append(f"{what} {record_id} isn't current: it was replaced, retracted or rejected")
+            problems.append(
+                f"{what} {record_id} isn't current: it was replaced, retracted or rejected"
+            )
             return None
         return r
 
@@ -381,14 +411,16 @@ def check_new_record(
             problems.append(f"charge {charge_id} doesn't exist")
             return None
         if c.grant_id != new.grant_id:
-            problems.append(f"for now each grant is isolated, and charge {charge_id} is on another grant")
+            problems.append(
+                f"for now each grant is isolated, and charge {charge_id} is on another grant"
+            )
             return None
         return c
 
     if new.id in state.by_id:
         problems.append(f"the ID {new.id} is already used")
 
-    # Every quoted value appears in its passage, and every citation has been matched against its file.
+    # Every quoted value appears in its passage, and every citation was matched against its file.
     for path, value in cited_values(data):
         c = value.citation
         if c is not None and c.passage is not None and value.text and value.text not in c.passage:
@@ -401,7 +433,9 @@ def check_new_record(
         if f is None:
             problems.append(f"file {file_id} doesn't exist")
         elif f.grant_id != new.grant_id:
-            problems.append(f"for now each grant is isolated, and file {file_id} is on another grant")
+            problems.append(
+                f"for now each grant is isolated, and file {file_id} is on another grant"
+            )
 
     # A replacement.
     if new.replaces_id is not None:
@@ -417,11 +451,20 @@ def check_new_record(
                     RecordKind.JUDGMENT: (RecordKind.JUDGMENT,),
                 }
                 if new.kind not in allowed.get(old.kind, ()):
-                    problems.append("the agent can only suggest fixes to the accountant's links and answers")
+                    problems.append(
+                        "the agent can only suggest fixes to the accountant's links and answers"
+                    )
             if isinstance(data, Judgment) and isinstance(old.data, Judgment):
                 same = (data.question, data.charge_id, data.record_id, data.file_id)
-                if same != (old.data.question, old.data.charge_id, old.data.record_id, old.data.file_id):
-                    problems.append("a new answer replaces an answer to the same question about the same thing")
+                if same != (
+                    old.data.question,
+                    old.data.charge_id,
+                    old.data.record_id,
+                    old.data.file_id,
+                ):
+                    problems.append(
+                        "a new answer replaces an answer to the same question about the same thing"
+                    )
 
     # The charge it's about.
     the_charge = charge(new.charge_id) if new.charge_id is not None else None
@@ -447,38 +490,61 @@ def check_new_record(
                 if isinstance(r.data, Duplicate) and state.decision(r.id) == Decision.CONFIRMED
             }
             if fact_files & copies:
-                problems.append("the linked record is read from a copy the accountant confirmed as a duplicate")
+                problems.append(
+                    "the linked record is read from a copy the accountant confirmed as a duplicate"
+                )
         item_amount: int | None = None
         if data.item_record_id is not None:
             item = pointed.get(data.item_record_id)
             if item is not None:
-                if not isinstance(item.data, ChecklistItem) or item.data.charge_id != data.charge_id:
+                if (
+                    not isinstance(item.data, ChecklistItem)
+                    or item.data.charge_id != data.charge_id
+                ):
                     problems.append(f"record {item.id} isn't a checklist item on this charge")
                 else:
                     item_amount = item.data.amount_cents
         elif data.default_item is not None and the_charge is not None:
             defaults = {d.key: d for d in default_items(the_charge, state.current())}
             if data.default_item not in defaults:
-                problems.append(f"'{data.default_item}' isn't one of this charge's default checklist items")
+                problems.append(
+                    f"'{data.default_item}' isn't one of this charge's default checklist items"
+                )
             else:
                 item_amount = defaults[data.default_item].amount_cents
         if data.amount_cents is not None and item_amount is None:
-            problems.append("a link carries an amount only when the checklist item it fills carries one")
-        if data.amount_cents is None and item_amount is not None and fact is not None and fact.kind == RecordKind.BILL:
-            problems.append("a link from a bill to an item that carries an amount says how much of the bill it uses")
+            problems.append(
+                "a link carries an amount only when the checklist item it fills carries one"
+            )
+        if (
+            data.amount_cents is None
+            and item_amount is not None
+            and fact is not None
+            and fact.kind == RecordKind.BILL
+        ):
+            problems.append(
+                "a link from a bill to an item that carries an amount says how much it uses"
+            )
 
     elif isinstance(data, BudgetAssignment):
         line = pointed.get(data.record_id)
         if line is not None and line.kind != RecordKind.BUDGET_LINE:
             problems.append(f"a budget assignment points to a budget_line, not a {line.kind}")
         if any(
-            isinstance(r.data, BudgetAssignment) and r.data.charge_id == data.charge_id and r.id != new.replaces_id
+            isinstance(r.data, BudgetAssignment)
+            and r.data.charge_id == data.charge_id
+            and r.id != new.replaces_id
             for r in state.current()
         ):
-            problems.append("this charge already has a current budget assignment: replace it instead")
+            problems.append(
+                "this charge already has a current budget assignment: replace it instead"
+            )
 
     elif isinstance(data, Judgment):
-        expected = {Question.COVERS: RecordKind.APPROVAL, Question.UNUSUAL_TERM: RecordKind.OTHER_TERM}
+        expected = {
+            Question.COVERS: RecordKind.APPROVAL,
+            Question.UNUSUAL_TERM: RecordKind.OTHER_TERM,
+        }
         about = pointed.get(data.record_id) if data.record_id is not None else None
         want = expected.get(data.question)
         if about is not None and want is not None and about.kind != want:
@@ -494,7 +560,8 @@ def check_new_record(
             ]
             if theirs:
                 problems.append(
-                    f"the accountant answered this question in {theirs[-1].id}: suggest a new answer that replaces it"
+                    f"the accountant answered this question in {theirs[-1].id}: "
+                    "suggest a new answer that replaces it"
                 )
 
     elif isinstance(data, ChecklistItem):
@@ -506,12 +573,16 @@ def check_new_record(
     elif isinstance(data, ChecklistRemoval):
         if data.item_record_id is not None:
             item = pointed.get(data.item_record_id)
-            if item is not None and (not isinstance(item.data, ChecklistItem) or item.data.charge_id != data.charge_id):
+            if item is not None and (
+                not isinstance(item.data, ChecklistItem) or item.data.charge_id != data.charge_id
+            ):
                 problems.append(f"record {item.id} isn't a checklist item on this charge")
         elif data.default_item is not None and the_charge is not None:
             keys = {d.key for d in default_items(the_charge, state.current())}
             if data.default_item not in keys:
-                problems.append(f"'{data.default_item}' isn't one of this charge's default checklist items")
+                problems.append(
+                    f"'{data.default_item}' isn't one of this charge's default checklist items"
+                )
 
     elif isinstance(data, Confirmation):
         for record_id in data.record_ids:
@@ -520,13 +591,22 @@ def check_new_record(
                 problems.append(f"record {record_id} doesn't exist")
                 continue
             if target.grant_id != new.grant_id:
-                problems.append(f"for now each grant is isolated, and record {record_id} is on another grant")
+                problems.append(
+                    f"for now each grant is isolated, and record {record_id} is on another grant"
+                )
                 continue
-            waits = state.waits(record_id) and (target.replaces_id is None or state.is_current(target.replaces_id))
+            waits = state.waits(record_id) and (
+                target.replaces_id is None or state.is_current(target.replaces_id)
+            )
             if not waits and not state.unconfirmed_values(target):
-                problems.append(f"record {record_id} doesn't wait for a confirmation and has no unconfirmed value")
+                problems.append(
+                    f"record {record_id} doesn't wait for a confirmation "
+                    "and has no unconfirmed value"
+                )
             elif (
-                data.decision == Decision.CONFIRMED and target.replaces_id and not state.is_current(target.replaces_id)
+                data.decision == Decision.CONFIRMED
+                and target.replaces_id
+                and not state.is_current(target.replaces_id)
             ):
                 problems.append(f"record {record_id} replaces a record that's no longer current")
 
@@ -547,7 +627,8 @@ def check_new_record(
                     continue
                 if not state.new_evidence_between(rejection.written_at, new.written_at):
                     problems.append(
-                        f"the accountant rejected the same suggestion ({earlier.id}), and no new evidence has arrived since"
+                        f"the accountant rejected the same suggestion ({earlier.id}), "
+                        "and no new evidence has arrived since"
                     )
                     break
 

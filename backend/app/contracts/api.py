@@ -30,7 +30,10 @@ class Clock(Model):
 
 
 class ClockMove(Model):
-    """POST /workspaces/{workspace_id}/clock. Nothing moves to the next arrival. The clock only moves forward."""
+    """POST /workspaces/{workspace_id}/clock.
+
+    Nothing in `to` moves to the next arrival. The clock only moves forward.
+    """
 
     to: UtcDatetime | None = None
 
