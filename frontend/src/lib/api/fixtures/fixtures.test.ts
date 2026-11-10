@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createFakeApiClient } from "../fake";
 import { SAMPLE_DOCUMENTS } from "./documents";
-import { SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
+import { sample, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
 import raw from "./sample_grant.json";
 import { countLedger, SAMPLE_LEDGER_CSV } from "./setup";
 
@@ -12,7 +12,9 @@ import { countLedger, SAMPLE_LEDGER_CSV } from "./setup";
 const golden = `${resolve(process.cwd(), "../backend/app/contracts/fixtures/golden")}/`;
 
 describe("the copies of the contract's sample grant", () => {
-  it.runIf(existsSync(golden))("match backend/app/contracts/fixtures/golden", () => {
+  it("match backend/app/contracts/fixtures/golden", () => {
+    // Fails, never skips, when the golden folder can't be found.
+    expect(existsSync(golden), `no golden folder at ${golden}`).toBe(true);
     expect(raw).toEqual(JSON.parse(readFileSync(`${golden}sample_grant.json`, "utf8")));
     const names = readdirSync(`${golden}documents`).sort();
     expect(Object.keys(SAMPLE_DOCUMENTS).sort()).toEqual(names);
@@ -26,7 +28,10 @@ describe("the fake client", () => {
     const api = createFakeApiClient();
     expect((await api.listGrants(WORKSPACE_ID)).map((g) => g.grant.award_number)).toEqual(["SYN-2300117"]);
     expect((await api.getCharge("chg-l-1002")).status?.bucket).toBe("possible_conflict");
-    expect((await api.listEvidence(SAMPLE_GRANT_ID)).map((c) => c.file.name)).toEqual([
+    // The sample's own files, newest first. An area may add synthetic files of its own beside them.
+    const sampleFileIds = new Set(sample.files.map((f) => f.id));
+    const cards = await api.listEvidence(SAMPLE_GRANT_ID);
+    expect(cards.filter((c) => sampleFileIds.has(c.file.id)).map((c) => c.file.name)).toEqual([
       "extension_notice.txt",
       "sequencing_statement.eml",
       "invoice_1001.txt",
@@ -53,6 +58,7 @@ describe("the fake client", () => {
     await expect(api.moveClock(WORKSPACE_ID, { to: "2026-01-01T00:00:00Z" })).rejects.toMatchObject({ status: 422 });
     expect((await api.moveClock(WORKSPACE_ID, { to: "2026-04-10T17:00:00Z" })).now).toBe("2026-04-10T17:00:00Z");
     await expect(api.getCharge("nope")).rejects.toMatchObject({ status: 404 });
+    await expect(api.listEvidence("nope")).rejects.toMatchObject({ status: 404 });
   });
 
   it("counts a ledger upload by line ID", () => {

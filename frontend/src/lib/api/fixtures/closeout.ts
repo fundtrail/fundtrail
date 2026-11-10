@@ -1,14 +1,12 @@
-// Closeout for the sample grant: the sign-off state and the evidence report.
-// Owned by the closeout screen's builder.
+// Closeout for the sample grant: the evidence report. Owned by the closeout
+// screen's builder. The sample's sign-off state is SAMPLE_SIGN_OFF in
+// sample.ts, shared with the grant page.
 //
-// The sample hasn't been signed off. The report is a one-page placeholder PDF
-// that says it's fake; the real one is W6's.
+// The report is a one-page placeholder PDF that says it's fake; the real one
+// is W6's.
 
 import type { ApiClient } from "../client";
-import type { SignOffState } from "../types";
 import { served, SAMPLE_GRANT_ID } from "./sample";
-
-export const SAMPLE_SIGN_OFF: SignOffState = { state: "not_signed", sign_off: null, changes: [] };
 
 /** A minimal valid PDF with one line of text. */
 function placeholderPdf(line: string): Blob {
