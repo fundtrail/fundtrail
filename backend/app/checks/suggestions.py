@@ -18,6 +18,8 @@ from app.contracts.checks import ChecklistEntry
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     Answer,
+    Approval,
+    ApprovalRule,
     Bill,
     BudgetAssignment,
     BudgetLine,
@@ -28,8 +30,13 @@ from app.contracts.records import (
     Duplicate,
     Judgment,
     Link,
+    Note,
+    Notice,
+    OtherTerm,
     PeriodOfPerformance,
+    Person,
     Question,
+    Rate,
     Record,
     RecordKind,
     Remainder,
@@ -119,6 +126,26 @@ def _summary(record: Record, look: _Lookup) -> str:
         return data.needed
     if isinstance(data, Bill):
         return f"{look.name(record)}, {money(data.total.value)}"
+    # Terms and facts by what they say, so a correction's two sides read differently.
+    if isinstance(data, BudgetLine):
+        return f"{data.name.value}: {money(data.amount.value)}"
+    if isinstance(data, Person):
+        email = f", {data.email.value}" if data.email else ""
+        return f"{data.name.value}, {data.role.value}{email}"
+    if isinstance(data, ApprovalRule):
+        via = f", through {data.channel.value}" if data.channel else ""
+        return f"{data.applies_to.value}: approved by {data.approver.value}{via}"
+    if isinstance(data, Rate):
+        return f"{data.name.value}: {data.rate.text or data.rate.value}"
+    if isinstance(data, Notice):
+        parts = [f"amendment {data.amendment_number.value}, {data.amendment_type.value}"]
+        if data.obligated_to_date:
+            parts.append(f"total obligated {money(data.obligated_to_date.value)}")
+        return ", ".join(parts)
+    if isinstance(data, OtherTerm | Note):
+        return f"{data.label}: {data.statement.value}"
+    if isinstance(data, Approval):
+        return f"approval from {data.approver_email.value} for {data.covers.value}"
     return look.name(record)
 
 
@@ -176,14 +203,25 @@ def suggestion_change(
             f"on {look.line(data.charge_id)}, with its reasoning as the note"
         )
     if isinstance(data, Correction):
-        return SuggestionChange(
-            title=f"Count {look.line(data.charge_id)} as correcting ledger line "
-            f"{data.corrects_line_id}, and net the two"
+        title = (
+            f"Count {look.line(data.charge_id)} as correcting ledger line {data.corrects_line_id}"
         )
+        line = look.charges.get(data.charge_id)
+        corrected = next(
+            (c for c in look.charges.values() if c.ledger_line_id == data.corrects_line_id), None
+        )
+        # Decision 0020: a line nets into the one it corrects only when the signs are
+        # opposite; a line that adds money stands on its own.
+        if line and corrected and line.amount_cents * corrected.amount_cents < 0:
+            title += ", and net the two"
+        return SuggestionChange(title=title)
     if isinstance(data, Remainder):
+        bill = look.records.get(data.record_id)
+        file_id = next((c.file_id for c in citations(bill.data)), None) if bill else None
+        file = look.files.get(file_id or "")
+        named = f"the bill in {file.name}" if file else "the bill"
         return SuggestionChange(
-            title=f"Record that the rest of the {look.name(look.records.get(data.record_id))} "
-            f"belongs to award {data.other_award.value}"
+            title=f"Record that the rest of {named} belongs to award {data.other_award.value}"
         )
     if isinstance(data, Judgment) and replaces is not None:
         question = QUESTION_LABELS[data.question]

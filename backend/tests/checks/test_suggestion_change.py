@@ -98,9 +98,7 @@ def test_a_dispute_a_duplicate_a_correction_and_a_remainder():
     correction = agent(
         "x1", {"kind": "correction", "charge_id": "c2", "corrects_line_id": "L-1", "reason": "r"}
     )
-    assert words(correction).title == (
-        "Count ledger line L-2 as correcting ledger line L-1, and net the two"
-    )
+    assert words(correction).title == "Count ledger line L-2 as correcting ledger line L-1"
     remainder = agent(
         "x2",
         {
@@ -111,7 +109,7 @@ def test_a_dispute_a_duplicate_a_correction_and_a_remainder():
         },
     )
     assert words(remainder).title == (
-        "Record that the rest of the bill, f1.txt belongs to award SYN-2300999"
+        "Record that the rest of the bill in f1.txt belongs to award SYN-2300999"
     )
 
 
@@ -140,3 +138,30 @@ def test_a_budget_line_change_and_records_a_thread_run_added():
     flag = agent("f1", answer("unsure", question="flag", text="Odd vendor?"))
     assert (words(flag).title, words(flag).suggested) == ("Raise the agent's flag", "Odd vendor?")
     assert words(BILL).title == "Add the bill"
+
+
+# PR 132's review.
+
+
+def test_a_correction_nets_only_when_the_signs_are_opposite():
+    credit = CHARGES[1].model_copy(update={"amount_cents": -1200})
+    correction = agent(
+        "x1", {"kind": "correction", "charge_id": "c2", "corrects_line_id": "L-1", "reason": "r"}
+    )
+    change = suggestion_change(correction, charges=[CHARGES[0], credit])
+    assert change.title == "Count ledger line L-2 as correcting ledger line L-1, and net the two"
+    same_sign = suggestion_change(correction, charges=CHARGES)  # both add money
+    assert same_sign.title == "Count ledger line L-2 as correcting ledger line L-1"
+
+
+def test_a_term_correction_reads_differently_on_each_side():
+    old = agent("t1", budget_line())
+    fixed_data = budget_line() | {
+        "amount": cited(4100000, "$41,000", "Materials and Supplies $41,000", "f3")
+    }
+    fixed = agent("t2", fixed_data, replaces_id="t1")
+    change = words(fixed, old)
+    assert (change.now, change.suggested) == (
+        "Materials and Supplies: $40,000.00",
+        "Materials and Supplies: $41,000.00",
+    )
