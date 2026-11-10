@@ -24,6 +24,7 @@ from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
 from app.checks.view import GrantView, LinkInForce, notice_number
 from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket
+from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     Answer,
     ApprovalRule,
@@ -230,7 +231,14 @@ def record_problems(
             )
 
     by_hash: dict[str, list[str]] = defaultdict(list)
-    for f in sorted(view.files.values(), key=lambda f: (f.arrived_at, f.id)):
+
+    # The first to arrive is the original. Equal arrival times go by stored order
+    # (call 36, ruling 4); a file not stored yet comes after, and ID only breaks
+    # what's left.
+    def arrival(f: EvidenceFile) -> tuple[datetime, bool, int, str]:
+        return (f.arrived_at, f.stored_seq is None, f.stored_seq or 0, f.id)
+
+    for f in sorted(view.files.values(), key=arrival):
         by_hash[f.sha256].append(f.id)
     for ids in by_hash.values():
         first = view.files[ids[0]]
