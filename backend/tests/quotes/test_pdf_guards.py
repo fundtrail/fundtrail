@@ -300,6 +300,33 @@ PROBES = [
         "not_found",
         False,
     ),
+    *[
+        Probe(
+            f"a dash ending the line after a number, next line {next_line!r}",
+            [["Travel refund $450.00-", next_line]],
+            "Travel refund $450.00",
+            "$450.00",
+            "exact",
+            False,
+        )
+        for next_line in ["$300.00 Lodging", "(see note 2)", "* adjusted", "# 14", "\u2022 Lodging"]
+    ],
+    Probe(
+        "a date broken at its dash confirms",
+        [["Travel dates 2026-", "03-04 to 2026-03-09"]],
+        "Travel dates 2026-03-04 to 2026-03-09",
+        "2026-03-04",
+        "exact",
+        True,
+    ),
+    Probe(
+        "a range broken across lines confirms as a whole",
+        [["Stay of 10-", "20 days for the field work"]],
+        "Stay of 10-20 days for the field work",
+        "10-20",
+        "exact",
+        True,
+    ),
     Probe(
         "a negative value where the page's dash is a hyphen",
         [["Hotel rates run $300-$450 per night"]],
