@@ -104,3 +104,50 @@ def test_settings_never_print_the_keys() -> None:
     shown = repr(settings)
     assert "service-role-secret" not in shown and "jwt-secret" not in shown
     assert "db-password" not in shown
+
+
+def test_tokens_are_checked_against_the_projects_jwks_and_a_new_key_is_fetched() -> None:
+    """A key rotation: a token signed with a key the cached set doesn't have makes the
+    verifier fetch the set again, with no restart."""
+    import json
+
+    from jwt.algorithms import ECAlgorithm
+
+    from app.api.auth import jwks_url
+
+    first = ec.generate_private_key(ec.SECP256R1())
+    second = ec.generate_private_key(ec.SECP256R1())
+
+    def jwk(key: ec.EllipticCurvePrivateKey, kid: str) -> dict[str, object]:
+        public = json.loads(ECAlgorithm.to_jwk(key.public_key()))
+        return public | {"kid": kid, "alg": "ES256", "use": "sig"}
+
+    published = {"keys": [jwk(first, "k1")]}
+    fetches: list[str] = []
+
+    class LocalJwks(jwt.PyJWKClient):
+        def fetch_data(self) -> object:
+            fetches.append(self.uri)
+            return published
+
+    client = LocalJwks(jwks_url(SUPABASE_URL), cooldown_duration=0)
+    verifier = SupabaseTokenVerifier(SUPABASE_URL, jwks_client=client)
+
+    def token(key: ec.EllipticCurvePrivateKey, kid: str) -> str:
+        claims = {
+            "sub": "u-3",
+            "email": "sam@university.example",
+            "aud": "authenticated",
+            "iss": f"{SUPABASE_URL}/auth/v1",
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
+        }
+        return jwt.encode(claims, key, algorithm="ES256", headers={"kid": kid})
+
+    assert verifier.verify(token(first, "k1")).id == "u-3"
+    assert verifier.verify(token(first, "k1")).id == "u-3"
+    assert fetches == [f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"]  # cached
+    published["keys"].append(jwk(second, "k2"))
+    assert verifier.verify(token(second, "k2")).id == "u-3"
+    assert len(fetches) == 2  # fetched again for the new kid
+    with pytest.raises(InvalidToken):
+        verifier.verify(token(ec.generate_private_key(ec.SECP256R1()), "k3"))
