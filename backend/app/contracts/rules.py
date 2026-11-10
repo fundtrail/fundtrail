@@ -925,6 +925,15 @@ def check_new_record(
             ):
                 problems.append(f"record {record_id} replaces a record that's no longer current")
 
+    elif isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        # The agent's line belongs to the notice it was read from; naming another
+        # would move it to that notice's group. The accountant may name any file.
+        if agent and data.notice_file_id not in {c.file_id for c in citations(data)}:
+            problems.append(
+                f"the agent's budget line belongs to the notice it cites, "
+                f"not file {data.notice_file_id}"
+            )
+
     elif isinstance(data, Remainder):
         bill = pointed.get(data.record_id)
         if bill is not None and bill.kind != RecordKind.BILL:

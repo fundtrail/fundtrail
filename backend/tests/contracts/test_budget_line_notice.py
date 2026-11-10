@@ -4,7 +4,7 @@ from typing import Any
 
 from app.contracts import api
 from app.contracts.records import BudgetLine
-from tests.contracts.factory import FILES, budget_line, file, problems, user
+from tests.contracts.factory import FILES, agent, budget_line, file, problems, user
 
 
 def typed_line(**changes: Any) -> dict[str, Any]:
@@ -26,3 +26,12 @@ def test_the_notice_is_an_evidence_file_on_the_lines_grant():
     elsewhere = [*FILES, file("f9", grant_id="other")]
     other = problems(user("t1", budget_line() | {"notice_file_id": "f9"}), [], elsewhere)
     assert any("each grant is isolated" in p for p in other)
+
+
+def test_the_agents_line_names_the_notice_it_cites():
+    cites_f3 = budget_line()  # every value is cited to f3
+    assert problems(agent("t1", cites_f3 | {"notice_file_id": "f3"}), []) == []
+    moved = problems(agent("t1", cites_f3 | {"notice_file_id": "f2"}), [])
+    assert any("belongs to the notice it cites" in p for p in moved)
+    # The accountant may name any file on the grant.
+    assert problems(user("t1", cites_f3 | {"notice_file_id": "f2"}), []) == []
