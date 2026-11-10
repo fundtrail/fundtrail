@@ -52,6 +52,34 @@ describe("answering and overruling", () => {
   const answers = [{ judgment: agentAnswer, out_of_date: false, rule: null }] as unknown as AnswerView[];
   const question: OpenQuestion = { charge_id: "c", question: "covers", record_id: "r-approval", answer_by: "user" };
 
+  it("lets the accountant answer an open question waiting for the agent too, through the same route", async () => {
+    const forAgent: OpenQuestion = { charge_id: "c", question: "allowable", record_id: null, answer_by: "agent" };
+    const onWrite = writer();
+    render(<AgentAnswers answers={[]} questions={[forAgent, question]} rechecking={false} files={{}} chargeId="c" onWrite={onWrite} />);
+    const rows = screen.getAllByTestId("open-question");
+    expect(within(rows[0]).getByText("Waiting for the agent")).toBeInTheDocument();
+    expect(within(rows[0]).getByRole("button", { name: "Answer" })).toBeInTheDocument();
+    expect(within(rows[1]).getByRole("button", { name: "Answer" })).toBeInTheDocument();
+    fireEvent.click(within(rows[0]).getByRole("button", { name: "Answer" }));
+    fireEvent.click(within(rows[0]).getByLabelText("Supports"));
+    fireEvent.change(within(rows[0]).getByLabelText("Your reasoning"), { target: { value: "A conference fee for this project's own workshop." } });
+    fireEvent.click(within(rows[0]).getByRole("button", { name: "Save answer" }));
+    await waitFor(() =>
+      expect(onWrite).toHaveBeenCalledWith({
+        data: {
+          kind: "judgment",
+          charge_id: "c",
+          question: "allowable",
+          record_id: null,
+          text: "Is this cost necessary and reasonable, and is it for this project?",
+          answer: "supports",
+          reasoning: "A conference fee for this project's own workshop.",
+        },
+        replaces_id: null,
+      }),
+    );
+  });
+
   it("answers an open question as a judgment of the accountant's", async () => {
     const onWrite = writer();
     render(<AgentAnswers answers={[]} questions={[question]} rechecking={false} files={{}} chargeId="c" onWrite={onWrite} />);

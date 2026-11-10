@@ -359,6 +359,25 @@ def test_an_accepted_over_limit_problem_holds_while_the_amount_over_doesnt_grow(
     assert status.accepted and not status.flagged
 
 
+def test_a_new_notice_raising_the_limit_keeps_the_acceptance_while_the_amount_shrinks() -> None:
+    """Judged by the amount alone (call 40): the new notice changes what the problem rests
+    on, but $3,000 over is within the $5,000 accepted."""
+    g = Grant()
+    t = g.standard_terms()  # $120,000 obligated to date
+    _over_by(g, t, 12_500_000, "c1", at(2024, 3, 1))  # $5,000 over
+    _accept_over(g, t, 500_000, at(2024, 3, 2))
+    raised = g.notice("001", 200_000, 12_200_000, at(2024, 4, 1), dated=date(2024, 3, 20))
+    g.confirm(raised, when=at(2024, 4, 1, 13))
+    (status,) = g.run(at(2024, 4, 2)).grants
+    assert status.problems[0].amount_cents == 300_000
+    assert status.accepted and not status.flagged
+
+    _over_by(g, t, 300_000, "c2", at(2024, 5, 1))  # now $6,000 over the raised limit
+    (status,) = g.run(at(2024, 5, 2)).grants
+    assert not status.accepted and status.flagged
+    assert status.problems[0].text.endswith("$5,000.00 over was accepted before.")
+
+
 def test_an_over_limit_acceptance_with_no_amount_doesnt_hold() -> None:
     """It can't say how much it covered, so the problem stays on the list."""
     g = Grant()
