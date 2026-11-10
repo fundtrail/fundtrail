@@ -30,6 +30,13 @@ expected decision or values), never a record ID:
   `reject`), and a `line_id` or a `file`
 - `answer_flag`: `line_id`, `answer`
 - `enter_share`: `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021)
+- `let_in_mail`: `file`, a scheduled Gmail file held from an unknown sender (ruling 59)
+- `accept_reason`: `note`, `check`, and optionally `problem`; about a `line_id`, a `file`,
+  or neither for the grant itself (ruling 59)
+- `sign_off`: `note` (ruling 59)
+
+For every kind but `accept_reason` and `sign_off`, `note` is a comment on the step; for
+those two it's the accountant's note, and it's needed.
 
 The loader holds the script to the seed's own rules (ruling 51, as `data/test_seed.py`
 checks them): an answer is supports, contradicts or unsure; a suggestion is a record kind
@@ -112,6 +119,9 @@ class UserAction:
     share: Decimal | None = None  # enter_share: the part of the bill, as `share` of `out_of`
     out_of: Decimal | None = None  # above 0, and at least `share`
     basis: str | None = None  # enter_share: why that share (decision 0021)
+    check: str | None = None  # accept_reason: the reason's check
+    problem: str | None = None  # accept_reason: the reason's problem, when the check has several
+    # A comment on the step; for accept_reason and sign_off, the accountant's note.
     note: str | None = None
 
 
@@ -138,7 +148,12 @@ ACTION_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "decide_suggestion": (frozenset({"suggestion", "decision"}), frozenset({"line_id", "file"})),
     "answer_flag": (frozenset({"line_id", "answer"}), frozenset()),
     "enter_share": (frozenset({"line_id", "file", "share", "out_of", "basis"}), frozenset()),
+    "let_in_mail": (frozenset({"file"}), frozenset()),
+    "accept_reason": (frozenset({"note", "check"}), frozenset({"problem", "line_id", "file"})),
+    "sign_off": (frozenset({"note"}), frozenset()),
 }
+# The kinds whose note is the accountant's own, so it's needed.
+NOTE_IS_THE_ACCOUNTANTS = frozenset({"accept_reason", "sign_off"})
 
 
 @dataclass(frozen=True)
@@ -304,7 +319,9 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
     if action not in ACTION_FIELDS:
         raise PackError(f"{where}: {action!r} isn't one of {sorted(ACTION_FIELDS)}.")
     required, optional = ACTION_FIELDS[action]
-    given = set(raw) - {"at", "action", "note"}
+    given = set(raw) - {"at", "action"}
+    if action not in NOTE_IS_THE_ACCOUNTANTS:
+        given -= {"note"}
     if not required <= given or given - required - optional:
         raise PackError(
             f"{where}: {action} takes {sorted(required)}, and may take {sorted(optional)}."
@@ -321,6 +338,11 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
             )
     if action == "answer_flag" and raw["answer"] not in ANSWERS:
         raise PackError(f"{where}: an answer is one of {sorted(ANSWERS)}.")
+    for name in ("note", "check", "problem") if action in NOTE_IS_THE_ACCOUNTANTS else ():
+        if name in raw and not (isinstance(raw[name], str) and raw[name].strip()):
+            raise PackError(f"{where}: {name} is text that isn't empty.")
+    if action == "accept_reason" and {"line_id", "file"} <= given:
+        raise PackError(f"{where}: an accepted reason is about a line_id, a file, or the grant.")
     share = out_of = None
     if action == "enter_share":
         share, out_of = _number(raw["share"]), _number(raw["out_of"])
@@ -341,6 +363,8 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
         share=share,
         out_of=out_of,
         basis=raw.get("basis"),
+        check=raw.get("check"),
+        problem=raw.get("problem"),
         note=raw.get("note"),
     )
 
@@ -452,6 +476,8 @@ def _check_script(pack: SamplePack, where: str) -> None:
         event = files.get(a.file)
         if event is None:
             raise PackError(f"{what}: {a.file} isn't on the timeline.")
+        if a.action == "let_in_mail" and event.source.value != "gmail":
+            raise PackError(f"{what}: {a.file} isn't a Gmail file, so it's never held.")
         if a.action == "deliver_file":
             if not event.deliver_by_user:
                 raise PackError(f"{what}: {a.file} is delivered by the user but not marked so.")
