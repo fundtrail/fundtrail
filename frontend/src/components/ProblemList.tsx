@@ -1,0 +1,120 @@
+import type { ProblemRow, Reason } from "@/lib/api";
+import { date, money, SOURCE_LABELS } from "@/lib/format";
+import { ChargeStatusBadge } from "./BucketBadge";
+
+/** The reasons a charge is on the list: every reason that isn't a pass, in the server's order and words. */
+function failing(reasons: Reason[]): Reason[] {
+  return reasons.filter((r) => r.bucket !== "evidence_complete");
+}
+
+function rowKey(row: ProblemRow, index: number): string {
+  switch (row.kind) {
+    case "grant":
+      return `grant:${row.problem.check}:${row.problem.problem}`;
+    case "terms_waiting":
+      return `terms:${row.file.id}`;
+    case "record":
+      return `record:${row.status.record_id ?? row.status.file_id ?? index}`;
+    case "charge":
+      return `charge:${row.charge.id}`;
+  }
+}
+
+function Row({ row }: { row: ProblemRow }) {
+  switch (row.kind) {
+    case "grant":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">Grant</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__text">{row.problem.text}</p>
+          </div>
+          <div className="ft-problem__side">
+            {row.problem.accepted && <span className="ft-tag">Accepted</span>}
+            {row.problem.snoozed && <span className="ft-tag">Snoozed</span>}
+          </div>
+        </>
+      );
+    case "terms_waiting":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">Terms</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__name">{row.file.name}</p>
+            <p className="ft-problem__text">{row.text}</p>
+          </div>
+          <div className="ft-problem__side ft-caption">
+            {SOURCE_LABELS[row.file.source]} · {date(row.file.arrived_at)}
+          </div>
+        </>
+      );
+    case "record":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">{row.file && !row.record ? "File" : "Record"}</span>
+          </div>
+          <div className="ft-problem__main">
+            {row.file && <p className="ft-problem__name">{row.file.name}</p>}
+            {row.status.problems.map((p) => (
+              <p className="ft-problem__text" key={`${p.check}:${p.problem}`}>
+                {p.text}
+              </p>
+            ))}
+          </div>
+          <div className="ft-problem__side">
+            {row.status.accepted && <span className="ft-tag">Accepted</span>}
+            {row.status.snoozed && <span className="ft-tag">Snoozed</span>}
+          </div>
+        </>
+      );
+    case "charge":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-num">{date(row.charge.transaction_date)}</span>
+            <span className="ft-id">{row.charge.ledger_line_id}</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__name">
+              {row.charge.description}
+              {row.charge.vendor && <span className="ft-caption"> · {row.charge.vendor}</span>}
+            </p>
+            {failing(row.status.reasons).map((r) => (
+              <p className="ft-problem__text" key={`${r.check}:${r.problem}`}>
+                {r.text}
+              </p>
+            ))}
+          </div>
+          <div className="ft-problem__side">
+            <span className="ft-amount">{money(row.charge.amount_cents)}</span>
+            <ChargeStatusBadge status={row.status} />
+          </div>
+        </>
+      );
+  }
+}
+
+/**
+ * The problem list, in the order the server sends it: grant problems, then
+ * records and files, then charges by bucket, oldest first (answer 1 of #22).
+ * The screen never sorts or filters it.
+ */
+export function ProblemList({ rows }: { rows: ProblemRow[] }) {
+  if (rows.length === 0) {
+    return <p className="ft-empty">Nothing on the problem list.</p>;
+  }
+  return (
+    <ol className="ft-problems" aria-label="Problem list">
+      {rows.map((row, i) => (
+        <li className="ft-problem" key={rowKey(row, i)} data-kind={row.kind}>
+          <Row row={row} />
+        </li>
+      ))}
+    </ol>
+  );
+}
