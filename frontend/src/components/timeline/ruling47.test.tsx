@@ -29,10 +29,25 @@ describe("skipping the human steps (ruling 47)", () => {
     const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
     // Both uploads were delivered for the user, and say so under Just happened.
     expect(view.now.deliveries).toEqual([]);
-    expect((view.just_happened ?? []).map((p) => p.event.name)).toEqual(["award_letter.txt", "invoice_1001.txt", "L-1001"]);
+    expect((view.just_happened ?? []).map((p) => [p.event.name, p.delivered_by_sample_accountant])).toEqual([
+      ["award_letter.txt", true],
+      ["invoice_1001.txt", true],
+      ["L-1001", false],
+    ]);
     // The accountant's confirmation of the award terms is listed under the event it follows.
     const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id));
     expect(decisions).toEqual(["rec-confirm-award-terms"]);
+  });
+
+  it("shows the user's own delivery under Just happened, untagged", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    const deliver = await screen.findByRole("button", { name: "Deliver for me" });
+    await waitFor(() => expect(deliver).toBeEnabled());
+    fireEvent.click(deliver);
+    await waitFor(() => expect(within(part("Just happened")).getByText("Delivered by you.")).toBeInTheDocument());
+    expect(within(part("Just happened")).queryByText("Delivered for you by the sample accountant")).toBeNull();
   });
 
   it("sends skip_human_steps from Next event and Go to a date when chosen", async () => {
