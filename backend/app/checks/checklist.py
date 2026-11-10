@@ -16,10 +16,12 @@ period in force. Added items and removals are records.
   that takes money off the grant (a negative amount) gets only the two
   correction items: the line it corrects, and a written justification. A line
   that adds money and names a line it corrects (original_line_id) gets its
-  account group's default plus the two. The rest of 0020 (netting a charge
-  against its corrections, a Reversed charge, the corrected-line item filled
-  from the ledger) waits for its contract shapes and plugs in at
-  _correction_items() and items_in_force().
+  account group's default plus the two.
+- Decision 0020's netting (#78): a charge's amounts add up to its net amount,
+  once the lines correcting it are netted in (the contracts' net_amounts). A
+  fully reversed charge's sums aren't checked. "The line it corrects" is filled
+  when the ledger names a line on this grant, or a current correction record
+  names one (the contracts' corrected_line); a link doesn't fill it.
 """
 
 from collections.abc import Sequence
@@ -31,9 +33,10 @@ from app.checks.findings import APPROVAL, CHECKLIST, Finding, passed
 from app.checks.ledger_accounts import group_items
 from app.checks.rules_match import rules_for
 from app.checks.text import money, slug
-from app.checks.view import GrantView, LinkInForce
+from app.checks.view import GrantView, LinkInForce, is_reversed, net_of
 from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecklistEntry, ItemSource
+from app.contracts.corrections import corrected_line
 from app.contracts.records import (
     ApprovalRule,
     Author,
@@ -232,11 +235,12 @@ def items_in_force(charge: Charge, view: GrantView) -> tuple[list[ItemSpec], dic
     others = sum(
         s.amount_cents for s in specs if s.amount_cents is not None and s.kind != "bill_like"
     )
+    target = net_of(view, charge)  # decision 0020: what counts once corrections net
     for s in specs:
         if s.kind == "bill_like":
-            rest = charge.amount_cents - others
+            rest = target - others
             # Items over the charge leave the bill item nothing; the charge's sum then goes over.
-            same_sign = rest == 0 or (rest > 0) == (charge.amount_cents > 0)
+            same_sign = rest == 0 or (rest > 0) == (target > 0)
             s.amount_cents = rest if same_sign else 0
     return specs, waiting
 
@@ -305,6 +309,28 @@ def evaluate_item(
     own = [spec.record.id] if spec.record else []
     missing_text: str | None = None
 
+    if spec.kind == "reversal" and spec.default_key == "corrected_line":
+        # Decision 0020: filled when the ledger names a line on this grant, or a current
+        # correction record names one. Until then nothing is netted.
+        if corrected_line(charge, view.charges, view.state) is not None:
+            result.filled = True
+            return result
+        missing_text = (
+            f"{spec.needed}: no line on this grant is named yet, by the ledger or by "
+            "the transfer's paperwork."
+        )
+        result.findings.append(
+            Finding(
+                CHECKLIST,
+                f"missing:{spec.stable}",
+                Bucket.MISSING_EVIDENCE,
+                missing_text,
+                facts + own,
+                expected_by=spec.expected_by or charge.posting_date,
+            )
+        )
+        return result
+
     if spec.rate is not None and spec.amount_cents is not None:
         rate, problem = _rate_value(spec, view)
         if problem is not None:
@@ -329,7 +355,7 @@ def evaluate_item(
                 result.filled = True
     else:
         ok = bool(links)
-        if spec.amount_cents is not None:
+        if spec.amount_cents is not None and not is_reversed(view, charge):
             total = sum(lk.data.amount_cents or 0 for lk in links)
             side = compare(total, spec.amount_cents)
             if side > 0:
@@ -394,18 +420,26 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
                 "This charge's checklist is empty, so it can't be complete.",
             )
         )
-    amounts = [s.amount_cents for s in specs if s.amount_cents is not None]
+    # A fully reversed charge's sums are no longer checked (decision 0020); otherwise the
+    # amounts add up to the charge's net amount.
+    target = net_of(view, charge)
+    reversed_ = is_reversed(view, charge)
+    amounts = [s.amount_cents for s in specs if s.amount_cents is not None and not reversed_]
     if amounts:
         total = sum(amounts)
-        side = compare(total, charge.amount_cents)
+        side = compare(total, target)
+        what = (
+            f"the charge's net {money(target)}"
+            if target != charge.amount_cents
+            else f"the charge's {money(target)}"
+        )
         if side > 0:
             findings.append(
                 Finding(
                     CHECKLIST,
                     "items_over_charge",
                     Bucket.NEEDS_HUMAN,
-                    f"The checklist's amounts add up to {money(total)}, "
-                    f"more than the charge's {money(charge.amount_cents)}.",
+                    f"The checklist's amounts add up to {money(total)}, more than {what}.",
                     [s.record.id for s in specs if s.record and s.amount_cents is not None],
                 )
             )
@@ -415,8 +449,7 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
                     CHECKLIST,
                     "items_under_charge",
                     Bucket.MISSING_EVIDENCE,
-                    f"The checklist's amounts add up to {money(total)} "
-                    f"of the charge's {money(charge.amount_cents)}.",
+                    f"The checklist's amounts add up to {money(total)} of {what}.",
                     [s.record.id for s in specs if s.record and s.amount_cents is not None],
                     expected_by=charge.posting_date,
                 )
