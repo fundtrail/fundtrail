@@ -7,6 +7,8 @@ import threading
 import time
 import uuid
 
+import pytest
+
 from app.contracts.charges import Charge
 from app.contracts.records import Author, Record
 from app.contracts.runs import RunStatus, Trigger, TriggerKind
@@ -102,6 +104,7 @@ def test_a_run_saves_its_records_and_reruns_the_checks(platform: Platform) -> No
     storage = platform.storage
     assert isinstance(storage, FakeStorage)
     assert storage.objects[log_path(run)] == (b"{}", "application/json")
+    assert run.log_path == log_path(run)
     pinger = platform.pinger
     assert isinstance(pinger, FakePinger)
     statuses = [p[2]["status"] for p in pinger.pings if p[1] == "run"]
@@ -275,7 +278,10 @@ def test_a_failure_that_cant_be_retried_fails_at_once_and_keeps_its_log(
     assert storage.objects[log_path(run)] == (b'{"turns": 3}', "application/json")
 
 
-def test_questions_a_thread_run_left_open_get_an_ordinary_run(
+@pytest.mark.skipif(
+    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
+)
+def test_questions_a_thread_run_left_open_get_an_ordinary_run_right_away(
     platform: Platform,  # noqa: F811
 ) -> None:
     from app.contracts.checks import OpenQuestion
@@ -283,19 +289,86 @@ def test_questions_a_thread_run_left_open_get_an_ordinary_run(
 
     agent = platform.agent
     assert isinstance(agent, FakeAgent)
-    calls: list[TriggerKind] = []
+    seen: list[AgentInput] = []
 
     def behave(i: AgentInput) -> AgentResult:
-        calls.append(i.run.trigger.kind)
-        if len(calls) == 1:
+        seen.append(i)
+        if i.run.trigger.kind == TriggerKind.THREAD_MESSAGE:
             question = OpenQuestion(
-                charge_id="c-1", question=Question.ALLOWABLE, answer_by=Author.AGENT
+                charge_id=charge.id, question=Question.ALLOWABLE, answer_by=Author.AGENT
             )
-            return AgentResult(other_open_questions=[question])
+            return AgentResult(records=[_bill(i)], other_open_questions=[question])
         return AgentResult()
 
     agent.behave = behave
     grant = _grant(platform)
+    with transaction(platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
+        )
+        conn.execute("delete from procrastinate_jobs")
+    charge = Charge(
+        id=str(uuid.uuid4()),
+        workspace_id=grant.workspace_id,
+        grant_id=grant.id,
+        ledger_line_id=f"L-{uuid.uuid4().hex[:6]}",
+        transaction_date="2025-11-12",  # pyright: ignore[reportArgumentType]
+        posting_date="2025-11-14",  # pyright: ignore[reportArgumentType]
+        arrived_at="2025-11-14T00:00:00Z",  # pyright: ignore[reportArgumentType]
+        amount_cents=124000,
+        description="Sediment core liners",
+        account="55016 Lab Instruments and Supplies",
+    )
+    with transaction(platform.pool) as conn:
+        store.insert_charges(conn, [charge])
+        user_id = new_auth_user(platform)
+        store.upsert_user(conn, _user(user_id))
+        now = store.list_runs(conn, grant.id)[0].clock_now
+        message = ThreadMessage(
+            id=str(uuid.uuid4()),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            charge_id=charge.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            text="Is this allowed?",
+            written_at=now,
+        )
+        store.insert_messages(conn, [message])
+        queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
     run_worker_until_idle(str(platform.pool.conninfo))
-    assert calls == [TriggerKind.FILE, TriggerKind.FILE]
-    assert [r.status for r in _runs(platform, grant)] == [RunStatus.DONE, RunStatus.DONE]
+    _, follow_up = seen
+    assert follow_up.run.trigger.kind == TriggerKind.OPEN_QUESTION  # pyright: ignore[reportAttributeAccessIssue]
+    assert follow_up.run.trigger.id == charge.id
+
+
+@pytest.mark.skipif(
+    not hasattr(TriggerKind, "OPEN_QUESTION"), reason="needs the open_question trigger (#39)"
+)
+def test_open_question_follow_ups_name_each_charge_once() -> None:
+    from datetime import UTC, datetime
+
+    from app.contracts.checks import OpenQuestion
+    from app.contracts.records import Question
+    from app.contracts.runs import AgentRun
+    from app.db.jobs import follow_up_triggers
+
+    run = AgentRun(
+        id="r",
+        workspace_id="w",
+        grant_id="g",
+        trigger=Trigger(kind=TriggerKind.THREAD_MESSAGE, id="m"),
+        status=RunStatus.RUNNING,
+        clock_now=datetime(2026, 1, 1, tzinfo=UTC),
+        queued_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    questions = [
+        OpenQuestion(charge_id=c, question=Question.ALLOWABLE, answer_by=Author.AGENT)
+        for c in ("c-1", "c-2", "c-1")
+    ]
+    triggers = follow_up_triggers(run, questions)
+    assert [(t.kind.value, t.id) for t in triggers] == [
+        ("open_question", "c-1"),
+        ("open_question", "c-2"),
+    ]
+    assert follow_up_triggers(run, []) == []
