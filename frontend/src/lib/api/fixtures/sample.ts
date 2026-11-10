@@ -12,7 +12,7 @@
 // text the server builds; screens show it as it comes.
 
 import { ApiError } from "../client";
-import type { Charge, Cents, EvidenceFile, FtRecord, Grant, Id, IsoDate, IsoDatetime, User, ValueState, Workspace } from "../types";
+import type { Charge, Cents, EvidenceFile, FtRecord, Grant, HeldMail, Id, IsoDate, IsoDatetime, SignOffState, User, ValueState, Workspace } from "../types";
 import raw from "./sample_grant.json";
 
 export interface DefaultItemFixture {
@@ -65,6 +65,42 @@ export const sampleCharge = (id: Id) => find(sample.charges, id, "charge");
 
 /** The workspace as the fake serves it, on the fake clock. */
 export const sampleWorkspace: Workspace = { ...sample.workspace, clock_now: FAKE_NOW };
+
+/**
+ * Mail held for the sample grant (decision 0025). The contract's sample holds
+ * none, so this adds one synthetic message from a sender nobody added: a vendor
+ * sending a copy of invoice INV-1001 straight to the grant's address. The
+ * grant's problem list and the mail screen both show it.
+ */
+export const SAMPLE_HELD_MAIL: HeldMail[] = [
+  {
+    id: "held-inv-1001-copy",
+    workspace_id: WORKSPACE_ID,
+    grant_id: SAMPLE_GRANT_ID,
+    sender: "billing@labsupply.example",
+    reason: "unknown_sender",
+    source_ref: "gmail-synthetic-0002",
+    subject: "Invoice INV-1001",
+    held_at: "2026-04-08T14:10:00Z",
+    files: [
+      {
+        name: "message.eml",
+        media_type: "message/rfc822",
+        storage_path: `${WORKSPACE_ID}/${SAMPLE_GRANT_ID}/held-inv-1001-copy/message.eml`,
+        sha256: "fake-held-inv-1001-copy-message",
+      },
+      {
+        name: "INV-1001.pdf",
+        media_type: "application/pdf",
+        storage_path: `${WORKSPACE_ID}/${SAMPLE_GRANT_ID}/held-inv-1001-copy/INV-1001.pdf`,
+        sha256: "fake-held-inv-1001-copy-attachment",
+      },
+    ],
+  },
+];
+
+/** The sample hasn't been signed off. Shared by the grant page and the closeout screen. */
+export const SAMPLE_SIGN_OFF: SignOffState = { state: "not_signed", sign_off: null, changes: [] };
 
 /** A deep copy, or a 404 when there's nothing, the way the server answers. */
 export function served<T>(value: T | undefined): Promise<T> {

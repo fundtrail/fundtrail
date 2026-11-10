@@ -133,8 +133,11 @@ export interface Citation {
 
 export interface Cited<T> {
   value: T;
+  /** The value exactly as the document writes it. */
   text?: string | null;
   citation?: Citation | null;
+  /** Read from the document, but with no citation to show for it. Always unconfirmed until the accountant confirms it. */
+  uncited?: boolean;
 }
 export type CitedText = Cited<string>;
 export type CitedDate = Cited<IsoDate>;
