@@ -10,6 +10,8 @@ from typing import Any
 
 import pypdfium2 as pdfium
 
+from app.contracts.api import BudgetLineView, BudgetView, TermView
+from app.contracts.api import RecordState as TermState
 from app.contracts.checks import (
     Bucket,
     ChargeStatus,
@@ -22,9 +24,9 @@ from app.contracts.checks import (
     StatusEntry,
 )
 from app.contracts.fixtures import load_sample_grant
-from app.contracts.records import Period, Record
+from app.contracts.records import Record
 from app.contracts.runs import Trigger, TriggerKind
-from app.packet import BudgetFigure, ReportInputs, TermsInForce
+from app.packet import ReportInputs
 from app.quotes import PDFIUM_LOCK
 
 SAMPLE = load_sample_grant()
@@ -138,35 +140,49 @@ def _history() -> tuple[StatusEntry, ...]:
     )
 
 
-OTHER_TERMS = (
+TERMS = (
+    "rec-period",
+    "rec-budget-participant-support",
+    "rec-budget-other-direct-costs",
+    "rec-budget-materials-and-supplies",
+    "rec-budget-other",
     "rec-person-pi",
     "rec-person-program-officer",
     "rec-person-grants-officer",
     "rec-approval-rule",
+    "rec-notice-000",
 )
+SPENT = {
+    "rec-budget-participant-support": 0,
+    "rec-budget-other-direct-costs": 342000,
+    "rec-budget-materials-and-supplies": 124000,
+    "rec-budget-other": 218000,
+}
 
 
-def _terms(confirmed_extension: bool) -> TermsInForce:
-    return TermsInForce(
-        period=Period(
-            start=date(2023, 2, 1),
-            end=date(2027, 1, 31) if confirmed_extension else date(2026, 1, 31),
+def _terms(records: tuple[Record, ...], confirmed_extension: bool) -> dict[str, Any]:
+    """The grant page's terms and budget figures, as W4 would hand them over."""
+    by_id = {r.id: r for r in records}
+    award = by_id["rec-confirm-award-terms"]
+    views = [TermView(record=by_id[i], state=TermState.COUNTS, decision=award) for i in TERMS]
+    if "rec-period-extension" in by_id:
+        views.append(
+            TermView(
+                record=by_id["rec-period-extension"],
+                state=TermState.COUNTS if confirmed_extension else TermState.WAITING,
+                decision=by_id.get("rec-confirm-extension"),
+            )
+        )
+    budget = BudgetView(
+        lines=tuple(
+            BudgetLineView(line=by_id[i], amount_cents=by_id[i].data.amount.value, spent_cents=s)  # type: ignore[union-attr]
+            for i, s in SPENT.items()
         ),
-        period_ids=("rec-period", "rec-period-extension")
-        if confirmed_extension
-        else ("rec-period",),
-        limit_notice_id="rec-notice-000",
+        limit_cents=12000000,
         spent_cents=342000,
-        budget=(
-            BudgetFigure(record_id="rec-budget-participant-support", spent_cents=0, over=False),
-            BudgetFigure(record_id="rec-budget-other-direct-costs", spent_cents=342000, over=False),
-            BudgetFigure(
-                record_id="rec-budget-materials-and-supplies", spent_cents=124000, over=False
-            ),
-            BudgetFigure(record_id="rec-budget-other", spent_cents=218000, over=False),
-        ),
-        other_term_ids=OTHER_TERMS,
     )
+    end = date(2027, 1, 31) if confirmed_extension else date(2026, 1, 31)
+    return {"terms": tuple(views), "budget": budget, "end_date": end}
 
 
 def sample_inputs(now: datetime = APRIL_10, **changes: Any) -> ReportInputs:
@@ -206,7 +222,7 @@ def sample_inputs(now: datetime = APRIL_10, **changes: Any) -> ReportInputs:
         "records": records,
         "checks": checks,
         "history": tuple(e for e in _history() if e.changed_at <= now),
-        "terms": _terms(confirmed),
+        **_terms(records, confirmed),
         "file_texts": {f.id: SAMPLE.document(f.id) for f in files},
     }
     fields.update(changes)
