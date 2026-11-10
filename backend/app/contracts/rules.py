@@ -37,6 +37,7 @@ from .records import (
     Author,
     Bill,
     BudgetAssignment,
+    BudgetLine,
     ChecklistItem,
     ChecklistRemoval,
     Confirmation,
@@ -576,6 +577,8 @@ def _referenced_files(new: Record) -> list[str]:
         ids.append(data.file_id)
     if isinstance(data, Duplicate):
         ids += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        ids.append(data.notice_file_id)
     return ids
 
 
@@ -922,6 +925,15 @@ def check_new_record(
             ):
                 problems.append(f"record {record_id} replaces a record that's no longer current")
 
+    elif isinstance(data, BudgetLine) and data.notice_file_id is not None:
+        # The agent's line belongs to the notice it was read from; naming another
+        # would move it to that notice's group. The accountant may name any file.
+        if agent and data.notice_file_id not in {c.file_id for c in citations(data)}:
+            problems.append(
+                f"the agent's budget line belongs to the notice it cites, "
+                f"not file {data.notice_file_id}"
+            )
+
     elif isinstance(data, Remainder):
         bill = pointed.get(data.record_id)
         if bill is not None and bill.kind != RecordKind.BILL:
@@ -1029,9 +1041,9 @@ def still_held(held: HeldMail, state: RecordState, known_senders: Collection[str
 
     Held until the accountant lets it in or dismisses it (a current `mail_action`), or,
     for an unknown sender, until the sender becomes known: a confirmed person term, one
-    the accountant added, or the accountant's own address, given in `known_senders` in
-    lower case. Mail held because a known address couldn't be verified stays held
-    until the accountant decides.
+    the accountant added, or the address of one of the workspace's members who can act,
+    given in `known_senders` in lower case. Mail held because a known address
+    couldn't be verified stays held until the accountant decides.
     """
     decided = any(
         isinstance(r.data, MailDecision) and r.data.held_mail_id == held.id for r in state.current()

@@ -79,8 +79,9 @@ def read_ledger_file(
     with its row number and a plain reason, and the rest still load. Raises `LedgerFileError`
     when the file as a whole can't be read.
 
-    `now` is the workspace's "now". A line arrives at 00:00 UTC (Coordinated Universal Time) on
-    its posting date if that's still ahead of `now`, and otherwise at `now` (decision 0023).
+    `now` is the grant's "now" (one clock per grant), since a file is for one grant. A line
+    arrives at 00:00 UTC (Coordinated Universal Time) on its posting date if that's still
+    ahead of `now`, and otherwise at `now` (decision 0023).
     """
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware.")
