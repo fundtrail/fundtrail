@@ -1,0 +1,18 @@
+UNIVERSITY OF EXAMPLE
+Example Marine Station
+Field Operations
+
+RECHARGE USAGE STATEMENT
+
+Statement number: EMS-2402-75
+Statement date: March 1, 2024
+Service period: February 1, 2024 to February 29, 2024
+Principal investigator: Parker Proxy
+Award charged: SYN-2309472
+
+Service                                         Units        Rate        Amount
+Small boat time, per hour                          15      $65.00       $975.00
+
+Total charged to award                                                  $975.00
+
+Rates are the facility's approved recharge rates for the fiscal year.

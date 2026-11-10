@@ -1,0 +1,31 @@
+UNIVERSITY OF EXAMPLE
+CERTIFIED EFFORT REPORT
+
+Employee: Jules Samplewell
+Title: Graduate Student Researcher
+Department: Earth and Ocean Sciences
+Reporting period: July 1, 2024 to December 31, 2024
+
+Distribution of effort for the reporting period
+
+Fund or award                                           Effort
+Award SYN-2309472, Sediment Transport in Example River Delta Channels
+                                                        100 percent
+Total                                                   100 percent
+
+Salary charged to award SYN-2309472 for the reporting period:
+  July 2024              $2,900.00
+  August 2024            $2,900.00
+  September 2024         $2,900.00
+  October 2024           $2,900.00
+  November 2024          $2,900.00
+  December 2024          $2,900.00
+  Total                 $17,400.00
+
+Certification
+I certify that the distribution of effort above is a reasonable estimate of
+the work performed by the employee during the reporting period.
+
+Certified by: Parker Proxy, Principal Investigator
+Email: parker.proxy@university.example
+Date certified: February 21, 2025

@@ -1,0 +1,25 @@
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-65735
+Invoice date: April 30, 2026
+Customer PO: PO-26-1745
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Kendall Dummy
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2507264, coastal microbial genomics
+
+Item  Description                                   Qty   Unit price      Amount
+1     Ethanol, 200 proof, 4 L                         1      $156.00     $156.00
+2     Sample bags, sterile, 500 count                 4       $96.00     $384.00
+
+Subtotal                                                                 $540.00
+Shipping                                                                   $0.00
+Total due                                                                $540.00
+
+Terms: net 30

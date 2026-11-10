@@ -1,0 +1,66 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: January 16, 2024
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project measures how fast salt marshes at
+Example Point bury carbon as sea level rises.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2401835
+Award Instrument: Standard Grant
+Award Date: January 16, 2024
+Period of Performance Start Date: February 1, 2024
+Period of Performance End Date: January 31, 2027
+Project Title: Salt Marsh Carbon Burial at Example Point
+Funding Opportunity: NSF 23-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $274,000
+Total Intended Award Amount: $274,000
+Cost Share: $0
+Total Amount Obligated to Date: $274,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Harper Fixture, Principal Investigator
+  Email: harper.fixture@university.example
+  Organization: University of Example
+Sasha Stub, Co-Principal Investigator
+  Email: sasha.stub@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the Research Terms and Conditions and the NSF
+Agency Specific Requirements in effect on the award date, and to the terms
+of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+B. Other Personnel                                   $188,000
+     Post Doctoral Scholars                          $188,000
+C. Fringe Benefits                                    $40,000
+E. Travel                                              $8,000
+     Domestic                                          $8,000
+G. Other Direct Costs                                 $38,000
+     Materials and Supplies                           $28,000
+     Other                                            $10,000
+H. Total Direct Costs                                $274,000
+
+Except as modified by this amendment, the award conditions remain unchanged.
