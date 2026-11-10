@@ -493,7 +493,6 @@ def _sample_grant_without_read_points() -> dict[str, Any]:
             "id": WORKSPACE,
             "name": "Sample grant",
             "owner_id": ACCOUNTANT,
-            "clock_now": "2026-04-10T17:00:00Z",
         },
         "grant": {
             "id": GRANT,
@@ -502,6 +501,7 @@ def _sample_grant_without_read_points() -> dict[str, Any]:
             "award_number": "SYN-2300117",
             "title": "Sediment Microbiome Survey of Example Bay",
         },
+        "now": "2026-04-10T17:00:00Z",
         "charges": [
             charge(
                 "L-1001",

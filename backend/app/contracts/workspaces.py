@@ -23,10 +23,6 @@ class Workspace(Model):
     id: Id
     name: Text
     owner_id: Id
-    # Deprecated (issue 165): each sample grant has its own clock (Grant.clock_now),
-    # and the workspace clock goes away. Kept until the platform (W4) moves to the
-    # grant's clock; then it's removed with its column.
-    clock_now: UtcDatetime | None = None
 
 
 class SampleChoice(StrEnum):

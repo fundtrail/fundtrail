@@ -82,41 +82,6 @@ class ArrivalSource(StrEnum):
     UPLOAD = "upload"
 
 
-class NextArrival(Model):
-    """The next item waiting for the clock: when, where from and its name. Not its contents.
-
-    Deprecated with Clock (issue 165): the timeline replaces it. `ArrivalSource` stays,
-    since a timeline event uses it.
-    """
-
-    at: UtcDatetime
-    source: ArrivalSource
-    name: Text  # the file name, or the ledger line ID
-
-
-class Clock(Model):
-    """GET and POST /workspaces/{workspace_id}/clock.
-
-    Deprecated (issue 165): a sample grant's timeline replaces the workspace clock
-    (`timeline.TimelineView`). Kept until the platform (W4) removes the clock route.
-    """
-
-    now: UtcDatetime
-    simulated: bool  # False when the workspace runs on the real date
-    next_arrival_at: UtcDatetime | None = None  # the next charge or file waiting for the clock
-    next_arrival: NextArrival | None = None
-
-
-class ClockMove(Model):
-    """POST /workspaces/{workspace_id}/clock.
-
-    Nothing in `to` moves to the next arrival. The clock only moves forward.
-    Deprecated (issue 165): replaced by `timeline.TimelineMove`.
-    """
-
-    to: UtcDatetime | None = None
-
-
 # What code works out about a record, in one word or a few fields.
 
 
