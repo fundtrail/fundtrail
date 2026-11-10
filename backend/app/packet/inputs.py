@@ -71,7 +71,15 @@ class ReportInputs(Model):
             if self.sign_off.author_user_id != self.preparer.id:
                 raise ValueError("the sign-off is the preparer's: one person per workspace")
         grant = self.grant.id
-        everything = (*self.charges, *self.files, *self.records, *self.held_mail)
+        everything = (
+            *self.charges,
+            *self.files,
+            *self.records,
+            *self.held_mail,
+            *self.thread_messages,
+        )
         if any(x.grant_id != grant for x in everything):
-            raise ValueError("every charge, file, record and held message belongs to the grant")
+            raise ValueError(
+                "every charge, file, record, held message and thread message belongs to the grant"
+            )
         return self

@@ -327,11 +327,16 @@ class _Report:
                 ),
                 (0.25, 0.75),
             ),
-            Heading("Terms in force", 3),
+            Heading("Confirmed terms", 3),
+            # The one line that says what's in force; it comes from the checks.
+            Para(f"End date in force: {fmt.day(self.inp.end_date) or 'none confirmed'}."),
+            Para(
+                "Every confirmed term that counts, an amendment and the earlier terms it "
+                "changes included. The checks decide which one is in force.",
+                "small",
+            ),
         ]
-        terms: list[tuple[str, str, str]] = [
-            ("End date in force", fmt.day(self.inp.end_date) or "None confirmed", "")
-        ]
+        terms: list[tuple[str, str, str]] = []
         for view in self.inp.terms:
             r = view.record
             if view.state != TermState.COUNTS or isinstance(r.data, BudgetLine):
@@ -339,7 +344,8 @@ class _Report:
             label = KIND_LABELS[r.kind]
             what = self.describe(r).removeprefix(f"{label}: ")
             terms.append((label, what, self.term_confirmed(view)))
-        blocks.append(Table(("Term", "In force", "Confirmed"), tuple(terms), (0.22, 0.5, 0.28)))
+        if terms:
+            blocks.append(Table(("Term", "Says", "Confirmed"), tuple(terms), (0.22, 0.5, 0.28)))
 
         blocks.append(Heading("Spending", 3))
         if b is not None and b.limit_cents is not None:
@@ -348,6 +354,7 @@ class _Report:
                 if any(
                     p.check == BUDGET and p.problem == OVER_LIMIT
                     for gs in self.inp.checks.grants
+                    if gs.grant_id == self.inp.grant.id
                     for p in gs.problems
                 )
                 else ""
@@ -359,9 +366,12 @@ class _Report:
                 )
             )
         # An overspent line is a grant note from the checks, naming the lines it's about.
-        overspent = {
-            rid for n in self.inp.checks.notes if n.check == BUDGET for rid in n.record_ids
-        }
+        budget_notes = [
+            n
+            for n in self.inp.checks.notes
+            if n.check == BUDGET and n.grant_id == self.inp.grant.id
+        ]
+        overspent = {rid for n in budget_notes for rid in n.record_ids}
         views = {v.record.id: v for v in self.inp.terms}
         rows: list[tuple[str, ...]] = []
         for line in b.lines if b is not None else ():
@@ -385,6 +395,8 @@ class _Report:
                     (0.3, 0.15, 0.15, 0.12, 0.28),
                 )
             )
+        # The checks judge spending by budget category; their own words say how.
+        blocks += [Para(f"Budget note: {n.text}", "small") for n in budget_notes]
         if (b is None or b.limit_cents is None) and not rows:
             blocks.append(
                 Para("No charges." if not self.inp.charges else "No confirmed limit or budget.")

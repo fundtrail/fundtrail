@@ -216,7 +216,9 @@ def test_the_bytes_dont_depend_on_the_process(draft_pdf: bytes):
 
 def test_the_summary_has_the_terms_spending_counts_and_ledger_total():
     text = texts(section(sample_inputs(), 1))
-    assert "End date in force Jan 31, 2027" in text
+    assert "End date in force: Jan 31, 2027." in text
+    assert "In force" not in text  # only the end date is called in force
+    assert "Term Says Confirmed" in text
     assert (
         "Period of performance Feb 1, 2023 to Jan 31, 2026 "
         "Confirmed by Sample Accountant, Jan 12, 2023" in text
@@ -683,7 +685,7 @@ def test_only_the_preparer_signs_off():
 
 def test_a_waiting_term_isnt_in_force():
     text = texts(section(sample_inputs(APRIL_9), 1))
-    assert "End date in force Jan 31, 2026" in text
+    assert "End date in force: Jan 31, 2026." in text
     assert "ends Jan 31, 2027" not in text
 
 
@@ -705,6 +707,10 @@ def test_over_budget_and_over_the_limit_come_from_the_checks():
     assert "Materials and Supplies $40,000.00 $1,240.00 Yes" in text
     assert "Other $60,000.00 $2,180.00 No" in text
     assert "of $120,000.00. Spending is over the award's limit." in text
+    assert "Budget note: Materials and Supplies: $41,000.00 of $40,000.00" in text
+    elsewhere = over.model_copy(update={"grant_id": "grant-other"})
+    other = base.checks.model_copy(update={"grants": (elsewhere,)})
+    assert "over the award's limit" not in texts(section(sample_inputs(checks=other), 1))
 
 
 def test_a_thread_trigger_reads_as_the_screen_does():
@@ -787,3 +793,18 @@ def test_the_font_checksums_are_on_file():
     for line in (fonts / "SHA256SUMS").read_text().splitlines():
         digest, name = line.split()
         assert hashlib.sha256((fonts / name).read_bytes()).hexdigest() == digest
+
+
+def test_thread_messages_belong_to_the_grant():
+    message = ThreadMessage(
+        id="msg-x",
+        workspace_id="ws-sample",
+        grant_id="grant-other",
+        charge_id="chg-l-1002",
+        author=Author.USER,
+        author_user_id=USER.id,
+        text="Elsewhere",
+        written_at=APRIL_10,
+    )
+    with pytest.raises(ValueError, match="belongs to the grant"):
+        sample_inputs(thread_messages=(message,))
