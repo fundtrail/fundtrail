@@ -55,6 +55,10 @@ CATEGORIES = {
     "participant_support", "other_direct_costs", "materials_and_supplies", "publication",
     "consultant_services", "computer_services", "subawards", "other",
 }
+ODC_SUBLINE_CATEGORIES = {
+    "materials_and_supplies", "publication", "consultant_services",
+    "computer_services", "subawards", "other",
+}
 
 QUESTIONS = {"allowable", "covers", "unusual_term", "flag"}
 QUESTIONS_WITH_FILE = {"covers", "unusual_term"}
@@ -121,6 +125,36 @@ def money_renderings(cents: int) -> list[str]:
     if rest == 0:
         out.append(f"{sign}${dollars:,}")
     return out
+
+
+def money_written(cents: int, text: str) -> bool:
+    """True when the amount is written in text as a whole amount, so $150
+    doesn't match inside $150,000 or $150.50."""
+    return any(
+        re.search(re.escape(normalize(r)) + r"(?![\d,]|\.\d)", text)
+        for r in money_renderings(cents)
+    )
+
+
+def budget_parents(letter_text: str) -> dict[str, str]:
+    """Maps each sub-line the award letter's budget prints to its line.
+
+    A line starts with its letter ("G. Other Direct Costs"). A sub-line is
+    indented under it. Amounts are dropped from the names.
+    """
+    parents: dict[str, str] = {}
+    _, _, budget = letter_text.partition("\nBUDGET\n")
+    current = None
+    for raw in budget.splitlines():
+        name = re.sub(r"\s+\$[\d,.]+\s*$", "", raw).strip()
+        if not name or "$" not in raw:
+            continue
+        line = re.match(r"^[A-M]\.\s+(.+)$", name)
+        if line and not raw[:1].isspace():
+            current = line.group(1)
+        elif raw[:1].isspace() and current is not None:
+            parents[name] = current
+    return parents
 
 
 def field_type(path: str) -> str:
@@ -235,7 +269,7 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
         elif ftype in MONEY_FIELDS:
             if not CENTS.match(value):
                 problems.append(f"{where}: {field} {value!r} isn't a whole number of cents")
-            elif not any(normalize(r) in text for r in money_renderings(int(value))):
+            elif not money_written(int(value), text):
                 problems.append(f"{where}: {field} {value} cents isn't written in {name}")
         elif ftype not in UNCITED_FIELDS and normalize(value) not in text:
             problems.append(f"{where}: {field} {value!r} doesn't appear in {name}")
@@ -279,7 +313,35 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             if rec.get("kind") == "budget_line" and "name" in fields:
                 budget_names.add(fields["name"])
 
+    # A sub-line's category is its line's category, except inside Other
+    # Direct Costs, whose six sub-lines are categories of their own.
+    categories = {
+        r["fields"]["name"]: r["fields"].get("category")
+        for r in key["records"]
+        if isinstance(r, dict) and r.get("kind") == "budget_line"
+        and isinstance(r.get("fields"), dict) and "name" in r["fields"]
+    }
+    if len(letters) == 1:
+        parents = budget_parents(letters[0].read_text(encoding="utf-8"))
+        for name, category in categories.items():
+            parent = parents.get(name)
+            if parent is None:
+                continue
+            parent_category = categories.get(parent)
+            if parent_category is None:
+                problems.append(f"answer_key.json: sub-line {name!r} has no budget_line for its line {parent!r}")
+            elif parent_category == "other_direct_costs":
+                if category not in ODC_SUBLINE_CATEGORIES:
+                    problems.append(
+                        f"answer_key.json: sub-line {name!r} of Other Direct Costs needs one of "
+                        f"{sorted(ODC_SUBLINE_CATEGORIES)}, not {category!r}")
+            elif category != parent_category:
+                problems.append(
+                    f"answer_key.json: sub-line {name!r} has category {category!r}, "
+                    f"but its line {parent!r} is {parent_category!r}")
+
     linked_lines: set[str] = set()
+    files_by_line: dict[str, set[str]] = {}
     seen_links: set[tuple[str, str]] = set()
     used_by_bill: dict[str, int] = {}
     for i, link in enumerate(key["links"]):
@@ -296,6 +358,7 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             problems.append(f"{where}: the same link appears twice")
         seen_links.add((name, line_id))
         linked_lines.add(line_id)
+        files_by_line.setdefault(line_id, set()).add(name)
         is_bill = "bill" in kinds_by_file.get(name, set())
         amount = link.get("amount_cents")
         if is_bill and not (isinstance(amount, int) and not isinstance(amount, bool)):
@@ -364,6 +427,12 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             problems.append(f"{where}: at must come after the line arrives")
         if not confirmed or at <= min(confirmed):
             problems.append(f"{where}: at must come after the accountant confirms the terms")
+        # A charge can't be complete before the evidence linked to it is on file.
+        if item["bucket"] == "evidence_complete":
+            for name in sorted(files_by_line.get(item["line_id"], set())):
+                file_at = arrivals.get(f"file:{name}")
+                if file_at is None or at <= file_at:
+                    problems.append(f"{where}: evidence_complete must come after {name} arrives")
 
 
 def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[str]) -> dict[str, datetime]:
@@ -444,8 +513,9 @@ def check_documents(case: Path, problems: list[str]) -> None:
         for address in EMAIL.findall(text):
             if not address.lower().endswith(".example"):
                 problems.append(f"{path.name}: email address {address} isn't at a .example domain")
-        if "—" in text:
-            problems.append(f"{path.name}: has an em dash")
+        for dash, dash_name in (("\N{EM DASH}", "an em dash"), ("\N{EN DASH}", "an en dash")):
+            if dash in text:
+                problems.append(f"{path.name}: has {dash_name}")
     for letter in case.glob("award_letter.*"):
         text = letter.read_text(encoding="utf-8")
         positions = [text.find(s) for s in AWARD_LETTER_SECTIONS]
