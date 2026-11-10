@@ -31,10 +31,10 @@ from app.contracts.rules import check_new_record, run_read_point
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind, batch_for
 from app.contracts.workspaces import Grant
 
-from . import store
+from . import clock, store
 from .pings import ping_changed, ping_run
 from .platform import Platform, get_platform
-from .pool import transaction, workspace_now
+from .pool import transaction
 from .ports import AgentInput, AgentResult
 from .recheck import recheck_grant
 from .store import Conn
@@ -167,11 +167,8 @@ def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
     conn.execute("set transaction isolation level repeatable read")
     grant = store.get_grant(conn, run.grant_id)
     assert grant is not None
-    workspace = store.workspace_by_id(conn, grant.workspace_id)
-    if workspace.clock_now is None:
-        # A real-date workspace: the run works as of this snapshot's moment, so everything
-        # it's given, records written since it started included, counts as read by it.
-        clock_now = store.snapshot_now(conn)
+    clock_now = clock.read_now(conn, run)
+    if clock_now != run.clock_now:
         store.set_run(conn, run.id, RunStatus.RUNNING, clock_now=clock_now)
         run = run.model_copy(update={"clock_now": clock_now})
     thread = []
@@ -246,7 +243,7 @@ def save_run(
     _check_result(run, result)
     grant = store.get_grant(conn, run.grant_id, lock=True)
     assert grant is not None
-    now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+    now = clock.grant_now(conn, grant.id)
     records = store.list_records(conn, grant.id)
     charges = store.list_charges(conn, grant.id, now)
     files = store.list_files(conn, grant.id, now)
@@ -324,7 +321,7 @@ def _start(p: Platform, run_id: str, catch_up: bool) -> AgentRun | None:
             )
         clock_now = run.clock_now
         if run.started_at is None and not catch_up:
-            clock_now = workspace_now(store.workspace_by_id(conn, run.workspace_id))
+            clock_now = clock.grant_now(conn, run.grant_id)
         store.set_run(conn, run.id, RunStatus.RUNNING, started=True, clock_now=clock_now)
         return run.model_copy(update={"status": RunStatus.RUNNING, "clock_now": clock_now})
 
@@ -448,11 +445,9 @@ def _fail_for_good(
             grant = store.get_grant(conn, run.grant_id, lock=True)
             assert grant is not None
             if catch_up:
-                from .clock import step_after_catch_up
-
-                step_after_catch_up(p, conn, grant, run)
+                clock.step_after_catch_up(p, conn, grant, run)
             else:
-                now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+                now = clock.grant_now(conn, grant.id)
                 recheck_grant(conn, p.checks, grant, now, run.trigger)
     except Exception as error:  # noqa: BLE001 - the run is failed already; say so and go on
         log.warning("checks after run %s failed for good raised %s", run.id, type(error).__name__)
