@@ -47,6 +47,7 @@ META_FILES = {
     "timeline.json",
     "user_actions.json",
     "sample.json",
+    "agent_records.json",
     "README.md",
 }
 TIMELINE_KINDS = {"file", "ledger", "ledger_line"}
@@ -66,6 +67,31 @@ ACTION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
 }
 USER_ACTIONS = set(ACTION_FIELDS)
 DECISIONS = {"accept", "reject"}
+RECORDS_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "records.py"
+# The record kinds an agent's suggestion can be, the ones that wait for the
+# accountant (contracts.md section 1, "What counts"): a fix to a link, a new
+# answer, a checklist removal, a dispute, a duplicate mark, a correction, a
+# remainder, or a retraction of its own flag. Each must be a RecordKind.
+SUGGESTION_KINDS = {
+    "link",
+    "judgment",
+    "checklist_removal",
+    "dispute",
+    "duplicate",
+    "correction",
+    "remainder",
+    "retraction",
+}
+# The record kinds that are a grant's terms, which confirm_terms confirms.
+TERM_RECORD_KINDS = {
+    "period_of_performance",
+    "budget_line",
+    "person",
+    "approval_rule",
+    "rate",
+    "notice",
+    "other_term",
+}
 # SampleChoice, as issue 165 settles it. When the contract code has the enum,
 # test_sample_choices_match_the_contract reads it and compares.
 SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
@@ -170,6 +196,7 @@ def generated() -> dict:
     out: dict = {SAMPLES / name: g for name, g in samples.items()}
     out.update({DEMO / g.slug: g for g in unused})
     out["sample_json"] = build.sample_json
+    out["agent_records_json"] = build.agent_records_json
     return out
 
 
@@ -231,6 +258,7 @@ def check_generated(key_dir: Path, files: Path, grant, problems: list[str]) -> N
     ]
     if key_dir.parent == SAMPLES:
         made_files.append(("sample.json", gen()["sample_json"](grant)))
+        made_files.append(("agent_records.json", gen()["agent_records_json"](grant)))
     for fname, made in made_files:
         path = key_dir / fname
         if not path.is_file():
@@ -366,26 +394,60 @@ def check_timeline(
                 f"{where}: {a['action']} takes {sorted(required)}, and may take {sorted(optional)}"
             )
             continue
-        if a["action"] == "decide_suggestion" and (
-            a["decision"] not in DECISIONS or not ({"line_id", "file"} & given)
-        ):
-            problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+        if a["action"] == "decide_suggestion":
+            if a["decision"] not in DECISIONS or not ({"line_id", "file"} & given):
+                problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+            if a["suggestion"] not in SUGGESTION_KINDS:
+                problems.append(
+                    f"{where}: suggestion {a['suggestion']!r} isn't one of "
+                    f"{sorted(SUGGESTION_KINDS)}"
+                )
         if a["action"] == "answer_flag" and a["answer"] not in ev.ANSWERS:
             problems.append(f"{where}: answer must be one of {sorted(ev.ANSWERS)}")
+        share = None
+        if a["action"] == "enter_share":
+            share = typed_share(a)
+            if share is None:
+                problems.append(
+                    f"{where}: share and out_of must be numbers, with out_of above 0 and "
+                    f"the share from 0 to out_of"
+                )
+                continue
         t = ev.parse_time(a["at"])
         out[f"{a['action']}:{a.get('line_id') or a.get('file')}"] = t
         if a["action"] == "answer_flag":
             out[f"answer_flag_value:{a['line_id']}"] = a["answer"]  # type: ignore[assignment]
-        if a["action"] == "enter_share":
-            out[f"enter_share_value:{a['line_id']}"] = (  # type: ignore[assignment]
-                a["file"],
-                int(a["share"]),
-                int(a["out_of"]),
-            )
+        if share is not None:
+            out[f"enter_share_value:{a['line_id']}"] = (a["file"], *share)  # type: ignore[assignment]
         if a["action"] == "deliver_file":
             # A file marked for the user arrives when the user brings it in.
             out[f"file:{a['file']}"] = t
     return out
+
+
+def typed_share(action: dict) -> tuple[float, float] | None:
+    """A scripted share and its whole, or None when they aren't a usable share."""
+    try:
+        share, whole = float(str(action["share"])), float(str(action["out_of"]))
+    except ValueError:
+        return None
+    if not (whole > 0 and 0 <= share <= whole):
+        return None
+    return share, whole
+
+
+def kinds_in_contract(path: Path) -> set[str] | None:
+    """RecordKind's values in the contract code, or None if it isn't there."""
+    if not path.is_file():
+        return None
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ClassDef) and node.name == "RecordKind":
+            return {
+                stmt.value.value
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Constant)
+            }
+    return None
 
 
 def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -> None:
@@ -550,7 +612,7 @@ def check_key_data(
 
 def check_synthetic(files: Path, text: dict[str, str], problems: list[str]) -> None:
     for p in sorted(files.iterdir()):
-        if p.is_file() and p.stat().st_size > MAX_FILE_BYTES:
+        if p.is_file() and p.name not in META_FILES and p.stat().st_size > MAX_FILE_BYTES:
             problems.append(f"{p.name}: {p.stat().st_size} bytes, keep files small")
         if p.suffix in PHOTO_SUFFIXES and not p.read_bytes().startswith(b"\xff\xd8"):
             problems.append(f"{p.name}: isn't a JPEG")
@@ -928,7 +990,10 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
         where = f"{folder.name}: user action {a['action']} {a.get('line_id') or a.get('file')}"
         at = ev.parse_time(a["at"])
         lid = a.get("line_id")
-        if lid is not None and (lid not in line_at or at <= line_at[lid]):
+        if lid is not None and lid not in line_at:
+            problems.append(f"{where}: line_id {lid!r} isn't in the ledger")
+            continue
+        if lid is not None and at <= line_at[lid]:
             problems.append(f"{where}: comes before its ledger line arrives")
         if a["action"] == "answer_flag" and not any(
             x["line_id"] == lid and x["question"] == "flag" for x in key["answers"]
@@ -939,6 +1004,7 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
             for x in key["links"]
         ):
             problems.append(f"{where}: the key links no part of this bill to the line")
+        check_needed(a, key, actions, problems, where)
         if "file" not in a:
             continue
         event = scheduled.get(a["file"])
@@ -956,6 +1022,98 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
             arrived = delivered.get(a["file"]) if marked else clock_at
             if arrived is None or at <= arrived:
                 problems.append(f"{where}: comes before its file arrives")
+
+
+# The buckets a scripted decision clears a line to. A flag answered supports
+# takes away the flag's Needs a human, leaving Evidence complete or Missing
+# evidence. Answered contradicts, it's Possible conflict. Answered unsure, it
+# clears nothing. A typed share gives part of a bill its basis, so the line can
+# be complete, or still missing other evidence.
+CLEARS_TO: dict[tuple[str, str | None], set[str]] = {
+    ("answer_flag", "supports"): {"evidence_complete", "missing_evidence"},
+    ("answer_flag", "contradicts"): {"possible_conflict"},
+    ("answer_flag", "unsure"): set(),
+    ("enter_share", None): {"evidence_complete", "missing_evidence"},
+}
+
+
+def needs_typed_share(key: dict, line_id: str, bill: str) -> bool:
+    """Whether the key's link of part of this bill to this line has no basis on
+    file (decision 0021): no note linked to the line, no item of the bill with the
+    link's amount, and no other link on the grant taking the rest of the bill."""
+    total = next(
+        (
+            int(r["fields"]["total"])
+            for r in key["records"]
+            if r["file"] == bill and r["kind"] == "bill"
+        ),
+        None,
+    )
+    link = next(
+        (
+            x
+            for x in key["links"]
+            if x["line_id"] == line_id and x["file"] == bill and "amount_cents" in x
+        ),
+        None,
+    )
+    if total is None or link is None or abs(link["amount_cents"]) >= abs(total):
+        return False
+    items = {
+        int(v)
+        for r in key["records"]
+        if r["file"] == bill and r["kind"] == "bill"
+        for k, v in r["fields"].items()
+        if k.endswith("].amount")
+    }
+    used = sum(x["amount_cents"] for x in key["links"] if x["file"] == bill and "amount_cents" in x)
+    notes = any(x["line_id"] == line_id and "amount_cents" not in x for x in key["links"])
+    return not (notes or link["amount_cents"] in items or used == total)
+
+
+def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], where: str) -> None:
+    """No more than the key assumes (ruling 47).
+
+    - confirm_terms confirms a file the key reads terms from, once.
+    - deliver_file delivers a marked file once.
+    - answer_flag and enter_share are followed by the bucket the decision clears
+      the line to: the first bucket the key gives the line after the step must be
+      the one the decision leads to (CLEARS_TO). enter_share is only for part of
+      a bill with no basis on file.
+    A decide_suggestion can't be checked this way yet: the key doesn't express
+    suggestions (contracts.md section 14).
+    """
+    same = [
+        b
+        for b in actions
+        if b["action"] == a["action"]
+        and b.get("file") == a.get("file")
+        and b.get("line_id") == a.get("line_id")
+    ]
+    if len(same) > 1 and a["action"] in (
+        "confirm_terms",
+        "deliver_file",
+        "enter_share",
+        "answer_flag",
+    ):
+        problems.append(f"{where}: scripted more than once")
+    if a["action"] == "confirm_terms" and not any(
+        r["file"] == a["file"] and r["kind"] in TERM_RECORD_KINDS for r in key["records"]
+    ):
+        problems.append(f"{where}: the key reads no terms from this file to confirm")
+    if a["action"] in ("answer_flag", "enter_share"):
+        after = sorted(
+            (b for b in key["buckets"] if b["line_id"] == a["line_id"] and b["at"] > a["at"]),
+            key=lambda b: b["at"],
+        )
+        cleared = CLEARS_TO[(a["action"], a.get("answer"))]
+        if not after or after[0]["bucket"] not in cleared:
+            problems.append(
+                f"{where}: the key's next bucket on this line isn't one it clears to "
+                f"({', '.join(sorted(cleared)) or 'none'})"
+            )
+    if a["action"] == "enter_share" and not needs_typed_share(key, a["line_id"], a["file"]):
+        problems.append(f"{where}: the key's link already has a basis on file")
 
 
 def check_sample_json(folder: Path, problems: list[str]) -> list[str]:
@@ -1145,6 +1303,203 @@ def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
     assert any("no flag on this line" in p for p in found), found
 
 
+def test_suggestion_kinds_are_record_kinds() -> None:
+    """Every suggestion kind the script allows is one of the contract's record kinds."""
+    kinds = kinds_in_contract(RECORDS_SOURCE)
+    assert kinds is None or SUGGESTION_KINDS <= kinds, SUGGESTION_KINDS - (kinds or set())
+    assert kinds is None or TERM_RECORD_KINDS <= kinds, TERM_RECORD_KINDS - (kinds or set())
+
+
+def test_a_script_with_more_than_the_key_assumes_fails() -> None:
+    """Steps the key doesn't assume, or that can't be read, are reported as
+    problems, not tracebacks: a share typed where a basis is on file (S3a), a
+    confirmation of an invoice, a suggestion that isn't a record kind, a share
+    that isn't a number or is out of 0, and a line that isn't in the ledger."""
+    import shutil
+    import tempfile
+
+    g = gen()[LARGER]
+    s3a = next(ln.line_id for ln in g.lines if ln.reference == "EGS-20931")
+    s3c = next(ln.line_id for ln in g.lines if ln.reference == "ECX-7702")
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / LARGER.name
+        shutil.copytree(LARGER, copy)
+        actions = load(copy, "user_actions.json")
+        later = "2026-06-01T12:00:00Z"
+        actions["actions"] += [
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3a,
+                "file": "invoice_EGS-20931.pdf",
+                "share": "56",
+                "out_of": "96",
+                "basis": "x",
+            },
+            {"at": later, "action": "confirm_terms", "file": "invoice_EGS-20931.pdf"},
+            {
+                "at": later,
+                "action": "decide_suggestion",
+                "suggestion": "snooze",
+                "decision": "accept",
+                "line_id": s3a,
+            },
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3a,
+                "file": "invoice_EGS-20931.pdf",
+                "share": "many",
+                "out_of": "0",
+                "basis": "x",
+            },
+            {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
+            # S3c's key stays Needs a human, so a typed share clears it to nothing.
+            {
+                "at": later,
+                "action": "enter_share",
+                "line_id": s3c,
+                "file": "invoice_ECX-7702.txt",
+                "share": "3",
+                "out_of": "5",
+                "basis": "Three fifths of the shared dewar's nitrogen",
+            },
+        ]
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        problems: list[str] = []
+        lines = check_ledger(copy, problems)
+        check_timeline(copy, copy, lines, problems)
+        check_user_actions(copy, problems)
+    text = "\n".join(problems)
+    for expected in (
+        "already has a basis on file",
+        "reads no terms from this file",
+        "isn't one of",
+        "must be numbers",
+        "isn't in the ledger",
+        "isn't one it clears to",
+    ):
+        assert expected in text, (expected, problems)
+
+
+def citations(obj) -> list[dict]:
+    """Every citation inside a record's data."""
+    found = []
+    if isinstance(obj, dict):
+        if "file_id" in obj and "location" in obj:
+            found.append(obj)
+        for v in obj.values():
+            found += citations(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += citations(v)
+    return found
+
+
+def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
+    """agent_records.json, the agent's expected records for the checks-only play.
+
+    - Every link, budget line and answer the key expects is there, on the same
+      charge, with the same amount or answer.
+    - Every citation points at a file of the sample and its passage is really
+      there: at its characters in a text file, on its page in a PDF. A photo's box
+      lies inside the photo.
+    - Nothing is written before its file or its charge arrives.
+    """
+    body = load(folder, "agent_records.json")
+    key = load(folder, "answer_key.json")
+    where = f"{folder.name}: agent_records.json"
+    records = body["records"]
+    by_id = {r["id"]: r for r in records}
+    file_of: dict[str, str] = {}
+    for r in records:
+        if r["data"]["kind"] in ("bill", "note"):
+            cites = citations(r["data"])
+            file_of[r["id"]] = cites[0]["file_id"].removeprefix("file-") if cites else ""
+    links = {
+        (
+            file_of.get(r["data"]["record_id"]),
+            r["data"]["charge_id"].removeprefix("chg-"),
+            r["data"].get("amount_cents"),
+        )
+        for r in records
+        if r["data"]["kind"] == "link"
+    }
+    for lk in key["links"]:
+        if (lk["file"], lk["line_id"], lk.get("amount_cents")) not in links:
+            problems.append(f"{where}: no link of {lk['file']} to {lk['line_id']}")
+    names = {
+        r["id"]: r["data"]["name"]["value"] for r in records if r["data"]["kind"] == "budget_line"
+    }
+    budgets = {
+        (r["data"]["charge_id"].removeprefix("chg-"), names.get(r["data"]["record_id"]))
+        for r in records
+        if r["data"]["kind"] == "budget_assignment"
+    }
+    for b in key["budget_lines"]:
+        if (b["line_id"], b["budget_line"]) not in budgets:
+            problems.append(f"{where}: no budget line {b['budget_line']!r} for {b['line_id']}")
+    last_answer: dict[tuple[str, str], str] = {}
+    for r in records:
+        d = r["data"]
+        if d["kind"] == "judgment":
+            last_answer[(d["charge_id"].removeprefix("chg-"), d["question"])] = d["answer"]
+    for a in key["answers"]:
+        if last_answer.get((a["line_id"], a["question"])) != a["answer"]:
+            problems.append(f"{where}: no {a['question']} answer {a['answer']} on {a['line_id']}")
+
+    docs = {d.name: d for d in grant.docs}
+    arrived = {d.name: d.at for d in grant.docs}
+    line_at = {f"chg-{ln.line_id}": grant.line_arrival(ln) for ln in grant.lines}
+    for r in records:
+        rid = r["id"]
+        written = ev.parse_time(r["written_at"])
+        charge = r["data"].get("charge_id")
+        if charge is not None and (charge not in line_at or written < line_at[charge]):
+            problems.append(f"{where}: {rid} is written before its charge arrives")
+        for target in ("record_id", "replaces_id"):
+            ref = r["data"].get(target) if target == "record_id" else r.get(target)
+            if ref is not None and (ref not in by_id or by_id[ref]["written_at"] > r["written_at"]):
+                problems.append(f"{where}: {rid} points to {ref}, not written before it")
+        for c in citations(r["data"]):
+            name = c["file_id"].removeprefix("file-")
+            if name not in docs:
+                problems.append(f"{where}: {rid} cites {name}, which isn't a file of the sample")
+                continue
+            if written < arrived[name]:
+                problems.append(f"{where}: {rid} cites {name} before it arrives")
+            loc, rows = c["location"], docs[name].text.split("\n")
+            if loc["type"] == "char_location":
+                got = docs[name].text[loc["start_char_index"] : loc["end_char_index"]]
+                if got != c["passage"]:
+                    problems.append(f"{where}: {rid}'s passage isn't at its characters in {name}")
+            elif loc["type"] == "page_location":
+                page = loc["start_page_number"]
+                text = "\n".join(rows[(page - 1) * 60 : page * 60])
+                if loc["end_page_number"] != page + 1 or c["passage"] not in text:
+                    problems.append(f"{where}: {rid}'s passage isn't on page {page} of {name}")
+            elif loc["type"] == "image_box":
+                if not (
+                    0 <= loc["left"]
+                    and loc["left"] + loc["width"] <= 1
+                    and 0 <= loc["top"]
+                    and loc["top"] + loc["height"] <= 1
+                ):
+                    problems.append(f"{where}: {rid}'s box isn't inside {name}")
+            else:
+                problems.append(f"{where}: {rid} has a {loc['type']} citation")
+
+
+def test_agent_records_match_the_key() -> None:
+    """Each sample's agent_records.json gives the key's links, budget lines and
+    answers, with citations that point at their files."""
+    g = gen()
+    problems: list[str] = []
+    for folder in (LARGER, SMALL):
+        check_agent_records(folder, g[folder], problems)
+    assert not problems, "\n".join(problems[:30])
+
+
 def test_larger_sample() -> None:
     """The larger sample reaches closeout: its timeline starts with its award
     letter and runs past the start of its 90-day closeout window."""
@@ -1186,6 +1541,9 @@ if __name__ == "__main__":
         test_sample_choices_match_the_contract,
         test_a_user_decision_in_a_timeline_fails,
         test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action,
+        test_suggestion_kinds_are_record_kinds,
+        test_a_script_with_more_than_the_key_assumes_fails,
+        test_agent_records_match_the_key,
         test_larger_sample,
         test_small_sample,
         test_line_ids_are_unique,

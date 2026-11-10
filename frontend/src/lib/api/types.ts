@@ -46,6 +46,23 @@ export interface Grant {
   title?: string | null;
   address_code?: string | null;
   drive_folder_id?: string | null;
+  /** The grant's simulated now. Set only on sample grants; null means the real date (ruling 40). */
+  clock_now?: IsoDatetime | null;
+  /** Set only on a sample grant. */
+  sample?: GrantSample | null;
+}
+
+// --- Sample grants (ruling 40, issue 165), as in workspaces.py, api.py and timeline.py. ---
+
+export type SampleChoice = "small_live" | "larger_live" | "larger_prerun";
+
+/** A workspace member's role (issue 160): the person who signs in, or the workspace's sample accountant. */
+export type MemberRole = "owner" | "sample";
+
+export interface GrantSample {
+  /** The sample pack's ID, for example "nitrate-sensors". */
+  sample: Id;
+  choice: SampleChoice;
 }
 
 // --- charges.py, evidence.py ---
@@ -633,7 +650,7 @@ export interface HeldMail {
   held_at: IsoDatetime;
   /** The message first, then its attachments. */
   files: HeldFile[];
-  /** The message's files that weren't taken in. Not in the contract yet: #43 adds it. */
+  /** The message's files that weren't taken in. */
   skipped?: SkippedFile[];
 }
 
@@ -748,6 +765,110 @@ export interface GrantSummary {
   waiting: number;
   bucket_counts: Record<Bucket, number>;
   next_closeout?: CloseoutDate | null;
+  /** The grant's now, so screens never ask the browser for the date (ruling 40). */
+  now: IsoDatetime;
+}
+
+// --- Sample grants: choosing one, and its timeline (ruling 40). ---
+
+/** One choice in the Sample dropdown, in the order GET /samples sends them. Names and descriptions are the packs' placeholders. */
+export interface SampleOption {
+  choice: SampleChoice;
+  name: string;
+  description: string;
+  /** True for the larger live sample: opening it asks the user to confirm first. */
+  needs_confirm: boolean;
+  available: boolean;
+  unavailable_reason?: string | null;
+}
+
+/** POST /workspaces/{workspace_id}/samples. Returns the new grant's GrantSummary (201). */
+export interface SampleCreate {
+  choice: SampleChoice;
+  confirmed?: boolean;
+}
+
+/**
+ * "needs_confirm": opening the larger read-live sample needs the user's confirm.
+ * "another_sample_working": moving a larger read-live sample's clock waits
+ * while another of the user's larger read-live samples still has agent runs
+ * from its last move.
+ */
+export type SampleRefusalReason = "needs_confirm" | "another_sample_working";
+
+/** The 409 detail when opening a sample, starting one over or moving its clock is refused (rulings 41 and 48). */
+export interface SampleRefusal {
+  reason: SampleRefusalReason;
+  message: string;
+  /** The grant that blocks it, for another_sample_working. */
+  grant?: GrantSummary | null;
+}
+
+/** "arrival": a file, the ledger file or a ledger line. "user_delivery": an item the user brings in. "checks_date": a date the checks work out. */
+export type TimelineEventKind = "arrival" | "user_delivery" | "checks_date";
+
+export interface TimelineEvent {
+  id: Id;
+  at: IsoDatetime;
+  kind: TimelineEventKind;
+  source?: ArrivalSource | null;
+  name: string;
+  note?: string | null;
+  /** Once played or on file. */
+  charge_id?: Id | null;
+  file_id?: Id | null;
+}
+
+/** An event the last move played, with what the agent wrote from it so far. */
+export interface PlayedEvent {
+  event: TimelineEvent;
+  agent_records?: FtRecord[];
+  charge_ids?: Id[];
+  /** Decisions the workspace's sample accountant made in that move (ruling 47). */
+  scripted_decisions?: FtRecord[];
+  /** The result was loaded from the prerun, not worked live. */
+  loaded?: boolean;
+}
+
+export interface UserDelivery {
+  event: TimelineEvent;
+  delivered: boolean;
+  delivered_at?: IsoDatetime | null;
+}
+
+export interface TimelineNow {
+  now: IsoDatetime;
+  /** What the clock stopped on. */
+  stopped_on?: TimelineEvent | null;
+  /** Items for the user to bring in whose date has come and that aren't delivered yet. They stay available. */
+  deliveries?: UserDelivery[];
+  /** How many rows wait on the grant's problem list. */
+  waiting_on_problem_list: number;
+}
+
+/** GET /grants/{grant_id}/timeline. Every timeline route is a 404 on a grant that isn't a sample. */
+export interface TimelineView {
+  /** The events the last move played. */
+  just_happened?: PlayedEvent[];
+  now: TimelineNow;
+  /** In date order. */
+  coming_up?: TimelineEvent[];
+  finished: boolean;
+  catching_up: boolean;
+  /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
+  on_run_through?: boolean | null;
+}
+
+/** POST /grants/{grant_id}/timeline. No `to` plays to the next event. Forward only: earlier is a 409. */
+export interface TimelineMove {
+  to?: IsoDatetime | null;
+  /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
+  skip_human_steps?: boolean;
+}
+
+/** POST /grants/{grant_id}/timeline/start-over. */
+export interface TimelineStartOver {
+  confirmed: boolean;
 }
 
 export interface TermView {
@@ -985,11 +1106,32 @@ export interface LedgerUploadResult {
   rejected: RowError[];
 }
 
-/** GET /evidence/{file_id}/content: a short-lived link to the original. */
+/** A span of characters kept from the stored file, and where it sits in the reading text. */
+export interface TextSegment {
+  stored_start: number;
+  reading_start: number;
+  length: number;
+}
+
+/**
+ * The text the agent reads for an email on a grant with a stored clock
+ * (ruling 45). The segments are the spans kept from the stored file, in
+ * order; the gaps between them are headers replaced or dropped.
+ */
+export interface ReadingView {
+  text: string;
+  segments: TextSegment[];
+}
+
+/**
+ * GET /evidence/{file_id}/content: a short-lived link to the original. `url`
+ * is always the original; `reading`, when set, is what the viewer shows.
+ */
 export interface FileLink {
   url: string;
   media_type?: string | null;
   expires_at: IsoDatetime;
+  reading?: ReadingView | null;
 }
 
 // --- api.py: the records request (POST /grants/{grant_id}/records) ---

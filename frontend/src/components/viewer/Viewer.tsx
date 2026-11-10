@@ -3,7 +3,9 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
+import type { ReadingView } from "@/lib/api/types";
 import { placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
+import { mapSpansToReading } from "./reading";
 import { splitBySpans } from "./textSpans";
 import styles from "./viewer.module.css";
 
@@ -59,6 +61,12 @@ export interface ViewerProps {
    * a value the accountant confirmed is confirmed even when it couldn't be placed.
    */
   confirmation?: { confirmed: boolean; text: string } | null;
+  /**
+   * The text the agent reads, for an email on a sample grant (FileLink.reading,
+   * ruling 45). When set, the viewer shows it in place of the stored email and
+   * carries each highlight into it; the original stays downloadable from `url`.
+   */
+  reading?: ReadingView | null;
 }
 
 /**
@@ -68,7 +76,7 @@ export interface ViewerProps {
  * quote beside it and nothing highlighted. It draws only what the server
  * stored, and guesses nothing.
  */
-export function Viewer({ file, url, citation, valueText = null, label = null, confirmation = null }: ViewerProps) {
+export function Viewer({ file, url, citation, valueText = null, label = null, confirmation = null, reading = null }: ViewerProps) {
   const kind = fileKind(file.media_type, file.name);
   const placement = useMemo(() => (citation ? placeCitation(citation, valueText) : null), [citation, valueText]);
   const boxes = placement?.kind === "boxes" ? placement.boxes : [];
@@ -86,7 +94,9 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   }, [readyTick, zoom]);
 
   let body: ReactNode;
-  if (kind === "text") {
+  if (kind === "text" && reading) {
+    body = <ReadingText url={url} reading={reading} placement={placement} zoom={zoom} onReady={onReady} />;
+  } else if (kind === "text") {
     body = <TextFile url={url} placement={placement} zoom={zoom} onReady={onReady} />;
   } else if (kind === "docx") {
     body = <DocxPassage url={url} placement={placement} zoom={zoom} />;
@@ -203,6 +213,38 @@ function TextFile({
   if (text === undefined) return <p className="ft-empty">Loading the file…</p>;
   const spans = placement?.kind === "text" ? placement.spans : [];
   return <MarkedText text={text} spans={spans} offset={0} zoom={zoom} />;
+}
+
+/** An email on a sample grant, shown as the agent reads it, with the highlights carried over. */
+function ReadingText({
+  url,
+  reading,
+  placement,
+  zoom,
+  onReady,
+}: {
+  url: string;
+  reading: ReadingView;
+  placement: Placement | null;
+  zoom: number;
+  onReady: () => void;
+}) {
+  useEffect(() => onReady(), [reading, onReady]);
+  const spans = useMemo(
+    () => (placement?.kind === "text" ? mapSpansToReading(placement.spans, reading.segments, reading.text) : []),
+    [placement, reading],
+  );
+  return (
+    <div>
+      <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }} data-testid="reading-note">
+        Shown as the agent reads it, with the grant&apos;s date.{" "}
+        <a className="ft-link" href={url} download>
+          Download the original
+        </a>
+      </p>
+      <MarkedText text={reading.text} spans={spans} offset={0} zoom={zoom} />
+    </div>
+  );
 }
 
 function MarkedText({

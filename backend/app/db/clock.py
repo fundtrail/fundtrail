@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
@@ -75,6 +76,24 @@ def grant_now(conn: Conn, grant_id: str) -> datetime:
     else the database's time for this transaction (so a run's read point and its clock
     agree, call 40)."""
     return _stored_clock(conn, grant_id) or _database_now(conn)
+
+
+def has_stored_clock(conn: Conn, grant_id: str) -> bool:
+    """Whether the grant runs on a stored clock (a sample grant), not the real date: the one
+    place that asks. It reads the workspace's column until the sample builder moves the
+    clock to grants.clock_now; then only _stored_clock changes."""
+    return _stored_clock(conn, grant_id) is not None
+
+
+def grant_clock(p: Platform) -> Callable[[str], datetime]:
+    """`grant_now` as the ingest checker takes it (its `GrantNow`): each call reads the
+    grant's clock in a transaction of its own."""
+
+    def now(grant_id: str) -> datetime:
+        with transaction(p.pool) as conn:
+            return grant_now(conn, grant_id)
+
+    return now
 
 
 def read_now(conn: Conn, run: AgentRun) -> datetime:

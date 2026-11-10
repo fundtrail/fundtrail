@@ -52,7 +52,8 @@ export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
   }
 
   return (
-    <form className="ft-panel ft-pad" onSubmit={(e) => void submit(e)} aria-label="Add a grant">
+    <form className="ft-panel ft-pad" onSubmit={(e) => void submit(e)} aria-label="Your own grant">
+      <h2 className="ft-heading">Your own grant</h2>
       <div className="ft-field">
         <label htmlFor={inputId} className="ft-label">
           Award letter
