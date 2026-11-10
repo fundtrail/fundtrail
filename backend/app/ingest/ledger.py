@@ -180,12 +180,8 @@ def _build_charge(
         raise _RowError(
             " ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}." for e in error.errors())
         ) from error
-    # The contract maps a row to its charge. Decision 0023 then moves the arrival to `now`
-    # when the posting date has already begun.
-    charge = row.to_charge(id=new_id(), workspace_id=workspace_id, grant_id=grant_id)
-    if now > charge.arrived_at:
-        charge = charge.model_copy(update={"arrived_at": now})
-    return charge
+    # The contract maps a row to its charge, with the arrival decision 0023 gives at `now`.
+    return row.to_charge(id=new_id(), workspace_id=workspace_id, grant_id=grant_id, now=now)
 
 
 def _read_header(cells: Sequence[Cell]) -> dict[str, int]:
