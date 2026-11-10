@@ -1,0 +1,37 @@
+{
+  "case": "credit-memo-spaced-dash",
+  "award_number": "SYN-2512836",
+  "records": [
+    {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2026-02-01", "end": "2029-01-31", "dated": "2026-01-06"}},
+    {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "3000000", "obligated_to_date": "3000000", "dated": "2026-01-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "3000000", "dated": "2026-01-06"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "3000000", "dated": "2026-01-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Reese Mockup", "email": "reese.mockup@university.example", "role": "Principal Investigator", "dated": "2026-01-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Avery Ledger", "email": "avery.ledger@funder.example", "role": "Managing Grants Official", "dated": "2026-01-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Morgan Signet", "email": "morgan.signet@funder.example", "role": "Awarding Official", "dated": "2026-01-06"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jamie Program", "email": "jamie.program@funder.example", "role": "Managing Program Officer", "dated": "2026-01-06"}},
+    {"kind": "bill", "file": "invoice_20417.txt", "fields": {"total": "120000", "dated": "2026-03-02", "vendor": "Example Lab Supply Co."}},
+    {"kind": "bill", "file": "credit_memo_20417.eml", "fields": {"total": "-45000", "dated": "2026-03-20", "vendor": "Example Lab Supply Co.", "items[0].amount": "-45000"}},
+    {"kind": "bill", "file": "invoice_20388.txt", "fields": {"total": "45000", "dated": "2026-03-05", "vendor": "Example Lab Supply Co."}}
+  ],
+  "links": [
+    {"file": "invoice_20417.txt", "line_id": "L-8101", "amount_cents": 120000},
+    {"file": "credit_memo_20417.eml", "line_id": "L-8101", "amount_cents": -45000},
+    {"file": "invoice_20388.txt", "line_id": "L-8102", "amount_cents": 45000}
+  ],
+  "budget_lines": [
+    {"line_id": "L-8101", "budget_line": "Materials and Supplies"},
+    {"line_id": "L-8102", "budget_line": "Materials and Supplies"}
+  ],
+  "answers": [
+    {"line_id": "L-8101", "question": "allowable", "answer": "supports"},
+    {"line_id": "L-8102", "question": "allowable", "answer": "supports"}
+  ],
+  "buckets": [
+    {"line_id": "L-8101", "at": "2026-03-09T12:00:00Z", "bucket": "evidence_complete"},
+    {"line_id": "L-8101", "at": "2026-03-24T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-8102", "at": "2026-03-11T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-8102", "at": "2026-03-24T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-8102", "at": "2026-04-08T19:00:00Z", "bucket": "evidence_complete"}
+  ]
+}
