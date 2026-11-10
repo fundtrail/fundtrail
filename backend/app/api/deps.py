@@ -52,6 +52,8 @@ def current_user(
     try:
         with transaction(platform.pool) as conn:
             store.upsert_user(conn, user)
+            # Ruling 64: a first-time user's workspace is made at their first sign-in.
+            store.ensure_first_workspace(conn, user)
     except ForeignKeyViolation:
         # A valid token for a user Supabase no longer has, such as one just deleted.
         raise HTTPException(
