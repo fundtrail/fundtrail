@@ -80,8 +80,7 @@ def grant_now(conn: Conn, grant_id: str) -> datetime:
 
 def has_stored_clock(conn: Conn, grant_id: str) -> bool:
     """Whether the grant runs on a stored clock (a sample grant), not the real date: the one
-    place that asks. It reads the workspace's column until the sample builder moves the
-    clock to grants.clock_now; then only _stored_clock changes."""
+    place that asks. It reads grants.clock_now, through _stored_clock."""
     return _stored_clock(conn, grant_id) is not None
 
 
