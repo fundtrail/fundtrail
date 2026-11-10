@@ -501,7 +501,7 @@ class LedgerUploadResult(Model):
     """POST /grants/{grant_id}/ledger"""
 
     added: int
-    already_present: int  # lines whose line ID was already on file
+    already_present: int  # lines whose line ID was already on file for this grant
     rejected: tuple[RowError, ...]
 
 
