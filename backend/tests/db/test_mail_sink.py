@@ -4,18 +4,20 @@ lost its progress and brings it again, and the checker's progress is saved."""
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
-from app.contracts.mail import CheckerProgress, SkippedFile, SkipReason
+import pytest
+
+from app.contracts.mail import CheckerProgress, DriveVersion, HoldReason, SkippedFile, SkipReason
 from app.contracts.workspaces import Grant, User
-from app.db import actions, store
-from app.db.mail_sink import DbSink, check_and_save, drive_version
+from app.db import actions, mail_sink, store
+from app.db.mail_sink import DbSink, check_and_save, drive_version, merged_progress
 from app.db.platform import Platform
 from app.db.pool import transaction
 from app.ingest.checker import CheckState, check_drive, check_mail
 from app.ingest.drive_files import SETTLE, drive_file, version_of
-from app.ingest.incoming import GrantRoute
+from app.ingest.incoming import GrantRoute, IncomingFile, PendingHold
 from app.ingest.sources import DiskDrive, DiskMailbox, DriveEntry
 from tests.db.platform_fixtures import (  # noqa: F401 - fixtures
     FakeChecks,
@@ -161,3 +163,103 @@ def test_check_and_save_saves_the_checkers_progress(
     assert _files(platform, grant, "drive") == ["quote.pdf"]
     saved = CheckState.from_progress(_progress(platform))
     assert (grant.id, "folder1/quote.pdf") in saved.drive.taken
+
+
+def _message(grant: Grant, message_id: str) -> list[IncomingFile]:
+    return [
+        IncomingFile(
+            key=message_id,
+            grant_id=grant.id,
+            workspace_id=grant.workspace_id,
+            source="gmail",
+            name="message.txt",
+            media_type="text/plain",
+            data=b"Approved.",
+            document_date=date(2026, 3, 3),
+            sender=STRANGER,
+            source_ref=message_id,
+        )
+    ]
+
+
+def _pending(grant: Grant, message_id: str) -> PendingHold:
+    return PendingHold(
+        workspace_id=grant.workspace_id,
+        grant_id=grant.id,
+        sender=STRANGER,
+        from_header=STRANGER,
+        gmail_message_id=message_id,
+        subject=None,
+        files=tuple(_message(grant, message_id)),
+        held_at=AT,
+        reason=HoldReason.UNKNOWN_SENDER,
+    )
+
+
+def _held(p: Platform, grant: Grant) -> list[str]:
+    with transaction(p.pool) as conn:
+        return [h.source_ref for h in store.list_held_mail(conn, grant.workspace_id, AT)]
+
+
+def test_one_check_keeps_a_message_from_being_both_held_and_arrived(
+    platform: Platform,  # noqa: F811
+) -> None:
+    grant, sink = _grant(platform), DbSink(platform)
+    sink.store([f.arriving(AT) for f in _message(grant, "arrived")])
+    sink.hold(_pending(grant, "arrived"))
+    assert _held(platform, grant) == []
+    sink.hold(_pending(grant, "held"))
+    sink.store([f.arriving(AT) for f in _message(grant, "held")])
+    assert _held(platform, grant) == ["held"]
+    assert _files(platform, grant, "gmail") == ["message.txt"]  # only "arrived"
+
+
+def test_a_held_file_keeps_its_sent_date(platform: Platform) -> None:  # noqa: F811
+    grant = _grant(platform)
+    DbSink(platform).hold(_pending(grant, "m1"))
+    with transaction(platform.pool) as conn:
+        [held] = store.list_held_mail(conn, grant.workspace_id, AT)
+    assert [f.document_date for f in held.files] == [date(2026, 3, 3)]
+
+
+def test_a_checks_save_keeps_what_a_concurrent_check_saved(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant = _grant(platform)
+    other = DriveVersion(grant_id=grant.id, drive_file_id="f/other.pdf", version="md5:1")
+
+    def concurrent(**kwargs: object) -> None:
+        state = kwargs["state"]
+        assert isinstance(state, CheckState)
+        state.mail_cursor = "next"
+        state.seen_messages.add("mine")
+        with transaction(platform.pool) as conn:  # another check's sink saves meanwhile
+            saved = store.lock_progress(conn)
+            store.save_progress(
+                conn,
+                saved.model_copy(
+                    update={
+                        "seen_message_ids": (*saved.seen_message_ids, "theirs"),
+                        "drive_versions": (*saved.drive_versions, other),
+                    }
+                ),
+            )
+
+    monkeypatch.setattr(mail_sink, "check_once", concurrent)
+    check_and_save(platform, mail=None, drive=None, mailbox=MAILBOX, routes=[], now=_now)
+    saved = _progress(platform)
+    assert {"mine", "theirs"} <= set(saved.seen_message_ids)
+    assert other in saved.drive_versions
+    assert saved.mail_cursor == "next"
+
+
+def test_merged_progress_keeps_the_stored_version_of_a_file() -> None:
+    old = DriveVersion(grant_id="g", drive_file_id="f", version="md5:old")
+    new = DriveVersion(grant_id="g", drive_file_id="f", version="md5:new")
+    stored = CheckerProgress(mail_cursor="b", drive_versions=(new,), first_search_done=("g1",))
+    checked = CheckerProgress(mail_cursor=None, drive_versions=(old,), first_search_done=("g2",))
+    merged = merged_progress(stored, checked)
+    assert merged.drive_versions == (new,)
+    assert merged.mail_cursor == "b"
+    assert merged.first_search_done == ("g1", "g2")

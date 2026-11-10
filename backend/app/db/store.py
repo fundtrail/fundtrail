@@ -843,10 +843,16 @@ def insert_held_mail(conn: Conn, held: HeldMail) -> bool:
     return row is not None
 
 
-def has_held_mail(conn: Conn, grant_id: str, message_id: str) -> bool:
+def has_message(conn: Conn, grant_id: str, message_id: str) -> bool:
+    """Whether the grant already has a Gmail message, as an evidence file or as held mail:
+    the one check for both storing and holding it."""
     row = conn.execute(
-        "select 1 from public.held_mail where grant_id = %s and source_ref = %s",
-        (grant_id, message_id),
+        """select 1 from public.held_mail where grant_id = %s and source_ref = %s
+           union all
+           select 1 from public.evidence_files
+           where grant_id = %s and source = 'gmail' and source_ref = %s and parent_id is null
+           limit 1""",
+        (grant_id, message_id, grant_id, message_id),
     ).fetchone()
     return row is not None
 

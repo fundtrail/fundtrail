@@ -6,7 +6,8 @@ takes the checker's progress row and the grant's row lock, checks whether it alr
 has what it's given, and stores it with its progress in one transaction:
 
 - a Gmail message is already taken in when the grant has it as an evidence file or as
-  held mail, by its Gmail message ID;
+  held mail, by its Gmail message ID, one check for both, so a message that arrived is
+  never held and a held one (dismissed, say) never comes in on its own;
 - a Drive file, when the grant's progress has that Drive file ID at that version.
 
 `check_and_save` runs one check from the saved progress and saves where it got to.
@@ -22,7 +23,7 @@ from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import CheckerProgress, DriveVersion, HeldFile, SkippedFile
 from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.workspaces import Grant
-from app.ingest.checker import CheckState, WorkspaceNow, check_once
+from app.ingest.checker import CheckState, GrantNow, check_once
 from app.ingest.incoming import (
     GrantRoute,
     IncomingFile,
@@ -127,7 +128,7 @@ class DbSink:
             assert grant is not None
             if first.source == "gmail":
                 assert first.source_ref is not None
-                if store.has_gmail_message(conn, grant.id, first.source_ref):
+                if store.has_message(conn, grant.id, first.source_ref):
                     return
                 progress = _seen(progress, first.source_ref)
             elif first.source == "drive":
@@ -151,7 +152,7 @@ class DbSink:
             progress = store.lock_progress(conn)
             grant = store.get_grant(conn, held.grant_id, lock=True)
             assert grant is not None
-            if store.has_held_mail(conn, grant.id, held.gmail_message_id):
+            if store.has_message(conn, grant.id, held.gmail_message_id):
                 return
             held_id = _new_id()
             stored: list[HeldFile] = []
@@ -160,7 +161,13 @@ class DbSink:
                 self.p.storage.put(path, f.data, f.media_type)
                 stored.append(
                     HeldFile(
-                        name=f.name, media_type=f.media_type, storage_path=path, sha256=f.sha256
+                        name=f.name,
+                        media_type=f.media_type,
+                        storage_path=path,
+                        sha256=f.sha256,
+                        # Ruling 43: the sent date its evidence file takes at let-in, as
+                        # the checker dated it.
+                        document_date=f.document_date,
                     )
                 )
             store.insert_held_mail(conn, to_held_mail(held, held_id=held_id, files=tuple(stored)))
@@ -186,12 +193,14 @@ def check_and_save(
     drive: DriveSource | None,
     mailbox: str,
     routes: list[GrantRoute],
-    now: WorkspaceNow,
+    now: GrantNow,
 ) -> None:
     """One check of Gmail and Drive from the saved progress, then saves where it got to.
 
-    What the sink stored during the check is in its progress already; the check's own
-    state holds the same, plus the mailbox position and the finished first searches.
+    What the sink stored during the check is in its progress already. The save keeps
+    every message ID and Drive version the progress holds by then, a concurrent check's
+    included, adds this check's, and moves the mailbox position and the finished first
+    searches forward: a check never takes back what another one saved.
     """
     with transaction(p.pool) as conn:
         state = CheckState.from_progress(store.lock_progress(conn))
@@ -205,5 +214,18 @@ def check_and_save(
         sink=DbSink(p),
     )
     with transaction(p.pool) as conn:
-        store.lock_progress(conn)
-        store.save_progress(conn, state.to_progress())
+        store.save_progress(conn, merged_progress(store.lock_progress(conn), state.to_progress()))
+
+
+def merged_progress(stored: CheckerProgress, checked: CheckerProgress) -> CheckerProgress:
+    """The progress to save after a check: the stored message IDs and Drive versions kept
+    (a version the sink saved wins over the check's copy, which can be older), the check's
+    added, and its mailbox position and first searches moved forward."""
+    versions = {(v.grant_id, v.drive_file_id): v for v in checked.drive_versions}
+    versions |= {(v.grant_id, v.drive_file_id): v for v in stored.drive_versions}
+    return CheckerProgress(
+        mail_cursor=checked.mail_cursor or stored.mail_cursor,
+        seen_message_ids=tuple(sorted({*stored.seen_message_ids, *checked.seen_message_ids})),
+        drive_versions=tuple(versions[k] for k in sorted(versions)),
+        first_search_done=tuple(sorted({*stored.first_search_done, *checked.first_search_done})),
+    )
