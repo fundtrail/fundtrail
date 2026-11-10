@@ -136,6 +136,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
             files=tuple(files),
             records=tuple(records),
             failed_runs=tuple(store.failed_runs(conn, grant.id)),
+            skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
     return GrantSnapshot(
