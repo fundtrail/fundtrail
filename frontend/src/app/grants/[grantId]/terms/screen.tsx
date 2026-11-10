@@ -5,7 +5,7 @@ import { AppShell, Loadable } from "@/components/AppShell";
 import { grantName } from "@/components/GrantList";
 import { GrantTerms } from "@/components/setup/GrantTerms";
 import { ReusableNotes } from "@/components/setup/ReusableNotes";
-import { NoticeFilesProvider, noticeFilesFrom } from "@/components/setup/noticeFiles";
+import { NoticeFilesProvider, noticeFilesFor } from "@/components/setup/noticeFiles";
 import { useEvidence, useGrant, useProblemList } from "@/lib/api";
 
 /**
@@ -31,7 +31,7 @@ export function TermsScreen() {
         {(detail) => (
           <Loadable result={problems}>
             {(list) => (
-              <NoticeFilesProvider files={noticeFilesFrom(detail.terms, evidence.data ?? [])}>
+              <NoticeFilesProvider value={noticeFilesFor(detail.terms, evidence)}>
                 <GrantTerms terms={detail.terms} rows={list.rows} />
               </NoticeFilesProvider>
             )}

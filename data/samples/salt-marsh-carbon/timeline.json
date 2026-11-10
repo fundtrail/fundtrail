@@ -1,8 +1,8 @@
 {
-  "case": "salt-marsh-carbon",
+  "sample": "salt-marsh-carbon",
+  "starts_at": "2024-01-18T17:00:00Z",
   "events": [
-    {"at": "2024-01-18T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
-    {"at": "2024-01-19T18:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2024-01-18T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The award letter arrives: the grant's first scheduled event."},
     {"at": "2024-01-25T18:00:00Z", "kind": "file", "file": "appointment_letter_mockley.txt", "source": "upload", "note": "Rowan Mockley's appointment letter."},
     {"at": "2024-03-04T00:00:00Z", "kind": "ledger_line", "line_id": "L-1835-0001"},
     {"at": "2024-03-22T17:05:00Z", "kind": "file", "file": "invoice_ESS-42332.txt", "source": "upload", "note": "Invoice ESS-42332 from Example Scientific Supply."},

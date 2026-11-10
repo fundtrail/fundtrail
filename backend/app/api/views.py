@@ -257,6 +257,7 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         waiting=sum(1 for r in snap.state.waiting() if r.author == Author.AGENT),
         bucket_counts=counts,
         next_closeout=CloseoutDate(date=step.date, label=step.label) if step else None,
+        now=snap.now,
     )
 
 
