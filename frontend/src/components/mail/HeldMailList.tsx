@@ -2,12 +2,9 @@
 
 import { useState } from "react";
 import type { HeldMail, MailAction, SkipReason } from "@/lib/api";
-import { date, HOLD_REASON_LABELS } from "@/lib/format";
+import { date, HOLD_REASON_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { useWrite, WriteProblems } from "../setup/useWrite";
 import "../setup/setup.css";
-
-/** Shown in place of the hold reason when the message has no sender. */
-const UNREADABLE_FROM = "The From line couldn't be read.";
 
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
   too_large: "too large",
@@ -40,7 +37,7 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
           {grantName && <> · {grantName}</>}
         </span>
       </div>
-      <p>{sender ? HOLD_REASON_LABELS[held.reason] : UNREADABLE_FROM}</p>
+      <p>{sender ? HOLD_REASON_LABELS[held.reason] : UNREADABLE_FROM_LABEL}</p>
       <div>
         <p className="ft-label">Files</p>
         <ul className="ft-files" aria-label="Files">

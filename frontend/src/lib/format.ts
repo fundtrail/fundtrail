@@ -74,4 +74,7 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   unverified_sender: "The address is a known sender's, but it couldn't be verified as really theirs.",
 };
 
+/** Shown in place of the hold reason when a held message has no sender: its From line couldn't be read. */
+export const UNREADABLE_FROM_LABEL = "The From line couldn't be read.";
+
 export const SOURCE_LABELS = { gmail: "Gmail", drive: "Google Drive", upload: "Upload" } as const;
