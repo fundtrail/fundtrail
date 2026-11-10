@@ -17,6 +17,8 @@ _CITED = {
     "CitedMoney": "cited money",
     "CitedDate": "cited date",
     "CitedDecimal": "cited number",
+    "CitedScope": "cited scope: every_charge or moved_out, as the clause's own words show it; "
+    "leave it out and flag the term when the clause doesn't make it clear",
 }
 
 

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .adapter import (
     QUESTION_TEXT,
     Answer,
+    ApprovalScope,
     Author,
     BudgetCategory,
     Question,
@@ -267,6 +268,10 @@ class FileRef(_In):
 MONEY_FIELDS = {"total", "amount", "obligated_by_amendment", "obligated_to_date"}
 DATE_FIELDS = {"dated", "approved_on", "start", "end"}
 DECIMAL_FIELDS = {"rate", "quantity"}
+# A category the model names from the clause's own words, with the clause cited.
+CATEGORY_FIELDS: dict[str, frozenset[str]] = {
+    "scope": frozenset(scope.value for scope in ApprovalScope),
+}
 _PATH = re.compile(r"([A-Za-z_]+)(?:\[(\d+)\])?")
 
 
@@ -329,6 +334,17 @@ def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
         if given is not None and given != parsed.isoformat():
             raise WriteProblem(f"{field}: {given} doesn't match its text '{text}' ({parsed})")
         return parsed.isoformat()
+    if leaf in CATEGORY_FIELDS:
+        # A category the clause's own words show, such as an approval rule's scope: the model
+        # names it, and the cited text is the clause that shows it (the main coordinator's
+        # ruling). A clause that doesn't make it clear gets a flag, not a pick.
+        allowed = CATEGORY_FIELDS[leaf]
+        if given not in allowed:
+            raise WriteProblem(
+                f"{field}: give one of {', '.join(sorted(allowed))}, as the clause '{text}' shows "
+                "it, or leave it out and flag the term when the clause doesn't make it clear"
+            )
+        return given
     if leaf in DECIMAL_FIELDS:
         number = parse_rate(text) if leaf == "rate" else parse_quantity(text)
         if number is None:

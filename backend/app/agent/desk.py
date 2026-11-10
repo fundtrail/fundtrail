@@ -17,6 +17,7 @@ from .adapter import (
     TRIGGER_CHARGE,
     TRIGGER_CLOCK,
     TRIGGER_FILE,
+    TRIGGER_OPEN_QUESTION,
     TRIGGER_RECORD,
     TRIGGER_THREAD,
     Author,
@@ -355,6 +356,29 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         charges = [c for c in i.charges if c.id in ids]
         text = [f"What arrived: {len(charges)} charge(s). Match each to the evidence on file."]
         text += [charge_in_full(ctx, c) for c in charges]
+        blocks.append({"type": "text", "text": "\n\n".join(text)})
+    elif t.kind == TRIGGER_OPEN_QUESTION:
+        # A thread run left a question open for the agent: the run the platform queues after
+        # it. The trigger names the charge or record whose question is open.
+        questions = [q for q in agent_questions(ctx.checks()) if t.id in (q.charge_id, q.record_id)]
+        text = [
+            "What happened: a reply in a thread left questions open for you here. Answer them.",
+            *(
+                f"- {q.question} on charge {q.charge_id}"
+                + (f" about {q.record_id}" if q.record_id else "")
+                for q in questions
+            ),
+        ]
+        c = next((x for x in i.charges if x.id == t.id), None)
+        if c is not None:
+            text.append(charge_in_full(ctx, c))
+        elif t.id in state.by_id:
+            text.append(record_in_full(ctx, state.by_id[t.id]))
+            text += [
+                charge_in_full(ctx, x)
+                for x in i.charges
+                if x.id in {q.charge_id for q in questions}
+            ]
         blocks.append({"type": "text", "text": "\n\n".join(text)})
     elif t.kind == TRIGGER_RECORD:
         r = state.by_id.get(t.id or "")
