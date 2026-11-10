@@ -31,7 +31,7 @@ from app.contracts.rules import check_new_record, run_read_point
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind, batch_for
 from app.contracts.workspaces import Grant
 
-from . import clock, store
+from . import clock, mail_checker, store
 from .pings import ping_changed, ping_run
 from .platform import Platform, get_platform
 from .pool import transaction
@@ -488,3 +488,17 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
 def daily_recheck_task(timestamp: int) -> None:
     """Shortly after midnight UTC: time alone can change a status in a real workspace."""
     clock.daily_recheck(get_platform())
+
+
+@app.periodic(cron="* * * * *", periodic_id="check_mail_and_drive")
+@app.task(
+    name="check_mail_and_drive",
+    queue=QUEUE,
+    lock="mail_checker",
+    queueing_lock="mail_checker",
+    pass_context=False,
+)
+def check_mail_and_drive_task(timestamp: int) -> None:
+    """Every minute (decision 0013): one check of Gmail and Drive. The Procrastinate lock and
+    the checker's own advisory lock keep it to one checker at a time."""
+    mail_checker.run(get_platform())
