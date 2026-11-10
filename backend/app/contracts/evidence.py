@@ -42,6 +42,10 @@ class EvidenceFile(Model):
     # it's read, and the export is what's stored. This is the Google type it was
     # exported from, so its card can say it's an export. None for any other file.
     exported_from: str | None = None
+    # The order it was stored in: one number from a sequence the database shares
+    # across records, charges and evidence files, so any two can be compared. Never
+    # the workspace clock. None until it's stored.
+    stored_seq: int | None = None
 
     @model_validator(mode="after")
     def _path(self):

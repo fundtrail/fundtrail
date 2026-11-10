@@ -2,6 +2,9 @@
 
 - IDs are strings. User IDs are Supabase auth UUIDs written as strings.
 - Timestamps are timezone-aware and stored in UTC (Coordinated Universal Time).
+- Two stored items are compared by the order they were stored (`stored_seq`, one
+  sequence shared by records, charges and evidence files), never by clock dates,
+  except where a comparison is really about time (decision call 36, issue 70).
   Records carry the workspace clock's "now".
 - Money is an integer number of cents in US dollars. Credits are negative.
 - Dates with no time are calendar dates.

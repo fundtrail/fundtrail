@@ -962,6 +962,10 @@ class Record(Model):
     # in a run a thread message started waits for the accountant, whatever its kind.
     # Set only on the agent's records; the write check makes the run set it.
     thread_message_id: Id | None = None
+    # The order it was stored in: one number from a sequence the database shares
+    # across records, charges and evidence files, so any two can be compared. Never
+    # the workspace clock. None until it's stored.
+    stored_seq: int | None = None
     data: RecordData
 
     @property

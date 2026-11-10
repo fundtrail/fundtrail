@@ -12,13 +12,13 @@ Every area applies these rules through the same functions:
 - check_new_record(): the problems with a record about to be written
 
 Pass only the records and files visible at the clock's "now", and pass records
-in the order they were written (the database orders them by written_at, then
-by its real-time created_at). Whether one of the agent's records waits is
-decided from what was written before it.
+in the order they were stored. When every record has its `stored_seq`, they're
+put in that order here; a record being checked, which isn't stored yet, comes
+last. Whether one of the agent's records waits is decided from what was stored
+before it. A record against a record uses stored order, never clock dates.
 """
 
 from collections.abc import Collection, Iterable, Sequence
-from datetime import datetime
 
 from .buckets import Bucket
 from .charges import Charge
@@ -79,6 +79,8 @@ class RecordState:
 
     def __init__(self, records: Iterable[Record], files: Iterable[EvidenceFile] = ()):
         self.records: list[Record] = list(records)
+        if self.records and all(r.stored_seq is not None for r in self.records):
+            self.records.sort(key=lambda r: r.stored_seq or 0)
         self.files: dict[str, EvidenceFile] = {f.id: f for f in files}
         self.by_id: dict[str, Record] = {}
         self._pos: dict[str, int] = {}
@@ -228,23 +230,36 @@ class RecordState:
             if value.citation is None or value.citation.match not in FOUND
         ]
 
-    def new_evidence_between(
-        self, after: datetime, until: datetime, grant_id: str, *, before: int | None = None
-    ) -> bool:
-        """Whether new evidence arrived on a grant in (after, until].
+    def new_evidence_since(self, since: Record, new: Record, *, before: int | None = None) -> bool:
+        """Whether new evidence arrived on `new`'s grant after `since` and before `new`.
 
-        New evidence is a file that arrived, or a grant term the accountant
-        confirmed or typed. Something the agent links later from what was
-        already on file doesn't count, and neither does confirming a term again.
-        `before` limits it to the records written before that position.
+        New evidence is (decision call 36, issue 70):
+        - a file that arrived later than `since` was written, or at the same time and
+          stored after it (the demo clock stands still between moves, so ties are
+          common), and not later than `new`;
+        - a grant term the accountant typed, or confirmed for the first time, stored
+          after `since` and before `new`: stored order only, never clock dates.
+        Something the agent links later from what was already on file doesn't count.
+        `new` may be a record not stored yet, which comes after everything stored.
+        `before` limits it to the records stored before that position.
         """
         for f in self.files.values():
-            if f.grant_id == grant_id and after < f.arrived_at <= until:
-                return True
-        for r in self.records[:before]:
-            if r.grant_id != grant_id or r.author != Author.USER:
+            if f.grant_id != new.grant_id:
                 continue
-            if not after < r.written_at <= until:
+            after_since = f.arrived_at > since.written_at or (
+                f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
+            )
+            before_new = f.arrived_at < new.written_at or (
+                f.arrived_at == new.written_at and _stored_before(f.stored_seq, new.stored_seq)
+            )
+            if after_since and before_new:
+                return True
+        start = self._pos[since.id] + 1 if since.id in self._pos else 0
+        stop = self._pos[new.id] if new.id in self._pos else len(self.records)
+        if before is not None:
+            stop = min(stop, before)
+        for r in self.records[start:stop]:
+            if r.grant_id != new.grant_id or r.author != Author.USER:
                 continue
             if r.kind in TERM_KINDS:
                 return True
@@ -372,7 +387,7 @@ class RecordState:
         if before == Answer.CONTRADICTS:
             return True  # contradicts turning into anything milder
         # unsure turning into supports counts right away only once new evidence has arrived
-        return not self.new_evidence_between(old.written_at, new.written_at, new.grant_id, before=i)
+        return not self.new_evidence_since(old, new, before=i)
 
     def _second_bill_link(self, link: Link, i: int) -> bool:
         bill = self._current_version_at(link.record_id, i)
@@ -388,6 +403,17 @@ class RecordState:
             if other_bill is not None and other_bill.id == bill.id:
                 return True
         return False
+
+
+def _stored_after(a: int | None, b: int | None) -> bool:
+    """Whether `a` was stored after `b`. Unknown order isn't "after"."""
+    return a is not None and b is not None and a > b
+
+
+def _stored_before(a: int | None, new: int | None) -> bool:
+    """Whether `a`, already stored, was stored before `new`. A record not stored yet
+    (`new` is None) comes after everything stored."""
+    return new is None or (a is not None and a < new)
 
 
 def _first_file(record: Record) -> str:
@@ -886,9 +912,7 @@ def check_new_record(
                 if not would_wait and earlier.thread_message_id is None:
                     continue
                 rejection = state.decided_by(earlier.id)
-                if rejection is not None and not state.new_evidence_between(
-                    rejection.written_at, new.written_at, new.grant_id
-                ):
+                if rejection is not None and not state.new_evidence_since(rejection, new):
                     problems.append(
                         f"the accountant rejected the same suggestion ({earlier.id}), "
                         "and no new evidence has arrived since"
