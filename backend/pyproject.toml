@@ -5,7 +5,12 @@ description = "FundTrail backend: FastAPI app"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.162.2",
+    "openpyxl>=3.1.5",
+    "procrastinate>=3.10.0",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.8",
     "pydantic>=2.9",
+    "pyjwt[crypto]>=2.15.1",
     "pypdfium2>=5.15.2",
 ]
 
