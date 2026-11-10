@@ -7,6 +7,7 @@ import { CloseoutCharges } from "@/components/closeout/CloseoutCharges";
 import { CloseoutSteps } from "@/components/closeout/CloseoutSteps";
 import { ReportDraft } from "@/components/closeout/ReportDraft";
 import { SignOffPanel } from "@/components/closeout/SignOffPanel";
+import { SnoozedCharges } from "@/components/closeout/SnoozedCharges";
 import { GrantHeader } from "@/components/GrantHeader";
 import { grantName } from "@/components/GrantList";
 import { ProblemList } from "@/components/ProblemList";
@@ -52,9 +53,14 @@ export function CloseoutScreen() {
         </div>
         <Loadable result={problems}>
           {(data) =>
-            data.rows.length === 0 ? <p className="ft-empty">Nothing is open.</p> : <ProblemList rows={data.rows} />
+            data.rows.length === 0 ? (
+              <p className="ft-empty">Nothing is on the problem list.</p>
+            ) : (
+              <ProblemList rows={data.rows} />
+            )
           }
         </Loadable>
+        {charges.data && <SnoozedCharges grantId={grantId} rows={charges.data} />}
       </section>
 
       <section className="ft-panel" aria-labelledby="expenses-heading">

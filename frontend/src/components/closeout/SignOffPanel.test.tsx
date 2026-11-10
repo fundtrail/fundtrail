@@ -105,3 +105,45 @@ describe("SignOffPanel", () => {
     expect(screen.getByRole("button", { name: "Sign off again" })).toBeInTheDocument();
   });
 });
+
+describe("withdrawing a sign-off", () => {
+  const signedState: SignOffState = { state: "signed", sign_off: signedRecord, changes: [] };
+
+  it("isn't offered before anything is signed", () => {
+    setup(vi.fn());
+    expect(screen.queryByRole("button", { name: "Withdraw the sign-off" })).not.toBeInTheDocument();
+  });
+
+  it("writes a retraction that replaces the current sign-off", async () => {
+    const retraction: FtRecord = {
+      ...signedRecord,
+      id: "rec-retraction",
+      written_at: "2026-04-13T09:00:00Z",
+      replaces_id: signedRecord.id,
+      data: { kind: "retraction", reason: "A bill arrived late." },
+    };
+    const write = vi.fn(async () => retraction);
+    const onChanged = setup(write, signedState);
+    fireEvent.change(screen.getByLabelText("Reason for withdrawing"), { target: { value: " A bill arrived late. " } });
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw the sign-off" }));
+
+    await waitFor(() =>
+      expect(write).toHaveBeenCalledWith("g-1", {
+        data: { kind: "retraction", reason: "A bill arrived late." },
+        replaces_id: "rec-sign-off",
+      }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Sign-off withdrawn Apr 13, 2026.");
+    expect(onChanged).toHaveBeenCalledWith(retraction);
+  });
+
+  it("sends no reason when none is given, and shows the server's refusal", async () => {
+    const write = vi.fn(async () => Promise.reject(new ApiError(422, ["Only the accountant can withdraw a sign-off."])));
+    setup(write, signedState);
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw the sign-off" }));
+    await waitFor(() =>
+      expect(write).toHaveBeenCalledWith("g-1", { data: { kind: "retraction", reason: null }, replaces_id: "rec-sign-off" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Only the accountant can withdraw a sign-off.");
+  });
+});
