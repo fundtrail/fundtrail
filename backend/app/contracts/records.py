@@ -430,12 +430,50 @@ class ApprovalRule(_Term):
     scope: CitedScope | None = None
 
 
+class BenefitGroup(StrEnum):
+    """The group of employees a benefit rate applies to (ruling 61).
+
+    Code compares groups, never the names a rate agreement prints for them.
+    """
+
+    ACADEMIC = "academic"
+    STAFF = "staff"
+    LIMITED = "limited"
+    NO_BENEFIT_ELIGIBILITY = "no_benefit_eligibility"
+    STUDENT = "student"
+
+
+class CitedBenefitGroup(Cited[BenefitGroup]):
+    """A benefit rate's employee group, read from the rate agreement's own words for it."""
+
+
 class Rate(_Term):
-    """A rate that applies across the grant, such as a fringe benefit rate."""
+    """A rate that applies across the grant, such as a fringe benefit rate.
+
+    Ruling 61: a benefit rate also says which employee group it applies to and when
+    it's in effect, so code can recalculate a benefit charge from its salary lines.
+    The three are optional, so a rate term without them stays valid; a rate that
+    isn't a benefit rate leaves them empty.
+    """
 
     kind: Literal[RecordKind.RATE] = RecordKind.RATE
     name: CitedText
     rate: CitedDecimal
+    applies_to: CitedBenefitGroup | None = None  # None for a rate that isn't a benefit rate
+    # When the rate is in effect, both days included. A missing end means until it's
+    # amended. Dates, not a fiscal-year number, so each can be cited.
+    effective_from: CitedDate | None = None
+    effective_to: CitedDate | None = None
+
+    @model_validator(mode="after")
+    def _effective_order(self):
+        if (
+            self.effective_from is not None
+            and self.effective_to is not None
+            and self.effective_to.value < self.effective_from.value
+        ):
+            raise ValueError("a rate's effective end is on or after its start")
+        return self
 
 
 class Notice(_Term):
