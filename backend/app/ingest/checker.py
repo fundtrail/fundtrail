@@ -1,7 +1,9 @@
 """Checking Gmail and Drive on a timer (decisions 0013, 0023 and 0025).
 
-The timer runs on real time. What it brings in arrives at the workspace's "now",
-which the caller supplies, because the workspace clock is not this module's.
+The timer runs on real time. What it brings in takes its date on a grant from that
+grant's "now" (one clock per grant), which the caller supplies as `GrantNow`, because
+the clock is not this module's. The stored original of each email or file is kept as
+it arrived; only the date it takes on the grant comes from the grant's clock.
 
 The caller passes an `IngestSink` that stores arrived files, held mail and skipped
 files, and saves the checker's progress (the contract's `CheckerProgress`) after each
@@ -47,8 +49,9 @@ class IngestSink(Protocol):
         ...
 
 
-# The workspace's "now", given its ID.
-WorkspaceNow = Callable[[str], datetime]
+# A grant's "now", given the grant's ID. The platform wires it to the clock's
+# per-grant now.
+GrantNow = Callable[[str], datetime]
 
 
 @dataclass
@@ -94,7 +97,7 @@ def check_mail(
     mailbox: str,
     routes: Iterable[GrantRoute],
     state: CheckState,
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
     authserv_id: str = GMAIL_AUTHSERV_ID,
 ) -> None:
@@ -132,7 +135,7 @@ def _take(
     mailbox: str,
     by_tag: dict[str, GrantRoute],
     state: CheckState,
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
     authserv_id: str,
 ) -> bool:
@@ -155,7 +158,7 @@ def _store_or_hold(
     message: RawMessage,
     mailbox: str,
     by_tag: dict[str, GrantRoute],
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
     authserv_id: str,
 ) -> bool:
@@ -172,7 +175,7 @@ def _store_or_hold(
         grant_id=route.grant_id,
         workspace_id=route.workspace_id,
     )
-    _arrive_or_hold(parsed, route, message.id, parts, now(route.workspace_id), sink, authserv_id)
+    _arrive_or_hold(parsed, route, message.id, parts, now(route.grant_id), sink, authserv_id)
     return True
 
 
@@ -225,7 +228,7 @@ def check_drive(
     *,
     routes: Iterable[GrantRoute],
     state: CheckState,
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
     real_now: datetime | None = None,
 ) -> None:
@@ -248,7 +251,7 @@ def _check_folder(
     route: GrantRoute,
     folder_id: str,
     state: CheckState,
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
     real_now: datetime,
 ) -> None:
@@ -261,7 +264,7 @@ def _check_folder(
             incoming = drive_file(
                 source, entry, grant_id=route.grant_id, workspace_id=route.workspace_id
             )
-            sink.store([incoming.arriving(now(route.workspace_id))])
+            sink.store([incoming.arriving(now(route.grant_id))])
         except CannotTake as cannot:
             # Reported, and not tried again until the file changes.
             sink.skip(
@@ -272,7 +275,7 @@ def _check_folder(
                     source="drive",
                     source_ref=folder_id,
                     reason=SkipReason(cannot.reason),
-                    skipped_at=now(route.workspace_id),
+                    skipped_at=now(route.grant_id),
                 )
             )
         except Exception:
@@ -288,7 +291,7 @@ def check_once(
     mailbox: str,
     routes: list[GrantRoute],
     state: CheckState,
-    now: WorkspaceNow,
+    now: GrantNow,
     sink: IngestSink,
 ) -> None:
     """One check of both. A failure in one doesn't stop the other."""

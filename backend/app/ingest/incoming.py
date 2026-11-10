@@ -77,7 +77,7 @@ class IncomingFile:
     # For a Google Doc, Sheet, Slides or Drawings file: the Google type it was exported
     # from. The contract has no field for this yet (issue 39), and the evidence card needs it.
     exported_from: str | None = None
-    arrived_at: datetime | None = None  # set when it arrives, at the workspace's "now"
+    arrived_at: datetime | None = None  # set when it arrives, at the grant's "now"
 
     @property
     def sha256(self) -> str:
@@ -129,7 +129,7 @@ def to_skipped_file(found: FoundSkip, skipped_at: datetime | None) -> SkippedFil
     """The contract's skipped file. One with no time is refused, as a file that hasn't
     arrived is refused by `to_evidence_file`."""
     if skipped_at is None:
-        raise ValueError("a skipped file is reported only with the workspace's now")
+        raise ValueError("a skipped file is reported only with the grant's now")
     return SkippedFile(
         workspace_id=found.workspace_id,
         grant_id=found.grant_id,
@@ -159,7 +159,7 @@ class PendingHold:
     gmail_message_id: str
     subject: str | None
     files: tuple[IncomingFile, ...]  # the message first, then its attachments; not arrived
-    held_at: datetime  # the workspace's "now" when it was held
+    held_at: datetime  # the grant's "now" when it was held
     reason: HoldReason
     skipped: tuple[SkippedFile, ...] = ()  # stamped with held_at, when they were found
 
