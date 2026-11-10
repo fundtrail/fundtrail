@@ -29,9 +29,10 @@ from .citations import SecondLook
 CHARGE_BATCH_SIZE = 25
 
 
-# Finds the bills on file that look like the same one as a new bill. The checks (W2) own the
-# search; adapter.likely_duplicates is the default, and a run can pass its own.
-LikelyDuplicates = Callable[[Record, Sequence[Record]], list[Record]]
+# Finds the IDs of the bills on file that look like the same one as a new bill, strongest first.
+# The checks own the search (app.checks.duplicates.likely_duplicates, the default); a run can
+# pass its own with the same signature.
+LikelyDuplicates = Callable[[Record, Sequence[Record], Sequence[EvidenceFile]], list[str]]
 
 
 @dataclass
