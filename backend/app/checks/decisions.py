@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from app.checks.findings import Finding
-from app.checks.text import norm
+from app.checks.text import money, norm
 from app.checks.view import GrantView
 from app.contracts.charges import Charge
 from app.contracts.checks import CLOSEOUT_WINDOW_DAYS, MISSING_EVIDENCE_DAYS, Bucket
@@ -89,8 +89,32 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._stood(data.rests_on, finding):
+            if self._stood(data.rests_on, finding) and self._amount_held(data, finding):
                 return r.id
+        return None
+
+    @staticmethod
+    def _amount_held(data: AcceptedReason, finding: Finding) -> bool:
+        """Issue 83: an acceptance of a problem that carries an amount (the award limit's
+        over_limit) holds only while the amount is no larger than the one it accepted. An
+        acceptance that recorded no amount can't say what it covered, so it doesn't hold."""
+        if finding.amount_cents is None:
+            return True
+        return data.amount_cents is not None and finding.amount_cents <= data.amount_cents
+
+    def _grown_past(self, subject: SubjectKey, finding: Finding) -> int | None:
+        """The amount a still-standing acceptance covered, when the problem has grown past it."""
+        if finding.amount_cents is None:
+            return None
+        for r in reversed(self.accepted):
+            data = r.data
+            assert isinstance(data, AcceptedReason)
+            if _key_of(data) != subject or data.amount_cents is None:
+                continue
+            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
+                continue
+            if self._stood(data.rests_on, finding) and finding.amount_cents > data.amount_cents:
+                return data.amount_cents
         return None
 
     def _dispute(self, charge_id: str, finding: Finding) -> str | None:
@@ -160,9 +184,15 @@ class Decisions:
         return out
 
     def mark_other(self, subject: SubjectKey, findings: list[Finding]) -> list[Marked]:
-        return [
-            Marked(f, accepted_by=self._direct(subject, f) if f.failing else None) for f in findings
-        ]
+        out: list[Marked] = []
+        for f in findings:
+            accepted_by = self._direct(subject, f) if f.failing else None
+            if accepted_by is None and f.failing:
+                before = self._grown_past(subject, f)
+                if before is not None:
+                    f.text += f" {money(before)} over was accepted before."
+            out.append(Marked(f, accepted_by=accepted_by))
+        return out
 
     # Flagging and snoozing.
 
