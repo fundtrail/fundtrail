@@ -332,22 +332,29 @@ class Decisions:
             else None
         )
 
+    def due_on(self, finding: Finding, posting_date: date | None = None) -> date | None:
+        """The first day a finding goes on the problem list, before acceptances and snoozes,
+        or None when it never does on its own."""
+        if finding.shown_on_term:
+            return None  # the term's own row, or the grant's, stands for it
+        today = self.now.date()
+        if finding.bucket in (Bucket.POSSIBLE_CONFLICT, Bucket.NEEDS_HUMAN):
+            return today
+        if finding.bucket != Bucket.MISSING_EVIDENCE:
+            return None
+        if finding.flag_now:
+            return today
+        expected = finding.expected_by or posting_date or today
+        on = expected + timedelta(days=MISSING_EVIDENCE_DAYS)
+        window = self.window_opens()
+        if window is not None:
+            on = min(on, window)
+        return on
+
     def due(self, finding: Finding, posting_date: date | None = None) -> bool:
         """Whether a finding goes on the problem list now, before acceptances and snoozes."""
-        if finding.shown_on_term:
-            return False  # the term's own row, or the grant's, stands for it
-        if finding.bucket in (Bucket.POSSIBLE_CONFLICT, Bucket.NEEDS_HUMAN):
-            return True
-        if finding.bucket != Bucket.MISSING_EVIDENCE:
-            return False
-        today = self.now.date()
-        expected = finding.expected_by or posting_date or today
-        window = self.window_opens()
-        return (
-            finding.flag_now
-            or today >= expected + timedelta(days=MISSING_EVIDENCE_DAYS)
-            or (window is not None and today >= window)
-        )
+        on = self.due_on(finding, posting_date)
+        return on is not None and on <= self.now.date()
 
     def snooze_ends(self, snooze: Record) -> date:
         """The day a snooze stops hiding its problems: its own date, or earlier when the

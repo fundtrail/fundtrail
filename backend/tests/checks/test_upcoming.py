@@ -210,3 +210,58 @@ def test_a_covered_item_waits_for_the_snooze_when_the_uncovered_one_comes_later(
     flagged = {u.problem: u.on for u in found if u.kind == "missing_flagged"}
     assert flagged["missing:bills"] == date(2024, 6, 1)  # the snooze ends first
     assert flagged["missing:item:expense_report"] == date(2024, 8, 30)
+
+
+# From PR 193's review.
+
+
+def test_a_reason_shown_on_its_terms_row_doesnt_end_a_snooze() -> None:
+    """The grant's dates aren't confirmed, so the charge has Needs a human reasons that
+    the terms' own rows stand for. They never flag the charge, so the snoozed bill waits
+    for the snooze to end."""
+    g = Grant()
+    t = g.standard_terms(confirm=False)
+    g.charge("c1", date(2024, 3, 1), 10000)  # the bill is due Apr 30
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.user(
+        {
+            "kind": "snooze",
+            "charge_id": "c1",
+            "until": date(2024, 6, 15),
+            "note": "Invoice promised for June.",
+            "reasons": [{"check": "checklist", "problem": "missing:bill"}],
+        },
+        at(2024, 3, 3),
+    )
+    found = upcoming_dates(_input(g, at(2024, 3, 4)), "g1")
+    assert [u.on for u in found if u.kind == "missing_flagged"] == [date(2024, 6, 15)]
+
+
+def test_two_snoozes_with_different_ends_release_the_charge_when_the_first_ends() -> None:
+    """Both items are due Apr 30. One snooze names the participant list until Jun 15, the
+    other the payment record until May 15. On May 15 the payment record is on the list and
+    no running snooze names it, so the charge is listed with both items."""
+    g = Grant()
+    t = g.standard_terms(with_rule=False)
+    g.charge("stip", date(2024, 3, 1), 50000, account=STIPENDS, vendor=None)
+    g.assign("stip", t["psc"], at(2024, 3, 1))
+    for until, problem in (
+        (date(2024, 6, 15), "missing:participant_list"),
+        (date(2024, 5, 15), "missing:payment_record"),
+    ):
+        g.user(
+            {
+                "kind": "snooze",
+                "charge_id": "stip",
+                "until": until,
+                "note": "Waiting on the program office.",
+                "reasons": [{"check": "checklist", "problem": problem}],
+            },
+            at(2024, 3, 3),
+        )
+    found = upcoming_dates(_input(g, at(2024, 3, 4)), "g1")
+    flagged = {u.problem: u.on for u in found if u.kind == "missing_flagged"}
+    assert flagged == {
+        "missing:participant_list": date(2024, 5, 15),
+        "missing:payment_record": date(2024, 5, 15),
+    }
