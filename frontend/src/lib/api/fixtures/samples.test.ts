@@ -79,7 +79,7 @@ describe("sample grants in fake mode", () => {
 
 describe("HttpApiClient for sample grants", () => {
   it("turns a 409 SampleRefusal into a SampleRefusalError", async () => {
-    const refusal = { reason: "history_reading", message: "Another sample is still reading its history.", grant: null };
+    const refusal = { reason: "another_sample_working", message: "Another sample is still working.", grant: null };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: refusal }), { status: 409 })));
     const api = new HttpApiClient("https://api.example", async () => "t");
     const error = await api.createSample("ws", { choice: "larger_live", confirmed: true }).catch((e: unknown) => e);
