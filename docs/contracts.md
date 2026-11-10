@@ -2,7 +2,7 @@
 
 Contracts are the seams between workstreams. Once one is agreed, each side can build without waiting for the other. The design behind them is in decisions [0009](decisions/0009-agent-judges-code-checks.md), [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md), [0012](decisions/0012-checked-quotes-and-highlights.md), [0013](decisions/0013-stack-additions-and-repo-structure.md), [0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), [0016](decisions/0016-default-checklists-by-account-group.md), [0017](decisions/0017-grant-terms-from-award-notices.md) and [0018](decisions/0018-agent-works-from-saved-facts.md).
 
-**Status:** a design, not yet code ([decisions/0014](decisions/0014-contracts-are-a-document-first.md)). This file is the source of truth for the contracts until the contract code is written. From then on the code is the truth and this file explains it. Alex and Grant approve changes together.
+**Status:** a design, not yet code ([decisions/0014](decisions/0014-contracts-are-a-document-first.md)). This file is the source of truth for the contracts until the contract code is written. From then on the code is the truth and this file explains it. Changes to it go through the main coordinator, with Alex.
 
 Two parts aren't settled:
 
@@ -32,8 +32,8 @@ The contract code for records, checks and the agent side is written first ([deci
 
 ## Changing a contract
 
-1. Open a pull request (PR) that changes the contract. Both Alex and Grant approve it.
-2. Once the contract code exists, update the code that uses it in the same PR so main stays green, or have both owners agree on who follows up.
+1. A contract changes only through the main coordinator, with Alex. Contract files have one writer at a time, assigned by the build coordinator.
+2. Open a pull request (PR) that changes the contract. Once the contract code exists, update the code that uses it in the same PR so main stays green, or have the build coordinator open an issue for the follow-up.
 3. If the change alters behavior or direction, add a file to [decisions/](decisions/).
 
 ## Conventions

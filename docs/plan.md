@@ -38,50 +38,51 @@ Each area gets a link to its decision file here once the file is written. A buil
 
 ### Work in parallel
 
-Parallelize as much as possible. Inside each stage, split the work across separate agents wherever the pieces don't touch the same files. Shared files (contracts, migrations, docs) have one writer at a time.
+Parallelize as much as possible. Inside each stage, split the work across separate agents wherever the pieces don't touch the same files. Shared files (contracts, migrations, and the continuous integration (CI) config) have one writer at a time.
 
 - The three pieces of test material are independent of each other.
-- The four areas on Alex's side (ingestion, the agent, quotes, the checks) live in separate folders.
+- Ingestion, the agent, quotes and the checks live in separate folders.
 
 ## How we work
 
 ```
-                    GitHub: grant-j-kim/fundtrail
-     main + docs/ = the truth  ·  issues = tasks  ·  PRs = changes
-            ▲                         ▲                        ▲
-            │ read before each task   │ claim one              │ open one
-            │                         │                        │
-   Alex's lead session                          Grant's lead session
-     ├ worker: W1 agent                           ├ worker: W4 platform
-     ├ worker: W2 checks + rules                  ├ worker: W5 app screens
-     └ worker: W3 ingestion, then eval            └ worker: W6 viewer + closeout
+   Alex ◄──► main coordinator ──► docs/ and docs/decisions/
+                    │ new decisions
+                    ▼
+             build coordinator ──► GitHub issues
+                    │
+                 builders ──► pull requests ──► reviewer ──► main
 
    one task = one issue = one worktree and branch = one PR
-   Alex and Grant decide, review and merge. Agents never change direction.
 ```
 
-- **Each person runs one lead session plus up to 3 workers at a time.** Review is the limit: one person can follow and merge about three streams. More agents than that bring more conflicts and unreviewed code, not more speed.
-- **A lead session** picks the next issues and starts each worker with a short brief: the issue link and the docs to read. It reviews PRs with `/code-review`, and its human merges.
-- **A worker** is a fresh session on one issue, in its own worktree, and finishes with a PR. The working rules are in [CLAUDE.md](../CLAUDE.md#working-rules).
-- **Model: Opus 5.5 for every session.** Rework costs more than tokens here. Sonnet 5.5 is fine for narrow, fully specified tasks such as seed files, UI polish or test fixtures, when speed matters.
+- **Everything is built in this repo by agents,** in every folder.
+- **Who does what** is in [CLAUDE.md](../CLAUDE.md#who-does-what): Alex, the main coordinator, the build coordinator, builders, a reviewer and the human assistant.
+- **One task is one issue.** A builder takes one issue in one area, works in its own worktree, and finishes with a PR. The working rules are in [CLAUDE.md](../CLAUDE.md#working-rules).
+- **Merging.** A PR merges straight to main once a different agent has reviewed it against the docs and the tests pass.
+- **How many builders.** As many builders run at once as reviews and merges can keep up with, with one writer at a time on shared files.
+- **The design discussion continues during the build.** A new decision goes into the docs first, then to the build coordinator, then to the builder it affects. A change to work that's already merged becomes a new issue.
+- **Models.** Every agent runs on Opus at medium effort or higher. The contracts as code, the agent, the checks, the quotes, the eval cases and the reviewer run at high effort or above.
 - **Status lives in GitHub issues,** not in this file, so parallel PRs don't collide on a shared status list.
 - **The blind-test generator** is a separate claude.ai chat with no repo access (see [eval.md](eval.md)).
 
-## Workstreams
+## Areas
 
-The split follows one seam. Alex owns everything that turns files into records and records into statuses. Grant owns the platform and everything the user sees. The directories each workstream owns are in [CLAUDE.md](../CLAUDE.md#repo-map).
+The work is split into areas of the repo. The directories each area owns are in [CLAUDE.md](../CLAUDE.md#repo-map).
 
-| # | Workstream | Owner |
-|---|---|---|
-| W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads. Also quotes: find each quote in its file, highlight positions, page images for scans, the second look on photos | Alex |
-| W2 | Checks, NSF rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text | Alex |
-| W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
-| W4 | Platform: database, sign-in, workspaces, seeding, clock, API (application programming interface), background jobs on Procrastinate, thread messages, screen pings, deploys | Grant |
-| W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls | Grant |
-| W6 | Viewer with highlights, closeout view, PDF evidence report | Grant |
-| Shared | Contracts, migrations, docs, `CLAUDE.md`, CI (continuous integration) config | both |
+| # | Area |
+|---|---|
+| W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads. Also quotes: find each quote in its file, highlight positions, page images for scans, the second look on photos |
+| W2 | Checks, NSF rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text |
+| W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data |
+| W4 | Platform: database, sign-in, workspaces, seeding, clock, API (application programming interface), background jobs on Procrastinate, thread messages, screen pings, deploys |
+| W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls |
+| W6 | Viewer with highlights, closeout view, PDF evidence report |
+| Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config |
 
 ### Setup only a person can do
+
+The human assistant walks Alex through these.
 
 - [ ] A Supabase project with Google sign-in turned on
 - [ ] A Google Cloud project: an OAuth client, the Gmail and Drive APIs, and the demo Gmail account
@@ -95,7 +96,7 @@ The split follows one seam. Alex owns everything that turns files into records a
 
 ```
 Goal: one or two sentences.
-Workstream: W#
+Area: W#
 May change: directories
 Depends on: contracts or issues
 Done when: a test passes, or a behavior you can see
@@ -104,29 +105,29 @@ Read first: docs sections
 
 ## Direction changes
 
-Only Alex or Grant change direction.
+Only Alex changes direction, through the main coordinator.
 
-1. Alex and Grant decide.
-2. One PR adds a file to [decisions/](decisions/) and updates every doc and contract the decision touches. If a contract changes, the same PR updates its callers so main stays green, or the two owners agree on who follows up.
-3. Affected issues get edited, closed or reopened, and labeled `changed`.
-4. Running workers are told to stop, or to rebase and reread the decision.
+1. Alex decides.
+2. The main coordinator adds a file to [decisions/](decisions/) and updates every doc the decision touches. If a contract changes, the code that uses it is updated in the same PR so main stays green, or the build coordinator opens an issue for the follow-up.
+3. The build coordinator edits, closes or reopens the affected issues and labels them `changed`. A change to work that's already merged becomes a new issue.
+4. Builders at work on an affected issue are told to stop, or to rebase and reread the decision.
 
 A small correction inside one area doesn't need a decision file. The PR description is enough.
 
 ## Risks
 
-- **Review bottleneck.** Workers are capped at three per person.
+- **Review bottleneck.** Builders can only run as fast as reviews and merges keep up.
 - **Contract churn.** Once the contract code is merged, later changes follow the process above.
 - **Late integration.** The thin path comes before the parallel work, which forces integration early.
 - **A provisional decision mistaken for a reviewed one.** Its status line says "Provisional: not yet reviewed by Alex", and the provisional areas are listed above.
 - **Google test-mode tokens.** While the OAuth app is in Testing mode, Google refresh tokens expire after 7 days. Reconnect the demo account before a demo.
-- **Cost.** Six Opus workers plus live eval runs. Keep an eye on the Anthropic console.
+- **Cost.** Many Opus agents plus live eval runs. Keep an eye on the Anthropic console.
 
 ## Not decided yet
 
 | Item | Who settles it |
 |---|---|
 | How to demo | product |
-| Issues for the work in decisions 0010 to 0019. Review threads are core. | both leads |
-| The demo data | product (Alex and Grant), built by W3 |
-| The agent's exact actions and the wording of its prompts: a W1 task of its own, which can go to a worker. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1), discussed with Alex before building |
+| Issues for the work in decisions 0010 to 0019. Review threads are core. | the build coordinator |
+| The demo data | product, built by W3 |
+| The agent's exact actions and the wording of its prompts: a W1 task of its own. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1), discussed with Alex before building |
