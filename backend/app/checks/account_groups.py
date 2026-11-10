@@ -21,10 +21,11 @@ Rules the table follows:
 - A group can carry more than one NSF category. The ledger's account and the
   budget line the agent assigned agree when that line is one of the categories,
   or sits inside one of them. Comparing them is the checks' job, not this table's.
-- Reversals and cost transfers are not a group. Their default items apply to any
-  line that corrects another, whatever its account, and are left out here until
-  decision 0020 settles them. Such a line's NSF category still comes from its
-  account.
+- Reversals and cost transfers are not a group, and their two correction items
+  (the line it corrects, a written justification) aren't in this table. Under
+  decision 0020 (provisional), a line that takes money off the grant gets only
+  those two items, and a line that adds money gets its account group's default
+  plus those two. Either way, its NSF category comes from its account.
 
 The types here are plain and local on purpose. The contract models for checklist
 items aren't written yet, and these will be aligned with them once they are.
