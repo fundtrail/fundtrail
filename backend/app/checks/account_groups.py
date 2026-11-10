@@ -33,7 +33,10 @@ from __future__ import annotations
 
 import calendar
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date, timedelta
+from types import MappingProxyType
 
 from app.contracts.charges import Charge
 from app.contracts.records import BudgetCategory, DefaultItem, Period
@@ -49,13 +52,16 @@ class GroupItem:
     stands for the bill-like document: it carries the charge's amount, and
     covers whatever the charge's other amount-carrying items don't (the checks
     work that out). `covers_charge_month` means the document has to cover the
-    month of the charge.
+    month of the charge. `due_days_after_half_year`, when set, makes the item
+    expected that many days after the end of the half-year (January to June,
+    or July to December) that holds the charge's month.
     """
 
     key: str
     needed: str
     carries_charge_amount: bool = False
     covers_charge_month: bool = False
+    due_days_after_half_year: int | None = None
 
 
 @dataclass(frozen=True)
@@ -72,7 +78,9 @@ class AccountGroup:
     accounts: tuple[str, ...]
     items: tuple[GroupItem, ...]
     nsf_categories: tuple[BudgetCategory, ...]
-    categories_by_account: dict[str, tuple[BudgetCategory, ...]] = field(default_factory=dict)
+    categories_by_account: Mapping[str, tuple[BudgetCategory, ...]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
 
 @dataclass(frozen=True)
@@ -100,6 +108,14 @@ ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
                 key="effort_report",
                 needed="Certified effort report covering the month",
                 covers_charge_month=True,
+                # Decision 0016: Berkeley certifies effort twice a year, within
+                # 120 days of the period's end. Berkeley's Effort Reporting System
+                # (ERS) schedule matches: October 28 for January to June, April 30
+                # for July to December. Unverified under the new Employee
+                # Compensation Compliance (ECC) system, which takes over from
+                # July to December 2026 with certification in March 2027 and
+                # publishes no deadline yet.
+                due_days_after_half_year=120,
             ),
         ),
         # The account doesn't say whether the person is senior or other personnel.
@@ -208,15 +224,17 @@ ACCOUNT_GROUPS: tuple[AccountGroup, ...] = (
         # The parent, so the sample grant's Other sub-line agrees.
         nsf_categories=(BudgetCategory.OTHER_DIRECT_COSTS,),
         # A recharge account that names what was bought carries that category.
-        categories_by_account={
-            # Under $5,000, like other equipment under the threshold.
-            "59005": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Rechg-Fabricated Equip (OH)<5k
-            "59006": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Recharge-Supplies
-            "59007": (BudgetCategory.PARTICIPANT_SUPPORT,),  # Recharge-Participant Support
-            "59008": (BudgetCategory.TRAVEL,),  # Recharge-Travel
-            "59012": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabricated Equip (OH)>5k
-            "59013": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabrctd Equip(Non OH)>5k
-        },
+        categories_by_account=MappingProxyType(
+            {
+                # Under $5,000, like other equipment under the threshold.
+                "59005": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Rechg-Fabricated Equip (OH)<5k
+                "59006": (BudgetCategory.MATERIALS_AND_SUPPLIES,),  # Recharge-Supplies
+                "59007": (BudgetCategory.PARTICIPANT_SUPPORT,),  # Recharge-Participant Support
+                "59008": (BudgetCategory.TRAVEL,),  # Recharge-Travel
+                "59012": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabricated Equip (OH)>5k
+                "59013": (BudgetCategory.EQUIPMENT,),  # Rechg-Fabrctd Equip(Non OH)>5k
+            }
+        ),
     ),
 )
 
@@ -236,7 +254,8 @@ _ENTRIES: tuple[tuple[str, AccountGroup | None], ...] = tuple(
     )
 )
 
-_ACCOUNT_CODE = re.compile(r"\s*(\d{5})(?!\d)")
+# ASCII digits only, and the code has to end there: "55016x" isn't 55016.
+_ACCOUNT_CODE = re.compile(r"\s*([0-9]{5})(?![0-9A-Za-z_])", re.ASCII)
 
 
 def account_code(account: str) -> str | None:
@@ -277,11 +296,24 @@ def _month_of(charge: Charge) -> Period:
     return Period(start=start, end=start.replace(day=last))
 
 
+def _half_year_end(charge: Charge) -> date:
+    """The last day of the half-year, January to June or July to December, the cost happened in."""
+    year = charge.transaction_date.year
+    return date(year, 6, 30) if charge.transaction_date.month <= 6 else date(year, 12, 31)
+
+
+def _expected_by(item: GroupItem, charge: Charge) -> date | None:
+    if item.due_days_after_half_year is None:
+        return None
+    return _half_year_end(charge) + timedelta(days=item.due_days_after_half_year)
+
+
 def account_group_items(charge: Charge) -> list[DefaultItem]:
     """The default checklist items a charge gets from its account group, and no others.
 
     In the contract's `DefaultItem` form. A line that takes money off the grant
-    gets none (decision 0020). A charge's full defaults, with required
+    gets none (decision 0020). That sign rule lives here only, so callers don't
+    apply it again. A charge's full defaults, with required
     approvals, the pre-award item and a correcting line's two items, are
     `default_items` in checklist.py, which calls this.
     """
@@ -294,6 +326,7 @@ def account_group_items(charge: Charge) -> list[DefaultItem]:
             needed=item.needed,
             amount_cents=charge.amount_cents if item.carries_charge_amount else None,
             period=_month_of(charge) if item.covers_charge_month else None,
+            expected_by=_expected_by(item, charge),
         )
         for item in found.items
     ]
