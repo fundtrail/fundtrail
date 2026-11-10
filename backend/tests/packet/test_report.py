@@ -7,13 +7,30 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from app.contracts.charges import Charge
-from app.contracts.checks import Bucket, ChargeStatus, ChecksOutput, Reason
+from app.contracts.checks import (
+    Bucket,
+    ChargeStatus,
+    ChecksOutput,
+    GrantStatus,
+    Problem,
+    Reason,
+)
 from app.contracts.evidence import EvidenceFile, Source
-from app.contracts.records import Answer, Bill, CitedMoney, Record
+from app.contracts.records import (
+    Answer,
+    Bill,
+    Citation,
+    CitedMoney,
+    ImageBox,
+    Judgment,
+    Match,
+    Record,
+)
 from app.packet import ChargeLedgerState, HeldMessage, ReportInputs, build_report
 from app.packet.content import SECTION_TITLES, report_view
 from app.packet.view import Heading, Para, Quote, Section, Table
@@ -183,15 +200,18 @@ def test_the_summary_has_the_terms_spending_counts_and_ledger_total():
     text = texts(section(sample_inputs(), 1))
     assert "Feb 1, 2023 to Jan 31, 2027" in text
     assert (
-        "Confirmed by Sample Accountant, Jan 12, 2023; Confirmed by Sample Accountant, Apr 10, 2026"
-        in text
+        "award_letter.txt: Confirmed by Sample Accountant, Jan 12, 2023; "
+        "extension_notice.txt: Confirmed by Sample Accountant, Apr 10, 2026" in text
     )
+    assert "Funder National Science Foundation (NSF)" in text
+    assert "As of" not in text  # the title already says it
     assert "$120,000.00 total obligated to date (Amendment 000, New Project" in text
     assert "Spending against the award's limit: $3,420.00 of $120,000.00." in text
-    assert "Materials and Supplies $40,000.00 $1,240.00 Within" in text
+    assert "Over budget Confirmed Participant Support Costs $20,000.00 $0.00 No" in text
     assert "Dr. Jesse Sample, Program Officer, jesse.sample@funder.example" in text
     assert "Participant Support Costs: approved by Program Officer, through Research.gov" in text
-    assert "Evidence complete 2 Possible conflict 0" in text
+    assert "Materials and Supplies $40,000.00 $1,240.00 No" in text
+    assert "Charges by status Status Number Evidence complete 2 Possible conflict 0" in text
     assert "Accepted 0 Reversed 0 All charges 2" in text
     assert "Ready for closeout: 2 of 2 charges" in text
     assert (
@@ -452,3 +472,234 @@ def test_inputs_must_cover_every_charge():
     record: Record = base.records[0]
     with pytest.raises(ValueError, match="sign_off record"):
         sample_inputs(sign_off=record)
+
+
+def test_a_waiting_term_cites_its_file_and_a_rejected_one_doesnt():
+    waiting = sample_inputs(APRIL_9)
+    cited, uncited = texts(section(waiting, 6)).split("Files on the grant that no record cites")
+    assert "extension_notice.txt" in cited
+    assert "extension_notice.txt" not in uncited
+    rejection = user_record(
+        "rec-reject-extension",
+        APRIL_9,
+        {"kind": "confirmation", "record_ids": ["rec-period-extension"], "decision": "rejected"},
+    )
+    rejected = sample_inputs(APRIL_9, records=(*waiting.records, rejection))
+    cited, uncited = texts(section(rejected, 6)).split("Files on the grant that no record cites")
+    assert "extension_notice.txt" not in cited
+    assert "extension_notice.txt Google Drive, arrived Apr 9, 2026" in uncited
+
+
+def test_the_history_wording_comes_from_one_function():
+    from app.packet.history import history_text
+
+    inputs = sample_inputs()
+    entry = inputs.history[-1]
+    words = history_text(
+        entry,
+        records={r.id: r for r in inputs.records},
+        files={f.id: f for f in inputs.files},
+        charges={c.id: c for c in inputs.charges},
+    )
+    assert words == "Confirmation by the accountant. Feb 20, 2026 is inside the period in force."
+    assert words in texts(section(inputs, 5))
+
+
+# Review fixes
+
+
+def agent_record(id: str, written_at: datetime, data: dict[str, Any]) -> Record:
+    return Record.model_validate(
+        {
+            "id": id,
+            "workspace_id": "ws-sample",
+            "grant_id": "grant-sample",
+            "author": "agent",
+            "written_at": written_at,
+            "data": data,
+        }
+    )
+
+
+def test_long_notes_reasoning_and_subjects_never_stop_the_report():
+    note = "The extension notice moves the end date. " * 100  # about 4,000 characters
+    base = signed_inputs()
+    long_note = tuple(
+        r.model_copy(update={"data": r.data.model_copy(update={"note": note})})
+        if r.id == "rec-accept-l-1002"
+        else r
+        for r in base.records
+    )
+    dispute = agent_record(
+        "rec-dispute",
+        APRIL_9,
+        {
+            "kind": "dispute",
+            "charge_id": "chg-l-1002",
+            "check": "period_of_performance",
+            "reasoning": "The order was placed before the end date. " * 100,
+            "quotes": [
+                {
+                    "file_id": "file-sequencing-statement",
+                    "passage": "From",
+                    "location": {
+                        "type": "char_location",
+                        "start_char_index": 0,
+                        "end_char_index": 4,
+                    },
+                    "match": "exact",
+                }
+            ],
+        },
+    )
+    confirm = user_record(
+        "rec-confirm-dispute", APRIL_9, {"kind": "confirmation", "record_ids": ["rec-dispute"]}
+    )
+    mail = tuple(
+        HeldMessage(
+            id=f"held-{i}",
+            sender=f"sender{i}@vendor.example",
+            arrived_at=datetime(2026, 3, 2, 9, tzinfo=UTC),
+            subject="Quarterly statement and remittance details " * 60,
+        )
+        for i in range(3)
+    )
+    inputs = sample_inputs(
+        APRIL_9,
+        records=(*long_note, dispute, confirm),
+        checks=base.checks,
+        ledger=base.ledger,
+        sign_off=base.sign_off,
+        held_mail=mail,
+    )
+    pages = pdf_pages(build_report(inputs))
+    # Read the pages as one flow, without each page's header and footer and the
+    # table headers repeated at the top of a page.
+    furniture = re.compile(
+        r"Evidence report · SYN-2300117 Signed · as of [^U]* UTC|Page \d+ of \d+"
+        r"|When Who Decision About Detail|Sender Arrived Subject"
+    )
+    text = flat(" ".join(furniture.sub(" ", flat(p)) for p in pages))
+    assert text.count("The extension notice moves the end date.") >= 100
+    assert text.count("The order was placed before the end date.") >= 100
+    assert text.count("Quarterly statement and remittance details") >= 180
+    for i, page in enumerate(pages, start=1):
+        assert f"Page {i} of {len(pages)}" in flat(page)
+
+
+# Curly quotes, dashes, degrees, micro, times, plus-minus, section, accented
+# names, euro and pound, an arrow, and a Romanian s with a comma below.
+CHARACTERS = "‘a’ “b” 1–2 — 4°C 200 μL 3×2 ±0.5 § 2 José Peña Müller Erdős Brașov €12 £9 A→B"
+
+
+def test_every_character_of_a_quote_comes_back_from_the_pdf():
+    base = sample_inputs()
+    passage = CHARACTERS + " non‑breaking zero​width"
+
+    def with_passage(r: Record) -> Record:
+        assert isinstance(r.data, Judgment)
+        quote = r.data.quotes[0].model_copy(update={"passage": passage})
+        return r.model_copy(update={"data": r.data.model_copy(update={"quotes": (quote,)})})
+
+    records = tuple(with_passage(r) if r.id == "rec-allowable-l-1001" else r for r in base.records)
+    text = flat(" ".join(pdf_pages(build_report(sample_inputs(records=records)))))
+    assert "“" + CHARACTERS in text
+    assert "non‑breaking" in text
+
+
+def test_a_photo_part_prints_the_value_read_at_that_place():
+    base = sample_inputs()
+    box = ImageBox(left=0.1, top=0.2, width=0.3, height=0.1)
+    at_box = Citation(file_id="file-invoice-1001", passage=None, location=box, match=Match.EXACT)
+    bill = next(r for r in base.records if r.id == "rec-bill-inv-1001")
+    assert isinstance(bill.data, Bill)
+    total = bill.data.total.model_copy(update={"citation": at_box})
+    photo_bill = bill.model_copy(update={"data": bill.data.model_copy(update={"total": total})})
+
+    def with_part(part: Citation) -> str:
+        def swap(r: Record) -> Record:
+            if r.id == bill.id:
+                return photo_bill
+            if r.id == "rec-link-l-1001":
+                return r.model_copy(update={"data": r.data.model_copy(update={"part": part})})
+            return r
+
+        records = tuple(swap(r) for r in base.records)
+        return texts(section(sample_inputs(records=records), 5))
+
+    assert "Cited: invoice_1001.txt, page 1, value as read: $1,240.00" in with_part(at_box)
+    elsewhere = at_box.model_copy(update={"location": box.model_copy(update={"top": 0.5})})
+    text = with_part(elsewhere)
+    assert "Cited: invoice_1001.txt, page 1" in text
+    assert "value as read" not in text
+
+
+def test_an_answer_on_a_flag_isnt_paired_with_another_flag():
+    base = sample_inputs()
+    flag: dict[str, Any] = {
+        "kind": "judgment",
+        "charge_id": "chg-l-1001",
+        "question": "flag",
+        "text": "Is the core liner order a duplicate?",
+        "answer": "unsure",
+        "reasoning": "Two orders look alike.",
+    }
+    agent_flag = agent_record("rec-flag-agent", APRIL_10, flag)
+    user_flag = user_record(
+        "rec-flag-user", APRIL_10, {**flag, "text": "Is the shipping split right?"}
+    )
+    text = texts(section(sample_inputs(records=(*base.records, agent_flag, user_flag)), 3))
+    assert "Is the shipping split right?" in text
+    assert "Earlier answer" not in text
+
+
+def test_the_sign_off_names_its_own_author():
+    base = signed_inputs()
+    assert base.sign_off is not None
+    other = base.sign_off.model_copy(update={"author_user_id": "user-other"})
+    inputs = sample_inputs(
+        APRIL_9, records=base.records, checks=base.checks, ledger=base.ledger, sign_off=other
+    )
+    assert texts(section(inputs, 7)).startswith(
+        "Signed off by user-other on Apr 9, 2026, 17:00 UTC."
+    )
+
+
+def test_a_signed_report_is_built_at_the_sign_offs_time_from_this_grant_only():
+    base = signed_inputs()
+    with pytest.raises(ValueError, match="sign-off's own time"):
+        sample_inputs(
+            APRIL_10,
+            records=base.records,
+            checks=base.checks,
+            ledger=base.ledger,
+            sign_off=base.sign_off,
+        )
+    stray = base.records[0].model_copy(update={"grant_id": "grant-other"})
+    with pytest.raises(ValueError, match="belongs to the grant"):
+        sample_inputs(records=(*sample_inputs().records, stray))
+
+
+def test_snoozed_grant_problems_show_until_and_note():
+    snooze = user_record(
+        "rec-snooze-grant",
+        APRIL_10,
+        {
+            "kind": "snooze",
+            "until": "2026-06-01",
+            "note": "Waiting for the next notice.",
+            "reasons": [{"check": "budget", "problem": "over_limit"}],
+        },
+    )
+    base = sample_inputs()
+    grant = GrantStatus(
+        grant_id="grant-sample",
+        problems=(
+            Problem(check="budget", problem="over_limit", text="Spending is over the limit."),
+        ),
+        flagged=False,
+        snoozed=True,
+    )
+    checks = base.checks.model_copy(update={"grants": (grant,)})
+    text = texts(section(sample_inputs(records=(*base.records, snooze), checks=checks), 2))
+    assert "Snoozed until Jun 1, 2026. Note: Waiting for the next notice." in text

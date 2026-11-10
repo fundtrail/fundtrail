@@ -5,8 +5,6 @@ to match the expected buckets in section 15. The reason texts and check IDs
 are stand-ins for code's own.
 """
 
-import importlib
-import threading
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -27,16 +25,12 @@ from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import Period, Record
 from app.contracts.runs import Trigger, TriggerKind
 from app.packet import BudgetFigure, ChargeLedgerState, ReportInputs, TermsInForce
+from app.quotes import PDFIUM_LOCK
 
 SAMPLE = load_sample_grant()
 USER = SAMPLE.user
 APRIL_9 = datetime(2026, 4, 9, 17, tzinfo=UTC)  # the extension arrived, not yet confirmed
 APRIL_10 = datetime(2026, 4, 10, 17, tzinfo=UTC)  # the extension confirmed
-
-# app.quotes holds the lock once PR 32 merges; until then a local one does the same job.
-PDFIUM_LOCK: Any = getattr(importlib.import_module("app.quotes"), "PDFIUM_LOCK", None) or (
-    threading.Lock()
-)
 
 
 def pdf_pages(data: bytes) -> list[str]:
