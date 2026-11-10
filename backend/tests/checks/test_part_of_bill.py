@@ -110,6 +110,36 @@ def test_a_part_the_bill_states_passes_and_a_different_one_doesnt() -> None:
     assert ("checklist", f"part_mismatch:{link}") in problems(g2.status("c1", at(2024, 3, 2)))
 
 
+def test_a_stated_part_cited_from_another_file_is_needs_a_human() -> None:
+    """The review's case: $5,833.33 copied into an email isn't a line on the bill."""
+    g = Grant()
+    t = g.standard_terms()
+    g.file("f-email", WHEN)
+    bill = _shared(g, t)
+    link = _link(g, bill, "c1", PART, stated_amount=cited(PART, "$5,833.33", "f-email"))
+    status = g.status("c1", at(2024, 3, 2))
+    assert problems(status) == {("checklist", f"part_not_on_bill:{link}")}
+    assert status.bucket == Bucket.NEEDS_HUMAN
+
+
+def test_a_stated_part_the_accountant_typed_counts() -> None:
+    """A typed value has no citation and counts as confirmed (contracts.md section 1)."""
+    g = Grant()
+    t = g.standard_terms()
+    bill = _shared(g, t)
+    data = {
+        "kind": "link",
+        "record_id": bill,
+        "charge_id": "c1",
+        "amount_cents": PART,
+        "default_item": "bill",
+        "stated_amount": {"value": PART},  # typed: no citation
+    }
+    g.user(data, WHEN)
+    g.answer("c1", "supports", WHEN, rests_on=[bill])
+    assert failing(g.status("c1", at(2024, 3, 2))) == []
+
+
 def test_a_bill_split_across_this_grants_charges_needs_no_basis() -> None:
     g = Grant()
     t = g.standard_terms()

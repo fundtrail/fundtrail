@@ -466,6 +466,24 @@ def _part_of_bill_check(view: GrantView, links: list[LinkInForce]) -> list[Findi
                     ids,
                 )
             )
+        elif (
+            stated is not None
+            and stated.citation is not None
+            and stated.citation.file_id not in view.files_of(link.fact)
+        ):
+            # 0021: the part has to be a line on the bill itself. The same number in an
+            # email could have been copied from the charge, which proves nothing. A part
+            # the accountant typed has no citation and counts as confirmed.
+            out.append(
+                Finding(
+                    CHECKLIST,
+                    f"part_not_on_bill:{view.root(link.link.id)}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{describe(link.fact)}: the part linked, {money(stated.value)}, is cited "
+                    "from another file, not from a line on the bill.",
+                    ids,
+                )
+            )
         elif stated is not None and stated.value != amount:
             out.append(
                 Finding(
