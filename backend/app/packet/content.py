@@ -9,7 +9,10 @@ a bucket, a reason, whether something is open, or which term is in force.
 from collections import Counter
 from collections.abc import Iterable
 
+from app.checks.findings import BUDGET
 from app.checks.history import describe_trigger
+from app.contracts.api import RecordState as TermState
+from app.contracts.api import TermView
 from app.contracts.charges import Charge
 from app.contracts.checks import (
     Bucket,
@@ -56,10 +59,14 @@ from app.contracts.records import (
     cited_values,
 )
 from app.contracts.rules import RecordState
+from app.contracts.runs import TriggerKind
 
 from . import fmt
 from .inputs import ReportInputs
 from .view import Block, Heading, Para, Quote, ReportView, Section, SignLines, Table
+
+# The checks' grant problem for spending over the award's limit (grant_checks.py).
+OVER_LIMIT = "over_limit"
 
 SECTION_TITLES = (
     "1. Summary",
@@ -128,6 +135,7 @@ class _Report:
         self.files = {f.id: f for f in inp.files}
         self.charges = {c.id: c for c in inp.charges}
         self.status = {s.charge_id: s for s in inp.checks.charges}
+        self.messages = {m.id: m for m in inp.thread_messages}
         self.order = self._charge_order()
 
     # Charges, and how they're grouped.
@@ -156,11 +164,14 @@ class _Report:
 
     def history_text(self, e: StatusEntry) -> str:
         """W2's wording of what triggered the change, with code's reason for the new bucket."""
-        about = (
-            self.by_id.get(e.trigger.id or "")
-            or self.charges.get(e.trigger.id or "")
-            or self.files.get(e.trigger.id or "")
-        )
+        tid = e.trigger.id or ""
+        about = {
+            TriggerKind.RECORD: self.by_id.get(tid),
+            TriggerKind.CHARGE: self.charges.get(tid),
+            TriggerKind.FILE: self.files.get(tid),
+            TriggerKind.THREAD_MESSAGE: self.messages.get(tid),
+            TriggerKind.CLOCK: None,
+        }[e.trigger.kind]
         trigger = describe_trigger(e, about, self.inp.records)
         assert isinstance(e.status, ChargeStatus)
         reason = self.headline_reason(e.status)
@@ -282,6 +293,15 @@ class _Report:
         cited = next(citations(r.data), None) if r else None
         return self.file_name(cited.file_id) if cited else record_id
 
+    def term_confirmed(self, view: TermView) -> str:
+        """Who confirmed a term and when, from the grant page's view of it."""
+        r = view.record
+        if r.author == Author.USER:
+            return f"Entered by {self.who(r)}, {fmt.day(r.written_at)}"
+        if view.decision is None:
+            return ""
+        return f"Confirmed by {self.who(view.decision)}, {fmt.day(view.decision.written_at)}"
+
     def confirmed(self, record_id: str | None) -> str:
         r = self.by_id.get(record_id or "")
         if r is None:
@@ -296,7 +316,7 @@ class _Report:
     # 1. Summary
 
     def summary(self) -> Section:
-        g, t = self.inp.grant, self.inp.terms
+        g, b = self.inp.grant, self.inp.budget
         blocks: list[Block] = [
             Table(
                 ("", ""),
@@ -309,54 +329,52 @@ class _Report:
             ),
             Heading("Terms in force", 3),
         ]
-        terms: list[tuple[str, str, str]] = []
-        terms.append(
-            (
-                "Period of performance",
-                self.value_text(t.period) if t.period else "None confirmed",
-                "; ".join(f"{self.source_of(rid)}: {self.confirmed(rid)}" for rid in t.period_ids),
-            )
-        )
-        notice = self.by_id.get(t.limit_notice_id or "")
-        limit = (
-            notice.data.obligated_to_date if notice and isinstance(notice.data, Notice) else None
-        )
-        terms.append(
-            (
-                "Award's limit",
-                f"{fmt.money(limit.value)} total obligated to date ({self.describe(notice)})"
-                if limit
-                else "None confirmed",
-                self.confirmed(t.limit_notice_id),
-            )
-        )
-        for rid in t.other_term_ids:
-            r = self.by_id.get(rid)
-            if r is not None:
-                terms.append((KIND_LABELS[r.kind], self.describe(r), self.confirmed(rid)))
+        terms: list[tuple[str, str, str]] = [
+            ("End date in force", fmt.day(self.inp.end_date) or "None confirmed", "")
+        ]
+        for view in self.inp.terms:
+            r = view.record
+            if view.state != TermState.COUNTS or isinstance(r.data, BudgetLine):
+                continue  # budget lines are under Spending
+            label = KIND_LABELS[r.kind]
+            what = self.describe(r).removeprefix(f"{label}: ")
+            terms.append((label, what, self.term_confirmed(view)))
         blocks.append(Table(("Term", "In force", "Confirmed"), tuple(terms), (0.22, 0.5, 0.28)))
 
         blocks.append(Heading("Spending", 3))
-        if limit:
-            over = " Spending is over the award's limit." if t.over_limit else ""
+        if b is not None and b.limit_cents is not None:
+            over = (
+                " Spending is over the award's limit."
+                if any(
+                    p.check == BUDGET and p.problem == OVER_LIMIT
+                    for gs in self.inp.checks.grants
+                    for p in gs.problems
+                )
+                else ""
+            )
             blocks.append(
                 Para(
-                    f"Spending against the award's limit: {fmt.money(t.spent_cents)} "
-                    f"of {fmt.money(limit.value)}.{over}"
+                    f"Spending against the award's limit: {fmt.money(b.spent_cents)} "
+                    f"of {fmt.money(b.limit_cents)}.{over}"
                 )
             )
+        # An overspent line is a grant note from the checks, naming the lines it's about.
+        overspent = {
+            rid for n in self.inp.checks.notes if n.check == BUDGET for rid in n.record_ids
+        }
+        views = {v.record.id: v for v in self.inp.terms}
         rows: list[tuple[str, ...]] = []
-        for b in t.budget:
-            r = self.by_id.get(b.record_id)
-            if r is None or not isinstance(r.data, BudgetLine):
-                continue
+        for line in b.lines if b is not None else ():
+            r = line.line
+            name = r.data.name.value if isinstance(r.data, BudgetLine) else r.id
+            view = views.get(r.id)
             rows.append(
                 (
-                    r.data.name.value,
-                    fmt.money(r.data.amount.value),
-                    fmt.money(b.spent_cents),
-                    "Yes" if b.over else "No",
-                    self.confirmed(b.record_id),
+                    name,
+                    fmt.money(line.amount_cents),
+                    fmt.money(line.spent_cents),
+                    "Yes" if r.id in overspent else "No",
+                    self.term_confirmed(view) if view else self.confirmed(r.id),
                 )
             )
         if rows:
@@ -367,7 +385,7 @@ class _Report:
                     (0.3, 0.15, 0.15, 0.12, 0.28),
                 )
             )
-        if not limit and not rows:
+        if (b is None or b.limit_cents is None) and not rows:
             blocks.append(
                 Para("No charges." if not self.inp.charges else "No confirmed limit or budget.")
             )
@@ -973,13 +991,9 @@ class _Report:
         if so is None:
             blocks.append(Para(f"Not signed. This is a draft as of {fmt.moment(self.inp.now)}."))
         else:
-            # The sign-off's own author; the preparer is the only user known by name.
+            # Inputs make sure the sign-off is the preparer's.
             p = self.inp.preparer
-            who = (
-                f"{p.name or p.email} ({p.email})"
-                if so.author_user_id == p.id
-                else (so.author_user_id or "the accountant")
-            )
+            who = f"{p.name or p.email} ({p.email})"
             blocks.append(Para(f"Signed off by {who} on {fmt.moment(so.signed_at)}."))
             blocks.append(Para("Note for the reviewer", "label"))
             blocks.append(Para(so.note or "No note."))

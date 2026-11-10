@@ -16,6 +16,7 @@ from app.contracts.checks import (
     Bucket,
     ChargeStatus,
     ChecksOutput,
+    GrantNote,
     GrantStatus,
     Problem,
     Reason,
@@ -24,6 +25,7 @@ from app.contracts.evidence import EvidenceFile, Source
 from app.contracts.mail import HeldMail, HoldReason
 from app.contracts.records import (
     Answer,
+    Author,
     Bill,
     Citation,
     CitedMoney,
@@ -32,10 +34,11 @@ from app.contracts.records import (
     Match,
     Record,
 )
+from app.contracts.runs import Trigger, TriggerKind
+from app.contracts.threads import ThreadMessage
 from app.packet import (
     ReportInputs,
     Signing,
-    TermsInForce,
     build_report,
 )
 from app.packet.content import SECTION_TITLES, report_view
@@ -213,14 +216,18 @@ def test_the_bytes_dont_depend_on_the_process(draft_pdf: bytes):
 
 def test_the_summary_has_the_terms_spending_counts_and_ledger_total():
     text = texts(section(sample_inputs(), 1))
-    assert "Feb 1, 2023 to Jan 31, 2027" in text
+    assert "End date in force Jan 31, 2027" in text
     assert (
-        "award_letter.txt: Confirmed by Sample Accountant, Jan 12, 2023; "
-        "extension_notice.txt: Confirmed by Sample Accountant, Apr 10, 2026" in text
+        "Period of performance Feb 1, 2023 to Jan 31, 2026 "
+        "Confirmed by Sample Accountant, Jan 12, 2023" in text
+    )
+    assert (
+        "Period of performance ends Jan 31, 2027 Confirmed by Sample Accountant, Apr 10, 2026"
+        in text
     )
     assert "Funder National Science Foundation (NSF)" in text
     assert "As of" not in text  # the title already says it
-    assert "$120,000.00 total obligated to date (Amendment 000, New Project" in text
+    assert "Funding notice Amendment 000, New Project, adds $120,000.00" in text
     assert "Spending against the award's limit: $3,420.00 of $120,000.00." in text
     assert "Over budget Confirmed Participant Support Costs $20,000.00 $0.00 No" in text
     assert "Dr. Jesse Sample, Program Officer, jesse.sample@funder.example" in text
@@ -666,14 +673,57 @@ def test_an_answer_on_a_flag_isnt_paired_with_another_flag():
     assert "Earlier answer" not in text
 
 
-def test_the_sign_off_names_its_own_author():
+def test_only_the_preparer_signs_off():
     base = signed_inputs()
     assert base.sign_off is not None
     other = base.sign_off.model_copy(update={"author_user_id": "user-other"})
-    inputs = sample_inputs(APRIL_9, records=base.records, checks=base.checks, sign_off=other)
-    assert texts(section(inputs, 7)).startswith(
-        "Signed off by user-other on Apr 9, 2026, 17:00 UTC."
+    with pytest.raises(ValueError, match="preparer's"):
+        sample_inputs(APRIL_9, records=base.records, checks=base.checks, sign_off=other)
+
+
+def test_a_waiting_term_isnt_in_force():
+    text = texts(section(sample_inputs(APRIL_9), 1))
+    assert "End date in force Jan 31, 2026" in text
+    assert "ends Jan 31, 2027" not in text
+
+
+def test_over_budget_and_over_the_limit_come_from_the_checks():
+    base = sample_inputs()
+    note = GrantNote(
+        grant_id="grant-sample",
+        check="budget",
+        text="Materials and Supplies: $41,000.00 of $40,000.00",
+        record_ids=("rec-budget-materials-and-supplies",),
     )
+    over = GrantStatus(
+        grant_id="grant-sample",
+        problems=(Problem(check="budget", problem="over_limit", text="Over the limit."),),
+        flagged=True,
+    )
+    checks = base.checks.model_copy(update={"notes": (note,), "grants": (over,)})
+    text = texts(section(sample_inputs(checks=checks), 1))
+    assert "Materials and Supplies $40,000.00 $1,240.00 Yes" in text
+    assert "Other $60,000.00 $2,180.00 No" in text
+    assert "of $120,000.00. Spending is over the award's limit." in text
+
+
+def test_a_thread_trigger_reads_as_the_screen_does():
+    base = sample_inputs()
+    message = ThreadMessage(
+        id="msg-1",
+        workspace_id="ws-sample",
+        grant_id="grant-sample",
+        charge_id="chg-l-1002",
+        author=Author.USER,
+        author_user_id=USER.id,
+        text="Is run 7 inside the extension?",
+        written_at=APRIL_10,
+    )
+    entry = base.history[-1].model_copy(
+        update={"trigger": Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1")}
+    )
+    inputs = sample_inputs(history=(*base.history[:-1], entry), thread_messages=(message,))
+    assert "The accountant wrote in the thread." in texts(section(inputs, 5))
 
 
 def test_a_signed_report_is_built_at_the_sign_offs_time_from_this_grant_only():
@@ -720,7 +770,8 @@ def test_a_grant_with_no_charges_says_so():
         charges=(),
         checks=ChecksOutput(charges=(), records=(), grants=(), questions=(), notes=()),
         history=(),
-        terms=TermsInForce(),
+        terms=(),
+        budget=None,
     )
     view = report_view(inputs)
     assert texts(view.sections[0]).count("No charges.") == 1
