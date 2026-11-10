@@ -22,7 +22,7 @@ from typing import Any
 
 from .adapter import TRIGGER_CHARGE, Author, Charge, OpenQuestion, Record, ThreadMessage
 from .graph import run_once
-from .inputs import CHARGE_BATCH_SIZE, RunFailed, RunInputs
+from .inputs import CHARGE_BATCH_SIZE, AgentRunFailed, RunFailed, RunInputs
 from .model import ModelClient
 from .no_tracing import check_no_tracing
 
@@ -38,22 +38,6 @@ class AgentResult:
     # Open questions for the agent outside a thread run's charge or record (answer 3): the
     # platform queues an ordinary run for them.
     other_open_questions: list[OpenQuestion] = field(default_factory=list[OpenQuestion])
-
-
-class AgentRunFailed(Exception):
-    """The run failed and saves nothing.
-
-    `retryable` says whether trying again could help (a rate limit, an overload, a network
-    error); a refusal, a run that went on too long, or a write that no longer passes is not.
-    After the last retry the platform records the run as failed, and the checks raise a problem
-    on the file or charge that triggered it (answer 7). `log` is the debug log, kept even then.
-    """
-
-    def __init__(self, error: str, retryable: bool, log: bytes):
-        super().__init__(error)
-        self.error = error
-        self.retryable = retryable
-        self.log = log
 
 
 def charges_for_run(

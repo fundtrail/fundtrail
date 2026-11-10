@@ -58,6 +58,22 @@ class RunInputs:
     new_id: Callable[[], str] = field(default_factory=lambda: lambda: f"rec-{uuid.uuid4()}")
 
 
+class AgentRunFailed(Exception):
+    """The run failed and saves nothing.
+
+    `retryable` says whether trying again could help (a rate limit, an overload, a network
+    error); a refusal, a run that went on too long, or a write that no longer passes is not.
+    After the last retry the platform records the run as failed, and the checks raise a problem
+    on the file or charge that triggered it (answer 7). `log` is the debug log, kept even then.
+    """
+
+    def __init__(self, error: str, retryable: bool, log: bytes):
+        super().__init__(error)
+        self.error = error
+        self.retryable = retryable
+        self.log = log
+
+
 @dataclass
 class RunSaved:
     """A run that finished: everything to save together, in order, in one transaction."""
