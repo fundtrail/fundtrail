@@ -7,8 +7,7 @@
   "workspace": {
     "id": "ws-sample",
     "name": "Sample grant",
-    "owner_id": "00000000-0000-4000-8000-000000000001",
-    "clock_now": "2026-04-10T17:00:00Z"
+    "owner_id": "00000000-0000-4000-8000-000000000001"
   },
   "grant": {
     "id": "grant-sample",
@@ -17,6 +16,7 @@
     "award_number": "SYN-2300117",
     "title": "Sediment Microbiome Survey of Example Bay"
   },
+  "now": "2026-04-10T17:00:00Z",
   "charges": [
     {
       "id": "chg-l-1001",

@@ -306,7 +306,8 @@ def sample_into_db(
             "insert into public.workspaces (id, owner_id, name) values (%s, %s, %s)",
             (sample.workspace.id, user_id, sample.workspace.name),
         )
-        # The golden fixture keeps its clock on the workspace; the grant holds it now.
+        # The golden fixture's grant is a real grant; played here, it takes the
+        # sample's now as its stored clock.
         conn.execute(
             "insert into public.grants (id, workspace_id, award_number, title, clock_now)"
             " values (%s, %s, %s, %s, %s)",
@@ -315,7 +316,7 @@ def sample_into_db(
                 sample.workspace.id,
                 sample.grant.award_number,
                 sample.grant.title,
-                clock_now or sample.workspace.clock_now,
+                clock_now or sample.now,
             ),
         )
         store.insert_charges(conn, sample.charges)

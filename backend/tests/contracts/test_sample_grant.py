@@ -278,6 +278,5 @@ def test_the_answer_key_scores_all_right():
 
 def test_expected_buckets_follow_arrivals():
     arrived = {c.ledger_line_id: c.arrived_at for c in SAMPLE.charges}
-    assert SAMPLE.workspace.clock_now is not None
     for b in KEY.buckets:
-        assert arrived[b.line_id] <= b.at <= SAMPLE.workspace.clock_now
+        assert arrived[b.line_id] <= b.at <= SAMPLE.now
