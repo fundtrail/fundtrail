@@ -38,3 +38,18 @@ def test_an_acceptance_keeps_the_amount_over_it_accepted():
     assert isinstance(accepted.data, AcceptedReason) and accepted.data.amount_cents == 500000
     with pytest.raises(ValidationError):
         AcceptedReason.model_validate(accepted.data.model_dump() | {"amount_cents": -5})
+
+
+def test_only_the_award_limits_problem_carries_an_accepted_amount():
+    accepted = {
+        "kind": "accepted_reason",
+        "reason": {"check": "period_of_performance", "problem": "after_end_date"},
+        "note": "Ordered before the end date.",
+        "charge_id": "c1",
+        "amount_cents": 500000,
+    }
+    assert any("only for the award limit" in p for p in problems(user("a1", accepted), []))
+    on_a_charge = accepted | {"reason": {"check": "budget", "problem": "over_limit"}}
+    assert any("only for the award limit" in p for p in problems(user("a2", on_a_charge), []))
+    without = accepted | {"amount_cents": None}
+    assert problems(user("a3", without), []) == []

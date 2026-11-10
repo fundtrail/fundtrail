@@ -28,6 +28,8 @@ from .mail import HeldMail, HoldReason
 from .records import (
     FACT_KINDS,
     FOUND,
+    OVER_LIMIT_CHECK,
+    OVER_LIMIT_PROBLEM,
     TERM_KINDS,
     AcceptedReason,
     Answer,
@@ -973,7 +975,21 @@ def check_new_record(
                 f"({len(open_items)} open)"
             )
 
-    elif isinstance(data, AcceptedReason) and data.reuses_id is not None:
+    if isinstance(data, AcceptedReason) and data.amount_cents is not None:
+        over_limit = (
+            data.reason.check == OVER_LIMIT_CHECK
+            and data.reason.problem == OVER_LIMIT_PROBLEM
+            and data.charge_id is None
+            and data.record_id is None
+            and data.file_id is None
+        )
+        if not over_limit:
+            problems.append(
+                "an accepted reason carries an amount only for the award limit's over_limit "
+                "problem, on the grant"
+            )
+
+    if isinstance(data, AcceptedReason) and data.reuses_id is not None:
         note = pointed.get(data.reuses_id)
         if note is not None and not (isinstance(note.data, AcceptedReason) and note.data.reusable):
             problems.append(f"record {data.reuses_id} isn't a reusable note")
