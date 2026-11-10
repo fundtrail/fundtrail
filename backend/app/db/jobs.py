@@ -118,7 +118,13 @@ class RunConflict(Exception):
 
 
 def _defer(
-    conn: Conn, run: AgentRun, *, attempt: int, priority: int, at: datetime | None = None
+    conn: Conn,
+    run: AgentRun,
+    *,
+    attempt: int,
+    priority: int,
+    at: datetime | None = None,
+    catch_up: bool = False,
 ) -> None:
     conn.execute(
         """select procrastinate_defer_jobs_v1(
@@ -128,17 +134,40 @@ def _defer(
             TASK_NAME,
             priority,
             grant_lock(run.grant_id),
-            Jsonb({"run_id": run.id, "attempt": attempt, "priority": priority}),
+            Jsonb(
+                {"run_id": run.id, "attempt": attempt, "priority": priority, "catch_up": catch_up}
+            ),
             at,
         ),
     )
 
 
-def queue_run(conn: Conn, grant: Grant, trigger: Trigger, clock_now: datetime) -> AgentRun:
-    """Queue an agent run on the grant, in the caller's transaction. Ping it after commit."""
+def grant_catching_up(conn: Conn, grant_id: str) -> bool:
+    """Whether the agent is still working through runs a clock move queued on this grant
+    (decision 0023). The move marks each run's job as a catch-up, and the mark lasts through
+    retries until the run is done or has failed for good."""
+    row = conn.execute(
+        """select 1 from procrastinate_jobs
+           where lock = %s and status in ('todo', 'doing') and (args ->> 'catch_up')::boolean
+           limit 1""",
+        (grant_lock(grant_id),),
+    ).fetchone()
+    return row is not None
+
+
+def queue_run(
+    conn: Conn, grant: Grant, trigger: Trigger, clock_now: datetime, *, catch_up: bool = False
+) -> AgentRun:
+    """Queue an agent run on the grant, in the caller's transaction. Ping it after commit.
+
+    `catch_up` marks a run a clock move queued for an arrival the clock passed. A thread
+    question goes ahead of queued runs, except while the agent catches up: then it waits,
+    so "the agent never answers with arrivals it hasn't read" (decision 0023)."""
+    priority = NORMAL_PRIORITY
+    if trigger.kind == TriggerKind.THREAD_MESSAGE and not grant_catching_up(conn, grant.id):
+        priority = THREAD_PRIORITY
     run = store.insert_run(conn, grant.workspace_id, grant.id, trigger, clock_now)
-    priority = THREAD_PRIORITY if trigger.kind == TriggerKind.THREAD_MESSAGE else NORMAL_PRIORITY
-    _defer(conn, run, attempt=0, priority=priority)
+    _defer(conn, run, attempt=0, priority=priority, catch_up=catch_up)
     return run
 
 
@@ -255,7 +284,13 @@ def _follow_ups(conn: Conn, run: AgentRun, triggers: Sequence[Trigger]) -> list[
     return runs
 
 
-def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_PRIORITY) -> None:
+def execute_run(
+    p: Platform,
+    run_id: str,
+    attempt: int,
+    priority: int = NORMAL_PRIORITY,
+    catch_up: bool = False,
+) -> None:
     """One try of one run. The Procrastinate task calls this."""
     with transaction(p.pool) as conn:
         run = store.get_run(conn, run_id, lock=True)
@@ -309,7 +344,14 @@ def execute_run(p: Platform, run_id: str, attempt: int, priority: int = NORMAL_P
             except Exception:  # noqa: BLE001 - a lost log mustn't hide the failure
                 log.warning("debug log of run %s try %s not stored", run.id, attempt + 1)
         _after_failure(
-            p, run, attempt, priority, message, retryable=retryable, stored_log=stored_log
+            p,
+            run,
+            attempt,
+            priority,
+            message,
+            retryable=retryable,
+            stored_log=stored_log,
+            catch_up=catch_up,
         )
 
 
@@ -322,6 +364,7 @@ def _after_failure(
     *,
     retryable: bool,
     stored_log: str | None = None,
+    catch_up: bool = False,
 ) -> None:
     if retryable and attempt < p.run_retries:
         with transaction(p.pool) as conn:
@@ -351,9 +394,10 @@ def run_agent(
     run_id: str,
     attempt: int = 0,
     priority: int = NORMAL_PRIORITY,
+    catch_up: bool = False,
 ) -> None:
     """One try of one run. The try number is the job's own count of earlier attempts."""
-    execute_run(get_platform(), run_id, context.job.attempts, priority)
+    execute_run(get_platform(), run_id, context.job.attempts, priority, catch_up)
 
 
 @app.periodic(cron="* * * * *", periodic_id="retry_stalled")
@@ -363,3 +407,12 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
     in the queue once its worker has stopped sending heartbeats (Procrastinate's recipe)."""
     for job in await context.app.job_manager.get_stalled_jobs(task_name=TASK_NAME):
         await context.app.job_manager.retry_job(job)
+
+
+@app.periodic(cron="5 0 * * *", periodic_id="daily_recheck")
+@app.task(name="daily_recheck", queue=QUEUE, pass_context=False)
+def daily_recheck_task(timestamp: int) -> None:
+    """Shortly after midnight UTC: time alone can change a status in a real workspace."""
+    from .clock import daily_recheck
+
+    daily_recheck(get_platform())

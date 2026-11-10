@@ -20,6 +20,7 @@ from app.contracts.evidence import EvidenceFile, Source, storage_path
 from app.contracts.records import TERM_KINDS, Author, Record, RecordData
 from app.contracts.rules import check_new_record
 from app.contracts.runs import AgentRun, Trigger, TriggerKind
+from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 from . import store
@@ -211,3 +212,35 @@ def add_record(
         ping_run(p.pinger, run)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
     return record
+
+
+def add_message(
+    p: Platform,
+    grant: Grant,
+    user_id: str,
+    text: str,
+    *,
+    charge_id: str | None = None,
+    record_id: str | None = None,
+) -> ThreadMessage:
+    """The accountant's message in a charge's or a record's thread. It changes nothing on
+    its own, and queues a run for the agent to answer. That run goes ahead of the grant's
+    queued runs, except while the agent catches up after a clock jump."""
+    with transaction(p.pool) as conn:
+        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        message = ThreadMessage(
+            id=_new_id(),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            charge_id=charge_id,
+            record_id=record_id,
+            author=Author.USER,
+            author_user_id=user_id,
+            text=text,
+            written_at=now,
+        )
+        store.insert_messages(conn, [message])
+        run = queue_run(conn, grant, Trigger(kind=TriggerKind.THREAD_MESSAGE, id=message.id), now)
+    ping_run(p.pinger, run)
+    ping_changed(p.pinger, grant.workspace_id, grant.id, "thread")
+    return message
