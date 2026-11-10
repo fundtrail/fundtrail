@@ -1,0 +1,31 @@
+UNIVERSITY OF EXAMPLE
+CERTIFIED EFFORT REPORT
+
+Employee: Logan Synth
+Title: Graduate Student Researcher
+Department: Earth and Ocean Sciences
+Reporting period: January 1, 2026 to June 30, 2026
+
+Distribution of effort for the reporting period
+
+Fund or award                                           Effort
+Award SYN-2507264, Coastal Microbial Genomics: Field Study and Training Workshop
+                                                        100 percent
+Total                                                   100 percent
+
+Salary charged to award SYN-2507264 for the reporting period:
+  January 2026           $3,100.00
+  February 2026          $3,100.00
+  March 2026             $3,100.00
+  April 2026             $3,100.00
+  May 2026               $3,100.00
+  June 2026              $3,100.00
+  Total                 $18,600.00
+
+Certification
+I certify that the distribution of effort above is a reasonable estimate of
+the work performed by the employee during the reporting period.
+
+Certified by: Kendall Dummy, Principal Investigator
+Email: kendall.dummy@university.example
+Date certified: August 19, 2026

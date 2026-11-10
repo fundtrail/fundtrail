@@ -1,0 +1,70 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: June 18, 2025
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project studies coastal sediment microbes
+and runs a summer training workshop for undergraduate participants.
+Participant support costs: funds budgeted for participant support may not
+be diverted by the awardee to other categories of expense without the
+prior written approval of the cognizant NSF Program Officer.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2507264
+Award Instrument: Standard Grant
+Award Date: June 18, 2025
+Period of Performance Start Date: July 1, 2025
+Period of Performance End Date: June 30, 2028
+Project Title: Coastal Microbial Genomics: Field Study and Training Workshop
+Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $180,000
+Total Intended Award Amount: $180,000
+Cost Share: $0
+Total Amount Obligated to Date: $180,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Kendall Dummy, Principal Investigator
+  Email: kendall.dummy@university.example
+  Organization: University of Example
+Harper Fixture, Co-Principal Investigator
+  Email: harper.fixture@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Lee Reviewer
+  Email: lee.reviewer@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the NSF Grant General Conditions (GC-1) effective
+October 1, 2024, and to the terms of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+B. Other Personnel                                   $112,000
+     Graduate Students                               $112,000
+C. Fringe Benefits                                     $3,000
+E. Travel                                              $6,000
+     Domestic                                          $6,000
+F. Participant Support Costs                          $24,000
+     Stipends                                         $18,000
+     Other                                             $6,000
+G. Other Direct Costs                                 $35,000
+     Materials and Supplies                           $35,000
+H. Total Direct Costs                                $180,000
+
+Except as modified by this amendment, the award conditions remain unchanged.
