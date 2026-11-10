@@ -83,6 +83,14 @@ def _store_file(
     return f
 
 
+def arrive_upload(
+    p: Platform, conn: store.Conn, grant: Grant, upload: Upload
+) -> tuple[EvidenceFile, AgentRun]:
+    """An upload, in the caller's transaction: the file arrives at the grant's now, the
+    checks rerun, and its agent run is queued. The caller pings after the commit."""
+    return _arrive_file(p, conn, grant, upload)
+
+
 def _arrive_file(
     p: Platform, conn: store.Conn, grant: Grant, upload: Upload
 ) -> tuple[EvidenceFile, AgentRun]:
