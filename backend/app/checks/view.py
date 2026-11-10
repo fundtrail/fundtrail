@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.contracts.charges import Charge
+from app.contracts.corrections import NetAmount, net_amounts
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     FACT_KINDS,
@@ -115,6 +116,8 @@ class GrantView:
                 self.judgments.append(r)
 
         self.period = _period_in_force(self.terms[RecordKind.PERIOD_OF_PERFORMANCE])
+        # Decision 0020: each charge netted with the lines that correct it.
+        self.nets: dict[str, NetAmount] = net_amounts(self.charges, state)
 
     # Small helpers every check uses.
 
@@ -277,3 +280,15 @@ def _period_in_force(terms: list[Record]) -> PeriodInForce | None:
 def notice_number(notice: Notice) -> int | None:
     text = notice.amendment_number.value.strip()
     return int(text) if text.isdigit() else None
+
+
+def net_of(view: GrantView, charge: Charge) -> int:
+    """The amount that counts for a charge: its net once corrections are netted into it."""
+    found = view.nets.get(charge.id)
+    return found.net_cents if found is not None else charge.amount_cents
+
+
+def is_reversed(view: GrantView, charge: Charge) -> bool:
+    """Fully corrected (decision 0020): something was netted into it and the net is zero."""
+    found = view.nets.get(charge.id)
+    return found is not None and found.reversed
