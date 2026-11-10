@@ -311,6 +311,38 @@ PROBES = [
         )
         for next_line in ["$300.00 Lodging", "(see note 2)", "* adjusted", "# 14", "\u2022 Lodging"]
     ],
+    *[
+        Probe(
+            f"an attached dash after {line.split('$')[0][-2:]!r} is a minus",
+            [[line]],
+            line,
+            "$450.00",
+            "exact",
+            False,
+        )
+        for line in [
+            'The ledger line reads "-$450.00" for the refund',
+            "The ledger line reads '-$450.00' for the refund",
+            "Balance=-$450.00 after the refund",
+            "Credits;-$450.00 after the refund",
+            "Adjustments,-$450.00 after the refund",
+            "Item *-$450.00 refund",
+        ]
+    ],
+    *[
+        Probe(
+            f"a trailing minus before a date-shaped line: {value}",
+            [lines],
+            lines[0],
+            value,
+            "exact",
+            False,
+        )
+        for lines, value in [
+            (["Refund $12-", "3-15 Fee waived"], "$12"),
+            (["Refund 1234-", "05-06 Lodging"], "1234"),
+        ]
+    ],
     Probe(
         "a date broken at its dash confirms",
         [["Travel dates 2026-", "03-04 to 2026-03-09"]],
