@@ -177,12 +177,91 @@ def test_an_unknown_sample_is_refused(tmp_path: Path) -> None:
         load_pack("no-such-sample", tmp_path)
 
 
-def test_data_samples_wins_over_todays_layout(tmp_path: Path) -> None:
+def test_a_pack_is_read_from_data_samples(tmp_path: Path) -> None:
     write_pack(tmp_path / "samples" / SMALL_SAMPLE)
     assert load_pack(SMALL_SAMPLE, tmp_path).files_folder == tmp_path / "samples" / SMALL_SAMPLE
 
 
-# The two samples in the repo, read from today's layout until data/samples/ lands.
+SCRIPT = [
+    {"at": "2026-11-16T17:40:00Z", "action": "confirm_terms", "file": "award_letter.txt"},
+    {
+        "at": "2026-11-20T00:00:00Z",
+        "action": "decide_suggestion",
+        "suggestion": "link",
+        "decision": "accept",
+        "line_id": "L-9001-0001",
+    },
+    {
+        "at": "2026-11-21T00:00:00Z",
+        "action": "answer_flag",
+        "line_id": "L-9001-0001",
+        "answer": "supports",
+    },
+    {
+        "at": "2026-11-22T00:00:00Z",
+        "action": "enter_share",
+        "line_id": "L-9001-0001",
+        "file": "invoice_INV-1.txt",
+        "share": "56",
+        "out_of": 96,
+        "basis": "The PI's email gives 56 of the 96 samples.",
+        "note": "S3a",
+    },
+]
+
+
+def test_the_script_keeps_every_reference(tmp_path: Path) -> None:
+    pack = load_folder(write_pack(tmp_path / "s", actions=SCRIPT))
+    confirm, decide, answer, share = pack.actions
+    assert (confirm.action, confirm.file) == ("confirm_terms", "award_letter.txt")
+    assert (decide.suggestion, decide.decision, decide.line_id) == ("link", "accept", "L-9001-0001")
+    assert (answer.line_id, answer.answer) == ("L-9001-0001", "supports")
+    assert (share.line_id, share.file, share.share, share.out_of) == (
+        "L-9001-0001",
+        "invoice_INV-1.txt",
+        56,
+        96,
+    )
+    assert share.basis and share.note == "S3a"
+
+
+@pytest.mark.parametrize(
+    ("action", "message"),
+    [
+        ({"at": "2026-11-20T00:00:00Z", "action": "dance"}, "isn't one of"),
+        ({"at": "2026-11-20T00:00:00Z", "action": "answer_flag", "line_id": "L-1"}, "takes"),
+        (
+            {"at": "2026-11-20T00:00:00Z", "action": "confirm_terms", "file": "a", "line_id": "L"},
+            "takes",
+        ),
+        (
+            {
+                "at": "2026-11-20T00:00:00Z",
+                "action": "decide_suggestion",
+                "suggestion": "link",
+                "decision": "maybe",
+                "file": "a",
+            },
+            "accept or reject",
+        ),
+        (
+            {
+                "at": "2026-11-20T00:00:00Z",
+                "action": "decide_suggestion",
+                "suggestion": "link",
+                "decision": "accept",
+            },
+            "line_id or a file",
+        ),
+        ({**SCRIPT[3], "share": "half"}, "whole numbers"),
+    ],
+)
+def test_refuses_a_bad_script_step(tmp_path: Path, action: dict[str, str], message: str) -> None:
+    with pytest.raises(PackError, match=message):
+        load_folder(write_pack(tmp_path / "s", actions=[action]))
+
+
+# The two samples in the repo, from data/samples/.
 
 
 def test_the_larger_sample() -> None:
@@ -203,10 +282,17 @@ def test_the_small_sample() -> None:
     pack = load_pack(SMALL_SAMPLE)
     assert pack.starts_at == at("2026-11-16T17:30:00Z")
     assert pack.events[0].name == "award_letter.pdf"
-    assert [(a.action, a.file) for a in pack.actions] == [("confirm_terms", "award_letter.pdf")]
-    assert sorted(e.name for e in pack.events if e.kind is EventKind.LEDGER_LINE) == sorted(
-        pack.ledger_line_ids()
-    )
+    marked = {e.name: e.at for e in pack.events if e.deliver_by_user}
+    assert sorted(marked) == [
+        "email_invoice_ESS-32410.eml",
+        "hardware_receipt.jpg",
+        "invoice_EES-7420.pdf",
+    ]
+    assert pack.actions[0].action == "confirm_terms" and pack.actions[0].file == "award_letter.pdf"
+    deliveries = [a for a in pack.actions if a.action == "deliver_file"]
+    # The script brings in each marked file on its date.
+    assert sorted((a.file, a.at) for a in deliveries) == sorted(marked.items())
+    assert [e for e in pack.events if e.kind is EventKind.LEDGER] == [pack.events[1]]
 
 
 def test_ids_are_the_same_on_every_load() -> None:

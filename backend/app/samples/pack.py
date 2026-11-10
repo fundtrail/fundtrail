@@ -20,10 +20,16 @@ An event is one of:
   its posting date and the event's time (decision 0023).
 - `ledger_line`: one ledger line arriving at the event's time.
 
-Until the seed builder's `data/samples/` lands, the two samples are read from today's
-layout (`data/demo/salt-marsh-carbon/` and `data/from-scratch/`, each with an
-`arrivals.json`). Their `accountant` events aren't scheduled events: they become the
-user actions the do-everything play performs.
+`user_actions.json` is the answer key's accountant script (ruling 47). Each action names
+its target by stable references (a ledger line ID, a file name, a record kind and the
+expected decision or values), never a record ID:
+
+- `confirm_terms`: `file`
+- `deliver_file`: `file`, marked for the user, on or after its date
+- `decide_suggestion`: `suggestion` (the record kind suggested), `decision` (`accept` or
+  `reject`), and a `line_id` or a `file`
+- `answer_flag`: `line_id`, `answer`
+- `enter_share`: `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021)
 """
 
 from __future__ import annotations
@@ -85,18 +91,35 @@ class ScheduledEvent:
 
 @dataclass(frozen=True)
 class UserAction:
-    """One action the do-everything play performs, as the user would."""
+    """One step of the accountant script, performed as the user would (ruling 47)."""
 
     at: datetime
-    action: str  # confirm_terms or deliver_file, for now
+    action: str  # one of ACTION_FIELDS
     file: str | None = None
+    line_id: str | None = None
+    suggestion: str | None = None  # decide_suggestion: the record kind suggested
+    decision: str | None = None  # decide_suggestion: accept or reject
+    answer: str | None = None  # answer_flag
+    share: int | None = None  # enter_share: the part of the bill, as `share` of `out_of`
+    out_of: int | None = None
+    basis: str | None = None  # enter_share: why that share (decision 0021)
     note: str | None = None
+
+
+# Each action's fields besides `at` and `note`: the ones it needs, and the ones it may take.
+ACTION_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "confirm_terms": (frozenset({"file"}), frozenset()),
+    "deliver_file": (frozenset({"file"}), frozenset()),
+    "decide_suggestion": (frozenset({"suggestion", "decision"}), frozenset({"line_id", "file"})),
+    "answer_flag": (frozenset({"line_id", "answer"}), frozenset()),
+    "enter_share": (frozenset({"line_id", "file", "share", "out_of", "basis"}), frozenset()),
+}
 
 
 @dataclass(frozen=True)
 class SamplePack:
     sample: str
-    folder: Path  # where timeline.json (or arrivals.json) and the keys are
+    folder: Path  # where timeline.json and the keys are
     files_folder: Path  # where the documents and the ledger are
     starts_at: datetime  # the clock's first "now": the first scheduled event
     events: tuple[ScheduledEvent, ...]  # in time order; ties keep the file's order
@@ -237,16 +260,44 @@ def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
             raise PackError(f"{where}: {kind!r} isn't a scheduled event.")
 
 
-def _actions(raw: list[dict[str, Any]], where: str) -> tuple[UserAction, ...]:
-    actions = [
-        UserAction(
-            at=_time(a.get("at"), f"{where}, action {n}"),
-            action=str(a.get("action") or ""),
-            file=a.get("file"),
-            note=a.get("note"),
+def _action(raw: dict[str, Any], where: str) -> UserAction:
+    action = raw.get("action")
+    if action not in ACTION_FIELDS:
+        raise PackError(f"{where}: {action!r} isn't one of {sorted(ACTION_FIELDS)}.")
+    required, optional = ACTION_FIELDS[action]
+    given = set(raw) - {"at", "action", "note"}
+    if not required <= given or given - required - optional:
+        raise PackError(
+            f"{where}: {action} takes {sorted(required)}, and may take {sorted(optional)}."
         )
-        for n, a in enumerate(raw, start=1)
-    ]
+    if action == "decide_suggestion":
+        if raw["decision"] not in ("accept", "reject"):
+            raise PackError(f"{where}: a decision is accept or reject.")
+        if not given & {"line_id", "file"}:
+            raise PackError(f"{where}: a decision is about a line_id or a file.")
+    try:
+        share = int(raw["share"]) if "share" in raw else None
+        out_of = int(raw["out_of"]) if "out_of" in raw else None
+    except (TypeError, ValueError) as error:
+        raise PackError(f"{where}: share and out_of are whole numbers.") from error
+    text = {k: (str(raw[k]) if k in raw else None) for k in ("file", "line_id", "suggestion")}
+    return UserAction(
+        at=_time(raw.get("at"), where),
+        action=action,
+        file=text["file"],
+        line_id=text["line_id"],
+        suggestion=text["suggestion"],
+        decision=raw.get("decision"),
+        answer=raw.get("answer"),
+        share=share,
+        out_of=out_of,
+        basis=raw.get("basis"),
+        note=raw.get("note"),
+    )
+
+
+def _actions(raw: list[dict[str, Any]], where: str) -> tuple[UserAction, ...]:
+    actions = [_action(a, f"{where}, action {n}") for n, a in enumerate(raw, start=1)]
     return tuple(sorted(actions, key=lambda a: a.at))
 
 
@@ -338,38 +389,9 @@ def load_folder(folder: Path) -> SamplePack:
     )
 
 
-# Today's layout, until data/samples/ lands: the folder, and where its files are.
-_LEGACY = {
-    LARGER_SAMPLE: ("demo/salt-marsh-carbon", ""),
-    SMALL_SAMPLE: ("from-scratch", "pack"),
-}
-
-
-def _load_legacy(data_dir: Path, sample: str) -> SamplePack:
-    folder_name, files_name = _LEGACY[sample]
-    folder = data_dir / folder_name
-    where = str(folder / "arrivals.json")
-    raw = _read_json(folder / "arrivals.json").get("events", [])
-    scheduled = [e for e in raw if e.get("kind") != "accountant"]
-    actions = _actions([e for e in raw if e.get("kind") == "accountant"], where)
-    return _build(
-        sample=sample,
-        folder=folder,
-        files_folder=folder / files_name if files_name else folder,
-        raw_events=scheduled,
-        starts_at=None,
-        actions=actions,
-        meta={},
-        where=where,
-    )
-
-
 def load_pack(sample: str, data_dir: Path = DATA_DIR) -> SamplePack:
-    """The sample's pack: from `data/samples/<sample>/` when it's there, else from today's
-    layout. An unknown sample is a PackError."""
+    """The sample's pack, from `data/samples/<sample>/`. An unknown sample is a PackError."""
     folder = data_dir / "samples" / sample
-    if (folder / "timeline.json").is_file():
-        return load_folder(folder)
-    if sample in _LEGACY:
-        return _load_legacy(data_dir, sample)
-    raise PackError(f"There's no sample called {sample!r} in {data_dir}.")
+    if not (folder / "timeline.json").is_file():
+        raise PackError(f"There's no sample called {sample!r} in {data_dir / 'samples'}.")
+    return load_folder(folder)
