@@ -45,6 +45,7 @@ export function FileScreen() {
                   valueText={spot?.valueText ?? null}
                   label={spot?.label ?? null}
                   confirmation={spot?.confirmation ?? null}
+                  reading={fileLink.reading ?? null}
                 />
               )}
             </Loadable>
