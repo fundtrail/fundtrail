@@ -125,7 +125,8 @@ create index records_replaces_id_idx on public.records (replaces_id);
 create index records_author_user_id_idx on public.records (author_user_id);
 
 -- Agent runs: section 9. The only table updated in place, as a run moves from
--- queued to running to done or failed.
+-- queued to running to done or failed. The model's trigger is split into
+-- trigger_kind and trigger_id, like a status row's.
 create table public.agent_runs (
   id text primary key default gen_random_uuid()::text,
   workspace_id text not null references public.workspaces (id) on delete cascade,
@@ -143,6 +144,7 @@ create table public.agent_runs (
   finished_at timestamptz, -- real time
   summary text,
   error text,
+  log_path text, -- the run's debug log in private storage; never shown to the accountant
   constraint agent_runs_trigger_id_unless_clock
     check ((trigger_kind = 'clock') = (trigger_id is null))
 );
@@ -181,6 +183,9 @@ create index thread_messages_author_user_id_idx on public.thread_messages (autho
 
 -- Status history: one row each time the status of a charge, a record, a file or
 -- the grant itself changes. The latest row for each is in current_statuses.
+-- A row is the checks' StatusEntry: a ChargeStatus when charge_id is set, a
+-- RecordStatus when record_id or file_id is set, and a GrantStatus when none is.
+-- Its trigger is split into trigger_kind and trigger_id.
 create table public.statuses (
   id bigint generated always as identity primary key,
   workspace_id text not null references public.workspaces (id) on delete cascade,
@@ -190,12 +195,15 @@ create table public.statuses (
   charge_id text references public.charges (id) on delete cascade,
   record_id text references public.records (id) on delete cascade,
   file_id text references public.evidence_files (id) on delete cascade,
-  bucket text -- a charge's bucket; records, files and grants have no bucket
+  -- A charge's bucket, reasons and checklist; set exactly for a charge.
+  bucket text
     check (bucket in ('evidence_complete', 'possible_conflict', 'missing_evidence', 'needs_human')),
-  reasons jsonb not null, -- the reasons, as the checks' output gives them
-  checklist jsonb, -- a charge's evidence checklist
+  reasons jsonb,
+  checklist jsonb,
+  -- The problems of a record, a file or the grant; set exactly when it isn't a charge.
+  problems jsonb,
   flagged boolean not null, -- on the accountant's problem list
-  rechecking boolean not null default false, -- the agent is answering again
+  rechecking boolean not null default false, -- the agent is answering again; charges only
   accepted boolean not null default false, -- the accountant accepted a reason
   snoozed boolean not null default false, -- the accountant snoozed it
   changed_at timestamptz not null, -- the workspace clock's "now"
@@ -204,8 +212,16 @@ create table public.statuses (
   trigger_id text, -- the record, charge, file or message; null for the clock
   constraint statuses_about_at_most_one_thing
     check (num_nonnulls(charge_id, record_id, file_id) <= 1),
-  constraint statuses_bucket_exactly_for_charge
-    check ((charge_id is not null) = (bucket is not null)),
+  constraint statuses_charge_fields_exactly_for_charge
+    check (
+      (charge_id is not null) = (bucket is not null)
+      and (charge_id is not null) = (reasons is not null)
+      and (charge_id is not null) = (checklist is not null)
+    ),
+  constraint statuses_problems_exactly_unless_charge
+    check ((charge_id is null) = (problems is not null)),
+  constraint statuses_rechecking_only_for_charge
+    check (charge_id is not null or not rechecking),
   constraint statuses_trigger_id_unless_clock
     check ((trigger_kind = 'clock') = (trigger_id is null))
 );

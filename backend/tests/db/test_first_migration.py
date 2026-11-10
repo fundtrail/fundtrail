@@ -7,6 +7,15 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, LiteralString
 
 import pytest
+from pydantic import BaseModel
+
+from app.contracts.charges import Charge
+from app.contracts.checks import ChargeStatus, GrantStatus, RecordStatus, StatusEntry
+from app.contracts.evidence import EvidenceFile
+from app.contracts.records import ACCOUNTANT_KINDS, Record, RecordKind
+from app.contracts.runs import AgentRun
+from app.contracts.threads import ThreadMessage
+from app.contracts.workspaces import Grant, User, Workspace
 
 if TYPE_CHECKING:
     import psycopg
@@ -140,15 +149,29 @@ def make_run(conn: psycopg.Connection, g: dict[str, Any], status: str = "queued"
     )
 
 
+OVER_LIMIT = [
+    {
+        "check": "budget",
+        "problem": "over_award_limit",
+        "text": "Spending is over the award's limit.",
+        "record_ids": [],
+    }
+]
+
+
 def status_values(g: dict[str, Any], **values: Any) -> dict[str, Any]:
-    row = {
+    """A status row: a charge's has reasons and a checklist, anything else has problems."""
+    row: dict[str, Any] = {
         "workspace_id": g["workspace_id"],
         "grant_id": g["grant_id"],
-        "reasons": [],
         "flagged": False,
         "changed_at": NOW,
         "trigger_kind": "clock",
     }
+    if "charge_id" in values:
+        row.update(reasons=[], checklist=[])
+    else:
+        row.update(problems=[])
     row.update(values)
     return row
 
@@ -199,6 +222,56 @@ def test_creates_the_private_evidence_bucket(db: psycopg.Connection) -> None:
 def test_has_no_procrastinate_tables(db: psycopg.Connection) -> None:
     row = db.execute("select count(*) from pg_class where relname like 'procrastinate%'").fetchone()
     assert row == (0,)
+
+
+# Rows match the contract models, with the differences section 11 lists.
+
+
+def fields(*models: type[BaseModel]) -> set[str]:
+    return {name for model in models for name in model.model_fields}
+
+
+TRIGGER = {"trigger_kind", "trigger_id"}  # a trigger is split into these two columns
+# Each table: the model fields it holds, and the columns section 11 adds.
+ROWS: dict[str, tuple[set[str], set[str]]] = {
+    "users": (fields(User), {"created_at"}),
+    "workspaces": (fields(Workspace), set()),
+    "grants": (fields(Grant), set()),
+    "charges": (fields(Charge), set()),
+    "evidence_files": (fields(EvidenceFile), set()),
+    "records": (fields(Record), {"kind", "charge_id", "record_id", "created_at"}),
+    "agent_runs": (fields(AgentRun) - {"trigger"}, TRIGGER),
+    # created_at orders messages written at the same clock time, as on records.
+    "thread_messages": (fields(ThreadMessage), {"created_at"}),
+    "statuses": (
+        fields(StatusEntry, ChargeStatus, RecordStatus, GrantStatus) - {"status", "trigger"},
+        {"id", "workspace_id"} | TRIGGER,
+    ),
+}
+
+
+@pytest.mark.parametrize("table", sorted(ROWS))
+def test_columns_match_the_contract_models(db: psycopg.Connection, table: str) -> None:
+    rows = db.execute(
+        "select column_name from information_schema.columns "
+        "where table_schema = 'public' and table_name = %s",
+        [table],
+    ).fetchall()
+    model_fields, added = ROWS[table]
+    assert {name for (name,) in rows} == model_fields | added
+
+
+@pytest.mark.parametrize("kind", sorted(set(RecordKind) - ACCOUNTANT_KINDS))
+def test_the_agent_may_write_every_other_kind(
+    db: psycopg.Connection, g: dict[str, Any], kind: str
+) -> None:
+    data: dict[str, Any] = {"kind": kind}
+    envelope: dict[str, Any] = {}
+    if kind in ("link", "budget_assignment"):
+        data.update(charge_id=make_charge(db, g), record_id=make_bill(db, g))
+    if kind == "retraction":
+        envelope["replaces_id"] = make_bill(db, g)
+    make_record(db, g, data, **envelope)
 
 
 # Updates are rejected on records, charges, statuses and thread messages.
@@ -259,6 +332,10 @@ def test_allows_deletes_so_a_reset_can_clear_the_workspace(
 
 def test_agent_runs_are_updated_in_place(db: psycopg.Connection, g: dict[str, Any]) -> None:
     run_id = make_run(db, g)
+    db.execute(
+        "update public.agent_runs set log_path = %s where id = %s",
+        [f"{g['workspace_id']}/runs/{run_id}.log", run_id],
+    )
     db.execute(
         "update public.agent_runs set status = 'running', started_at = now() where id = %s",
         [run_id],
@@ -456,7 +533,7 @@ def test_a_judgment_points_to_rows_that_exist(db: psycopg.Connection, g: dict[st
     )
 
 
-@pytest.mark.parametrize("kind", ["confirmation", "accepted_reason", "snooze", "sign_off"])
+@pytest.mark.parametrize("kind", sorted(ACCOUNTANT_KINDS))
 def test_accountant_only_kinds_only_by_user(
     db: psycopg.Connection, g: dict[str, Any], kind: str
 ) -> None:
@@ -525,8 +602,7 @@ def test_a_status_is_about_at_most_one_thing(db: psycopg.Connection, g: dict[str
 def test_a_status_with_no_subject_is_about_the_grant(
     db: psycopg.Connection, g: dict[str, Any]
 ) -> None:
-    problem = [{"check": "budget", "text": "Spending is over the award's limit."}]
-    insert(db, "statuses", **status_values(g, reasons=problem, flagged=True))
+    insert(db, "statuses", **status_values(g, problems=OVER_LIMIT, flagged=True))
     rejects(db, errors.CheckViolation, "statuses", **status_values(g, bucket="needs_human"))
     rejects(db, errors.NotNullViolation, "statuses", **status_values(g, grant_id=None))
 
@@ -536,7 +612,6 @@ def test_current_statuses_gives_one_row_per_grant_for_its_own_statuses(
 ) -> None:
     other = make_grant(db)
     charge_id = make_charge(db, g)
-    over = [{"check": "budget", "text": "Spending is over the award's limit."}]
     for flagged, changed_at in [
         (True, "2026-02-24T12:00:00Z"),
         (False, "2026-04-10T17:00:00Z"),
@@ -545,9 +620,9 @@ def test_current_statuses_gives_one_row_per_grant_for_its_own_statuses(
         insert(
             db,
             "statuses",
-            **status_values(g, reasons=over, flagged=flagged, changed_at=changed_at),
+            **status_values(g, problems=OVER_LIMIT, flagged=flagged, changed_at=changed_at),
         )
-    insert(db, "statuses", **status_values(other, reasons=over, flagged=True))
+    insert(db, "statuses", **status_values(other, problems=OVER_LIMIT, flagged=True))
     insert(
         db,
         "statuses",
@@ -589,6 +664,24 @@ def test_a_charge_status_has_a_bucket_and_others_do_not(
         "statuses",
         **status_values(g, charge_id=charge_id, bucket="done"),
     )
+
+
+def test_a_charge_status_has_reasons_and_a_checklist_and_no_problems(
+    db: psycopg.Connection, g: dict[str, Any]
+) -> None:
+    charge = {"charge_id": make_charge(db, g), "bucket": "needs_human"}
+    insert(db, "statuses", **status_values(g, **charge))
+    for wrong in [{"reasons": None}, {"checklist": None}, {"problems": OVER_LIMIT}]:
+        rejects(db, errors.CheckViolation, "statuses", **status_values(g, **charge, **wrong))
+
+
+def test_other_statuses_have_problems_and_no_reasons_or_checklist(
+    db: psycopg.Connection, g: dict[str, Any]
+) -> None:
+    for about in [{"record_id": make_bill(db, g)}, {"file_id": make_file(db, g)}, {}]:
+        insert(db, "statuses", **status_values(g, **about, problems=OVER_LIMIT))
+        for wrong in [{"problems": None}, {"reasons": []}, {"checklist": []}, {"rechecking": True}]:
+            rejects(db, errors.CheckViolation, "statuses", **status_values(g, **about, **wrong))
 
 
 def test_a_status_trigger_has_an_id_unless_it_is_the_clock(
