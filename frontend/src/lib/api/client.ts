@@ -2,8 +2,6 @@ import type {
   AgentRun,
   ChargeDetail,
   ChargeRow,
-  Clock,
-  ClockMove,
   EvidenceCard,
   EvidenceFile,
   FileLink,
@@ -33,13 +31,10 @@ import type {
  * the problem list. The HTTP client and the fake both implement it.
  */
 export interface ApiClient {
-  // Workspaces and the clock
+  // Workspaces
   listWorkspaces(): Promise<Workspace[]>;
   createWorkspace(name: string): Promise<Workspace>;
   resetWorkspace(workspaceId: Id): Promise<Workspace>;
-  getClock(workspaceId: Id): Promise<Clock>;
-  /** No `to` moves to the next arrival. The clock only moves forward. */
-  moveClock(workspaceId: Id, move: ClockMove): Promise<Clock>;
 
   // Grants
   listGrants(workspaceId: Id): Promise<GrantSummary[]>;
@@ -198,12 +193,6 @@ export class HttpApiClient implements ApiClient {
   }
   resetWorkspace(workspaceId: Id) {
     return this.post<Workspace>(`/workspaces/${e(workspaceId)}/reset`);
-  }
-  getClock(workspaceId: Id) {
-    return this.get<Clock>(`/workspaces/${e(workspaceId)}/clock`);
-  }
-  moveClock(workspaceId: Id, move: ClockMove) {
-    return this.post<Clock>(`/workspaces/${e(workspaceId)}/clock`, move);
   }
   listGrants(workspaceId: Id) {
     return this.get<GrantSummary[]>(`/workspaces/${e(workspaceId)}/grants`);
