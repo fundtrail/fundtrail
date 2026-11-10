@@ -241,11 +241,16 @@ The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
 
 - **Choosing one.** Adding a grant offers two choices: your own grant, or a sample. The sample choice has a dropdown with nothing chosen at first and three options: a small sample, read live; a larger sample, read live from the start; and the larger sample, prerun. The description changes with the choice, and an Open button opens it.
 - **A sample is one grant.** It sits in the user's ordinary workspace beside their own grants and is isolated like any grant. There's no demo workspace, and nothing is loaded at sign-up.
-- **It's an ordinary grant** whose "now" is simulated, with a timeline of scheduled events: ledger lines posting, emails arriving, files appearing in Drive, and uploads. Its clock is the grant's own ([0028](decisions/0028-one-clock-per-grant.md)).
+- **It's an ordinary grant** whose "now" is simulated, with a timeline of scheduled events, such as ledger lines posting, emails arriving, files appearing in Drive, and uploads. Its clock is the grant's own ([0028](decisions/0028-one-clock-per-grant.md)).
+- **Every sample opens at the start of its timeline** and plays the same events, in all three choices. Read live, the agent works on each arrival as the clock reaches it. Prerun, the agent's work was done ahead of time, so the user doesn't wait for it. On both, the user can move to a chosen date, closeout included, with the human steps skipped.
 - **Nothing is blocked.** The user can upload, email or drop in anything and decide anything. A file arrives at the sample grant's "now", and a date printed inside a document is used as written. Gmail and Drive work as on any grant.
-- **The timeline doesn't react.** Scheduled events never change with what the user does, so leaving the expected path only changes which bucket a charge lands in.
-- **The prerun's past decisions** belong to the workspace's sample accountant, an account that nobody can sign in as.
-- **First versions, to judge running:** a timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, going to a date, and starting over. Start over resets that one sample grant. The larger sample can be read live only one at a time per account. How the prerun is made and copied is in [0027](decisions/0027-sample-grants.md).
+- **The timeline doesn't react.** Scheduled events never change with what the user does. Leaving the expected path changes what the app finds, never what the timeline delivers or when.
+- **Skipped decisions** are made by the workspace's sample accountant, an account that nobody can sign in as.
+- **First versions, to judge running** ([0027](decisions/0027-sample-grants.md)):
+  - Skipping the human steps is offered on "next event" and "go to a date". The sample accountant then makes the decisions the sample's expected results assume, and anything off that script is left for the user.
+  - The prerun saves the whole expected run-through, made with the real agent. A saved result is loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live from there.
+  - The small sample is read live only. While a user's larger read-live sample has agent runs going from a move of its clock, opening another or starting one over is refused.
+  - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, going to a date, and starting over. It marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
 
 Everything below is an example. What goes in each sample, the grants, people, amounts, situations and the timeline's events, gets decided later by the product owner. All of it is synthetic.
 
@@ -253,7 +258,7 @@ Everything below is an example. What goes in each sample, the grants, people, am
 |---|---|
 | A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
 | A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete** once the accountant confirms the new end date, citing it |
-| One purchase is shared with a second grant and split across both ledgers | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
+| One purchase is shared with a second grant and split across both ledgers. A sample is one grant, so this needs two samples or shows one side, which is left to what goes in each sample | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
 | A bill arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
 | The small sample, read live: a new grant with an award letter, a ledger file, emails, invoices and a receipt photo on its timeline | Open it, confirm its terms, deliver the ledger and the evidence or let the clock deliver them, and watch the statuses fill in |
 
@@ -286,7 +291,7 @@ Everything below is an example. What goes in each sample, the grants, people, am
 
 **Designed to grow.** These are out for now, but nothing in the design should block them later:
 
-- more users and roles: a user in several workspaces who reaches only the grants they own or were given, invitations, roles on screen, and a read-only view for professors. The membership list and the one access check are built now so nothing blocks them ([0029](decisions/0029-workspace-members-and-one-access-check.md)).
+- more people and roles: invitations, roles on screen, access to only some grants, and a read-only view for professors. The membership list and the one access check are part of the build, so nothing blocks them ([0029](decisions/0029-workspace-members-and-one-access-check.md)).
 - more funders, with rules organized per funder, starting with NSF
 - more universities, each with its own evidence report template, starting with Berkeley
 - grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on
@@ -308,7 +313,7 @@ Everything below is an example. What goes in each sample, the grants, people, am
 | Whether checks and reasons use the university's cost criteria as labels, for example Berkeley's | product |
 | How drafted explanations are written: by code from the records, or by the agent with citations | product, if the feature is built |
 | The timeline panel on a sample grant and its controls. A first version is built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
-| What starting a sample grant over clears, how the prerun is made and copied when opened, and the limit of one larger sample read live at a time. First versions are built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
+| Skipping the human steps, how the prerun is made and when its saved results are loaded, what starting a sample grant over clears, and the limit on larger samples read live. First versions are built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
 | The screens for confirming terms, the problem list, the checklist and the thread. The layout ideas above are a starting point. | product |
 | How a problem on the grant itself and a note on the grant are shown | product, with the screens |
 | How reversals and cost transfers show in buckets and at closeout, beyond their default checklist. Berkeley's 120-day limit on cost transfers is discussed with it. | product |

@@ -36,7 +36,7 @@ evidence: Gmail · Drive · upload ─► AGENT ─► RECORDS ◄──── q
 - **Gmail:** each grant gets its own email address on our demo account. The backend checks for new mail on a timer, every one to two minutes.
 - **Google Drive:** the connector reads folders that users share with our demo account, on the same timer. Users never connect their own Google account.
 - **Upload:** files can also be added in the app.
-- Only email from known senders is processed: the addresses of the workspace's members who can act ([0029](decisions/0029-workspace-members-and-one-access-check.md)), the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
+- Only email from known senders is processed: our accounts, the addresses of the workspace's members who can act ([0029](decisions/0029-workspace-members-and-one-access-check.md)), the people named in each award letter, and anyone the accountant adds. Mail from anyone else is held for the accountant.
 - Evidence that arrives before its ledger line waits, unlinked, until the line shows up.
 
 ### Files go to the agent as they are
@@ -132,16 +132,16 @@ The accountant clicks a fact and the file opens at the right spot. We copy patte
 ## The clock
 
 - **One clock per grant** ([0028](decisions/0028-one-clock-per-grant.md)). One place answers what time it is for a grant. A real grant's clock gives the real time. A sample grant's clock gives its simulated "now" ([0027](decisions/0027-sample-grants.md)). The clock belongs to the grant, not the workspace.
-- **Nothing else asks the system for the time,** and nothing branches on whether a grant is a sample. A check in continuous integration (CI) fails new code that reads the system time anywhere else.
+- **Apart from the machine's own uses below, nothing asks the system for the time,** and nothing branches on whether a grant is a sample. A check in continuous integration (CI) fails new code that reads the system time anywhere else.
 - **What goes through the clock:** arrivals, the date on every record and message, a run's date, what "today" means to the checks, the dating of live email and Drive files on a sample grant, status history, report and sign-off dates, and every date a screen shows.
 - **What stays on real time,** because it belongs to the machine: the order records were stored in, background timers, logs, and sign-in expiry.
 - Every item has two dates:
   - **Its own date,** such as the date on a document or a ledger line's transaction date. The checks use this one.
   - **Its arrival date,** such as when an email arrived or when a ledger line was synced or uploaded. The clock uses this one.
 - An item counts once its arrival date is at or before its grant's "now." A ledger line's arrival date is its posting date if that's still ahead of "now", and otherwise now ([0023](decisions/0023-the-clock.md)).
-- A real grant's clock is the real time, and nobody moves it. A sample grant's clock only moves forward: to the next event, or to a chosen date, with everything between played in order. Starting over resets that one sample grant (first versions, [0027](decisions/0027-sample-grants.md)).
+- A real grant's clock is the real time, and nobody moves it. A sample grant's clock only moves forward: to the next event, or to a chosen date. Everything between plays in order ([0023](decisions/0023-the-clock.md), provisional). Starting over resets that one sample grant (first version, [0027](decisions/0027-sample-grants.md)).
 - Anything that arrives live on a sample grant arrives at the grant's "now". A live email or Drive file there is dated to the simulated time, and the stored original is unchanged. A date printed inside a document is used as written.
-- The prerun sample is a saved result of the real agent and checks, copied into the workspace when it's opened, and everything after its opening date is read live (first version, [0027](decisions/0027-sample-grants.md)). There's no response cache.
+- Every sample opens at the start of its timeline. Read live, the agent works on each arrival as the clock reaches it. In the prerun, the agent's work was done ahead of time: a saved run-through made with the real agent, loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live (first versions, [0027](decisions/0027-sample-grants.md)). Nothing precomputed is used on a real grant or in the read-live samples, and there's no response cache.
 
 ## Stack
 
@@ -203,8 +203,8 @@ The layout is in [CLAUDE.md](../CLAUDE.md#repo-map). The areas of the repo are i
 | The search rule for likely duplicate bills: which fields, and how wide a window of dates. A long list of candidates means the rule is too loose. Also what catches a duplicate the search misses. The closeout review could look again. | builder (W2), discussed with Alex before building |
 | How code tells that two confirmed terms disagree | builder (W2), discussed with Alex before building |
 | How a sample grant's timeline releases its scheduled events. A live arrival on a sample grant arrives at the grant's "now" and is dated to the simulated time ([0028](decisions/0028-one-clock-per-grant.md)). | contract, then W4 |
-| When a sample grant's clock jumps past several events at once, everything between plays in order ([0027](decisions/0027-sample-grants.md), first version). Still open: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item. [0023](decisions/0023-the-clock.md) proposes an answer. | product, then W4 with W1 |
-| How the CI check recognizes code that reads the system time outside the grant's clock | builder (W4) |
+| When a sample grant's clock jumps past several events at once: the order agent runs go in, and whether the clock waits for each run to finish before releasing the next item. [0023](decisions/0023-the-clock.md) proposes playing everything between in order. | product, then W4 with W1 |
+| How the CI check recognizes code that reads the system time outside the grant's clock | builder (W4), through a CI config PR |
 | Grants that share evidence and links, with files that belong to the workspace instead of the grant they arrived on. For now each grant is isolated. | later |
 | Efficient sorting for matching, once accuracy is solid | builder (W1), later |
 | A regular sweep that re-checks old links, beyond the one review as closeout nears | later |

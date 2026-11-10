@@ -1,6 +1,6 @@
 # 0007. Build a real app first, and decide the demo later
 
-**Date:** 2026-11-07 · **Status:** accepted. Amended by [0027](0027-sample-grants.md) (no demo workspace is loaded at sign-up: a sample is one grant, chosen when adding a grant) and [0028](0028-one-clock-per-grant.md) (the clock belongs to each grant, not each workspace).
+**Date:** 2026-11-07 · **Status:** accepted. Amended by [0027](0027-sample-grants.md) (no demo workspace is loaded at sign-up: a sample is one grant, chosen when adding a grant) and [0028](0028-one-clock-per-grant.md) (the clock belongs to each grant, not each workspace). [0027](0027-sample-grants.md) is the demo decision this file left open: precomputed results are used in the prerun sample only, never on a real grant or in the read-live samples.
 
 ## Context
 

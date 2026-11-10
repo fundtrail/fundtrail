@@ -28,7 +28,7 @@ The contract code for records, checks and the agent side is written first ([deci
 | The base every model shares | `backend/app/contracts/base.py` |
 | Eval answer key | `backend/app/contracts/eval.py` |
 | Database tables | A migration in `supabase/migrations/` |
-| Sample grant | `backend/app/contracts/fixtures/golden/` |
+| Sample grant (the golden test fixture, not one of the samples a user can open) | `backend/app/contracts/fixtures/golden/` |
 
 ## Changing a contract
 
@@ -374,7 +374,7 @@ Errors use FastAPI's default `{"detail": ...}` body. A write that the write chec
 - Adding a grant stores the award letter and queues an agent run. The grant comes back right away, and its terms appear as the agent writes them.
 - Every accountant action that decides something goes through `POST /grants/{grant_id}/records`: confirming or rejecting terms and the agent's suggestions, answering or overruling a question, linking or splitting by hand, changing a checklist, accepting a reason, snoozing, correcting or retracting a record, adding a known sender, and signing off. The server fills in the ID, author and time.
 - Thread messages aren't records, so they have their own routes.
-- The clock belongs to the grant. A real grant's clock is the real time and can't be moved. A sample grant's clock only moves forward: to the next event, or to a chosen date, with everything between played in order ([0027](decisions/0027-sample-grants.md), first version).
+- The clock belongs to the grant. A real grant's clock is the real time and can't be moved. A sample grant's clock only moves forward: to the next event, or to a chosen date, with everything between played in order ([0023](decisions/0023-the-clock.md), provisional).
 - What each of these returns in detail depends on what each screen holds, which the docs haven't settled yet (see "Not decided yet").
 
 ## 13. Ledger file
@@ -534,4 +534,5 @@ The sample has the usage statement item carry the charge's amount, so its link c
 | How the checks' input, which takes a whole workspace at one `now`, works when each grant has its own clock | contract |
 | The membership list: its names, fields and roles ([0029](decisions/0029-workspace-members-and-one-access-check.md)) | contract |
 | A sample grant's timeline and its items to deliver: how the scheduled events are stored and released, and what the timeline panel reads ([0027](decisions/0027-sample-grants.md)) | contract |
-| The saved prerun and its copy: what's saved, and how opening it copies the grant into a workspace and points past decisions at that workspace's sample accountant ([0027](decisions/0027-sample-grants.md)) | contract |
+| The saved prerun and how it's loaded: what the saved run-through holds, how code tells that a grant is still on it, how a saved result up to a point is copied in with the workspace's sample accountant as author, and which saved readings of files can be reused after the user's own decision ([0027](decisions/0027-sample-grants.md)) | contract |
+| How the sample accountant is stored as a user, given that user IDs are Supabase auth UUIDs and nobody can sign in as it ([0027](decisions/0027-sample-grants.md)) | contract |

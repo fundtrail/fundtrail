@@ -1,18 +1,18 @@
 # 0028. Each grant has one clock, and nothing else asks for the time
 
-**Date:** 2026-11-10 · **Status:** decided by the product owner. Amends [0023](0023-the-clock.md): the clock belongs to a grant, not a workspace, and a live email on a sample grant is dated to the simulated time, where 0023 kept its real sent date.
+**Date:** 2026-11-10 · **Status:** accepted. Amends [0023](0023-the-clock.md): the clock belongs to a grant, not a workspace, and a live email on a sample grant is dated to the simulated time, where 0023 kept its real sent date.
 
 ## Context
 
 [0023](0023-the-clock.md) gave every workspace a "now" and set aside a clock per grant, because the workspace home and a cost shared by two grants seemed to need one "now". [0027](0027-sample-grants.md) changes the ground under that. A sample is one grant in the user's ordinary workspace, so one workspace now holds grants on different times.
 
-- **Two grants, two times.** The user's own grant runs on today's date. The larger sample, opened beside it, sits at its simulated opening date, months before today. A note the accountant writes on their own grant has to carry today's date, and a confirmation on the sample has to carry the sample's date. A workspace clock can't give both.
+- **Two grants, two times.** The user's own grant runs on today's date. The larger sample, opened beside it, sits at a simulated date months before today. A note the accountant writes on their own grant has to carry today's date, and a confirmation on the sample has to carry the sample's date. A workspace clock can't give both.
 - **One stray call.** A check asks the computer for today's date to decide whether a bill is 60 days late. On a real grant that works. On a sample grant it compares the sample's posting dates with the real date, and every charge looks late. The bug is invisible on a real grant, so it would ship.
 
 ## Decision
 
 - **One clock per grant.** One place answers what time it is for a grant. A real grant's clock gives the real time. A sample grant's clock gives its simulated "now".
-- **Nothing else asks the system for the time,** and nothing branches on whether a grant is a sample. The code gets the simulated time right by being standard and centralized, not by special cases.
+- **Apart from the machine's own uses below, nothing asks the system for the time,** and nothing branches on whether a grant is a sample. The code gets the simulated time right by being standard and centralized, not by special cases.
 - **What goes through the clock:** arrivals, the date on every record and message, a run's date, what "today" means to the checks, the dating of live email and Drive files on a sample grant, status history, report and sign-off dates, and every date a screen shows.
 - **What stays on real time,** because it belongs to the machine: the order records were stored in, background timers, logs, and sign-in expiry.
 - **A check in continuous integration (CI)** fails new code that reads the system time anywhere else.
