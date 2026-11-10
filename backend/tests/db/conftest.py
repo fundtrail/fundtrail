@@ -69,9 +69,7 @@ def database_url() -> Iterator[str]:
             yield url
         finally:
             admin.execute(
-                sql.SQL("drop database if exists {} with (force)").format(
-                    sql.Identifier(name)
-                )
+                sql.SQL("drop database if exists {} with (force)").format(sql.Identifier(name))
             )
 
 

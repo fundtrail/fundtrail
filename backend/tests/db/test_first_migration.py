@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, LiteralString
 
 import pytest
 
 if TYPE_CHECKING:
     import psycopg
-    from psycopg import errors
+    from psycopg import errors, sql
     from psycopg.types.json import Jsonb
 else:
     psycopg = pytest.importorskip("psycopg")
     errors = pytest.importorskip("psycopg.errors")
+    sql = pytest.importorskip("psycopg.sql")
     Jsonb = pytest.importorskip("psycopg.types.json").Jsonb
 
 TABLES = [
@@ -34,21 +35,24 @@ NOW = "2025-11-14T12:00:00Z"
 # Helpers that build a small workspace, one row at a time.
 
 
+def on_table(query: LiteralString, table: str) -> sql.Composed:
+    """The query with {table} filled in as public.<table>."""
+    return sql.SQL(query).format(table=sql.Identifier("public", table))
+
+
 def insert(conn: psycopg.Connection, table: str, **values: Any) -> str:
-    columns = ", ".join(values)
-    placeholders = ", ".join(["%s"] * len(values))
+    query = sql.SQL("insert into {table} ({columns}) values ({placeholders}) returning id").format(
+        table=sql.Identifier("public", table),
+        columns=sql.SQL(", ").join(sql.Identifier(column) for column in values),
+        placeholders=sql.SQL(", ").join(sql.Placeholder() for _ in values),
+    )
     params = [Jsonb(v) if isinstance(v, (dict, list)) else v for v in values.values()]
-    row = conn.execute(
-        f"insert into public.{table} ({columns}) values ({placeholders}) returning id",
-        params,
-    ).fetchone()
+    row = conn.execute(query, params).fetchone()
     assert row is not None
     return str(row[0])
 
 
-def rejects(
-    conn: psycopg.Connection, error: type[Exception], table: str, **values: Any
-) -> None:
+def rejects(conn: psycopg.Connection, error: type[Exception], table: str, **values: Any) -> None:
     with pytest.raises(error), conn.transaction():
         insert(conn, table, **values)
 
@@ -63,15 +67,11 @@ def make_user(conn: psycopg.Connection) -> uuid.UUID:
 def make_grant(conn: psycopg.Connection) -> dict[str, Any]:
     user_id = make_user(conn)
     workspace_id = insert(conn, "workspaces", owner_id=user_id, name="Demo")
-    grant_id = insert(
-        conn, "grants", workspace_id=workspace_id, award_number="SYN-2300117"
-    )
+    grant_id = insert(conn, "grants", workspace_id=workspace_id, award_number="SYN-2300117")
     return {"user_id": user_id, "workspace_id": workspace_id, "grant_id": grant_id}
 
 
-def make_charge(
-    conn: psycopg.Connection, g: dict[str, Any], line_id: str = "L-1001"
-) -> str:
+def make_charge(conn: psycopg.Connection, g: dict[str, Any], line_id: str = "L-1001") -> str:
     return insert(
         conn,
         "charges",
@@ -89,9 +89,7 @@ def make_charge(
     )
 
 
-def make_file(
-    conn: psycopg.Connection, g: dict[str, Any], name: str = "invoice_1001.txt"
-) -> str:
+def make_file(conn: psycopg.Connection, g: dict[str, Any], name: str = "invoice_1001.txt") -> str:
     file_id = str(uuid.uuid4())
     return insert(
         conn,
@@ -130,9 +128,7 @@ def make_bill(conn: psycopg.Connection, g: dict[str, Any]) -> str:
     return make_record(conn, g, {"kind": "bill", "total": {"value": 124000}})
 
 
-def make_run(
-    conn: psycopg.Connection, g: dict[str, Any], status: str = "queued"
-) -> str:
+def make_run(conn: psycopg.Connection, g: dict[str, Any], status: str = "queued") -> str:
     return insert(
         conn,
         "agent_runs",
@@ -186,9 +182,7 @@ def test_creates_every_table_with_row_level_security_and_no_policies(
         "where relnamespace = 'public'::regnamespace and relkind = 'r'"
     ).fetchall()
     assert dict(rows) == {table: True for table in TABLES}
-    policies = db.execute(
-        "select count(*) from pg_policies where schemaname = 'public'"
-    ).fetchone()
+    policies = db.execute("select count(*) from pg_policies where schemaname = 'public'").fetchone()
     assert policies == (0,)
 
 
@@ -198,16 +192,12 @@ def test_creates_the_current_statuses_view(db: psycopg.Connection) -> None:
 
 
 def test_creates_the_private_evidence_bucket(db: psycopg.Connection) -> None:
-    row = db.execute(
-        "select public from storage.buckets where id = 'evidence'"
-    ).fetchone()
+    row = db.execute("select public from storage.buckets where id = 'evidence'").fetchone()
     assert row == (False,)
 
 
 def test_has_no_procrastinate_tables(db: psycopg.Connection) -> None:
-    row = db.execute(
-        "select count(*) from pg_class where relname like 'procrastinate%'"
-    ).fetchone()
+    row = db.execute("select count(*) from pg_class where relname like 'procrastinate%'").fetchone()
     assert row == (0,)
 
 
@@ -232,7 +222,7 @@ def test_rejects_updates(db: psycopg.Connection, g: dict[str, Any], table: str) 
     row_id = ids[table]()
     with pytest.raises(errors.RestrictViolation), db.transaction():
         db.execute(
-            f"update public.{table} set workspace_id = workspace_id where id = %s",
+            on_table("update {table} set workspace_id = workspace_id where id = %s", table),
             [row_id],
         )
 
@@ -259,19 +249,15 @@ def test_allows_deletes_so_a_reset_can_clear_the_workspace(
         **status_values(g, charge_id=charge_id, bucket="evidence_complete"),
     )
     insert(db, "thread_messages", **message_values(g, charge_id=charge_id))
-    db.execute(
-        f"delete from public.{table} where workspace_id = %s", [g["workspace_id"]]
-    )
+    db.execute(on_table("delete from {table} where workspace_id = %s", table), [g["workspace_id"]])
     row = db.execute(
-        f"select count(*) from public.{table} where workspace_id = %s",
+        on_table("select count(*) from {table} where workspace_id = %s", table),
         [g["workspace_id"]],
     )
     assert row.fetchone() == (0,)
 
 
-def test_agent_runs_are_updated_in_place(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_agent_runs_are_updated_in_place(db: psycopg.Connection, g: dict[str, Any]) -> None:
     run_id = make_run(db, g)
     db.execute(
         "update public.agent_runs set status = 'running', started_at = now() where id = %s",
@@ -295,13 +281,11 @@ def test_deleting_a_workspace_clears_everything_in_it(
     insert(
         db,
         "thread_messages",
-        **message_values(
-            g, record_id=bill_id, author="agent", author_user_id=None, run_id=run_id
-        ),
+        **message_values(g, record_id=bill_id, author="agent", author_user_id=None, run_id=run_id),
     )
     db.execute("delete from public.workspaces where id = %s", [g["workspace_id"]])
     for table in TABLES[2:]:
-        row = db.execute(f"select count(*) from public.{table}").fetchone()
+        row = db.execute(on_table("select count(*) from {table}", table)).fetchone()
         assert row == (0,), table
 
 
@@ -344,9 +328,7 @@ def test_one_file_per_storage_path(db: psycopg.Connection, g: dict[str, Any]) ->
     )
 
 
-def test_the_same_fingerprint_may_arrive_twice(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_the_same_fingerprint_may_arrive_twice(db: psycopg.Connection, g: dict[str, Any]) -> None:
     make_file(db, g, "invoice_1001.txt")
     make_file(db, g, "invoice_1001_again.txt")
 
@@ -359,9 +341,7 @@ def test_record_kind_charge_and_record_are_generated_from_data(
 ) -> None:
     charge_id = make_charge(db, g)
     bill_id = make_bill(db, g)
-    link_id = make_record(
-        db, g, {"kind": "link", "record_id": bill_id, "charge_id": charge_id}
-    )
+    link_id = make_record(db, g, {"kind": "link", "record_id": bill_id, "charge_id": charge_id})
     row = db.execute(
         "select kind, charge_id, record_id from public.records where id = %s", [link_id]
     )
@@ -372,9 +352,7 @@ def test_record_needs_a_kind(db: psycopg.Connection, g: dict[str, Any]) -> None:
     rejects(db, errors.NotNullViolation, "records", **record_values(g, {"total": 1}))
 
 
-def test_author_user_id_is_set_for_user(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_author_user_id_is_set_for_user(db: psycopg.Connection, g: dict[str, Any]) -> None:
     make_record(db, g, {"kind": "note"}, author="user", author_user_id=g["user_id"])
     rejects(
         db,
@@ -384,16 +362,12 @@ def test_author_user_id_is_set_for_user(
     )
 
 
-def test_author_user_id_is_empty_for_agent(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_author_user_id_is_empty_for_agent(db: psycopg.Connection, g: dict[str, Any]) -> None:
     rejects(
         db,
         errors.CheckViolation,
         "records",
-        **record_values(
-            g, {"kind": "note"}, author="agent", author_user_id=g["user_id"]
-        ),
+        **record_values(g, {"kind": "note"}, author="agent", author_user_id=g["user_id"]),
     )
 
 
@@ -406,18 +380,12 @@ def test_author_is_agent_or_user(db: psycopg.Connection, g: dict[str, Any]) -> N
     )
 
 
-def test_a_record_can_replace_another(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_record_can_replace_another(db: psycopg.Connection, g: dict[str, Any]) -> None:
     bill_id = make_bill(db, g)
-    make_record(
-        db, g, {"kind": "bill", "total": {"value": 124100}}, replaces_id=bill_id
-    )
+    make_record(db, g, {"kind": "bill", "total": {"value": 124100}}, replaces_id=bill_id)
 
 
-def test_a_record_cannot_replace_itself(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_record_cannot_replace_itself(db: psycopg.Connection, g: dict[str, Any]) -> None:
     rejects(
         db,
         errors.CheckViolation,
@@ -437,14 +405,10 @@ def test_a_record_cannot_replace_a_missing_record(
     )
 
 
-def test_a_retraction_replaces_something(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_retraction_replaces_something(db: psycopg.Connection, g: dict[str, Any]) -> None:
     bill_id = make_bill(db, g)
     make_record(db, g, {"kind": "retraction"}, replaces_id=bill_id)
-    rejects(
-        db, errors.CheckViolation, "records", **record_values(g, {"kind": "retraction"})
-    )
+    rejects(db, errors.CheckViolation, "records", **record_values(g, {"kind": "retraction"}))
 
 
 @pytest.mark.parametrize("kind", ["link", "budget_assignment"])
@@ -481,26 +445,18 @@ def test_a_link_points_to_rows_that_exist(
     rejects(db, errors.ForeignKeyViolation, "records", **record_values(g, data))
 
 
-def test_a_judgment_points_to_rows_that_exist(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_judgment_points_to_rows_that_exist(db: psycopg.Connection, g: dict[str, Any]) -> None:
     charge_id = make_charge(db, g)
-    make_record(
-        db, g, {"kind": "judgment", "charge_id": charge_id, "question": "allowable"}
-    )
+    make_record(db, g, {"kind": "judgment", "charge_id": charge_id, "question": "allowable"})
     rejects(
         db,
         errors.ForeignKeyViolation,
         "records",
-        **record_values(
-            g, {"kind": "judgment", "charge_id": "nope", "question": "allowable"}
-        ),
+        **record_values(g, {"kind": "judgment", "charge_id": "nope", "question": "allowable"}),
     )
 
 
-@pytest.mark.parametrize(
-    "kind", ["confirmation", "accepted_reason", "snooze", "sign_off"]
-)
+@pytest.mark.parametrize("kind", ["confirmation", "accepted_reason", "snooze", "sign_off"])
 def test_accountant_only_kinds_only_by_user(
     db: psycopg.Connection, g: dict[str, Any], kind: str
 ) -> None:
@@ -534,9 +490,7 @@ def test_current_statuses_gives_the_latest_row_for_each_charge_record_or_file(
         insert(
             db,
             "statuses",
-            **status_values(
-                g, charge_id=charge_id, bucket=bucket, changed_at=changed_at
-            ),
+            **status_values(g, charge_id=charge_id, bucket=bucket, changed_at=changed_at),
         )
     insert(db, "statuses", **status_values(g, record_id=record_id, flagged=True))
     insert(db, "statuses", **status_values(g, record_id=record_id, flagged=False))
@@ -557,9 +511,7 @@ def test_current_statuses_gives_the_latest_row_for_each_charge_record_or_file(
     )
 
 
-def test_a_status_is_about_at_most_one_thing(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_status_is_about_at_most_one_thing(db: psycopg.Connection, g: dict[str, Any]) -> None:
     charge_id = make_charge(db, g)
     file_id = make_file(db, g)
     rejects(
@@ -575,9 +527,7 @@ def test_a_status_with_no_subject_is_about_the_grant(
 ) -> None:
     problem = [{"check": "budget", "text": "Spending is over the award's limit."}]
     insert(db, "statuses", **status_values(g, reasons=problem, flagged=True))
-    rejects(
-        db, errors.CheckViolation, "statuses", **status_values(g, bucket="needs_human")
-    )
+    rejects(db, errors.CheckViolation, "statuses", **status_values(g, bucket="needs_human"))
     rejects(db, errors.NotNullViolation, "statuses", **status_values(g, grant_id=None))
 
 
@@ -610,9 +560,9 @@ def test_current_statuses_gives_one_row_per_grant_for_its_own_statuses(
         "and grant_id in (%s, %s)",
         [g["grant_id"], other["grant_id"]],
     ).fetchall()
-    assert sorted(
-        (grant_id, charge, flagged) for grant_id, charge, flagged, _ in rows
-    ) == sorted([(g["grant_id"], None, False), (other["grant_id"], None, True)])
+    assert sorted((grant_id, charge, flagged) for grant_id, charge, flagged, _ in rows) == sorted(
+        [(g["grant_id"], None, False), (other["grant_id"], None, True)]
+    )
     latest = {grant_id: changed_at for grant_id, _, _, changed_at in rows}
     assert latest[g["grant_id"]] == datetime(2026, 4, 10, 17, tzinfo=UTC)
     charge_rows = db.execute(
@@ -626,9 +576,7 @@ def test_a_charge_status_has_a_bucket_and_others_do_not(
 ) -> None:
     charge_id = make_charge(db, g)
     file_id = make_file(db, g)
-    rejects(
-        db, errors.CheckViolation, "statuses", **status_values(g, charge_id=charge_id)
-    )
+    rejects(db, errors.CheckViolation, "statuses", **status_values(g, charge_id=charge_id))
     rejects(
         db,
         errors.CheckViolation,
@@ -676,9 +624,7 @@ def test_a_status_trigger_has_an_id_unless_it_is_the_clock(
 # Agent runs.
 
 
-def test_one_running_agent_run_per_grant(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_one_running_agent_run_per_grant(db: psycopg.Connection, g: dict[str, Any]) -> None:
     make_run(db, g, "running")
     make_run(db, g, "queued")
     make_run(db, g, "done")
@@ -687,9 +633,7 @@ def test_one_running_agent_run_per_grant(
         make_run(db, g, "running")
 
 
-def test_agent_run_status_is_one_of_four(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_agent_run_status_is_one_of_four(db: psycopg.Connection, g: dict[str, Any]) -> None:
     with pytest.raises(errors.CheckViolation), db.transaction():
         make_run(db, g, "paused")
 
@@ -697,9 +641,7 @@ def test_agent_run_status_is_one_of_four(
 # Thread messages.
 
 
-def test_a_message_is_about_a_charge_or_a_record(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_a_message_is_about_a_charge_or_a_record(db: psycopg.Connection, g: dict[str, Any]) -> None:
     charge_id = make_charge(db, g)
     record_id = make_bill(db, g)
     insert(db, "thread_messages", **message_values(g, charge_id=charge_id))
@@ -725,9 +667,7 @@ def test_a_message_author_user_id_is_set_exactly_for_user(
     )
 
 
-def test_an_agent_message_names_its_run(
-    db: psycopg.Connection, g: dict[str, Any]
-) -> None:
+def test_an_agent_message_names_its_run(db: psycopg.Connection, g: dict[str, Any]) -> None:
     charge_id = make_charge(db, g)
     run_id = make_run(db, g)
     agent = {"charge_id": charge_id, "author": "agent", "author_user_id": None}
