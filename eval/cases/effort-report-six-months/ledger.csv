@@ -1,0 +1,7 @@
+line_id,transaction_date,posting_date,amount,description,account,vendor,reference,original_line_id
+L-4101,2026-01-31,2026-02-03,4000.00,Salary - Mockford S - Postdoctoral Scholar - Jan 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-01,
+L-4102,2026-02-28,2026-03-03,4000.00,Salary - Mockford S - Postdoctoral Scholar - Feb 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-02,
+L-4103,2026-03-31,2026-04-03,4000.00,Salary - Mockford S - Postdoctoral Scholar - Mar 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-03,
+L-4104,2026-04-30,2026-05-05,4000.00,Salary - Mockford S - Postdoctoral Scholar - Apr 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-04,
+L-4105,2026-05-31,2026-06-03,4000.00,Salary - Mockford S - Postdoctoral Scholar - May 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-05,
+L-4106,2026-06-30,2026-07-03,4000.00,Salary - Mockford S - Postdoctoral Scholar - Jun 2026,50120 Postdoctoral Scholar Salaries,,PAY-2026-06,

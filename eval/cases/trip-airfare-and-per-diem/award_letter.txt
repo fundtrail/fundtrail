@@ -1,0 +1,58 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: January 12, 2026
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project collects sediment samples at a
+remote field station each summer.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2511207
+Award Instrument: Standard Grant
+Award Date: January 12, 2026
+Period of Performance Start Date: February 1, 2026
+Period of Performance End Date: January 31, 2029
+Project Title: Permafrost Thaw and Sediment Supply at Example Creek
+Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $60,000
+Total Intended Award Amount: $60,000
+Cost Share: $0
+Total Amount Obligated to Date: $60,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Jordan Placeholder, Principal Investigator
+  Email: jordan.placeholder@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the NSF Grant General Conditions (GC-1) effective
+October 1, 2024, and to the terms of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+E. Travel                                            $20,000
+     Domestic                                        $20,000
+G. Other Direct Costs                                $40,000
+     Materials and Supplies                          $40,000
+H. Total Direct Costs                                $60,000
+
+Except as modified by this amendment, the award conditions remain unchanged.

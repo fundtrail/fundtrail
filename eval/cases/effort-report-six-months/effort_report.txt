@@ -1,0 +1,32 @@
+UNIVERSITY OF EXAMPLE
+CERTIFIED EFFORT REPORT
+
+Employee: Sam Mockford
+Title: Postdoctoral Scholar
+Department: Earth Sciences
+Reporting period: January 1, 2026 to June 30, 2026
+
+Distribution of effort for the reporting period
+
+Fund or award                                            Effort
+Award SYN-2508341, Sediment Transport in Example
+  Valley Headwater Streams                              50 percent
+Department fund EXD-1180                                50 percent
+Total                                                  100 percent
+
+Salary charged to award SYN-2508341 for the reporting period:
+  January 2026     $4,000.00
+  February 2026    $4,000.00
+  March 2026       $4,000.00
+  April 2026       $4,000.00
+  May 2026         $4,000.00
+  June 2026        $4,000.00
+  Total           $24,000.00
+
+Certification
+I certify that the distribution of effort above is a reasonable estimate of
+the work performed by the employee during the reporting period.
+
+Certified by: Taylor Example, Principal Investigator
+Email: taylor.example@university.example
+Date certified: August 14, 2026

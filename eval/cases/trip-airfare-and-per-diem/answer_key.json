@@ -1,0 +1,32 @@
+{
+  "case": "trip-airfare-and-per-diem",
+  "award_number": "SYN-2511207",
+  "records": [
+    {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2026-02-01", "end": "2029-01-31", "dated": "2026-01-12"}},
+    {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "6000000", "obligated_to_date": "6000000", "dated": "2026-01-12"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Travel", "category": "travel", "amount": "2000000", "dated": "2026-01-12"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Domestic", "category": "travel", "amount": "2000000", "dated": "2026-01-12"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "4000000", "dated": "2026-01-12"}},
+    {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "4000000", "dated": "2026-01-12"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jordan Placeholder", "email": "jordan.placeholder@university.example", "role": "Principal Investigator", "dated": "2026-01-12"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Avery Ledger", "email": "avery.ledger@funder.example", "role": "Managing Grants Official", "dated": "2026-01-12"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Morgan Signet", "email": "morgan.signet@funder.example", "role": "Awarding Official", "dated": "2026-01-12"}},
+    {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Jamie Program", "email": "jamie.program@funder.example", "role": "Managing Program Officer", "dated": "2026-01-12"}},
+    {"kind": "bill", "file": "airfare_receipt.eml", "fields": {"total": "180000", "dated": "2026-05-04", "vendor": "Example Air"}},
+    {"kind": "note", "file": "expense_report.txt", "fields": {}}
+  ],
+  "links": [
+    {"file": "airfare_receipt.eml", "line_id": "L-5201", "amount_cents": 180000},
+    {"file": "expense_report.txt", "line_id": "L-5201"}
+  ],
+  "budget_lines": [
+    {"line_id": "L-5201", "budget_line": "Domestic"}
+  ],
+  "answers": [
+    {"line_id": "L-5201", "question": "allowable", "answer": "supports"}
+  ],
+  "buckets": [
+    {"line_id": "L-5201", "at": "2026-06-19T12:00:00Z", "bucket": "missing_evidence"},
+    {"line_id": "L-5201", "at": "2026-06-24T12:00:00Z", "bucket": "evidence_complete"}
+  ]
+}

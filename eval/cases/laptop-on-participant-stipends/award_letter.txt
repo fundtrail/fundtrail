@@ -1,0 +1,58 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: New Project
+Amendment Number: 000
+Amendment Date: July 15, 2025
+Amendment Description: This amendment funds a new project for the period
+of performance shown below. The project trains undergraduate participants
+in field sensor work and pays each participant a stipend.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2509518
+Award Instrument: Standard Grant
+Award Date: July 15, 2025
+Period of Performance Start Date: August 1, 2025
+Period of Performance End Date: July 31, 2028
+Project Title: Undergraduate Field Training in Example Basin Hydrology
+Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide (PAPPG)
+
+FUNDING INFORMATION
+Amount Obligated by this Amendment: $75,000
+Total Intended Award Amount: $75,000
+Cost Share: $0
+Total Amount Obligated to Date: $75,000
+Expenditure Limitation: Not applicable
+
+PROJECT PERSONNEL
+Riley Sample, Principal Investigator
+  Email: riley.sample@university.example
+  Organization: University of Example
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Awarding Official: Morgan Signet
+  Email: morgan.signet@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+TERMS AND CONDITIONS
+This award is subject to the NSF Grant General Conditions (GC-1) effective
+October 1, 2024, and to the terms of this notice.
+
+BUDGET
+Only the lines that hold funds are shown.
+
+F. Participant Support Costs                         $40,000
+     Stipends                                        $40,000
+G. Other Direct Costs                                $35,000
+     Materials and Supplies                          $35,000
+H. Total Direct Costs                                $75,000
+
+Except as modified by this amendment, the award conditions remain unchanged.

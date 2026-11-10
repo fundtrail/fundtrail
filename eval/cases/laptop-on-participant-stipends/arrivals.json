@@ -1,0 +1,11 @@
+{
+  "case": "laptop-on-participant-stipends",
+  "events": [
+    {"at": "2025-07-17T16:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
+    {"at": "2025-07-18T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2026-02-04T18:00:00Z", "kind": "file", "file": "invoice_10422.txt", "source": "upload", "note": "The batteries invoice arrives before its ledger line and waits, unlinked."},
+    {"at": "2026-02-10T00:00:00Z", "kind": "ledger_line", "line_id": "L-6101", "note": "A correctly filed supplies charge, the control for this case."},
+    {"at": "2026-03-12T18:00:00Z", "kind": "file", "file": "invoice_88231.txt", "source": "upload", "note": "The laptop invoice arrives before its ledger line and waits, unlinked."},
+    {"at": "2026-03-18T00:00:00Z", "kind": "ledger_line", "line_id": "L-6102", "note": "The laptop posts to 56712 Participant Support-Stipends, the wrong account."}
+  ]
+}
