@@ -3,12 +3,17 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { grantName } from "@/components/GrantList";
-import { ApiError, type GrantSummary, type Id } from "@/lib/api";
+import { ApiError, SampleRefusalError, type GrantSummary, type Id, type SampleChoice, type SampleCreate, type SampleOption, type SampleRefusal } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import type { BlockingGrant, SampleChoice, SampleCreate, SampleOption, SampleRefusal } from "./sampleTypes";
 import "./setup.css";
 
 // Wording here is a placeholder until the docs give it.
+
+/** The grant a refusal names: the blocking larger-live sample. */
+interface BlockingGrant {
+  id: Id;
+  name: string;
+}
 
 /**
  * A 409's SampleRefusal (ruling 41), read from FastAPI's `detail`: the
@@ -60,7 +65,7 @@ export function SampleCard({
       onOpened(summary.grant.id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        const refusal = readRefusal(error.detail);
+        const refusal = readRefusal(error instanceof SampleRefusalError ? error.refusal : error.detail);
         setState({ status: "refused", message: refusal?.message ?? error.message, blocking: refusal?.blocking ?? null });
       } else {
         setState({ status: "refused", message: error instanceof ApiError ? error.message : "Couldn't open the sample. Try again.", blocking: null });

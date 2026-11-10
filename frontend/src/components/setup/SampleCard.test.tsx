@@ -1,8 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, type GrantSummary } from "@/lib/api";
+import { ApiError, SampleRefusalError, type GrantSummary, type SampleOption } from "@/lib/api";
 import { readRefusal, SampleCard } from "./SampleCard";
-import type { SampleOption } from "./sampleTypes";
 
 // Placeholder options in GET /samples' order. Names and descriptions are made up.
 const OPTIONS: SampleOption[] = [
@@ -67,7 +66,7 @@ describe("SampleCard", () => {
   it("shows the server's refusal message with a link to the blocking sample", async () => {
     const running = { grant: { id: "grant-running", workspace_id: "ws", funder: "NSF", award_number: "SYN-1", title: "Running sample" } } as GrantSummary;
     const refuse = vi.fn(async () => {
-      throw new ApiError(409, { reason: "history_reading", message: "Another larger live sample is still reading its history.", grant: running });
+      throw new SampleRefusalError({ reason: "history_reading", message: "Another larger live sample is still reading its history.", grant: running });
     });
     const { choose } = setup(refuse);
     choose("larger_live");
