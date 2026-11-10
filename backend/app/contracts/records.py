@@ -9,8 +9,8 @@ to the old one, and the old one stays. Every record has the same envelope
 - facts from evidence: bill, approval, note
 - links and answers: link, budget_assignment, judgment
 - the evidence checklist: checklist_item, checklist_removal
-- the agent's suggestions: dispute, duplicate
-- the accountant only: confirmation, accepted_reason, snooze, sign_off
+- the agent's suggestions: dispute, duplicate, correction, remainder
+- the accountant only: confirmation, accepted_reason, snooze, sign_off, mail_action
 - either: retraction, which replaces a record with nothing
 
 What counts (current records, what waits for the accountant, pointers that
@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Annotated, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from .base import Cents, Id, Model, Text, UtcDatetime
+from .signoff import SignOffSnapshot
 
 if TYPE_CHECKING:
     from .charges import Charge
@@ -109,6 +110,19 @@ Location = Annotated[
 ]
 
 
+class CharRange(Model):
+    """A range of characters in a text file's stored text: from 0, end exclusive."""
+
+    start_char_index: int = Field(ge=0)
+    end_char_index: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _order(self):
+        if self.end_char_index <= self.start_char_index:
+            raise ValueError("end_char_index comes after start_char_index")
+        return self
+
+
 class Match(StrEnum):
     """How a citation was matched against its file, once, when the record was saved."""
 
@@ -132,8 +146,11 @@ class Citation(Model):
     # Filled in by the server when it matches the citation against the file.
     # The write check refuses a citation that hasn't been matched.
     match: Match | None = None
-    # For a PDF: where the highlight goes, found once when the record is saved.
-    highlight: tuple[PageBox, ...] | None = None
+    # Where the highlight goes. The passage stays exactly what the API returned,
+    # but the highlight is ours. For a PDF: boxes on the page, found once when the
+    # record is saved. For text and email: one or more character ranges inside the
+    # passage, such as one per line where the value stands on its own.
+    highlight: tuple[PageBox, ...] | tuple[CharRange, ...] | None = None
 
     @model_validator(mode="after")
     def _shape(self):
@@ -144,8 +161,19 @@ class Citation(Model):
             )
         if self.passage == "":
             raise ValueError("a passage can't be empty")
-        if self.highlight is not None and not isinstance(self.location, PageLocation):
-            raise ValueError("only a PDF citation (page_location) stores a highlight")
+        for part in self.highlight or ():
+            if isinstance(part, PageBox) and not isinstance(self.location, PageLocation):
+                raise ValueError("a highlight's boxes are for a PDF citation (page_location)")
+            if isinstance(part, CharRange):
+                location = self.location
+                if not isinstance(location, CharLocation):
+                    raise ValueError("a highlight's character ranges are for a text citation")
+                inside = (
+                    location.start_char_index <= part.start_char_index
+                    and part.end_char_index <= location.end_char_index
+                )
+                if not inside:
+                    raise ValueError("a highlight's character ranges are inside the passage")
         return self
 
 
@@ -251,11 +279,14 @@ class RecordKind(StrEnum):
     # The agent's suggestions
     DISPUTE = "dispute"
     DUPLICATE = "duplicate"
+    CORRECTION = "correction"
+    REMAINDER = "remainder"
     # The accountant only
     CONFIRMATION = "confirmation"
     ACCEPTED_REASON = "accepted_reason"
     SNOOZE = "snooze"
     SIGN_OFF = "sign_off"
+    MAIL_ACTION = "mail_action"
     # Either
     RETRACTION = "retraction"
 
@@ -275,7 +306,13 @@ FACT_KINDS = frozenset(
     {RecordKind.BILL, RecordKind.APPROVAL, RecordKind.NOTE}
 )  # what a link points to
 ACCOUNTANT_KINDS = frozenset(
-    {RecordKind.CONFIRMATION, RecordKind.ACCEPTED_REASON, RecordKind.SNOOZE, RecordKind.SIGN_OFF}
+    {
+        RecordKind.CONFIRMATION,
+        RecordKind.ACCEPTED_REASON,
+        RecordKind.SNOOZE,
+        RecordKind.SIGN_OFF,
+        RecordKind.MAIL_ACTION,
+    }
 )
 
 
@@ -360,11 +397,29 @@ class Person(_Term):
     role: CitedText  # as the document states it, for example "Program Officer"
 
 
+class ApprovalScope(StrEnum):
+    """What an approval rule applies to in its category."""
+
+    EVERY_CHARGE = "every_charge"  # every charge in the category
+    # Only money moved out of the category: the ledger files a charge under it while
+    # its assigned budget line is elsewhere, such as a laptop on a participant
+    # support account. A charge both sides agree is in the category isn't covered.
+    MOVED_OUT = "moved_out"
+
+
+class CitedScope(Cited[ApprovalScope]):
+    """An approval rule's scope, read from the clause's own words, for example
+    "may not be diverted ... to other categories of expense" for moved_out."""
+
+
 class ApprovalRule(_Term):
     kind: Literal[RecordKind.APPROVAL_RULE] = RecordKind.APPROVAL_RULE
     applies_to: CitedText  # the budget line or kind of cost, as stated
     approver: CitedText  # who must approve, as stated, for example "Program Officer"
     channel: CitedText | None = None  # how, as stated, for example "Research.gov"
+    # What the rule applies to, confirmed by the accountant with the term. None when
+    # the clause doesn't say clearly: the agent then flags the term and doesn't pick.
+    scope: CitedScope | None = None
 
 
 class Rate(_Term):
@@ -462,6 +517,35 @@ class Note(Model):
 # Links and answers.
 
 
+class ShareBasis(Model):
+    """A share of a bill, such as "56 of the 96 samples are for this grant" (decision 0021).
+
+    The worked-out amount is `total` times `share` over `out_of`. The agent cites all
+    three. The accountant may type them, with the basis in `note`, and typed values
+    count as confirmed.
+    """
+
+    share: CitedDecimal  # for example 56
+    out_of: CitedDecimal  # for example 96
+    total: CitedMoney  # the bill's total, for example $10,000
+    note: str | None = None  # the basis in the accountant's words, when they type the share
+
+    @model_validator(mode="after")
+    def _positive(self):
+        if self.out_of.value <= 0 or self.share.value < 0 or self.share.value > self.out_of.value:
+            raise ValueError("a share is between 0 and the whole, and the whole is more than 0")
+        return self
+
+    def amount(self) -> Decimal:
+        """The worked-out amount in cents, not rounded."""
+        return Decimal(self.total.value) * self.share.value / self.out_of.value
+
+    def matches(self, cents: int) -> bool:
+        """Whether an amount matches the worked-out share to within one cent (0021), since
+        a three-way split can't divide evenly."""
+        return abs(self.amount() - cents) <= 1
+
+
 class Link(Model):
     """Ties a fact to a charge.
 
@@ -481,11 +565,17 @@ class Link(Model):
     item_record_id: Id | None = None
     default_item: Id | None = None
     reason: str | None = None  # one line on why they match
+    # Decision 0021: what a link for part of a bill rests on. At most one: a line on
+    # the bill that states the part, or a share with its cited basis.
+    stated_amount: CitedMoney | None = None
+    share: ShareBasis | None = None
 
     @model_validator(mode="after")
     def _one_item(self):
         if self.item_record_id is not None and self.default_item is not None:
             raise ValueError("a link fills at most one checklist item")
+        if self.stated_amount is not None and self.share is not None:
+            raise ValueError("a link's part rests on a stated amount or a share, not both")
         return self
 
 
@@ -657,6 +747,34 @@ class Duplicate(Model):
         return self
 
 
+class Correction(Model):
+    """Which ledger line a correcting line corrects, when the ledger names none (decision 0020).
+
+    The agent's waits for the accountant, because it changes how another charge is
+    judged. Netting starts only once it counts.
+    """
+
+    kind: Literal[RecordKind.CORRECTION] = RecordKind.CORRECTION
+    charge_id: Id  # the correcting line
+    corrects_line_id: Id  # the ledger line ID it corrects
+    reason: Text
+    quotes: tuple[Citation, ...] = ()
+
+
+class Remainder(Model):
+    """The rest of a bill belongs to another award (decision 0021).
+
+    About the bill, not a charge. The agent's waits for the accountant. Once it
+    counts, the bill's remainder isn't "money nobody charged".
+    """
+
+    kind: Literal[RecordKind.REMAINDER] = RecordKind.REMAINDER
+    record_id: Id  # the bill
+    other_award: CitedText  # the award the passage names
+    reason: Text
+    quotes: tuple[Citation, ...] = ()
+
+
 # The accountant only.
 
 
@@ -727,10 +845,33 @@ class Snooze(_Subject):
 
 
 class SignOff(Model):
-    """The accountant signs off on the grant's evidence report."""
+    """The accountant signs off on the grant's evidence report (decision 0022).
+
+    The accountant sends only the note. The server stores the report and fills in
+    where it's stored, its checksum and the snapshot of what counts as a change.
+    """
 
     kind: Literal[RecordKind.SIGN_OFF] = RecordKind.SIGN_OFF
     note: str | None = None
+    report_path: Text  # the stored PDF, in private storage; never made again
+    report_sha256: Text
+    snapshot: SignOffSnapshot
+
+
+class MailAction(StrEnum):
+    LET_IN = "let_in"  # the message arrives at that moment, as evidence files
+    DISMISS = "dismiss"  # it stays stored and unread
+
+
+class MailDecision(Model):
+    """The accountant lets in or dismisses one held message (decision 0025).
+
+    Adding the sender as known is a `person` term instead.
+    """
+
+    kind: Literal[RecordKind.MAIL_ACTION] = RecordKind.MAIL_ACTION
+    held_mail_id: Id
+    action: MailAction
 
 
 class Retraction(Model):
@@ -759,10 +900,13 @@ RecordData = Annotated[
     | ChecklistRemoval
     | Dispute
     | Duplicate
+    | Correction
+    | Remainder
     | Confirmation
     | AcceptedReason
     | Snooze
     | SignOff
+    | MailDecision
     | Retraction,
     Field(discriminator="kind"),
 ]
@@ -814,6 +958,10 @@ class Record(Model):
     author_user_id: Id | None = None  # set exactly when author is "user"
     written_at: UtcDatetime  # the workspace clock's "now" when it was written
     replaces_id: Id | None = None  # the record this one corrects or retracts; the old one stays
+    # The thread message whose run wrote this record. Every record the agent writes
+    # in a run a thread message started waits for the accountant, whatever its kind.
+    # Set only on the agent's records; the write check makes the run set it.
+    thread_message_id: Id | None = None
     data: RecordData
 
     @property
@@ -838,6 +986,8 @@ class Record(Model):
             raise ValueError("a record can't replace itself")
         if self.data.kind == RecordKind.RETRACTION and self.replaces_id is None:
             raise ValueError("a retraction names the record it replaces")
+        if self.author == Author.USER and self.thread_message_id is not None:
+            raise ValueError("only the agent's records carry the thread message of their run")
         if self.author == Author.AGENT:
             if self.data.kind in ACCOUNTANT_KINDS:
                 raise ValueError(f"only the accountant writes a {self.data.kind} record")
