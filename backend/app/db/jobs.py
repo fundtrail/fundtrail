@@ -487,6 +487,4 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
 @app.task(name="daily_recheck", queue=QUEUE, pass_context=False)
 def daily_recheck_task(timestamp: int) -> None:
     """Shortly after midnight UTC: time alone can change a status in a real workspace."""
-    from .clock import daily_recheck
-
-    daily_recheck(get_platform())
+    clock.daily_recheck(get_platform())
