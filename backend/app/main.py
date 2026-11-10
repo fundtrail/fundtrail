@@ -2,7 +2,10 @@
 
 from fastapi import FastAPI
 
-app = FastAPI(title="FundTrail")
+from app.api import lifespan, router
+
+app = FastAPI(title="FundTrail", lifespan=lifespan)
+app.include_router(router)
 
 
 @app.get("/health")
