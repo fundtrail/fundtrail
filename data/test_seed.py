@@ -1,18 +1,16 @@
-"""Checks the demo seed and the from-scratch seed pack.
+"""Checks the two sample grants and the two unused seed grants.
 
 - The files on disk are exactly what data/generator/build.py makes (photos
   aside, which depend on the machine's fonts), so nobody edits one by hand.
-- Each ledger follows docs/contracts.md section 13, each answer key section 14,
-  and each arrival schedule the eval cases' format with decision 0023's rule
-  for when a ledger line arrives.
+- Each ledger follows docs/contracts.md section 13 and each answer key section
+  14. Each timeline holds scheduled events only, and each line arrives by
+  decision 0023's rule. The user actions are the script the key assumes.
 - Every value a key expects is written in its file. PDFs are read back from
   their text, and photos from the words the generator drew on them.
 - The synthetic-data rule (CLAUDE.md): award numbers start with SYN-, email
   addresses are at .example, and nothing has an em dash or an en dash.
-- What decision 0024 asks of the seed: an opening date, a grant near the end
-  of its period, arrivals after the opening date, a cost two grants share,
-  every charge with an expected bucket or listed as left out, and a pack with
-  an award letter, a ledger, emails, invoices, a photo and later lines.
+- The larger sample's timeline runs from its start into its closeout window,
+  and the small sample starts with its award letter and its ledger.
 
 Uses only the standard library, and borrows the eval cases' checks from
 eval/test_cases.py. Run it with `python3 data/test_seed.py`, or with pytest.
@@ -31,9 +29,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DATA = Path(__file__).resolve().parent
+SAMPLES = DATA / "samples"
 DEMO = DATA / "demo"
-SCRATCH = DATA / "from-scratch"
 GENERATOR = DATA / "generator"
+LARGER = SAMPLES / "salt-marsh-carbon"
+SMALL = SAMPLES / "nitrate-sensors"
 
 _spec = importlib.util.spec_from_file_location(
     "eval_case_checks", DATA.parent / "eval" / "test_cases.py"
@@ -42,7 +42,44 @@ assert _spec and _spec.loader
 ev = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ev)
 
-META_FILES = {"answer_key.json", "arrivals.json", "README.md"}
+META_FILES = {
+    "answer_key.json",
+    "timeline.json",
+    "user_actions.json",
+    "sample.json",
+    "README.md",
+}
+TIMELINE_KINDS = {"file", "ledger", "ledger_line"}
+# The accountant script (ruling 47): each action's required and optional fields,
+# besides `at`, `action` and an optional `note`. References are stable (a ledger
+# line ID, a file name, a record kind) and never record IDs.
+ACTION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
+    "confirm_terms": ({"file"}, set()),
+    "deliver_file": ({"file"}, set()),
+    # suggestion: the record kind suggested, such as checklist_removal, dispute,
+    # duplicate or link. decision: accept or reject.
+    "decide_suggestion": ({"suggestion", "decision"}, {"line_id", "file"}),
+    # The accountant's answer to the agent's flag on a charge.
+    "answer_flag": ({"line_id", "answer"}, set()),
+    # A share and its basis typed for part of a bill (decision 0021).
+    "enter_share": ({"line_id", "file", "share", "out_of", "basis"}, set()),
+}
+USER_ACTIONS = set(ACTION_FIELDS)
+DECISIONS = {"accept", "reject"}
+# SampleChoice, as issue 165 settles it. When the contract code has the enum,
+# test_sample_choices_match_the_contract reads it and compares.
+SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
+WORKSPACES_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "workspaces.py"
+SAMPLE_JSON_FIELDS = {
+    "sample",
+    "award_number",
+    "starts_at",
+    "last_event_at",
+    "ledger_lines",
+    "files",
+    "options",
+}
+OPTION_FIELDS = {"choice", "name", "description", "placeholder"}
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png"}
 CATEGORIES = ev.CATEGORIES
 ODC_SUBLINES = ev.ODC_SUBLINE_CATEGORIES
@@ -103,7 +140,7 @@ PHOTO_SHA256 = {
     "demo/coastal-microbial-genomics/taxi_receipt_ocean_sciences_2026.jpg": (
         "3210e49710071f2bfb82d3bf6a528c731ecc62a6f55baf2d6fac80c98217f310"
     ),
-    "from-scratch/pack/hardware_receipt.jpg": (
+    "samples/nitrate-sensors/hardware_receipt.jpg": (
         "384fbd3a259b36408c6e5ec0004ec178359e4be02ac8e90d0f5cfe659e953827"
     ),
 }
@@ -122,19 +159,17 @@ def pdf_text(data: bytes) -> str:
     return "\n".join(lines)
 
 
-def generated() -> dict[Path, object]:
+def generated() -> dict:
     """Runs the generator in memory: each folder's Grant, by the folder it writes."""
     sys.path.insert(0, str(GENERATOR))
     try:
-        import demo
-        import scratch
+        import build
     finally:
         sys.path.pop(0)
-    grants, left_out = demo.build()
-    out: dict[Path, object] = {DEMO / g.slug: g for g in grants}
-    out[SCRATCH] = scratch.build()
-    out["left_out"] = left_out  # type: ignore[index]
-    out["opening"] = demo.OPENING  # type: ignore[index]
+    samples, unused = build.built()
+    out: dict = {SAMPLES / name: g for name, g in samples.items()}
+    out.update({DEMO / g.slug: g for g in unused})
+    out["sample_json"] = build.sample_json
     return out
 
 
@@ -148,11 +183,9 @@ def gen() -> dict:
     return _GENERATED
 
 
-def folders() -> list[tuple[Path, Path]]:
-    """(where the key is, where the files are) for each grant and the pack."""
-    out = [(p, p) for p in sorted(DEMO.iterdir()) if p.is_dir()]
-    out.append((SCRATCH, SCRATCH / "pack"))
-    return out
+def folders() -> list[Path]:
+    """Each sample's folder, then each unused grant's."""
+    return [p for root in (SAMPLES, DEMO) for p in sorted(root.iterdir()) if p.is_dir()]
 
 
 def texts(files: Path, grant) -> dict[str, str]:
@@ -191,10 +224,14 @@ def check_generated(key_dir: Path, files: Path, grant, problems: list[str]) -> N
                 problems.append(f"{rel}: isn't the photo the test knows (PHOTO_SHA256)")
         elif path.read_bytes() != data:
             problems.append(f"{name}: differs from the generator's output; run build.py")
-    for fname, made in (
+    made_files = [
         ("answer_key.json", grant.key_json()),
-        ("arrivals.json", grant.arrivals_json()),
-    ):
+        ("timeline.json", grant.timeline_json()),
+        ("user_actions.json", grant.user_actions_json()),
+    ]
+    if key_dir.parent == SAMPLES:
+        made_files.append(("sample.json", gen()["sample_json"](grant)))
+    for fname, made in made_files:
         path = key_dir / fname
         if not path.is_file():
             problems.append(f"{fname} is missing")
@@ -233,21 +270,28 @@ def check_ledger(files: Path, problems: list[str]) -> dict[str, dict[str, str]]:
     return lines
 
 
-def check_arrivals(
-    key_dir: Path, files: Path, lines: dict, ledger_upload: datetime | None, problems: list[str]
+def check_timeline(
+    key_dir: Path, files: Path, lines: dict, problems: list[str]
 ) -> dict[str, datetime]:
-    sched = json.loads((key_dir / "arrivals.json").read_text(encoding="utf-8"))
+    """Reads the timeline and the user actions. Returns when each line and file
+    arrives in the play the key assumes, and when each user action happens."""
+    timeline = json.loads((key_dir / "timeline.json").read_text(encoding="utf-8"))
+    actions = json.loads((key_dir / "user_actions.json").read_text(encoding="utf-8"))
     out: dict[str, datetime] = {}
-    if set(sched) != {"case", "events"}:
-        problems.append("arrivals.json: must have exactly case and events")
+    if set(timeline) != {"sample", "starts_at", "events"}:
+        problems.append("timeline.json: must have exactly sample, starts_at and events")
+        return out
+    if set(actions) != {"sample", "actions"}:
+        problems.append("user_actions.json: must have exactly sample and actions")
         return out
     documents = {p.name for p in files.iterdir() if p.is_file() and p.name not in META_FILES}
     documents.discard("ledger.csv")
     seen_files: dict[str, int] = {}
     seen_lines: dict[str, int] = {}
+    ledger_at: datetime | None = None
     last = None
-    for i, e in enumerate(sched["events"]):
-        where = f"arrivals.json events[{i}]"
+    for i, e in enumerate(timeline["events"]):
+        where = f"timeline.json events[{i}]"
         if not ev.ISO_TIME.match(str(e.get("at"))):
             problems.append(f"{where}: bad at")
             continue
@@ -257,12 +301,15 @@ def check_arrivals(
         last = t
         kind = e.get("kind")
         if kind == "file":
-            allowed = {"at", "kind", "file", "source", "sender", "note"}
+            allowed = {"at", "kind", "file", "source", "sender", "deliver", "note"}
             name = e.get("file")
             if name not in documents:
                 problems.append(f"{where}: {name!r} isn't a document")
             seen_files[name] = seen_files.get(name, 0) + 1
-            out[f"file:{name}"] = t
+            # A file marked for the user arrives only when the user delivers it
+            # (ruling 44); the clock never does.
+            if e.get("deliver") != "user":
+                out[f"file:{name}"] = t
             if e.get("source") not in ev.SOURCES:
                 problems.append(f"{where}: bad source")
             if e.get("source") == "gmail":
@@ -270,6 +317,13 @@ def check_arrivals(
                     problems.append(f"{where}: a gmail arrival needs a .example sender")
             elif "sender" in e:
                 problems.append(f"{where}: only a gmail arrival has a sender")
+            if e.get("deliver", "user") != "user":
+                problems.append(f"{where}: deliver can only be user")
+        elif kind == "ledger":
+            allowed = {"at", "kind", "file", "note"}
+            if e.get("file") != "ledger.csv" or ledger_at is not None:
+                problems.append(f"{where}: one ledger event, for ledger.csv")
+            ledger_at = t
         elif kind == "ledger_line":
             allowed = {"at", "kind", "line_id", "note"}
             lid = e.get("line_id")
@@ -277,32 +331,60 @@ def check_arrivals(
             out[f"line:{lid}"] = t
             if lid not in lines:
                 problems.append(f"{where}: {lid!r} isn't in ledger.csv")
-                continue
-            # Decision 0023: 00:00 UTC on its posting date if that's still ahead
-            # of "now", and otherwise now. A seeded line arrives on its posting date.
-            posting = ev.parse_time(f"{lines[lid]['posting_date']}T00:00:00Z")
-            want = max(posting, ledger_upload) if ledger_upload else posting
-            if t != want:
-                problems.append(f"{where}: {lid} should arrive at {want:%Y-%m-%dT%H:%M:%SZ}")
-        elif kind == "accountant":
-            allowed = {"at", "kind", "action", "file", "note"}
-            if e.get("action") not in ev.ACCOUNTANT_ACTIONS:
-                problems.append(f"{where}: bad action")
-            arrived = out.get(f"file:{e.get('file')}")
-            if arrived is None or arrived >= t:
-                problems.append(f"{where}: the accountant acts on a file that has arrived")
-            out[f"{e.get('action')}:{e.get('file')}"] = t
+            elif t != ev.parse_time(f"{lines[lid]['posting_date']}T00:00:00Z"):
+                problems.append(f"{where}: a seeded line arrives at 00:00 UTC on its posting date")
         else:
             problems.append(f"{where}: bad kind {kind!r}")
             continue
         if extra := set(e) - allowed:
             problems.append(f"{where}: unknown fields {sorted(extra)}")
+    if ledger_at is not None:
+        if seen_lines:
+            problems.append("timeline.json: a ledger event and ledger_line events together")
+        # Decision 0023: a line arrives at the later of the ledger's arrival and
+        # 00:00 UTC on its posting date.
+        for lid, row in lines.items():
+            posting = ev.parse_time(f"{row['posting_date']}T00:00:00Z")
+            out[f"line:{lid}"] = max(ledger_at, posting)
+            seen_lines[lid] = 1
     for name in sorted(documents):
         if seen_files.get(name) != 1:
-            problems.append(f"arrivals.json: {name} must arrive exactly once")
+            problems.append(f"timeline.json: {name} must arrive exactly once")
     for lid in sorted(lines):
         if seen_lines.get(lid) != 1:
-            problems.append(f"arrivals.json: {lid} must arrive exactly once")
+            problems.append(f"timeline.json: {lid} must arrive exactly once")
+
+    for i, a in enumerate(actions["actions"]):
+        where = f"user_actions.json actions[{i}]"
+        if a.get("action") not in USER_ACTIONS or not ev.ISO_TIME.match(str(a.get("at"))):
+            problems.append(f"{where}: needs at and an action in {sorted(USER_ACTIONS)}")
+            continue
+        required, optional = ACTION_FIELDS[a["action"]]
+        given = set(a) - {"at", "action", "note"}
+        if not required <= given or given - required - optional:
+            problems.append(
+                f"{where}: {a['action']} takes {sorted(required)}, and may take {sorted(optional)}"
+            )
+            continue
+        if a["action"] == "decide_suggestion" and (
+            a["decision"] not in DECISIONS or not ({"line_id", "file"} & given)
+        ):
+            problems.append(f"{where}: a decision is accept or reject, about a line or a file")
+        if a["action"] == "answer_flag" and a["answer"] not in ev.ANSWERS:
+            problems.append(f"{where}: answer must be one of {sorted(ev.ANSWERS)}")
+        t = ev.parse_time(a["at"])
+        out[f"{a['action']}:{a.get('line_id') or a.get('file')}"] = t
+        if a["action"] == "answer_flag":
+            out[f"answer_flag_value:{a['line_id']}"] = a["answer"]  # type: ignore[assignment]
+        if a["action"] == "enter_share":
+            out[f"enter_share_value:{a['line_id']}"] = (  # type: ignore[assignment]
+                a["file"],
+                int(a["share"]),
+                int(a["out_of"]),
+            )
+        if a["action"] == "deliver_file":
+            # A file marked for the user arrives when the user brings it in.
+            out[f"file:{a['file']}"] = t
     return out
 
 
@@ -653,6 +735,15 @@ def check_invariants(
                 continue
             if amount in items[name] or used[name] == totals[name]:
                 continue
+            typed = arrivals.get(f"enter_share_value:{lid}")
+            if typed and typed[0] == name:  # type: ignore[index]
+                _, share, out_of = typed  # type: ignore[misc]
+                want = totals[name] * share / out_of
+                if abs(amount - want) > 1:
+                    problems.append(
+                        f"links {lid}: {amount} cents isn't the scripted share {share} of "
+                        f"{out_of} of {name}'s {totals[name]} cents ({want:.2f})"
+                    )
             if not notes:
                 unbased.add(lid)
                 continue
@@ -674,6 +765,15 @@ def check_invariants(
     }
     assigned = {b["line_id"]: b["budget_line"] for b in key["budget_lines"]}
     doubtful = {a["line_id"] for a in key["answers"] if a["answer"] != "supports"}
+    flagged_only = {
+        lid
+        for lid in doubtful
+        if all(
+            a["question"] == "flag"
+            for a in key["answers"]
+            if a["line_id"] == lid and a["answer"] != "supports"
+        )
+    }
     for item in key["buckets"]:
         if item["bucket"] != "evidence_complete":
             continue
@@ -683,11 +783,19 @@ def check_invariants(
         start, end = period_in_force(key, arrivals, when)
         if start is None or end is None or not start <= cost <= end:
             problems.append(f"{where}: complete, but {cost} is outside the period in force")
-        if lid in doubtful:
+        answered = arrivals.get(f"answer_flag:{lid}")
+        cleared = (
+            lid in flagged_only
+            and answered is not None
+            and answered < when
+            and arrivals.get(f"answer_flag_value:{lid}") == "supports"
+        )
+        if lid in doubtful and not cleared:
             problems.append(f"{where}: complete, but an answer isn't supports")
         if not links_by_line.get(lid):
             problems.append(f"{where}: complete with nothing linked")
-        if lid in unbased:
+        shared = arrivals.get(f"enter_share:{lid}")
+        if lid in unbased and (shared is None or shared >= when):
             problems.append(f"{where}: complete on part of a bill with no basis (0021)")
         account = account_categories(lines[lid]["account"])
         category = line_category.get(assigned.get(lid, ""))
@@ -698,14 +806,15 @@ def check_invariants(
             )
 
 
-def folder_inputs(key_dir: Path, files: Path, grant, ledger_upload, problems: list[str]):
-    text = texts(files, grant)
-    lines = check_ledger(files, problems)
-    arrivals = check_arrivals(key_dir, files, lines, ledger_upload, problems)
+def folder_inputs(key_dir: Path, grant, problems: list[str]):
+    text = texts(key_dir, grant)
+    lines = check_ledger(key_dir, problems)
+    arrivals = check_timeline(key_dir, key_dir, lines, problems)
     return lines, arrivals, text
 
 
-def check_folder(key_dir: Path, files: Path, grant, ledger_upload: datetime | None) -> list[str]:
+def check_folder(key_dir: Path, grant) -> list[str]:
+    files = key_dir
     problems: list[str] = []
     check_generated(key_dir, files, grant, problems)
     text = texts(files, grant)
@@ -713,7 +822,7 @@ def check_folder(key_dir: Path, files: Path, grant, ledger_upload: datetime | No
         if d.name.endswith(".pdf") and d.name in text and text[d.name] != d.text.rstrip("\n"):
             problems.append(f"{d.name}: its PDF text doesn't read back as written")
     lines = check_ledger(files, problems)
-    arrivals = check_arrivals(key_dir, files, lines, ledger_upload, problems)
+    arrivals = check_timeline(key_dir, files, lines, problems)
     check_key(key_dir, lines, arrivals, text, grant.award_number, problems)
     check_synthetic(files, text, problems)
     return [f"{key_dir.name}: {p}" for p in problems]
@@ -724,11 +833,9 @@ def check_folder(key_dir: Path, files: Path, grant, ledger_upload: datetime | No
 
 def test_files_and_keys() -> None:
     g = gen()
-    pack = json.loads((SCRATCH / "pack.json").read_text(encoding="utf-8"))
     problems = []
-    for key_dir, files in folders():
-        upload = ev.parse_time(pack["ledger_uploaded_at"]) if key_dir == SCRATCH else None
-        problems += check_folder(key_dir, files, g[key_dir], upload)
+    for folder in folders():
+        problems += check_folder(folder, g[folder])
     assert not problems, "\n".join(problems)
 
 
@@ -741,9 +848,9 @@ def test_invariants_catch_false_clears() -> None:
     g = gen()
 
     def run(folder: str, edit) -> list[str]:
-        key_dir = DEMO / folder
+        key_dir = SAMPLES / folder if (SAMPLES / folder).is_dir() else DEMO / folder
         problems: list[str] = []
-        lines, arrivals, text = folder_inputs(key_dir, key_dir, g[key_dir], None, problems)
+        lines, arrivals, text = folder_inputs(key_dir, g[key_dir], problems)
         key = json.loads((key_dir / "answer_key.json").read_text(encoding="utf-8"))
         ref = {lid: row["reference"] for lid, row in lines.items()}
         edit(key, ref)
@@ -777,59 +884,296 @@ def test_account_categories_match_the_table() -> None:
     assert dict(ACCOUNT_CATEGORIES) == table_from_source(ACCOUNT_GROUPS_SOURCE)
 
 
-def test_seed_story() -> None:
-    """What decision 0024 asks of the demo seed."""
-    g = gen()
-    seed = json.loads((DEMO / "seed.json").read_text(encoding="utf-8"))
-    opening = ev.parse_time(seed["opening_at"])
-    assert opening == g["opening"]
-    grants = [g[DEMO / s["folder"]] for s in seed["grants"]]
-    assert len(grants) >= 2
-    # One grant near the end of its period: inside its 90-day closeout window.
-    assert any(
-        timedelta(0)
-        < datetime.combine(x.end, datetime.min.time(), opening.tzinfo) - opening
-        <= timedelta(days=90)
-        for x in grants
-    )
-    # More arrivals after the opening date, for the clock to release.
-    for x in grants:
-        assert any(d.at > opening for d in x.docs) or any(
-            x.line_arrival(ln) > opening for ln in x.lines
-        ), f"{x.slug} has nothing arriving after the opening date"
-    # At least two grants share a cost: the same bill, on each grant's own copy.
-    by_hash: dict[str, set[str]] = {}
-    for x in grants:
-        for d in x.docs:
-            if d.name.startswith("invoice_"):
-                by_hash.setdefault(hashlib.sha256(d.data).hexdigest(), set()).add(x.slug)
-    assert any(len(v) >= 2 for v in by_hash.values()), "no cost is shared by two grants"
-    # Ledger line IDs are unique in the workspace (contracts.md section 6).
-    ids = [ln.line_id for x in grants for ln in x.lines]
-    assert len(ids) == len(set(ids))
-    # Every charge has an expected bucket, or is listed as left out.
-    for s, x in zip(seed["grants"], grants, strict=True):
-        key = json.loads((DEMO / s["folder"] / "answer_key.json").read_text(encoding="utf-8"))
-        with_bucket = {b["line_id"] for b in key["buckets"]}
-        left_out = set(s["lines_without_buckets"])
-        for ln in x.lines:
-            assert (ln.line_id in with_bucket) != (ln.line_id in left_out), ln.line_id
+# ---------------------------------------------------------------- samples
 
 
-def test_from_scratch_pack() -> None:
-    """Decision 0024: an award letter, a ledger, emails, invoices, a receipt photo."""
-    g = gen()
-    opening = g["opening"]
-    names = [p.name for p in (SCRATCH / "pack").iterdir() if p.is_file()]
-    assert sum(n.startswith("award_letter.") for n in names) == 1
-    assert "ledger.csv" in names
+def load(folder: Path, name: str) -> dict:
+    return json.loads((folder / name).read_text(encoding="utf-8"))
+
+
+def check_no_user_decision(folder: Path, problems: list[str]) -> None:
+    """A timeline holds scheduled events only. Confirming terms, accepting a
+    suggestion or delivering a file is the user's, never a scheduled event."""
+    for i, e in enumerate(load(folder, "timeline.json")["events"]):
+        if e.get("kind") not in TIMELINE_KINDS or "action" in e:
+            problems.append(f"{folder.name}: timeline event {i} is a user decision, not a schedule")
+
+
+def check_user_actions(folder: Path, problems: list[str]) -> None:
+    """Each user action is possible at its time.
+
+    - confirm_terms: the file has arrived on the timeline, or the user brought
+      it in, before the action.
+    - deliver_file: the file is marked for the user, and the user brings it in
+      on or after its date (ruling 44: the clock never delivers it).
+    - Any action about a ledger line comes after the line arrives, and any
+      action about a file after the file arrives.
+    - answer_flag answers a flag the key expects on that line; enter_share is
+      for a part of a bill the key links to that line.
+    """
+    events = load(folder, "timeline.json")["events"]
+    scheduled = {e["file"]: e for e in events if e.get("kind") == "file"}
+    actions = load(folder, "user_actions.json")["actions"]
+    key = load(folder, "answer_key.json")
+    delivered = {
+        a["file"]: ev.parse_time(a["at"]) for a in actions if a["action"] == "deliver_file"
+    }
+    ledger_at = next((ev.parse_time(e["at"]) for e in events if e["kind"] == "ledger"), None)
+    line_at = {}
+    with (folder / "ledger.csv").open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            posting = ev.parse_time(f"{row['posting_date']}T00:00:00Z")
+            line_at[row["line_id"]] = max(posting, ledger_at) if ledger_at else posting
+    for a in actions:
+        where = f"{folder.name}: user action {a['action']} {a.get('line_id') or a.get('file')}"
+        at = ev.parse_time(a["at"])
+        lid = a.get("line_id")
+        if lid is not None and (lid not in line_at or at <= line_at[lid]):
+            problems.append(f"{where}: comes before its ledger line arrives")
+        if a["action"] == "answer_flag" and not any(
+            x["line_id"] == lid and x["question"] == "flag" for x in key["answers"]
+        ):
+            problems.append(f"{where}: the key expects no flag on this line to answer")
+        if a["action"] == "enter_share" and not any(
+            x["line_id"] == lid and x["file"] == a["file"] and "amount_cents" in x
+            for x in key["links"]
+        ):
+            problems.append(f"{where}: the key links no part of this bill to the line")
+        if "file" not in a:
+            continue
+        event = scheduled.get(a["file"])
+        if event is None:
+            problems.append(f"{where}: its file isn't on the timeline")
+            continue
+        clock_at = ev.parse_time(event["at"])
+        if a["action"] == "deliver_file":
+            if event.get("deliver") != "user":
+                problems.append(f"{where}: the file isn't marked for the user to deliver")
+            if at < clock_at:
+                problems.append(f"{where}: comes before the file's date")
+        else:
+            marked = event.get("deliver") == "user"
+            arrived = delivered.get(a["file"]) if marked else clock_at
+            if arrived is None or at <= arrived:
+                problems.append(f"{where}: comes before its file arrives")
+
+
+def check_sample_json(folder: Path, problems: list[str]) -> list[str]:
+    """sample.json agrees with the timeline and the key, and its options are
+    SampleChoice values with a name and a description. Returns its choices."""
+    meta = load(folder, "sample.json")
+    timeline = load(folder, "timeline.json")
+    key = load(folder, "answer_key.json")
+    where = f"{folder.name}: sample.json"
+    if set(meta) != SAMPLE_JSON_FIELDS:
+        problems.append(f"{where}: fields must be exactly {sorted(SAMPLE_JSON_FIELDS)}")
+        return []
+    if meta["sample"] != folder.name or timeline["sample"] != folder.name:
+        problems.append(
+            f"{where}: sample must be the folder's name, in sample.json and the timeline"
+        )
+    if meta["award_number"] != key["award_number"]:
+        problems.append(f"{where}: award_number differs from the answer key's")
+    if meta["starts_at"] != timeline["starts_at"]:
+        problems.append(f"{where}: starts_at differs from the timeline's")
+    events = timeline["events"]
+    if events and meta["starts_at"] != events[0]["at"]:
+        problems.append(f"{where}: starts_at isn't the first scheduled event")
+    if (
+        events
+        and meta["last_event_at"] != events[-1]["at"]
+        and not any(e["kind"] == "ledger" for e in events)
+    ):
+        problems.append(f"{where}: last_event_at isn't the last scheduled event")
+    choices = []
+    for i, option in enumerate(meta["options"]):
+        if set(option) != OPTION_FIELDS:
+            problems.append(f"{where}: option {i} must have exactly {sorted(OPTION_FIELDS)}")
+            continue
+        if option["choice"] not in SAMPLE_CHOICES:
+            problems.append(f"{where}: option {i} choice {option['choice']!r} isn't a SampleChoice")
+        for field in ("name", "description"):
+            if not (isinstance(option[field], str) and option[field].strip()):
+                problems.append(f"{where}: option {i} needs a {field}")
+        if not isinstance(option["placeholder"], bool):
+            problems.append(f"{where}: option {i} placeholder must be true or false")
+        choices.append(option["choice"])
+    return choices
+
+
+def choices_in_contract(path: Path) -> tuple[str, ...] | None:
+    """SampleChoice's values in the contract code, in order, or None before it exists."""
+    if not path.is_file():
+        return None
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ClassDef) and node.name == "SampleChoice":
+            return tuple(
+                stmt.value.value
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            )
+    return None
+
+
+def test_samples_follow_the_rule() -> None:
+    """No user decision in a timeline, every user action possible at its time,
+    and each sample.json consistent. Every SampleChoice is served by exactly one
+    sample: the small one serves small_live, the larger one the other two."""
+    problems: list[str] = []
+    served: dict[str, list[str]] = {}
+    for folder in folders():
+        check_no_user_decision(folder, problems)
+        check_user_actions(folder, problems)
+        if folder.parent == SAMPLES:
+            for choice in check_sample_json(folder, problems):
+                served.setdefault(choice, []).append(folder.name)
+    assert not problems, "\n".join(problems)
+    assert served == {
+        "small_live": [SMALL.name],
+        "larger_live": [LARGER.name],
+        "larger_prerun": [LARGER.name],
+    }, served
+
+
+def test_sample_choices_match_the_contract() -> None:
+    """Once the contract code has SampleChoice, its values are this test's."""
+    found = choices_in_contract(WORKSPACES_SOURCE)
+    assert found is None or found == SAMPLE_CHOICES, found
+
+
+def test_a_user_decision_in_a_timeline_fails() -> None:
+    """A confirmation put back into a timeline, or a delivery of an unmarked
+    file, is caught."""
+    import shutil
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / SMALL.name
+        shutil.copytree(SMALL, copy)
+        timeline = load(copy, "timeline.json")
+        timeline["events"].insert(
+            1,
+            {
+                "at": timeline["events"][0]["at"],
+                "kind": "accountant",
+                "action": "confirm_terms",
+                "file": timeline["events"][0]["file"],
+            },
+        )
+        (copy / "timeline.json").write_text(json.dumps(timeline), encoding="utf-8")
+        actions = load(copy, "user_actions.json")
+        actions["actions"].append(
+            {
+                "at": actions["actions"][0]["at"],
+                "action": "deliver_file",
+                "file": "invoice_EES-5531.pdf",
+            }
+        )
+        # A marked file delivered before its date (ruling 44).
+        for a in actions["actions"]:
+            if a["action"] == "deliver_file" and a["file"] == "hardware_receipt.jpg":
+                a["at"] = actions["actions"][0]["at"]
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        problems: list[str] = []
+        check_no_user_decision(copy, problems)
+        check_user_actions(copy, problems)
+    assert any("user decision" in p for p in problems), problems
+    assert any("isn't marked for the user" in p for p in problems), problems
+    assert any("comes before the file's date" in p for p in problems), problems
+
+
+def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
+    """S3c (no basis on file) marked complete fails without the accountant's typed
+    share in the script, passes with a share that works out to the link, and
+    fails with one that doesn't. A scripted action must also be possible at its
+    time."""
+    import shutil
+    import tempfile
+
+    folder = LARGER
+    g = gen()[folder]
+    problems: list[str] = []
+    lines, arrivals, text = folder_inputs(folder, g, problems)
+    assert not problems, problems
+    key = load(folder, "answer_key.json")
+    s3c = next(lid for lid, row in lines.items() if row["reference"] == "ECX-7702")
+    for b in key["buckets"]:
+        if b["line_id"] == s3c:
+            b["bucket"] = "evidence_complete"
+            b["at"] = "2026-03-20T12:00:00Z"
+
+    def run(share: tuple[str, int, int] | None) -> list[str]:
+        scripted = dict(arrivals)
+        if share:
+            scripted[f"enter_share:{s3c}"] = ev.parse_time("2026-03-12T17:00:00Z")
+            scripted[f"enter_share_value:{s3c}"] = share  # type: ignore[assignment]
+        out: list[str] = []
+        check_invariants(key, lines, scripted, text, out)
+        return out
+
+    assert any("no basis" in p for p in run(None))
+    assert not run(("invoice_ECX-7702.txt", 3, 5)), run(("invoice_ECX-7702.txt", 3, 5))
+    assert any("scripted share" in p for p in run(("invoice_ECX-7702.txt", 1, 2)))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / folder.name
+        shutil.copytree(folder, copy)
+        actions = load(copy, "user_actions.json")
+        actions["actions"] += [
+            {
+                "at": "2026-03-09T12:00:00Z",
+                "action": "enter_share",
+                "line_id": s3c,
+                "file": "invoice_ECX-7702.txt",
+                "share": "3",
+                "out_of": "5",
+                "basis": "Three fifths of the shared dewar's nitrogen",
+            },
+            {
+                "at": "2026-03-12T12:00:00Z",
+                "action": "answer_flag",
+                "line_id": s3c,
+                "answer": "supports",
+            },
+        ]
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        found: list[str] = []
+        check_user_actions(copy, found)
+    assert any("before its ledger line arrives" in p for p in found), found
+    assert any("no flag on this line" in p for p in found), found
+
+
+def test_larger_sample() -> None:
+    """The larger sample reaches closeout: its timeline starts with its award
+    letter and runs past the start of its 90-day closeout window."""
+    g = gen()[LARGER]
+    end = datetime.combine(g.end, datetime.min.time(), g.first_event_at().tzinfo)
+    assert g.docs[0].name.startswith("award_letter.") and g.docs[0].at == g.first_event_at()
+    assert g.last_event_at() > end - timedelta(days=90), "never reaches its closeout window"
+
+
+def test_small_sample() -> None:
+    """The small sample starts with its award letter, then its ledger, and has
+    emails, invoices, a photo, later lines and files marked for the user."""
+    g = gen()[SMALL]
+    events = json.loads((SMALL / "timeline.json").read_text(encoding="utf-8"))["events"]
+    assert events[0]["kind"] == "file" and events[0]["file"].startswith("award_letter.")
+    assert events[1]["kind"] == "ledger"
+    names = [d.name for d in g.docs]
     assert any(n.endswith(".eml") for n in names)
     assert any(n.startswith("invoice_") for n in names)
     assert any(Path(n).suffix in PHOTO_SUFFIXES for n in names)
-    assert not META_FILES & set(names), "the pack holds only what the user drops in"
-    with (SCRATCH / "pack" / "ledger.csv").open(encoding="utf-8") as fh:
-        postings = [date.fromisoformat(r["posting_date"]) for r in csv.DictReader(fh)]
-    assert any(p > opening.date() for p in postings), "no later ledger lines"
+    assert any(d.deliver == "user" for d in g.docs), "no file marked for the user"
+    assert any(g.line_arrival(ln) > g.ledger_at for ln in g.lines), "no later ledger lines"
+
+
+def test_line_ids_are_unique() -> None:
+    """Ledger line IDs are unique across every grant (contracts.md section 6)."""
+    g = gen()
+    ids = [ln.line_id for folder in folders() for ln in g[folder].lines]
+    assert len(ids) == len(set(ids))
 
 
 if __name__ == "__main__":
@@ -838,8 +1182,13 @@ if __name__ == "__main__":
         test_files_and_keys,
         test_invariants_catch_false_clears,
         test_account_categories_match_the_table,
-        test_seed_story,
-        test_from_scratch_pack,
+        test_samples_follow_the_rule,
+        test_sample_choices_match_the_contract,
+        test_a_user_decision_in_a_timeline_fails,
+        test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action,
+        test_larger_sample,
+        test_small_sample,
+        test_line_ids_are_unique,
     ):
         try:
             test()

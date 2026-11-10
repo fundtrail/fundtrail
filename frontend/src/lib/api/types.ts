@@ -52,10 +52,12 @@ export interface Grant {
   sample?: GrantSample | null;
 }
 
-// --- Sample grants (ruling 40, issue 165). Not in the contract code yet: these
-// follow the shapes the contracts PR is writing, and change with it. ---
+// --- Sample grants (ruling 40, issue 165), as in workspaces.py, api.py and timeline.py. ---
 
 export type SampleChoice = "small_live" | "larger_live" | "larger_prerun";
+
+/** A workspace member's role (issue 160): the person who signs in, or the workspace's sample accountant. */
+export type MemberRole = "owner" | "sample";
 
 export interface GrantSample {
   /** The sample pack's ID, for example "nitrate-sensors". */
@@ -228,6 +230,8 @@ export interface BudgetLine {
   name: CitedText;
   amount: CitedMoney;
   category: BudgetCategory;
+  /** The evidence file of the notice (award letter or amendment) the line belongs to (issue 104). */
+  notice_file_id?: Id | null;
 }
 export interface Person {
   kind: "person";
@@ -646,7 +650,7 @@ export interface HeldMail {
   held_at: IsoDatetime;
   /** The message first, then its attachments. */
   files: HeldFile[];
-  /** The message's files that weren't taken in. Not in the contract yet: #43 adds it. */
+  /** The message's files that weren't taken in. */
   skipped?: SkippedFile[];
 }
 
@@ -784,13 +788,19 @@ export interface SampleCreate {
   confirmed?: boolean;
 }
 
-export type SampleRefusalReason = "needs_confirm" | "history_reading";
+/**
+ * "needs_confirm": opening the larger read-live sample needs the user's confirm.
+ * "another_sample_working": moving a larger read-live sample's clock waits
+ * while another of the user's larger read-live samples still has agent runs
+ * from its last move.
+ */
+export type SampleRefusalReason = "needs_confirm" | "another_sample_working";
 
-/** The 409 detail when opening a sample or starting one over is refused (ruling 41). */
+/** The 409 detail when opening a sample or moving its clock is refused (ruling 41). */
 export interface SampleRefusal {
   reason: SampleRefusalReason;
   message: string;
-  /** The grant that blocks it, for history_reading. */
+  /** The grant that blocks it, for another_sample_working. */
   grant?: GrantSummary | null;
 }
 
@@ -854,6 +864,11 @@ export interface TimelineMove {
   to?: IsoDatetime | null;
   /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
   skip_human_steps?: boolean;
+}
+
+/** POST /grants/{grant_id}/timeline/start-over. */
+export interface TimelineStartOver {
+  confirmed: boolean;
 }
 
 export interface TermView {

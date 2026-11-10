@@ -25,6 +25,7 @@ import {
 } from "@/lib/api";
 import { date, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { grantName } from "../GrantList";
 import "./timeline.css";
 
 const SOURCE_WORDS: Record<ArrivalSource, string> = {
@@ -99,8 +100,13 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
                   ))}
                 </ul>
               )}
-              {(p.charge_ids ?? []).map((chargeId) => (
-                <Link key={chargeId} className="ft-link" href={routes.charge(grantId, chargeId)}>
+              {(p.charge_ids ?? []).map((chargeId, i, all) => (
+                <Link
+                  key={chargeId}
+                  className="ft-link"
+                  href={routes.charge(grantId, chargeId)}
+                  aria-label={`Open the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`}
+                >
                   Open the charge
                 </Link>
               ))}
@@ -112,11 +118,12 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
   );
 }
 
-/** Saves a file from a link: a signed link, or a data: link in fake mode. */
-function saveFrom(url: string, name: string) {
+/** Opens a file's link in a new tab: a signed link is on another origin, where a download name is ignored. */
+function openFile(url: string, name: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
+  a.target = "_blank";
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
@@ -144,7 +151,7 @@ function Delivery({
           type="button"
           className="ft-btn ft-btn--sm"
           disabled={busy}
-          onClick={() => void act(async () => saveFrom((await api.deliveryFileUrl(grantId, event.id)).url, event.name))}
+          onClick={() => void act(async () => openFile((await api.deliveryFileUrl(grantId, event.id)).url, event.name))}
         >
           Get the file
         </button>
@@ -289,7 +296,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const refresh = useRefresh();
   const timeline = useTimeline(grantId);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ text: string; grant: GrantSummary | null } | null>(null);
   // Ruling 47: Next event and Go to a date can let the sample accountant do the human steps.
   const [skip, setSkip] = useState(false);
   const skipId = useId();
@@ -309,10 +316,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
     } catch (error) {
       setProblem(
         error instanceof SampleRefusalError
-          ? error.refusal.message
-          : error instanceof ApiError && typeof error.detail === "string"
-            ? error.detail
-            : "That didn't work. Try again.",
+          ? { text: error.refusal.message, grant: error.refusal.grant ?? null }
+          : { text: error instanceof ApiError && typeof error.detail === "string" ? error.detail : "That didn't work. Try again.", grant: null },
       );
       return false;
     } finally {
@@ -360,7 +365,16 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           )}
           {problem && (
             <p className="ft-error" role="alert">
-              {problem}
+              {problem.text}
+              {/* A refused move names the sample that's still working. */}
+              {problem.grant && (
+                <>
+                  {" "}
+                  <Link className="ft-link" href={routes.grant(problem.grant.grant.id)}>
+                    Open {grantName(problem.grant)}
+                  </Link>
+                </>
+              )}
             </p>
           )}
           <div className="ft-tl__parts">
