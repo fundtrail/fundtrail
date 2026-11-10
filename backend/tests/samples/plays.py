@@ -23,9 +23,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from app.contracts.checks import Bucket, ChecksInput
-from app.contracts.records import TERM_KINDS, Record, citations
-from app.contracts.rules import RecordState, run_read_point
+from app.contracts.charges import Charge
+from app.contracts.checks import Bucket, ChecksInput, ChecksOutput
+from app.contracts.records import Record
+from app.contracts.rules import run_read_point
 from app.contracts.workspaces import Grant
 from app.db import store
 from app.db.platform import Platform
@@ -127,6 +128,14 @@ def store_agent_records(p: Platform, grant: Grant, mapping: Mapping, raw: list[A
 
 def bucket_at(p: Platform, grant: Grant, line_id: str, at: datetime) -> Bucket | None:
     """The real checks' bucket for a line at `at`, over everything visible then."""
+    charges, output = checks_at(p, grant, at)
+    charge = next(c for c in charges if c.ledger_line_id == line_id)
+    status = next((s for s in output.charges if s.charge_id == charge.id), None)
+    return status.bucket if status else None
+
+
+def checks_at(p: Platform, grant: Grant, at: datetime) -> tuple[list[Charge], ChecksOutput]:
+    """The checks' output at `at`, over everything on the grant visible then."""
     with transaction(p.pool) as conn:
         charges = store.list_charges(conn, grant.id, at)
         output = p.checks.run_checks(
@@ -139,9 +148,7 @@ def bucket_at(p: Platform, grant: Grant, line_id: str, at: datetime) -> Bucket |
                 skipped_files=tuple(store.list_skipped(conn, grant.id, at)),
             )
         )
-    charge = next(c for c in charges if c.ledger_line_id == line_id)
-    status = next((s for s in output.charges if s.charge_id == charge.id), None)
-    return status.bucket if status else None
+    return charges, output
 
 
 @dataclass(frozen=True)
@@ -180,7 +187,11 @@ def play_everything(
     p: Platform, user_id: str, grant: Grant, act: Act, *, after_each_move: Callable[[], None]
 ) -> Result:
     """The checks-only do-everything play on an opened sample grant. `act` performs one of
-    the user's actions through the API; `after_each_move` runs anything the move queued."""
+    the user's actions through the API; `after_each_move` runs anything the move queued.
+
+    It doesn't drain the agent runs the moves queue unless `after_each_move` does: the
+    records come from agent_records.json, and the key's buckets are worked out by the
+    checks directly, so the play needs no run to finish."""
     assert grant.sample is not None
     pack = player.pack_for(grant.sample.sample)
     mapping = Mapping(pack, grant)
@@ -207,20 +218,44 @@ def play_everything(
     return result
 
 
-def terms_from(p: Platform, grant: Grant, file_id: str) -> list[str]:
-    """The agent's terms read from a file that wait for the accountant: what confirming a
-    letter's terms confirms."""
-    with transaction(p.pool) as conn:
-        now = store.get_grant(conn, grant.id)
-        assert now is not None and now.clock_now is not None
-        records = store.list_records(conn, grant.id, now.clock_now)
-        files = store.list_files(conn, grant.id, now.clock_now)
-    state = RecordState(records, files)
-    return [
-        r.id
-        for r in state.waiting()
-        if r.kind in TERM_KINDS and any(c.file_id == file_id for c in citations(r.data))
-    ]
+def act_through_api(api: Any) -> Act:
+    """The user's scripted steps through the API's ordinary routes, as the test user: each
+    resolved against the grant (app.samples.script), then written as the screens would.
+    In a checks-only play every step's target is there."""
+    import mimetypes
+
+    from app.samples.script import DeliverFile, SignOff, WriteRecord, resolve
+    from tests.db.platform_fixtures import run_worker_until_idle
+
+    def act(grant: Grant, action: UserAction, mapping: Mapping) -> None:
+        with transaction(api.platform.pool) as conn:
+            step = resolve(api.platform, conn, grant, mapping.pack, action, action.at)
+        assert step is not None, f"{action.action} at {action.at}: its target isn't there"
+        if isinstance(step, WriteRecord):
+            body = {"data": step.data, "replaces_id": step.replaces_id}
+            response = api.client.post(
+                f"/grants/{grant.id}/records", json=body, headers=api.headers
+            )
+        elif isinstance(step, DeliverFile):
+            data = mapping.pack.file_bytes(step.name)
+            media_type = mimetypes.guess_type(step.name)[0] or "application/octet-stream"
+            response = api.client.post(
+                f"/grants/{grant.id}/evidence",
+                files={"file": (step.name, data, media_type)},
+                headers=api.headers,
+            )
+        else:
+            assert isinstance(step, SignOff)
+            # A sign-off waits for the agent: let the queued runs go first.
+            run_worker_until_idle(str(api.platform.pool.conninfo))
+            response = api.client.post(
+                f"/grants/{grant.id}/records",
+                json={"data": {"kind": "sign_off", "note": step.note}},
+                headers=api.headers,
+            )
+        assert response.status_code == 201, response.text
+
+    return act
 
 
 def play_nothing(
