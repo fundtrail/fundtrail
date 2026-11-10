@@ -31,7 +31,11 @@ from app.contracts.records import (
 )
 
 
-def _key(text: str) -> str:
+def name_key(text: str) -> str:
+    """A budget line name for comparing.
+
+    No case or punctuation, no leading line letter ("F. "), no trailing "Costs".
+    """
     words = norm(text)
     words = re.sub(r"^[a-m] ", "", words)
     return re.sub(r" costs$", "", words)
@@ -40,18 +44,20 @@ def _key(text: str) -> str:
 def rule_category(view: GrantView, rule: Record) -> BudgetCategory | None:
     """The NSF category an approval rule's applies_to names, or None when code can't tell."""
     assert isinstance(rule.data, ApprovalRule)
-    target = _key(rule.data.applies_to.value)
+    target = name_key(rule.data.applies_to.value)
     lines = view.budget_lines() + [
         r for r in view.waiting_terms if r.kind == RecordKind.BUDGET_LINE
     ]
     found = {
         r.data.category
         for r in lines
-        if isinstance(r.data, BudgetLine) and _key(r.data.name.value) == target
+        if isinstance(r.data, BudgetLine) and name_key(r.data.name.value) == target
     }
     if not found:
         found = {
-            cat for cat, names in CATEGORY_NAMES.items() if any(_key(n) == target for n in names)
+            cat
+            for cat, names in CATEGORY_NAMES.items()
+            if any(name_key(n) == target for n in names)
         }
     return found.pop() if len(found) == 1 else None
 

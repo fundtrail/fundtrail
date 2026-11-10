@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from app.contracts.checks import Bucket, ChecksOutput
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 
-from .grant_builder import Grant, at, problems
+from .grant_builder import STIPENDS, Grant, at, problems
 
 
 def record_problems(out: ChecksOutput) -> dict[str, set[str]]:
@@ -222,3 +222,45 @@ def test_an_overspent_budget_line_is_a_note_not_a_problem() -> None:
     out = g.run(at(2024, 3, 2))
     assert out.grants == ()
     assert [n.text for n in out.notes] == ["Materials and Supplies: $42,000.00 of $40,000.00"]
+
+
+def _stipend_overspend(g: Grant, line: str) -> list[str]:
+    g.charge("stip", date(2024, 3, 1), 2_500_000, account=STIPENDS, vendor=None)
+    g.assign("stip", line, at(2024, 3, 1))
+    return [n.text for n in g.run(at(2024, 3, 2)).notes]
+
+
+def test_a_parent_line_and_its_sub_lines_count_the_budget_once() -> None:
+    """PSC $20,000 printed with Stipends $15,000 and Travel $5,000; $25,000 spent on stipends."""
+    g = Grant()
+    g.standard_terms()  # prints Participant Support Costs, $20,000
+    when = at(2023, 1, 12, 15)
+    stipends = g.budget_line("Stipends", 1_500_000, "participant_support", when)
+    travel = g.budget_line("Travel", 500_000, "participant_support", when)
+    g.confirm(stipends, travel, when=at(2023, 1, 12, 17))
+    assert _stipend_overspend(g, stipends) == [
+        "Participant Support Costs: $25,000.00 of $20,000.00"
+    ]
+
+
+def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
+    g = Grant()
+    when = at(2023, 1, 12, 15)
+    stipends = g.budget_line("Stipends", 1_500_000, "participant_support", when)
+    travel = g.budget_line("Travel", 500_000, "participant_support", when)
+    g.confirm(stipends, travel, when=at(2023, 1, 12, 17))
+    assert _stipend_overspend(g, stipends) == [
+        "Participant Support Costs: $25,000.00 of $20,000.00"
+    ]
+
+
+def test_a_failed_thread_message_run_waits_on_the_grant() -> None:
+    """Until #39 gives the run its thread's subject."""
+    g = Grant()
+    g.standard_terms()
+    g.failed_runs = [_failed(Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1"))]
+    out = g.run(at(2024, 3, 2))
+    assert grant_problems(out) == {"failed:run-1"}
+    assert out.grants[0].problems[0].text == (
+        "The agent couldn't finish answering a message in a thread."
+    )

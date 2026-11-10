@@ -199,7 +199,12 @@ class Grant:
         )
 
     def approval_rule(
-        self, applies_to: str, approver: str, channel: str | None, when: datetime
+        self,
+        applies_to: str,
+        approver: str,
+        channel: str | None,
+        when: datetime,
+        scope: str | None = None,
     ) -> str:
         data: dict[str, Any] = {
             "kind": "approval_rule",
@@ -209,6 +214,8 @@ class Grant:
         }
         if channel:
             data["channel"] = cited(channel)
+        if scope is not None:  # every_charge or moved_out, once #39 adds it
+            data["scope"] = scope
         return self.agent(data, when)
 
     def notice(

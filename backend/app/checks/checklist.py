@@ -130,6 +130,8 @@ def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
         )
     # Decision 0020's two correction items, which the table doesn't hold: for a
     # line that takes money off the grant, or one that names a line it corrects.
+    # "Takes money off the grant" is a negative amount, the same test as
+    # account_groups.account_group_items uses; change the two together.
     if charge.amount_cents < 0 or charge.original_line_id:
         specs += _correction_items(charge)
     for rule in rules_for(view, charge).applying:

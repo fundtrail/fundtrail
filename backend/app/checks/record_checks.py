@@ -262,8 +262,8 @@ def record_problems(
 
     for run in failed_runs:
         # A charge's run is on the charge, and the clock's on the grant. A thread
-        # message's run would go on the charge or record its thread is about, which
-        # ChecksInput doesn't carry, so it isn't raised yet.
+        # message's run waits on the grant (grant_checks.py) until the run carries
+        # its thread's subject (#39); then it moves here, onto that record.
         subject: Subject | None = None
         if run.trigger.kind == TriggerKind.FILE and run.trigger.id in view.files:
             subject = Subject(file_id=run.trigger.id)

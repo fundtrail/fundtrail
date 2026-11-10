@@ -6,15 +6,23 @@ limit, a funding notice whose totals don't add up, and a skipped amendment numbe
 An overspent budget line is a grant note, not a problem.
 
 How a funding notice's own budget lines combine with the lines already confirmed
-is the builder's (provisional): a category's budget is the sum of its confirmed
-budget_line terms, across notices. A charge's spending counts on its assigned
-line's category and, for a sub-line, on the category it sits inside.
+is the builder's (provisional). A category's budget is counted once per notice
+(the lines with the same date): the parent line's amount when the notice prints
+one, otherwise the sum of the category's lines. The sub-lines of Participant
+Support Costs and of Travel carry their parent's category (contract ruling f),
+so this keeps a parent and its sub-lines from being counted twice. Then the
+notices add up. A charge's spending counts on its assigned line's category and,
+for a sub-line of Other Direct Costs, on Other Direct Costs too. Notes are per
+category, named as NSF prints the category.
 """
 
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import date
 
 from app.checks.findings import AGENT_RUN, BUDGET, GRANT_TERMS, NOTICE, Finding
+from app.checks.ledger_accounts import CATEGORY_NAMES, category_name
+from app.checks.rules_match import name_key
 from app.checks.text import money
 from app.checks.view import GrantView, notice_number
 from app.contracts.checks import Bucket, GrantNote
@@ -129,6 +137,17 @@ def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> lis
                     "The agent couldn't finish its review of the grant.",
                 )
             )
+        # A thread message's run belongs on the charge or record its thread is
+        # about. Until the run carries that subject (#39), it waits on the grant.
+        elif run.trigger.kind == TriggerKind.THREAD_MESSAGE and run.grant_id == view.grant_id:
+            out.append(
+                Finding(
+                    AGENT_RUN,
+                    f"failed:{run.id}",
+                    Bucket.NEEDS_HUMAN,
+                    "The agent couldn't finish answering a message in a thread.",
+                )
+            )
     limit = _limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:
@@ -148,14 +167,29 @@ def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> lis
     return out
 
 
+def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
+    """One notice's budget for a category: its parent line's amount, or its lines' sum."""
+    names = {name_key(n) for n in CATEGORY_NAMES[category]}
+    parents = [
+        r
+        for r in members
+        if isinstance(r.data, BudgetLine) and name_key(r.data.name.value) in names
+    ]
+    counted = parents[-1:] if parents else members
+    return sum(r.data.amount.value for r in counted if isinstance(r.data, BudgetLine))
+
+
 def grant_notes(view: GrantView) -> list[GrantNote]:
     """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
-    budget: dict[BudgetCategory, int] = defaultdict(int)
+    by_notice: dict[tuple[BudgetCategory, date], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
     for r in view.budget_lines():
         assert isinstance(r.data, BudgetLine)
-        budget[r.data.category] += r.data.amount.value
+        by_notice[(r.data.category, r.data.dated.value)].append(r)
         lines[r.data.category].append(r)
+    budget: dict[BudgetCategory, int] = defaultdict(int)
+    for (category, _), members in by_notice.items():
+        budget[category] += _notice_budget(category, members)
     spent: dict[BudgetCategory, int] = defaultdict(int)
     for c in view.charges:
         assigned = view.assigned_line(c.id)
@@ -170,13 +204,12 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
     notes: list[GrantNote] = []
     for category, amount in budget.items():
         if spent[category] > amount:
-            latest = lines[category][-1].data
-            assert isinstance(latest, BudgetLine)
+            name = category_name(category)
             notes.append(
                 GrantNote(
                     grant_id=view.grant_id,
                     check=BUDGET,
-                    text=f"{latest.name.value}: {money(spent[category])} of {money(amount)}",
+                    text=f"{name}: {money(spent[category])} of {money(amount)}",
                     record_ids=tuple(r.id for r in lines[category]),
                 )
             )
