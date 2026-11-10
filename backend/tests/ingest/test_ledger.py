@@ -2,13 +2,14 @@
 
 import io
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 from openpyxl import Workbook
 
+from app.contracts.charges import Charge
+from app.contracts.fixtures import LEDGER_FILE, load_sample_grant
 from app.ingest.ledger import (
-    LedgerCharge,
     LedgerFileError,
     RejectedRow,
     read_ledger_file,
@@ -37,15 +38,28 @@ def _ids():
     return lambda: f"charge-{next(counter)}"
 
 
-def _read(content: bytes | str, existing: tuple[str, ...] = ()):
+# The sample grant's clock when the award letter is uploaded, before either line posts.
+BEFORE_ANY_POSTING = datetime(2023, 1, 12, tzinfo=UTC)
+
+
+def _read(
+    content: bytes | str,
+    existing: tuple[str, ...] = (),
+    now: datetime = BEFORE_ANY_POSTING,
+):
     data = content.encode() if isinstance(content, str) else content
     return read_ledger_file(
-        data, workspace_id=WORKSPACE, grant_id=GRANT, existing_line_ids=existing, new_id=_ids()
+        data,
+        workspace_id=WORKSPACE,
+        grant_id=GRANT,
+        existing_line_ids=existing,
+        now=now,
+        new_id=_ids(),
     )
 
 
 EXPECTED_SAMPLE = [
-    LedgerCharge(
+    Charge(
         id="charge-1",
         workspace_id=WORKSPACE,
         grant_id=GRANT,
@@ -59,7 +73,7 @@ EXPECTED_SAMPLE = [
         vendor="Example Lab Supply Co.",
         reference="INV-1001",
     ),
-    LedgerCharge(
+    Charge(
         id="charge-2",
         workspace_id=WORKSPACE,
         grant_id=GRANT,
@@ -281,3 +295,51 @@ def test_duplicate_line_id_in_the_same_file_keeps_the_first_and_rejects_the_rest
 def test_header_only_file_reads_nothing():
     result = _read(HEADER + "\n")
     assert result.charges == [] and result.skipped_line_ids == [] and result.rejected == []
+
+
+def test_golden_ledger_file_matches_the_sample_grants_charges():
+    sample = load_sample_grant()
+    line_ids = iter(c.id for c in sample.charges)
+    result = read_ledger_file(
+        LEDGER_FILE.read_bytes(),
+        workspace_id=sample.workspace.id,
+        grant_id=sample.grant.id,
+        existing_line_ids=(),
+        now=BEFORE_ANY_POSTING,
+        new_id=lambda: next(line_ids),
+    )
+    assert result.rejected == []
+    assert tuple(result.charges) == sample.charges
+
+
+def test_line_arrives_at_start_of_posting_date_when_that_is_still_ahead_of_now():
+    now = datetime(2025, 11, 13, 23, 59, tzinfo=UTC)
+    [first, second] = _read(SAMPLE_CSV, now=now).charges
+    assert first.arrived_at == datetime(2025, 11, 14, tzinfo=UTC)
+    assert second.arrived_at == datetime(2026, 2, 24, tzinfo=UTC)
+
+
+def test_line_arrives_now_when_its_posting_date_has_already_begun():
+    now = datetime(2025, 12, 1, 9, 30, tzinfo=UTC)
+    [first, second] = _read(SAMPLE_CSV, now=now).charges
+    assert first.arrived_at == now
+    assert second.arrived_at == datetime(2026, 2, 24, tzinfo=UTC)
+
+
+def test_line_posted_on_todays_date_arrives_now():
+    now = datetime(2025, 11, 14, 12, 0, tzinfo=UTC)
+    [first, _] = _read(SAMPLE_CSV, now=now).charges
+    assert first.arrived_at == now
+
+
+def test_now_in_another_timezone_is_converted_to_utc():
+    pacific = timezone(timedelta(hours=-8))
+    now = datetime(2025, 11, 13, 20, 0, tzinfo=pacific)  # 04:00 UTC on November 14
+    [first, _] = _read(SAMPLE_CSV, now=now).charges
+    assert first.arrived_at == datetime(2025, 11, 14, 4, 0, tzinfo=UTC)
+    assert first.arrived_at.tzinfo == UTC
+
+
+def test_now_without_a_timezone_is_refused():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _read(SAMPLE_CSV, now=datetime(2025, 11, 14))

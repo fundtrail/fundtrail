@@ -1,11 +1,8 @@
 """Read a grant's ledger file (CSV or Excel) into charges.
 
-Follows docs/contracts.md section 13 (the file) and section 6 (the charge). This is a pure
-function: it never touches the database. Storing the charges it returns is the API's job.
-
-`LedgerCharge` is a stand-in for the contract's `Charge` model, which isn't merged yet. It
-carries the section 6 fields plus the IDs a stored charge needs. When the contract model
-lands, `_build_charge` is the one place to swap it in.
+Follows docs/contracts.md section 13 (the file) and section 6 (the charge), and decision 0023
+for when a line arrives. This is a pure function: it never touches the database. Storing the
+charges it returns is the API's job.
 """
 
 import csv
@@ -17,6 +14,8 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
+
+from app.contracts.charges import Charge
 
 REQUIRED_COLUMNS = (
     "line_id",
@@ -37,25 +36,6 @@ type Cell = str | int | float | Decimal | date | datetime | bool | None
 
 
 @dataclass(frozen=True)
-class LedgerCharge:
-    """One charge read from one ledger line (contracts.md section 6)."""
-
-    id: str
-    workspace_id: str
-    grant_id: str
-    ledger_line_id: str
-    transaction_date: date
-    posting_date: date
-    arrived_at: datetime
-    amount_cents: int
-    description: str
-    account: str
-    vendor: str | None = None
-    reference: str | None = None
-    original_line_id: str | None = None
-
-
-@dataclass(frozen=True)
 class RejectedRow:
     """A row that couldn't be read. `row` is the spreadsheet row number; the header is row 1."""
 
@@ -65,7 +45,7 @@ class RejectedRow:
 
 @dataclass(frozen=True)
 class LedgerReadResult:
-    charges: list[LedgerCharge] = field(default_factory=list)
+    charges: list[Charge] = field(default_factory=list)
     skipped_line_ids: list[str] = field(default_factory=list)
     rejected: list[RejectedRow] = field(default_factory=list)
 
@@ -84,6 +64,7 @@ def read_ledger_file(
     workspace_id: str,
     grant_id: str,
     existing_line_ids: Iterable[str],
+    now: datetime,
     new_id: Callable[[], str] = lambda: str(uuid.uuid4()),
 ) -> LedgerReadResult:
     """Read a ledger file's bytes into new charges, skipped line IDs and rejected rows.
@@ -91,7 +72,13 @@ def read_ledger_file(
     A row whose `line_id` is already on file is skipped. A row that can't be read is rejected
     with its row number and a plain reason, and the rest still load. Raises `LedgerFileError`
     when the file as a whole can't be read.
+
+    `now` is the workspace's "now". A line arrives at 00:00 UTC on its posting date if that's
+    still ahead of `now`, and otherwise at `now` (decision 0023).
     """
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware.")
+    now = now.astimezone(UTC)
     rows = _xlsx_rows(content) if content.startswith(_XLSX_MAGIC) else _csv_rows(content)
     header_row = next(rows, None)
     if header_row is None:
@@ -100,7 +87,7 @@ def read_ledger_file(
 
     on_file = set(existing_line_ids)
     first_seen_at: dict[str, int] = {}
-    charges: list[LedgerCharge] = []
+    charges: list[Charge] = []
     skipped: list[str] = []
     rejected: list[RejectedRow] = []
 
@@ -119,7 +106,9 @@ def read_ledger_file(
                     f"{first_seen_at[line_id]}."
                 )
             first_seen_at[line_id] = row_number
-            charges.append(_build_charge(values, cells, columns, workspace_id, grant_id, new_id))
+            charges.append(
+                _build_charge(values, cells, columns, workspace_id, grant_id, now, new_id)
+            )
         except _RowError as error:
             rejected.append(RejectedRow(row=row_number, reason=str(error)))
 
@@ -132,8 +121,9 @@ def _build_charge(
     columns: dict[str, int],
     workspace_id: str,
     grant_id: str,
+    now: datetime,
     new_id: Callable[[], str],
-) -> LedgerCharge:
+) -> Charge:
     problems: list[str] = []
 
     def attempt[T](read: Callable[[], T]) -> T | None:
@@ -157,14 +147,15 @@ def _build_charge(
     assert transaction_date and posting_date and amount_cents is not None
     assert description and account
 
-    return LedgerCharge(
+    start_of_posting_date = datetime.combine(posting_date, time(0, 0), tzinfo=UTC)
+    return Charge(
         id=new_id(),
         workspace_id=workspace_id,
         grant_id=grant_id,
         ledger_line_id=_required(values, "line_id"),
         transaction_date=transaction_date,
         posting_date=posting_date,
-        arrived_at=datetime.combine(posting_date, time(0, 0), tzinfo=UTC),
+        arrived_at=max(start_of_posting_date, now),
         amount_cents=amount_cents,
         description=description,
         account=account,
