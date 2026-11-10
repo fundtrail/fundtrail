@@ -93,6 +93,7 @@ def file_run(file_id: str, record_ids: list[str], now: str, db: list[Record]) ->
             trigger=Trigger(kind="file", id=file_id),  # pyright: ignore[reportArgumentType]
             records=db,
             ids=iter(record_ids),
+            read_through_seq=expected[0].read_through_seq,  # the sample's run read point
         ),
         model,
     )
@@ -152,6 +153,7 @@ def charge_run(line: str, now: str, db: list[Record]) -> RunSaved:
             records=db,
             ids=iter([link.id, budget.id, allowable.id]),
             charge_ids=[charge_id],
+            read_through_seq=link.read_through_seq,  # the sample's run read point
         ),
         FakeModel([match, answer]),
     )

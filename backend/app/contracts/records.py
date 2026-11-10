@@ -962,6 +962,14 @@ class Record(Model):
     # in a run a thread message started waits for the accountant, whatever its kind.
     # Set only on the agent's records; the write check makes the run set it.
     thread_message_id: Id | None = None
+    # The order it was stored in: one number from a sequence the database shares
+    # across records, charges and evidence files, so any two can be compared. Never
+    # the workspace clock. None until it's stored.
+    stored_seq: int | None = None
+    # On the agent's records only: the read point of the run that wrote it
+    # (AgentRun.read_through_seq), set when the run saves it. Anything stored
+    # during the run isn't new evidence for that run's answers.
+    read_through_seq: int | None = None
     data: RecordData
 
     @property
@@ -986,6 +994,8 @@ class Record(Model):
             raise ValueError("a record can't replace itself")
         if self.data.kind == RecordKind.RETRACTION and self.replaces_id is None:
             raise ValueError("a retraction names the record it replaces")
+        if self.author == Author.USER and self.read_through_seq is not None:
+            raise ValueError("only the agent's records carry their run's read point")
         if self.author == Author.USER and self.thread_message_id is not None:
             raise ValueError("only the agent's records carry the thread message of their run")
         if self.author == Author.AGENT:

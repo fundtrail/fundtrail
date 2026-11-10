@@ -73,6 +73,7 @@ def _bill(agent_input: AgentInput, *, total: int = 124000) -> Record:
             "grant_id": agent_input.run.grant_id,
             "author": "agent",
             "written_at": agent_input.run.clock_now,
+            "read_through_seq": agent_input.run.read_through_seq,
             "data": {
                 "kind": "bill",
                 "total": {"value": total, "text": "$1,240.00", "citation": citation},
@@ -464,6 +465,7 @@ def test_the_agents_second_link_waits_when_the_accountant_linked_during_the_run(
                 "grant_id": i.run.grant_id,
                 "author": "agent",
                 "written_at": i.run.clock_now,
+                "read_through_seq": i.run.read_through_seq,
                 "data": {
                     "kind": "link",
                     "record_id": bill.id,
@@ -690,3 +692,119 @@ def test_a_run_ends_failed_even_when_the_checks_raise(
     run_worker_until_idle(str(platform.pool.conninfo))
     [run] = _runs(platform, grant)
     assert run.status == RunStatus.FAILED and run.error and "refused" in run.error
+
+
+# Call 40: a run's read point decides what's new evidence for its answers.
+
+
+def _answer(i: AgentInput, charge: Charge, answer: str, replaces: str | None = None) -> Record:
+    return Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": i.run.workspace_id,
+            "grant_id": i.run.grant_id,
+            "author": "agent",
+            "written_at": i.run.clock_now,
+            "read_through_seq": i.run.read_through_seq,
+            "replaces_id": replaces,
+            "data": {
+                "kind": "judgment",
+                "charge_id": charge.id,
+                "question": "allowable",
+                "text": "Is this cost necessary and reasonable, and is it for this project?",
+                "answer": answer,
+                "reasoning": "The evidence on file.",
+            },
+        }
+    )
+
+
+def _frozen_grant(p: Platform) -> tuple[Grant, Charge]:
+    """A demo workspace with its clock frozen, a charge, and no runs waiting."""
+    from datetime import UTC, datetime
+
+    grant = _grant(p)
+    frozen = datetime(2025, 11, 20, tzinfo=UTC)
+    with transaction(p.pool) as conn:
+        conn.execute(
+            "update public.workspaces set clock_now = %s where id = %s",
+            (frozen, grant.workspace_id),
+        )
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
+        )
+        conn.execute("delete from procrastinate_jobs")
+    charge = _charge(p, grant)
+    with transaction(p.pool) as conn:
+        queue_run(conn, grant, Trigger(kind=TriggerKind.CHARGE, id=charge.id), frozen)
+    return grant, charge
+
+
+def _judgments(p: Platform, grant: Grant) -> tuple[list[Record], object]:
+    from datetime import UTC, datetime
+
+    from app.contracts.rules import RecordState
+
+    far = datetime(2100, 1, 1, tzinfo=UTC)
+    with transaction(p.pool) as conn:
+        records = store.list_records(conn, grant.id)
+        files = store.list_files(conn, grant.id, far)
+    return [r for r in records if r.kind == "judgment"], RecordState(records, files)
+
+
+def test_a_receipt_uploaded_before_the_next_run_starts_lets_its_supports_count(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The demo move: the agent is unsure; at the same frozen "now", a receipt is uploaded
+    before the next run starts; that run reads it, and its supports counts at once."""
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    first: list[Record] = []
+
+    def behave(i: AgentInput) -> AgentResult:
+        if i.run.trigger.kind == TriggerKind.CHARGE:
+            first.append(_answer(i, charge, "unsure"))
+            return AgentResult(records=[first[0]])
+        return AgentResult(records=[_answer(i, charge, "supports", replaces=first[0].id)])
+
+    agent.behave = behave
+    grant, charge = _frozen_grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    actions.add_evidence(platform, grant, actions.Upload("receipt.txt", "text/plain", b"Paid."))
+    run_worker_until_idle(str(platform.pool.conninfo))
+    judgments, state = _judgments(platform, grant)
+    unsure, supports = judgments
+    assert supports.read_through_seq is not None
+    assert state.is_current(supports.id) and not state.is_waiting(supports.id)  # pyright: ignore[reportAttributeAccessIssue]
+    assert not state.is_current(unsure.id)  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_a_receipt_uploaded_mid_run_doesnt_let_its_supports_count(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The receipt is stored after the run read, so it isn't new evidence the run saw:
+    the supports over its own unsure waits for the accountant."""
+    agent = platform.agent
+    assert isinstance(agent, FakeAgent)
+    first: list[Record] = []
+
+    def behave(i: AgentInput) -> AgentResult:
+        if not first:
+            first.append(_answer(i, charge, "unsure"))
+            return AgentResult(records=[first[0]])
+        if i.run.trigger.kind != TriggerKind.CHARGE:
+            return AgentResult()  # the receipt's own run
+        upload = actions.Upload("receipt.txt", "text/plain", b"Paid.")
+        actions.add_evidence(platform, grant, upload)  # stored after this run read
+        return AgentResult(records=[_answer(i, charge, "supports", replaces=first[0].id)])
+
+    agent.behave = behave
+    grant, charge = _frozen_grant(platform)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    with transaction(platform.pool) as conn:
+        queue_run(conn, grant, Trigger(kind=TriggerKind.CHARGE, id=charge.id), first[0].written_at)
+    run_worker_until_idle(str(platform.pool.conninfo))
+    judgments, state = _judgments(platform, grant)
+    unsure, supports = judgments[:2]
+    assert state.is_waiting(supports.id)  # pyright: ignore[reportAttributeAccessIssue]
+    assert state.is_current(unsure.id)  # pyright: ignore[reportAttributeAccessIssue]

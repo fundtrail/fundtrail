@@ -527,7 +527,7 @@ def test_a_first_link_written_by_a_thread_run_waits():
 def test_the_write_check_makes_a_thread_run_name_its_message():
     b = agent("b1", bill())
     asked = Trigger(kind=TriggerKind.THREAD_MESSAGE, id="m1")
-    unmarked = agent("l1", link(), 1)
+    unmarked = agent("l1", link(), 1).model_copy(update={"read_through_seq": 10})
     marked = unmarked.model_copy(update={"thread_message_id": "m1"})
 
     def check(new: Record, trigger: Trigger | None) -> list[str]:
@@ -828,8 +828,9 @@ def test_r3_1_the_agents_record_comes_with_its_runs_trigger():
         return check_new_record(new, [], CHARGES, FILES, default_items=defaults, trigger=trigger)
 
     clock = Trigger(kind=TriggerKind.CLOCK)
-    assert any("needs the trigger" in p for p in check(agent("b1", bill()), None))
-    assert check(agent("b1", bill()), clock) == []
+    read = agent("b1", bill()).model_copy(update={"read_through_seq": 10})
+    assert any("needs the trigger" in p for p in check(read, None))
+    assert check(read, clock) == []
     assert any("isn't written by an agent run" in p for p in check(user("b1", bill()), clock))
     assert check(user("b1", bill()), None) == []
 

@@ -12,9 +12,10 @@ Every area applies these rules through the same functions:
 - check_new_record(): the problems with a record about to be written
 
 Pass only the records and files visible at the clock's "now", and pass records
-in the order they were written (the database orders them by written_at, then
-by its real-time created_at). Whether one of the agent's records waits is
-decided from what was written before it.
+in the order they were stored. When every record has its `stored_seq`, they're
+put in that order here; a record being checked, which isn't stored yet, comes
+last. Whether one of the agent's records waits is decided from what was stored
+before it. A record against a record uses stored order, never clock dates.
 """
 
 from collections.abc import Collection, Iterable, Sequence
@@ -79,6 +80,24 @@ class RecordState:
 
     def __init__(self, records: Iterable[Record], files: Iterable[EvidenceFile] = ()):
         self.records: list[Record] = list(records)
+        # Records not stored yet come last, in order: the record being checked, or a
+        # run's staged records after the stored ones. They come after everything
+        # stored. Stored records all carry their order, ahead of that tail; a stored
+        # record without one would let a missing order clear a problem. When no record
+        # carries an order (test data), only the last counts as not stored yet.
+        numbered = [r for r in self.records if r.stored_seq is not None]
+        tail = self.records[len(numbered) :]
+        if any(r.stored_seq is not None for r in tail) or any(
+            r.stored_seq is None for r in self.records[: len(numbered)]
+        ):
+            raise ValueError(
+                "stored records carry their stored_seq, ahead of the records not stored yet"
+            )
+        if numbered:
+            self.records = sorted(numbered, key=lambda r: r.stored_seq or 0) + tail
+            self._unstored_ids: set[str] = {r.id for r in tail}
+        else:
+            self._unstored_ids = {self.records[-1].id} if self.records else set()
         self.files: dict[str, EvidenceFile] = {f.id: f for f in files}
         self.by_id: dict[str, Record] = {}
         self._pos: dict[str, int] = {}
@@ -143,6 +162,12 @@ class RecordState:
     def answers_of(self, answer: Judgment) -> list[str]:
         """The IDs of the answers to the same question about the same things, in order."""
         return self._answers_of.get(_answer_key(answer), [])
+
+    def _is_checking(self, record: Record) -> bool:
+        """Whether `record` is the record being checked: not stored yet, so after everything."""
+        return record.stored_seq is None and (
+            record.id in self._unstored_ids or record.id not in self._pos
+        )
 
     def suggestion_key(self, record: Record, i: int | None = None) -> tuple[str, ...] | None:
         """What makes two of the agent's records "the same one", for the no-repeats rule and
@@ -228,24 +253,80 @@ class RecordState:
             if value.citation is None or value.citation.match not in FOUND
         ]
 
-    def new_evidence_between(
-        self, after: datetime, until: datetime, grant_id: str, *, before: int | None = None
-    ) -> bool:
-        """Whether new evidence arrived on a grant in (after, until].
+    def new_evidence_since(self, since: Record, new: Record, *, before: int | None = None) -> bool:
+        """Whether new evidence arrived on `new`'s grant after `since` and before `new`.
 
-        New evidence is a file that arrived, or a grant term the accountant
-        confirmed or typed. Something the agent links later from what was
-        already on file doesn't count, and neither does confirming a term again.
-        `before` limits it to the records written before that position.
+        New evidence is (decision call 36, issue 70):
+        - a file that arrived later than `since` was written, or at the same time and
+          stored after it (the demo clock stands still between moves, so ties are
+          common), and not later than `new`;
+        - a grant term the accountant typed, or confirmed for the first time, stored
+          after `since` and before `new`: stored order only, never clock dates.
+        Something the agent links later from what was already on file doesn't count.
+        `new` may be the record being checked, not stored yet, which comes after
+        everything stored. A missing order otherwise never counts as new.
+        When `new` is the agent's record and carries its run's read point (call 40),
+        only what was stored up to that point counts: anything stored during the
+        run isn't new for that run's answers. And when `since` is the agent's earlier
+        answer with its own run's read point, the window runs from that read point to
+        this one: new evidence is what the earlier run didn't read and this one did,
+        wherever the earlier answer was stored (the main coordinator's ruling on N3).
+        What a run read is `read_by_run`: stored at or below its read point, and
+        arrived or written by its clock.
+        `before` limits it to the records stored before that position.
         """
+        read_point = new.read_through_seq if new.author == Author.AGENT else None
+        lower = (
+            since.read_through_seq
+            if read_point is not None and since.author == Author.AGENT
+            else None
+        )
+
+        def read_by_new(item: Record | EvidenceFile) -> bool:
+            return read_point is not None and read_by_run(
+                item, read_through_seq=read_point, clock_now=new.written_at
+            )
+
+        def read_by_since(item: Record | EvidenceFile) -> bool:
+            return lower is not None and read_by_run(
+                item, read_through_seq=lower, clock_now=since.written_at
+            )
+
         for f in self.files.values():
-            if f.grant_id == grant_id and after < f.arrived_at <= until:
+            if f.grant_id != new.grant_id:
+                continue
+            if read_point is not None:
+                if not read_by_new(f):
+                    continue  # this run didn't read it
+                if lower is not None:
+                    if not read_by_since(f):
+                        return True  # this run read it and the earlier run didn't
+                    continue
+            after_since = f.arrived_at > since.written_at or (
+                f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
+            )
+            if read_point is not None:
+                before_new = True  # read by this run, checked above
+            else:
+                before_new = f.arrived_at < new.written_at or (
+                    f.arrived_at == new.written_at
+                    and (self._is_checking(new) or _stored_after(new.stored_seq, f.stored_seq))
+                )
+            if after_since and before_new:
                 return True
-        for r in self.records[:before]:
-            if r.grant_id != grant_id or r.author != Author.USER:
+        start = self._pos[since.id] + 1 if since.id in self._pos else 0
+        if lower is not None:
+            start = 0  # the window is what the runs read, not where `since` was stored
+        stop = self._pos[new.id] if new.id in self._pos else len(self.records)
+        if before is not None:
+            stop = min(stop, before)
+        for r in self.records[start:stop]:
+            if r.grant_id != new.grant_id or r.author != Author.USER:
                 continue
-            if not after < r.written_at <= until:
-                continue
+            if read_point is not None and not read_by_new(r):
+                continue  # this run didn't read it: stored during the run, or written later
+            if read_by_since(r):
+                continue  # the earlier run had read it
             if r.kind in TERM_KINDS:
                 return True
             data = r.data
@@ -372,7 +453,7 @@ class RecordState:
         if before == Answer.CONTRADICTS:
             return True  # contradicts turning into anything milder
         # unsure turning into supports counts right away only once new evidence has arrived
-        return not self.new_evidence_between(old.written_at, new.written_at, new.grant_id, before=i)
+        return not self.new_evidence_since(old, new, before=i)
 
     def _second_bill_link(self, link: Link, i: int) -> bool:
         bill = self._current_version_at(link.record_id, i)
@@ -388,6 +469,32 @@ class RecordState:
             if other_bill is not None and other_bill.id == bill.id:
                 return True
         return False
+
+
+def run_read_point(*stored: Iterable[Record | Charge | EvidenceFile]) -> int:
+    """A run's read point (call 40): the highest stored order among what it was given.
+
+    The platform (W4) calls it with the records, charges and files it hands the run
+    when the run starts, and stores the result as AgentRun.read_through_seq.
+    """
+    return max((item.stored_seq or 0 for items in stored for item in items), default=0)
+
+
+def read_by_run(
+    item: Record | Charge | EvidenceFile, *, read_through_seq: int, clock_now: datetime
+) -> bool:
+    """Whether a run read an item: stored at or below the run's read point, and arrived (a
+    file or a charge) or written (a record) by the run's clock. A file stored at a reset
+    with a future arrival date isn't read until it arrives."""
+    if item.stored_seq is None or item.stored_seq > read_through_seq:
+        return False
+    when = item.written_at if isinstance(item, Record) else item.arrived_at
+    return when <= clock_now
+
+
+def _stored_after(a: int | None, b: int | None) -> bool:
+    """Whether `a` was stored after `b`. Unknown order isn't "after"."""
+    return a is not None and b is not None and a > b
 
 
 def _first_file(record: Record) -> str:
@@ -540,6 +647,10 @@ def check_new_record(
 
     if new.id in state.by_id:
         problems.append(f"the ID {new.id} is already used")
+    if new.stored_seq is not None:
+        problems.append("a new record gets its stored order when it's saved, not before")
+    if agent and new.read_through_seq is None:
+        problems.append("the agent's record carries the read point of the run writing it")
 
     # The agent writes inside a run, so its record comes with the run's trigger; the
     # accountant's doesn't.
@@ -886,9 +997,7 @@ def check_new_record(
                 if not would_wait and earlier.thread_message_id is None:
                     continue
                 rejection = state.decided_by(earlier.id)
-                if rejection is not None and not state.new_evidence_between(
-                    rejection.written_at, new.written_at, new.grant_id
-                ):
+                if rejection is not None and not state.new_evidence_since(rejection, new):
                     problems.append(
                         f"the accountant rejected the same suggestion ({earlier.id}), "
                         "and no new evidence has arrived since"

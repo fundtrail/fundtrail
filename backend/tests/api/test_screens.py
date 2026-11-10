@@ -487,7 +487,11 @@ def test_a_jump_records_no_late_flag_the_stepped_clock_wouldnt(api: Api) -> None
 
     def behave(i: AgentInput) -> AgentResult:
         return AgentResult(
-            records=[r for r in held if r.author == "agent" and r.written_at == i.run.clock_now]
+            records=[
+                r.model_copy(update={"read_through_seq": i.run.read_through_seq})
+                for r in held
+                if r.author == "agent" and r.written_at == i.run.clock_now
+            ]
         )
 
     agent.behave = behave
@@ -604,7 +608,11 @@ def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:
 
     def behave(i: AgentInput) -> AgentResult:
         return AgentResult(
-            records=[r for r in held if r.author == "agent" and r.written_at == i.run.clock_now]
+            records=[
+                r.model_copy(update={"read_through_seq": i.run.read_through_seq})
+                for r in held
+                if r.author == "agent" and r.written_at == i.run.clock_now
+            ]
         )
 
     agent.behave = behave

@@ -29,9 +29,10 @@ from .citations import SecondLook
 CHARGE_BATCH_SIZE = 25
 
 
-# Finds the bills on file that look like the same one as a new bill. The checks (W2) own the
-# search; adapter.likely_duplicates is the default, and a run can pass its own.
-LikelyDuplicates = Callable[[Record, Sequence[Record]], list[Record]]
+# Finds the IDs of the bills on file that look like the same one as a new bill, strongest first.
+# The checks own the search (app.checks.duplicates.likely_duplicates, the default); a run can
+# pass its own with the same signature.
+LikelyDuplicates = Callable[[Record, Sequence[Record], Sequence[EvidenceFile]], list[str]]
 
 
 @dataclass
@@ -56,6 +57,25 @@ class RunInputs:
     likely_duplicates: LikelyDuplicates | None = None
     second_look: SecondLook | None = None
     new_id: Callable[[], str] = field(default_factory=lambda: lambda: f"rec-{uuid.uuid4()}")
+    # The run's read point (AgentRun.read_through_seq, call 40): every record it
+    # writes carries it, and the write check refuses an agent record without one.
+    read_through_seq: int | None = None
+
+
+class AgentRunFailed(Exception):
+    """The run failed and saves nothing.
+
+    `retryable` says whether trying again could help (a rate limit, an overload, a network
+    error); a refusal, a run that went on too long, or a write that no longer passes is not.
+    After the last retry the platform records the run as failed, and the checks raise a problem
+    on the file or charge that triggered it (answer 7). `log` is the debug log, kept even then.
+    """
+
+    def __init__(self, error: str, retryable: bool, log: bytes):
+        super().__init__(error)
+        self.error = error
+        self.retryable = retryable
+        self.log = log
 
 
 @dataclass

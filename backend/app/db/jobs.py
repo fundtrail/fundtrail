@@ -27,7 +27,7 @@ from psycopg.types.json import Jsonb
 
 from app.contracts.checks import OpenQuestion
 from app.contracts.records import Author
-from app.contracts.rules import check_new_record
+from app.contracts.rules import check_new_record, run_read_point
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind, batch_for
 from app.contracts.workspaces import Grant
 
@@ -178,13 +178,20 @@ def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
         if run.trigger.kind == TriggerKind.CHARGE and run.trigger.id
         else []
     )
+    files = store.list_files(conn, grant.id, run.clock_now)
+    records = store.list_records(conn, grant.id)
+    # Call 40: the last stored point the run reads, over exactly what it's given, taken at
+    # this read (a redo's fresh read takes it again), never at save.
+    read_point = run_read_point(records, charges, files)
+    store.set_read_point(conn, run.id, read_point)
+    run = run.model_copy(update={"read_through_seq": read_point})
     return AgentInput(
         run=run,
         grant=grant,
         charge_ids=covers,
         charges=charges,
-        files=store.list_files(conn, grant.id, run.clock_now),
-        records=store.list_records(conn, grant.id),
+        files=files,
+        records=records,
         thread=thread,
         read_file=lambda f: p.storage.get(f.storage_path),
         checks=p.checks,
@@ -201,6 +208,8 @@ def _check_result(run: AgentRun, result: AgentResult) -> None:
             raise ValueError(f"record {r.id} isn't the agent's record on this run's grant")
         if r.written_at != run.clock_now:
             raise ValueError(f"record {r.id} isn't written at the run's clock time")
+        if r.read_through_seq != run.read_through_seq:
+            raise ValueError(f"record {r.id} doesn't carry the run's read point")
     for m in result.messages:
         if m.run_id != run.id or m.grant_id != run.grant_id or m.workspace_id != run.workspace_id:
             raise ValueError(f"message {m.id} isn't this run's message on its grant")
@@ -315,6 +324,7 @@ def _attempt(p: Platform, run: AgentRun, attempt: int, catch_up: bool) -> None:
     for redo in range(REDOS + 1):
         with transaction(p.pool) as conn:
             agent_input = _load_input(p, conn, run)
+        run = agent_input.run  # with the read point of this read
         result = p.agent.run(agent_input)
         try:
             with transaction(p.pool) as conn:

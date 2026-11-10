@@ -199,7 +199,7 @@ def add_record(
         )
         if problems:
             raise WriteRejected(problems)
-        store.insert_records(conn, [record])
+        [record] = store.insert_records(conn, [record])
         trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
         output = recheck_grant(conn, p.checks, grant, now, trigger)
         # Queued whether or not a run is in progress; a queued run that hasn't started

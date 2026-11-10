@@ -9,7 +9,7 @@ from app.agent.citations import LabelLine
 from app.agent.context import REPEAT_LIMIT, RunContext
 from app.agent.rulebook import load_rulebook, parse_rulebook
 from app.agent.tools import run_tool, tool_definitions
-from app.contracts.fixtures import load_sample_grant
+from app.contracts.fixtures import DOCUMENTS_DIR, load_sample_grant
 from app.contracts.records import Record
 from app.contracts.runs import Trigger
 
@@ -77,14 +77,72 @@ def test_every_tool_has_a_plain_json_schema():
         assert "$defs" not in str(t["input_schema"]) and "$ref" not in str(t["input_schema"])
 
 
-def test_the_duplicate_search_sits_behind_one_seam():
-    """The checks (W2) own the search; the agent calls adapter.likely_duplicates."""
+def test_the_agent_uses_the_checks_duplicate_search():
+    """Issue #85: the stand-in is gone; the agent calls app.checks.duplicates.likely_duplicates."""
     from app.agent import adapter
+    from app.checks import duplicates
 
-    bill = BY_ID["rec-bill-inv-1001"]
-    copy = bill.model_copy(update={"id": "rec-copy"})
-    assert adapter.likely_duplicates(copy, [bill]) == [bill]
-    assert adapter.likely_duplicates(bill, [BY_ID["rec-bill-seq-0207"]]) == []
+    assert adapter.likely_duplicates is duplicates.likely_duplicates
+    assert not hasattr(adapter, "_stand_in_likely_duplicates")
+
+
+def test_writing_a_bill_lists_the_bills_the_checks_find_alike():
+    """A second copy of invoice INV-1001, in another file, comes back as a likely duplicate."""
+    from dataclasses import replace
+
+    copy_text = "Example Lab Supply Co.\nInvoice Number: INV-1001\nTotal Due: $1,240.00\n"
+    copy = SAMPLE.files[1].model_copy(
+        update={
+            "id": "file-copy",
+            "name": "copy.txt",
+            "storage_path": f"{SAMPLE.workspace.id}/{SAMPLE.grant.id}/file-copy/copy.txt",
+            "sha256": "copy",
+        }
+    )
+    base = context(until="rec-link-l-1001")
+    ctx = RunContext(
+        inputs=replace(
+            base.inputs,
+            files=[*base.inputs.files, copy],
+            read_file=lambda f: (
+                copy_text.encode() if f.id == "file-copy" else (DOCUMENTS_DIR / f.name).read_bytes()
+            ),
+        ),
+        rulebook=base.rulebook,
+    )
+    _, error = run_tool(ctx, "open_file", {"file_id": "file-copy"})
+    assert not error
+    for name, value, chunk in [
+        ("number", "INV-1001", "Invoice Number: INV-1001"),
+        ("total", "$1,240.00", "Total Due: $1,240.00"),
+    ]:
+        start = copy_text.find(chunk)
+        ctx.labels[name] = LabelLine(
+            name,
+            value,
+            [
+                CitationCharLocation(
+                    type="char_location",
+                    cited_text=chunk,
+                    document_index=0,
+                    start_char_index=start,
+                    end_char_index=start + len(chunk),
+                )
+            ],
+        )
+    result, error = run_tool(
+        ctx,
+        "write_fact",
+        {
+            "kind": "bill",
+            "values": [
+                {"field": "total", "label": "total"},
+                {"field": "document_number", "label": "number"},
+            ],
+        },
+    )
+    assert not error, result
+    assert "look like the same one" in result and "rec-bill-inv-1001" in result
 
 
 def test_a_bill_is_staged_with_its_citations_and_takes_effect():
