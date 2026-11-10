@@ -207,8 +207,15 @@ def suggestion_change(
             f"Count {look.line(data.charge_id)} as correcting ledger line {data.corrects_line_id}"
         )
         line = look.charges.get(data.charge_id)
+        # Ledger line IDs are unique per grant (ruling 56), so the line it corrects is
+        # looked up among the suggestion's own grant's charges only.
         corrected = next(
-            (c for c in look.charges.values() if c.ledger_line_id == data.corrects_line_id), None
+            (
+                c
+                for c in look.charges.values()
+                if c.grant_id == record.grant_id and c.ledger_line_id == data.corrects_line_id
+            ),
+            None,
         )
         # Decision 0020: a line nets into the one it corrects only when the signs are
         # opposite; a line that adds money stands on its own.
