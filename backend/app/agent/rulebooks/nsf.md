@@ -18,7 +18,7 @@ Where a rule says "the university", it means the recipient of the award.
 
 **On an award under the older conditions.** Apply each rule as written. Where a rule has `- Older source:` lines, name both its GC-1 citation and its older citation; where it says `- Older status: unread`, the older conditions weren't found to say the same, so flag the charge instead of answering contradicts (`partly unread` means this for the part its note names). The older ASR citations are to its edition of May 20, 2024. Each passage a rule below cites from it was compared with the four earlier editions (November 12, 2020, October 4, 2021, May 13, 2022 and January 30, 2023), and the rule's `- Older editions:` line says what they say; on an award under one of them, name that edition's citation. For any other ASR passage, when the award cites an earlier edition, apply the rule from the May 2024 text and say in the reason that the award cites an earlier edition that hasn't been read, without flagging the charge for that alone. An award under an RTC edition before November 12, 2020 is handled the same way: apply the rule from the texts cited here and say in the reason that the award's own RTC edition hasn't been read, without flagging the charge for that alone. Rules that rest only on 2 CFR 200 or the policy guide apply to both, but 2 CFR 200 is quoted here in its current edition, and an older award follows the edition in force when it was made.
 
-**2 CFR 200 on older awards.** Every section of 2 CFR 200 cited here was compared with its text as in force on September 30, 2024, the day before the current edition took effect. Most were reworded but say the same in substance: 200.216, 200.308 (where today's (g)(1) and (g)(2) were (e)(1) and (e)(2)), 200.421, 200.423, 200.424, 200.429, 200.431, 200.434, 200.441, 200.442, 200.445, 200.449, 200.450, 200.451, 200.459, 200.463, 200.465, 200.469, 200.470, 200.471 and 200.475. Five passages differ in substance: 200.1 (participants), 200.413(c), 200.438, 200.454(c) and 200.461(b). The rules that cite them name the older wording on an `- Older source:` line with its quote. On an older award, name both citations and say in the reason how the older wording differs. Editions before November 12, 2020 weren't compared.
+**2 CFR 200 on older awards.** Every section of 2 CFR 200 cited here was compared with its text as in force on September 30, 2024, the day before the current edition took effect. Most were reworded but say the same in substance: 200.216, 200.308 (where today's (g)(1) and (g)(2) were (e)(1) and (e)(2)), 200.421, 200.423, 200.424, 200.429, 200.431, 200.434, 200.441, 200.442, 200.445, 200.449, 200.450, 200.451, 200.459, 200.463, 200.465, 200.469, 200.470, 200.471 and 200.475. Five passages differ in substance: 200.1 (participants), 200.413(c), 200.438, 200.454(c) and 200.461(b). The rules that cite them name the older wording on an `- Older source:` line with its quote. On an older award, name both citations. Where a rule has `- Older answer: from the governing wording`, answer from the wording that governs the award, not the current one. The reason names both citations, says which one governed and why (which conditions the award is under, from its confirmed terms), and says how the other differs. Where both wordings give the same answer, nothing more is needed. Where they give different answers and the award's conditions can't be told from its confirmed terms, answer unsure with both readings in the reason, without picking one. Where the older wording asks for prior approval, that approval is evidence like any other: on file and cited, or missing. For a rule that quotes an older 2 CFR wording without that line, name both citations and say in the reason how the older wording differs. Editions before November 12, 2020 weren't compared.
 
 **Older citations for the terms code checks.** These six terms are checked by code, not by a rule below. These are the places where the older conditions cover each term, and where their wording differs, the row says so.
 
@@ -157,12 +157,13 @@ Promotional items and memorabilia are not allowed, and neither is advertising or
 
 ### NSF-NEVER-ENTERTAINMENT
 
-Entertainment, amusement, diversion and social activities, and costs tied to them such as tickets, meals, lodging, transportation and gifts, are not allowed. The only exception is a cost with a specific and direct programmatic purpose that is included in the award.
+Entertainment, amusement, diversion and social activities, and costs tied to them such as tickets, meals, lodging, transportation and gifts, are not allowed. The only exception is a cost with a specific and direct programmatic purpose that is included in the award. Under the older 2 CFR wording, the exception covers a cost with a programmatic purpose that is authorized in the approved budget or has NSF's prior written approval.
 
 - Kind: not allowed
 - Source: [2 CFR 200.438(a)](https://www.ecfr.gov/current/title-2/part-200/section-200.438#p-200.438(a))
 - Source: [NSF PAPPG 24-1, Chapter II.D.2.f(xiii)(a)](https://www.nsf.gov/policies/pappg/24-1/ch-2-proposal-preparation)
 - Older source: [2 CFR 200.438 as in force on September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.438)
+- Older answer: from the governing wording
 - Quote: "Costs of entertainment, including amusement, diversion, and social activities and any associated costs are unallowable, except where specific costs that might otherwise be considered entertainment have a programmatic purpose and are authorized either in the approved budget for the Federal award or with prior written approval of the Federal awarding agency." (2 CFR 200.438, edition in force on September 30, 2024)
 - Checked: 2026-11-10
 
@@ -217,11 +218,12 @@ Interest on borrowed money, on temporary use of endowment funds, or on the unive
 
 ### NSF-NEVER-SOCIAL-CLUBS
 
-Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed.
+Membership in a country club or a social or dining club is not allowed. Membership in business, technical, professional, civic or community organizations is allowed. Under the older 2 CFR wording, civic or community memberships are allowed only with prior approval.
 
 - Kind: not allowed
 - Source: [2 CFR 200.454(a), (c) and (d)](https://www.ecfr.gov/current/title-2/part-200/section-200.454)
 - Older source: [2 CFR 200.454(c) as in force on September 30, 2024](https://www.ecfr.gov/on/2024-09-30/title-2/part-200/section-200.454)
+- Older answer: from the governing wording
 - Quote: "Costs of membership in any civic or community organization are allowable with prior approval by the Federal awarding agency or pass-through entity." (2 CFR 200.454(c), edition in force on September 30, 2024)
 - Checked: 2026-11-10
 
