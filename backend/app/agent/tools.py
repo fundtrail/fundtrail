@@ -611,7 +611,8 @@ PERIOD_IS_CODES = (
 
 
 def _not_on_the_period(ctx: RunContext, rule: str | None, rests_on: list[str]) -> None:
-    """An answer or a flag doesn't rest on the period of performance (issue #119)."""
+    """An Allowable answer doesn't rest on the period of performance (issue #119), and no
+    answer or flag cites the rule kept for a dispute of the date check."""
     if rule == PERIOD_DISPUTE_RULE:
         raise WriteProblem(
             f"{PERIOD_DISPUTE_RULE} is for a dispute of the date check: {PERIOD_IS_CODES}"
@@ -630,7 +631,9 @@ def _not_on_the_period(ctx: RunContext, rule: str | None, rests_on: list[str]) -
 
 def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
-    _not_on_the_period(ctx, a.rule, a.rests_on)
+    if a.question == "allowable":
+        # Only Allowable: a Covers answer on a pre-award approval keeps its start date.
+        _not_on_the_period(ctx, a.rule, a.rests_on)
     question = Question(a.question)
     key = (question, a.charge_id, a.record_id)
     state = ctx.state()
@@ -663,8 +666,10 @@ def t_answer(ctx: RunContext, a: AnswerIn) -> tuple[str, bool]:
 
 def t_flag(ctx: RunContext, a: FlagIn) -> tuple[str, bool]:
     _rule(ctx, a.rule)
-    if a.charge_id is not None:
-        _not_on_the_period(ctx, a.rule, a.rests_on)
+    if a.rule == PERIOD_DISPUTE_RULE:
+        # The purchase-close-to-the-end-date flag (NSF-END-DATE-PURCHASES, decision 0015) and
+        # any other flag may rest on the period; only the dispute rule is kept for disputes.
+        _not_on_the_period(ctx, a.rule, [])
     data: dict[str, Any] = {
         "kind": "judgment",
         "question": "flag",

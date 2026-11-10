@@ -90,10 +90,12 @@ a flag rather than contradicts, unless the rule names a comparison that gives co
 project, and is it a kind of cost the rulebook allows. A charge's date against the period of \
 performance isn't part of it: that's code's own check, and the charge's bucket follows the \
 period in force once the accountant confirms it, with no new answer from you. So don't answer \
-unsure or contradicts because of the date, don't rest an answer on the period term, and don't \
-add a checklist item or a flag about it. If a document shows the date check is wrong for a \
-charge, such as an order placed before the end date, dispute the check \
-(NSF-POST-END-COMMITMENTS is for that dispute).
+unsure or contradicts because of the date, don't rest an Allowable answer on the period term, \
+and don't add a checklist item or a flag about where the date falls. If a document shows the \
+date check is wrong for a charge, such as an order placed before the end date, dispute the check \
+(NSF-POST-END-COMMITMENTS is for that dispute). Two things still use the dates: the flag on a \
+purchase close to the end date (NSF-END-DATE-PURCHASES), which is yours to raise, and a Covers \
+answer on a pre-award approval, which rests on the start date.
 - A cost no rule names isn't thereby allowed: still answer whether it is necessary, reasonable and \
 for this project.
 
