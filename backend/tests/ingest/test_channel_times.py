@@ -88,8 +88,62 @@ def test_reading_text_maps_back_to_the_stored_file() -> None:
     # A position inside the replaced header maps to the start of the original header.
     header_at = reading.text.index("Date: ")
     assert stored[reading.stored_index(header_at + 10) :].startswith("Date: Tue, 12 Mar 2019")
-    # Before the header, positions are the same.
-    assert reading.stored_index(0) == 0
+    # A kept header maps to itself, past the dropped Authentication-Results above it.
+    from_at = reading.text.index("From: ")
+    assert stored[reading.stored_index(from_at) :].startswith("From: ")
+
+
+# A message as Gmail delivers it: trace headers carrying the real delivery time in 2026,
+# and an original Date in 2019.
+GMAIL_STYLE = (
+    "Delivered-To: fundtrail-demo+abc23def@mail.example\r\n"
+    "Received: by 2002:a05:6a10:1234 with SMTP id abc;\r\n"
+    "        Wed, 11 Nov 2026 08:14:03 -0800 (PST)\r\n"
+    "X-Received: by 2002:a17:90a:5678 with SMTP id def;\r\n"
+    "        Wed, 11 Nov 2026 08:14:02 -0800 (PST)\r\n"
+    "ARC-Seal: i=1; a=rsa-sha256; t=1794413643; cv=none;\r\n"
+    "        d=google.com; s=arc-20240605; b=AbCdEf\r\n"
+    "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=university.example;\r\n"
+    "        s=s1; t=1794413642; h=from:to:subject:date; bh=xyz; b=uvw\r\n"
+    "Authentication-Results: mx.google.com; dmarc=pass header.from=university.example\r\n"
+    "Return-Path: <pat.rivera@university.example>\r\n"
+    "Date : Tue, 12 Mar 2019 10:00:00 -0800\r\n"
+    "From: Pat <pat.rivera@university.example>\r\n"
+    "To: fundtrail-demo+abc23def@mail.example\r\n"
+    "Cc: Lab <lab@university.example>\r\n"
+    "Subject: Approval for sequencing, award SYN-2401\r\n"
+    "Message-ID: <synthetic-1@university.example>\r\n"
+    "MIME-Version: 1.0\r\n"
+    "Content-Type: text/plain; charset=utf-8\r\n"
+    "\r\n"
+    "Approved for SYN-2401. Pat\r\n"
+)
+
+
+def test_no_real_time_survives_in_a_gmail_style_message() -> None:
+    reading = reading_text(GMAIL_STYLE, SAMPLE_NOW)
+    text = reading.text
+    for real in ("2026 08:14", "Nov 2026", "1794413643", "1794413642", "2019"):
+        assert real not in text
+    head = text.split("\r\n\r\n", 1)[0].split("\r\n")
+    assert head == [
+        "Date: Tue, 02 Jun 2026 15:30:00 +0000",  # `Date :` with a space is caught too
+        "From: Pat <pat.rivera@university.example>",
+        "To: fundtrail-demo+abc23def@mail.example",
+        "Cc: Lab <lab@university.example>",
+        "Subject: Approval for sequencing, award SYN-2401",
+    ]
+    # Citations map exactly back into the stored file, for every kept character.
+    for quote in ("Approval for sequencing", "Cc: Lab", "Approved for SYN-2401. Pat"):
+        at = text.index(quote)
+        start = reading.stored_index(at)
+        assert GMAIL_STYLE[start : start + len(quote)] == quote
+        end = reading.stored_index(at + len(quote) - 1) + 1
+        assert GMAIL_STYLE[start:end] == quote
+    body_at = text.index("Approved")
+    assert reading.stored_index(len(text)) - reading.stored_index(body_at) == len(
+        "Approved for SYN-2401. Pat\r\n"
+    )
 
 
 def test_a_forwarded_messages_own_date_is_what_the_sender_wrote() -> None:
