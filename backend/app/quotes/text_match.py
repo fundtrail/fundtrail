@@ -29,8 +29,14 @@ exactly), and the main coordinator ruled on the details below. They're pending A
   number ("12 345" for "12345") therefore makes a different number. A changed separator ("$12.450"
   for "$12,450") passes the first guard, so with no value given it's close.
 - **A value is found** only when it appears exactly in the matched text and stands on its own on
-  the whole page: not part of a longer number or word ("450.00" isn't in "$12,450.00"), and
-  without a minus sign or accounting parentheses the value lacks ("$450.00" isn't in "-$450.00").
+  the whole page: not part of a longer number or word ("450.00" isn't in "$12,450.00"), and with
+  a sign that agrees with the page's. Signs follow provisional call 31 (`_sign_of`): where the
+  page signs the amount one way only, the value's sign must match it ("$450.00" isn't confirmed
+  in "-$450.00", nor "-$450" in "$300-$450"); where it could be read either way ("Airfare -
+  $450.00"), the value's sign stands. Brackets around an amount still read as negative, also in
+  prose, until brackets in a sentence are told apart (follow-up issue). On the safe side, a
+  line-end hyphen between two letters or digits isn't a word edge ("Smith" isn't found in
+  "Smith-" then "son").
 
 Every cleaned-up text keeps a map from each of its characters back to the character it came
 from, so a match can be turned back into a span of the original page text.
@@ -39,6 +45,16 @@ from, so a match can be turned back into a span of the original page text.
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+LINE_DASH = "\x03"
+"""Stands for a dash that ended a line right after a digit, whatever starts the next line.
+
+It's kept, not dropped ("10-" then "20" is "10-20", not "1020"), and remembered as a line end:
+after a number it reads as a trailing minus ("450.00-" then "2026-03-04", or then "$300.00"),
+on the safe side. Two exceptions: inside a numeric date ("2026-" then "03-04"), and where the
+value or passage being checked runs on through the dash into the next number ("10-20"), it's
+the hyphen the reader took it for.
+"""
 
 LINE_HYPHEN = "\x02"
 """Stands for a hyphen at the end of a line. pdfium itself reports such a hyphen as U+0002."""
@@ -80,7 +96,28 @@ _REPLACEMENTS = {
     "\ufb06": "st",
 }
 _NUMBER_SEPARATORS = frozenset(".,")
-_SIGNS = frozenset("-\u2212")
+NEGATIVE = "-"
+POSITIVE = "+"
+EITHER = "?"
+"""How the text signs a number (see `_sign_of`). EITHER: it could be read either way."""
+
+_MINUS = "\u2212"
+_DASHES = frozenset("-\u2013")
+"""A hyphen or en dash: a minus only where it's attached to the amount."""
+_DATE = re.compile(
+    r"\d{1,2}/\d{1,2}/\d{2,4}|\d{4}[-\x03]\d{1,2}[-\x03]\d{1,2}|\d{1,2}[-\x03]\d{1,2}[-\x03]\d{2,4}"
+)
+"""A numeric date. A date has no sign, so no dash before it is a minus."""
+_AFTER_A_WORD = frozenset({"%", ")", "]", "}"})
+"""Besides a letter or digit, what before an attached dash makes it a hyphen ("10%-20%").
+
+Not a line-end marker: a dash after one starts the next line, so it's a minus there (call 31,
+point 1), as in "450.00-" then "-$12.00 Fee".
+"""
+_QUOTES = frozenset({'"', "'"})
+"""Quote marks after the clean-up (curly ones are straightened)."""
+_SIGNS = frozenset("-\u2013\u2212")
+"""Read as a minus next to a number: hyphen, en dash, minus sign. Not the em dash."""
 _CURRENCY = frozenset("$\u20ac\u00a3\u00a5")
 
 
@@ -117,20 +154,19 @@ def clean(chars: Sequence[str]) -> CleanText:
         after_digit = len(out) >= 2 and out[-2].isdigit()
         if space_at is not None and out:
             if out[-1] == "-" and space_has_break:
-                if not (after_digit and ch.isdigit()):
-                    out[-1] = LINE_HYPHEN
+                out[-1] = LINE_DASH if after_digit else LINE_HYPHEN
             elif out[-1] != LINE_HYPHEN:
                 out.append(" ")
                 origin.append(space_at)
         space_at = None
         space_has_break = False
-        if out and out[-1] == LINE_HYPHEN and after_digit and ch.isdigit():
-            if soft_at == len(out) - 1:
+        if out and out[-1] == LINE_HYPHEN and after_digit:
+            if soft_at != len(out) - 1:
+                out[-1] = LINE_DASH
+            elif ch.isdigit():
                 # A soft hyphen is only a place a word may break, so between digits it goes.
                 out.pop()
                 origin.pop()
-            else:
-                out[-1] = "-"
 
         if ch in _SOFT_HYPHENS:
             if not out or out[-1] != LINE_HYPHEN:
@@ -160,6 +196,7 @@ def exact_pattern(passage: str) -> re.Pattern[str] | None:
     if not q:
         return None
     hy = re.escape(LINE_HYPHEN)
+    ld = re.escape(LINE_DASH)
     parts: list[str] = []
     i = 0
     while i < len(q):
@@ -169,10 +206,10 @@ def exact_pattern(passage: str) -> re.Pattern[str] | None:
         if ch == LINE_HYPHEN:
             parts.append(f"(?:{hy}|-)?")
         elif ch == "-" and i + 1 < len(q) and q[i + 1] == " ":
-            parts.append(f"(?:- |{hy})")
+            parts.append(f"(?:- |{hy}|{ld})")
             i += 1
-        elif ch == "-":
-            parts.append(f"(?:-|{hy})")
+        elif ch in ("-", LINE_DASH):
+            parts.append(f"(?:-|{hy}|{ld})")
         else:
             parts.append(re.escape(ch))
         i += 1
@@ -180,7 +217,7 @@ def exact_pattern(passage: str) -> re.Pattern[str] | None:
 
 
 def _plain(ch: str) -> bool:
-    return ch not in (" ", "-", LINE_HYPHEN)
+    return ch not in (" ", "-", LINE_HYPHEN, LINE_DASH)
 
 
 def find_exact(passage: str, page: CleanText) -> list[tuple[int, int]]:
@@ -209,13 +246,55 @@ def value_in_span(value_text: str, text: str, start: int, end: int) -> bool:
     pattern = exact_pattern(value_text)
     if pattern is None:
         return False
+    value = clean(value_text).text
+    value_sign = _number_sign(value, 0, len(value))
     pos = start
     while (found := pattern.search(text, pos)) is not None and found.start() < end:
         s, e = found.start(), found.end()
-        if s < e <= end and _stands_alone(text, s, e) and not _signed(text, s, e):
+        if (
+            s < e <= end
+            and _stands_alone(text, s, e)
+            and _signs_agree(value_sign, _number_sign(text, s, e))
+        ):
             return True
         pos = s + 1
     return False
+
+
+def _signs_agree(value_sign: str, page_sign: str) -> bool:
+    """A value's sign confirms against the page's sign (provisional call 31).
+
+    Where the page can be read either way, the value's sign stands. Otherwise they must match: a
+    value stated as positive doesn't confirm a clearly negative amount, and a negative value
+    ("-$450") doesn't confirm where the page's dash is a hyphen ("$300-$450").
+    """
+    if page_sign == EITHER:
+        return True
+    return (value_sign == NEGATIVE) == (page_sign == NEGATIVE)
+
+
+def _number_sign(text: str, start: int, end: int) -> str:
+    """The sign the text puts on the first number in text[start:end] (POSITIVE with no number).
+
+    Looks outside the slice too, since `text` is the whole page: the slice is a matched value and
+    the sign may sit just outside it.
+    """
+    first = next((i for i in range(start, end) if text[i].isnumeric()), None)
+    if first is None:
+        return POSITIVE
+    return _sign_of(text, first, _number_end(text, first), covered_until=end)
+
+
+def _number_end(text: str, first: int) -> int:
+    """Where the number starting at `first` ends, running through "." and "," between digits."""
+    j = first
+    while j < len(text) and text[j].isnumeric():
+        j += 1
+    while j + 1 < len(text) and text[j] in _NUMBER_SEPARATORS and text[j + 1].isnumeric():
+        j += 2
+        while j < len(text) and text[j].isnumeric():
+            j += 1
+    return j
 
 
 def span_stands_alone(text: str, start: int, end: int) -> bool:
@@ -228,7 +307,19 @@ def span_stands_alone(text: str, start: int, end: int) -> bool:
 
 
 def _stands_alone(text: str, start: int, end: int) -> bool:
+    """Whether text[start:end] doesn't continue a word or number on either side.
+
+    A line-end hyphen between two letters or digits isn't an edge, on the safe side: it may be a
+    hyphen that only broke the word ("Smith-" then "son" may be "Smithson"), so "Smith" isn't
+    found there.
+    """
     first, last = text[start], text[end - 1]
+    if first.isalnum() and start > 1 and text[start - 1] == LINE_HYPHEN:
+        if text[start - 2].isalnum():
+            return False
+    if last.isalnum() and end + 1 < len(text) and text[end] == LINE_HYPHEN:
+        if text[end + 1].isalnum():
+            return False
     if first.isalnum() and start > 0:
         before = text[start - 1]
         if before.isalnum():
@@ -254,20 +345,93 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
     return True
 
 
-def _signed(text: str, start: int, end: int) -> bool:
-    """Whether the number in text[start:end] has a minus sign or accounting parentheses outside it.
+def _hyphen_after(text: str, dash: int) -> bool:
+    """Whether the character before text[dash] makes an attached dash a hyphen, not a minus.
 
-    Currency symbols between the sign and the number are skipped ("-$450.00"). A hyphen right
-    after a letter or digit is a hyphen, not a sign ("10-20", "SYN-2026").
+    It does after a letter, a digit, "%", a closing bracket, or a quote mark
+    that itself follows one of those ("10%-20%", "(a)-$450", 'the "Gold"-$450 rate'). Anything
+    else before an attached dash (a space, the start, an opening bracket, a currency symbol, a
+    quote that opens, "=", ";", ",", an em dash, "*") leaves it a minus, on the safe side.
     """
-    if not any(ch.isnumeric() for ch in text[start:end]):
+    if dash == 0:
         return False
-    k = start
+    before = text[dash - 1]
+    if _ends_a_word(before):
+        return True
+    return before in _QUOTES and dash > 1 and _ends_a_word(text[dash - 2])
+
+
+def _ends_a_word(ch: str) -> bool:
+    return ch.isalnum() or ch in _AFTER_A_WORD
+
+
+def _sign_of(text: str, first: int, end: int, *, covered_until: int = -1) -> str:
+    """How the text signs the number text[first:end]: NEGATIVE, POSITIVE or EITHER.
+
+    Provisional call 31 (main coordinator, for Alex): code rejects a sign only where the text can
+    be read one way.
+
+    `covered_until` is the end of the value or span being checked. A LINE_DASH after the number
+    with the next number also inside it ("10-" then "20", checked as "10-20") is the hyphen the
+    reader took it for, not a trailing minus. Likewise a date broken at a line-end dash counts as
+    a date only when the value or span covers the whole date ("2026-" then "03-04" checked as
+    "2026-03-04"); otherwise "$12-" then "3-15" would hide a trailing minus.
+
+    - NEGATIVE, clearly:
+      - a hyphen or en dash attached to the amount, unless the character before the dash makes
+        it a hyphen (`_hyphen_after`): "-$450.00", "$-450.00", "(-$450.00)", ":-$450.00",
+        '"-$450.00"', "=-$450.00", ";-$450.00";
+      - the true minus U+2212, attached or with a space;
+      - a trailing minus ("$450.00-", or a dash that ended the line right after the number,
+        LINE_DASH) or "CR";
+      - brackets around the amount ("($450.00)"). For now that includes brackets inside a
+        sentence; telling those apart is a follow-up issue.
+    - EITHER: a hyphen or en dash with a space between it and the amount ("Airfare \u2013
+      $450.00", "Year 2 - $50,000", "$400 \u2013 $500", "- $450.00").
+    - Never a sign, so POSITIVE unless something else applies: an em dash; a dash directly after
+      a letter, a digit, "%", a closing bracket, or a quote mark that follows one of those
+      ("$400-$500", "Year 2-$50,000", "10-20", "SYN-2026", "10%-20%", "(a)-$450"), read as a
+      hyphen or a range; a trailing dash
+      followed by a letter, digit or currency-and-digit (a range, "$450-$500"); any dash before
+      a date ("09/01/2025 - 08/31/2027"), since a date has no sign.
+    """
+    date = _DATE.match(text, first)
+    if date and (LINE_DASH not in date.group() or date.end() <= covered_until):
+        return POSITIVE
+    k = first
     while k > 0 and text[k - 1] in _CURRENCY:
         k -= 1
-    if k > 0 and text[k - 1] in _SIGNS and (k < 2 or not text[k - 2].isalnum()):
-        return True
-    return k > 0 and text[k - 1] == "(" and end < len(text) and text[end] == ")"
+    leading = POSITIVE
+    if k > 0:
+        c = text[k - 1]
+        if c == _MINUS:
+            return NEGATIVE
+        if c in _DASHES and not _hyphen_after(text, k - 1):
+            return NEGATIVE
+        before = text[k - 2] if k > 1 else ""
+        if c == " " and before == _MINUS:
+            return NEGATIVE
+        if c == " " and before in _DASHES:
+            leading = EITHER
+    if end < len(text):
+        after = text[end]
+        nxt = text[end + 1] if end + 1 < len(text) else ""
+        if after == LINE_DASH and end + 1 >= covered_until:
+            # On the safe side, whatever starts the next line ("450.00-" then "2026-03-04" or
+            # "$300.00"), unless the value checked runs on through the dash.
+            return NEGATIVE
+        if after in _SIGNS:
+            range_follows = nxt.isalnum() or (
+                nxt in _CURRENCY and end + 2 < len(text) and text[end + 2].isnumeric()
+            )
+            if not range_follows:
+                return NEGATIVE
+        rest = text[end : end + 3].lstrip(" ")
+        if rest.startswith("CR") and not text[end:].lstrip(" ")[2:3].isalnum():
+            return NEGATIVE
+        if k > 0 and text[k - 1] == "(" and after == ")":
+            return NEGATIVE
+    return leading
 
 
 def letters_and_digits(text: str) -> CleanText:
@@ -347,20 +511,27 @@ def close_span_ok(passage: str, value_text: str | None, text: str, start: int, e
     the matched text, standing on its own on the page.
     """
     q = clean(passage).text
-    if _number_tokens(q, 0, len(q)) != _number_tokens(text, start, end):
+    wanted = _number_tokens(q, 0, len(q))
+    found = _number_tokens(text, start, end)
+    if len(wanted) != len(found):
         return False
+    for (want_sign, want_digits), (have_sign, have_digits) in zip(wanted, found, strict=True):
+        if want_digits != have_digits:
+            return False
+        if EITHER not in (want_sign, have_sign) and want_sign != have_sign:
+            return False
     return value_text is None or value_in_span(value_text, text, start, end)
 
 
-def _number_tokens(text: str, start: int, end: int) -> list[str]:
-    """The runs of numeric characters in text[start:end], each marked with its sign.
+def _number_tokens(text: str, start: int, end: int) -> list[tuple[str, str]]:
+    """The runs of numeric characters in text[start:end], each with its number's sign.
 
     Numeric means any character Unicode counts as a number, so fractions and superscripts
-    ("4\u00bd", "10\u00b2") count. A run that starts a number carries "-" when a minus sign
-    belongs to it, or "(" for accounting parentheses. Separators split runs but aren't kept, so
+    ("4\u00bd", "10\u00b2") count. A run that starts a number carries its sign (`_sign_of`);
+    the later runs of the same number carry POSITIVE. Separators split runs but aren't kept, so
     "$12,450" and "$12.450" give the same runs.
     """
-    tokens: list[str] = []
+    tokens: list[tuple[str, str]] = []
     i = start
     while i < end:
         if not text[i].isnumeric():
@@ -370,22 +541,8 @@ def _number_tokens(text: str, start: int, end: int) -> list[str]:
         while j < end and text[j].isnumeric():
             j += 1
         continues = i >= 2 and text[i - 1] in _NUMBER_SEPARATORS and text[i - 2].isnumeric()
-        number_end = j
-        while (
-            number_end + 1 < len(text)
-            and text[number_end] in _NUMBER_SEPARATORS
-            and text[number_end + 1].isnumeric()
-        ):
-            number_end += 2
-            while number_end < len(text) and text[number_end].isnumeric():
-                number_end += 1
-        sign = ""
-        if not continues and _signed(text, i, number_end):
-            k = i
-            while k > 0 and text[k - 1] in _CURRENCY:
-                k -= 1
-            sign = "(" if text[k - 1] == "(" else "-"
-        tokens.append(sign + text[i:j])
+        sign = POSITIVE if continues else _sign_of(text, i, _number_end(text, i), covered_until=end)
+        tokens.append((sign, text[i:j]))
         i = j
     return tokens
 
