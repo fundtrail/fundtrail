@@ -1,6 +1,6 @@
 # 0015. Code checks six rules, and the agent's rulebook holds the rest
 
-**Date:** 2026-11-10 · **Status:** accepted. Amends [0009](0009-agent-judges-code-checks.md).
+**Date:** 2026-11-10 · **Status:** accepted. Amends [0009](0009-agent-judges-code-checks.md). Amended by checking each rule against its source, which changed three things: fringe benefits on stipends is a flag for the accountant, not a kind of cost that isn't allowed; the end-date rule covers equipment, computing devices and restocked supplies; and payments to speakers and trainers are flagged unless they attend mainly to learn. The current wording is in [domain.md](../domain.md#rules-that-go-to-the-agent) and the [NSF rulebook](../../backend/app/agent/rulebooks/nsf.md).
 
 ## Context
 
