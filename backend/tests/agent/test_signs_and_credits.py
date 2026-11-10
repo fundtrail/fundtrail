@@ -95,6 +95,19 @@ MEMO = (
         ("the fee ($450.00) was paid", "($450.00)"),
         ("the fee ($450.00) was paid", "$450.00"),
         ("($450.00) was refunded", "450.00"),
+        # Any white space, not only a space or a tab (PR 105's recheck).
+        ("Credit amount -\u00a0$248.00", "248.00"),  # a non-breaking space after the dash
+        ("Credit amount \u2009- $248.00", "248.00"),  # a thin space before the dash
+        ("Credit amount -\u2009$248.00", "$248.00"),  # a thin space after the dash
+        ("Credit amount -\n$248.00", "248.00"),  # a line break after the dash
+        ("Credit\u00a0-\u00a0$248.00", "248.00"),
+        # "US$" and currency codes in lower case.
+        ("Hotel - US$612.40", "612.40"),
+        ("Hotel - usd 612.40", "612.40"),
+        ("Hotel \u2013 eur 612.40", "612.40"),
+        # Brackets next to punctuation inside prose.
+        ("the fee, ($450.00), was paid", "450.00"),
+        ("the fee; ($450.00) was paid", "($450.00)"),
     ],
 )
 def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
@@ -111,6 +124,8 @@ def test_a_sign_that_reads_either_way_is_doubtful(passage: str, value: str):
         ("Total Due: $1,240.00", "$1,240.00"),
         ("Year 2-$50,000", "$50,000"),  # a hyphen after a digit
         ("Hotel- $612.40", "$612.40"),  # a hyphen after a letter
+        ("Total:\u00a0($450.00)", "($450.00)"),  # accounting brackets after a label
+        ("Year 2-\u00a0$50,000", "$50,000"),  # a hyphen after a digit, then a no-break space
     ],
 )
 def test_a_sign_that_reads_one_way_is_not_doubtful(passage: str, value: str):
@@ -122,7 +137,9 @@ MEMO_DB = records_until("rec-bill-seq-0207")  # L-1001 linked, assigned and answ
 MEMO_FILE = text_file("file-memo", "credit_memo_2001.txt", "2025-12-01T18:00:00+00:00")
 
 
-def memo_run(total_text: str, cents: int) -> tuple[RunSaved, list[Charge], list[EvidenceFile]]:
+def memo_run(
+    total_text: str, cents: int, chunk: str = "Credit amount - $248.00", memo: str = MEMO
+) -> tuple[RunSaved, list[Charge], list[EvidenceFile]]:
     """The agent reads CM-2001, cites its total as `total_text`, and links it to L-1001.
 
     Its first link has no reason, which is refused because the sign reads either way; the next
@@ -135,7 +152,7 @@ def memo_run(total_text: str, cents: int) -> tuple[RunSaved, list[Charge], list[
         base,
         files=files,
         read_file=lambda f: (
-            MEMO.encode() if f.id == "file-memo" else (DOCUMENTS_DIR / f.name).read_bytes()
+            memo.encode() if f.id == "file-memo" else (DOCUMENTS_DIR / f.name).read_bytes()
         ),
         run_checks=run_checks,
         default_items=default_items,
@@ -152,7 +169,7 @@ def memo_run(total_text: str, cents: int) -> tuple[RunSaved, list[Charge], list[
         return label_message(
             request,
             [
-                ("cm_total", total_text, "file-memo", "Credit amount - $248.00"),
+                ("cm_total", total_text, "file-memo", chunk),
                 ("cm_number", "CM-2001", "file-memo", "CREDIT MEMO CM-2001"),
             ],
         )
@@ -238,6 +255,16 @@ def test_citing_only_the_digits_still_asks_where_the_sign_came_from():
     bill, link, _ = result.records
     assert isinstance(bill.data, Bill) and isinstance(link.data, Link)
     assert bill.data.total.value == 24800  # the agent's reading stands
+    assert "sign" in (link.data.reason or "")
+
+
+def test_a_non_breaking_space_after_the_dash_still_asks_where_the_sign_came_from():
+    """PR 105's recheck: "Credit amount -\u00a0$248.00" cited as "248.00", end to end."""
+    line = "Credit amount -\u00a0$248.00"
+    memo = MEMO.replace("Credit amount - $248.00", line)
+    result, _, _ = memo_run("248.00", 24800, chunk=line, memo=memo)
+    bill, link, _ = result.records
+    assert isinstance(bill.data, Bill) and isinstance(link.data, Link)
     assert "sign" in (link.data.reason or "")
 
 
