@@ -623,6 +623,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pypdfium2" },
+    { name = "reportlab" },
 ]
 
 [package.dev-dependencies]
@@ -631,7 +632,6 @@ dev = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pyright", extra = ["nodejs"] },
     { name = "pytest" },
-    { name = "reportlab" },
     { name = "ruff" },
 ]
 
@@ -647,6 +647,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pypdfium2", specifier = ">=5.15.2" },
+    { name = "reportlab", specifier = ">=5.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -655,7 +656,6 @@ dev = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.8" },
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.2.0" },
-    { name = "reportlab", specifier = ">=5.1.0" },
     { name = "ruff", specifier = ">=0.17.4" },
 ]
 

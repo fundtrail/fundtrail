@@ -73,6 +73,23 @@ def test_a_credit_memo_linked_to_nothing_is_still_unused() -> None:
     assert record_problems(g.run(at(2024, 5, 1))) == {memo: {"unused"}}
 
 
+def test_links_of_the_opposite_sign_to_a_bill_are_over_not_unused() -> None:
+    """#73: a credit memo of -$450 linked for $900 was read as "-$900.00 ... isn't linked"."""
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("c1", date(2024, 3, 1), 90000)
+    f = g.file("f-memo", at(2024, 3, 1, 9))
+    memo = g.bill(-45000, f, at(2024, 3, 1, 9))
+    g.link(memo, "c1", at(2024, 3, 1, 9), amount=90000, default="bill")
+    g.assign("c1", t["ms"], at(2024, 3, 1, 9))
+    g.answer("c1", "supports", at(2024, 3, 1, 9), rests_on=[memo])
+    out = g.run(at(2024, 5, 1))  # well past 60 days
+    assert record_problems(out) == {memo: {"over_linked"}}
+    assert "isn't linked" not in out.records[0].problems[0].text
+    assert ("checklist", "bill_over_linked") in problems(out.charges[0])
+    assert out.charges[0].bucket == Bucket.NEEDS_HUMAN
+
+
 def test_terms_waiting_for_the_accountant_are_problems_until_confirmed() -> None:
     g = Grant()
     t = g.standard_terms(confirm=False)
