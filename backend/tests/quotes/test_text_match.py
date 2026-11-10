@@ -300,3 +300,49 @@ def test_anchored_scores_agree_with_brute_force() -> None:
         text = "".join(rng.choice("abcd") for _ in range(rng.randint(1, 60)))
         pattern = "".join(rng.choice("abcd") for _ in range(rng.randint(1, 80)))
         assert _end_scores(pattern, text, anchored=True) == _brute_force_anchored(pattern, text)
+
+
+@pytest.mark.parametrize(
+    ("value", "page", "found"),
+    [
+        ("$450.00", "Adjustment of \u2013$450.00 posted", False),
+        ("$450.00", "Adjustment of - $450.00 posted", False),
+        ("$450.00", "Adjustment of \u2212 $450.00 posted", False),
+        ("$450.00", "Adjustment of $450.00- posted", False),
+        ("$450.00", "Adjustment of $450.00\u2013 posted", False),
+        ("$450.00", "Adjustment of $450.00-", False),
+        ("450.00", "Adjustment of $-450.00 posted", False),
+        ("$450.00", "The airfare ($450.00) was booked", False),
+        ("$450.00", "Adjustment of $450.00 posted", True),
+        ("$450.00", "Total \u2014 $450.00 posted", True),
+        ("20", "pages 10-20 of the", True),
+        ("20", "pages 10\u201320 of the", True),
+        ("20", "pages 10 - 20 of the", False),
+        ("10", "pages 10-20 of the", True),
+        ("2026", "Award SYN-2026 funded", True),
+    ],
+)
+def test_a_minus_sign_in_any_form_stops_a_value(value: str, page: str, found: bool) -> None:
+    """A credit must not confirm as a charge: en dash, spaced and trailing minus all count."""
+    assert contains_exactly(value, clean(page).text) is found
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "Adjustment of \u2013$450.00 posted",
+        "Adjustment of - $450.00 posted",
+        "Adjustment of $450.00- posted",
+    ],
+)
+def test_close_guard_reads_every_minus(page: str) -> None:
+    assert not close_span_ok("Adjustment of $450.00 posted", None, page, 0, len(page))
+
+
+def test_a_line_end_hyphen_is_not_a_word_edge() -> None:
+    """ "Smith-" then "son" may be "Smithson", so "Smith" isn't found there."""
+    page = clean("Trip approved by Smith-\nson for the visit").text
+    assert not contains_exactly("Smith", page)
+    assert contains_exactly("Smithson", page)
+    room = clean("Moved to Room-\n450 for the setup").text
+    assert not contains_exactly("450", room)

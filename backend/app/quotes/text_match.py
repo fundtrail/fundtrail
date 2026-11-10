@@ -31,6 +31,10 @@ exactly), and the main coordinator ruled on the details below. They're pending A
 - **A value is found** only when it appears exactly in the matched text and stands on its own on
   the whole page: not part of a longer number or word ("450.00" isn't in "$12,450.00"), and
   without a minus sign or accounting parentheses the value lacks ("$450.00" isn't in "-$450.00").
+  A minus is a hyphen, an en dash or U+2212, before the number (also with a space between) or
+  after it ("$450.00-"); see `_sign_of`. On the safe side, prose parentheses count too ("The
+  airfare ($450.00)" doesn't confirm "$450.00"), and a line-end hyphen between two letters or
+  digits isn't a word edge ("Smith" isn't found in "Smith-" then "son").
 
 Every cleaned-up text keeps a map from each of its characters back to the character it came
 from, so a match can be turned back into a span of the original page text.
@@ -80,7 +84,8 @@ _REPLACEMENTS = {
     "\ufb06": "st",
 }
 _NUMBER_SEPARATORS = frozenset(".,")
-_SIGNS = frozenset("-\u2212")
+_SIGNS = frozenset("-\u2013\u2212")
+"""Read as a minus next to a number: hyphen, en dash, minus sign. Not the em dash."""
 _CURRENCY = frozenset("$\u20ac\u00a3\u00a5")
 
 
@@ -228,7 +233,19 @@ def span_stands_alone(text: str, start: int, end: int) -> bool:
 
 
 def _stands_alone(text: str, start: int, end: int) -> bool:
+    """Whether text[start:end] doesn't continue a word or number on either side.
+
+    A line-end hyphen between two letters or digits isn't an edge, on the safe side: it may be a
+    hyphen that only broke the word ("Smith-" then "son" may be "Smithson"), so "Smith" isn't
+    found there.
+    """
     first, last = text[start], text[end - 1]
+    if first.isalnum() and start > 1 and text[start - 1] == LINE_HYPHEN:
+        if text[start - 2].isalnum():
+            return False
+    if last.isalnum() and end + 1 < len(text) and text[end] == LINE_HYPHEN:
+        if text[end + 1].isalnum():
+            return False
     if first.isalnum() and start > 0:
         before = text[start - 1]
         if before.isalnum():
@@ -255,19 +272,38 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
 
 
 def _signed(text: str, start: int, end: int) -> bool:
-    """Whether the number in text[start:end] has a minus sign or accounting parentheses outside it.
+    """Whether the number in text[start:end] has a minus sign or parentheses outside it."""
+    return _sign_of(text, start, end) != ""
 
-    Currency symbols between the sign and the number are skipped ("-$450.00"). A hyphen right
-    after a letter or digit is a hyphen, not a sign ("10-20", "SYN-2026").
+
+def _sign_of(text: str, start: int, end: int) -> str:
+    """The sign the page puts on the number in text[start:end]: "-", "(" or "" for none.
+
+    A minus is a hyphen, an en dash or the minus sign U+2212, and it counts:
+    - before the number, with currency symbols and one space allowed between ("-$450.00",
+      "\u2013$450.00", "- $450.00"), unless a letter or digit sits right before it, where it's
+      a hyphen ("10-20", "SYN-2026");
+    - after the number, as some ledger reports print it ("$450.00-"), unless a letter or digit
+      follows, where it's a hyphen.
+    Parentheses around the number, outside any currency symbol, count as accounting parentheses
+    ("($450.00)"), also in prose, on the safe side: "The airfare ($450.00) was booked" doesn't
+    confirm "$450.00". A dash with spaces on both sides ("10 - 20") reads as a minus too, so a
+    range written that way doesn't confirm its second number.
     """
     if not any(ch.isnumeric() for ch in text[start:end]):
-        return False
+        return ""
     k = start
     while k > 0 and text[k - 1] in _CURRENCY:
         k -= 1
-    if k > 0 and text[k - 1] in _SIGNS and (k < 2 or not text[k - 2].isalnum()):
-        return True
-    return k > 0 and text[k - 1] == "(" and end < len(text) and text[end] == ")"
+    m = k - 1 if k > 0 and text[k - 1] == " " else k
+    if m > 0 and text[m - 1] in _SIGNS and (m < 2 or not text[m - 2].isalnum()):
+        return "-"
+    if end < len(text) and text[end] in _SIGNS:
+        if end + 1 == len(text) or not text[end + 1].isalnum():
+            return "-"
+    if k > 0 and text[k - 1] == "(" and end < len(text) and text[end] == ")":
+        return "("
+    return ""
 
 
 def letters_and_digits(text: str) -> CleanText:
@@ -379,12 +415,7 @@ def _number_tokens(text: str, start: int, end: int) -> list[str]:
             number_end += 2
             while number_end < len(text) and text[number_end].isnumeric():
                 number_end += 1
-        sign = ""
-        if not continues and _signed(text, i, number_end):
-            k = i
-            while k > 0 and text[k - 1] in _CURRENCY:
-                k -= 1
-            sign = "(" if text[k - 1] == "(" else "-"
+        sign = "" if continues else _sign_of(text, i, number_end)
         tokens.append(sign + text[i:j])
         i = j
     return tokens
