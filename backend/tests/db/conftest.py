@@ -6,11 +6,18 @@ session creates a fresh database, applies the stubs below and every file in
 ``supabase/migrations/`` in order, and drops the database at the end. Without
 TEST_DATABASE_URL, the tests skip. With it set and no server answering, they fail.
 
-Supabase's own schemas aren't in a plain Postgres, so the session stubs the two
-pieces the migrations touch: ``auth.users`` (only its ``id``) and
-``storage.buckets`` (``id``, ``name``, ``public``). Against Supabase's own
-Postgres image the real ones are already there, and the stubs do nothing. The
-migrations grant nothing to Supabase's roles, so no roles are stubbed.
+Supabase's own schemas aren't in a plain Postgres, so the session stubs the pieces
+the migrations touch, each only where it's missing:
+
+- ``auth.users`` (only its ``id``) and ``auth.uid()``, which reads the signed-in
+  user's ID from ``request.jwt.claim.sub`` as Supabase's does.
+- ``storage.buckets`` (``id``, ``name``, ``public``).
+- ``realtime.messages`` (``id``, ``topic``, ``extension``, ``event``, ``payload``, with
+  row level security on) and ``realtime.topic()``, which reads ``realtime.topic`` as
+  Supabase's does.
+- The ``anon`` and ``authenticated`` roles, with every privilege on new tables in
+  ``public``, as Supabase grants them. A role belongs to the whole server, so it's
+  created only if the server doesn't have it.
 """
 
 from __future__ import annotations
@@ -37,6 +44,41 @@ create table if not exists storage.buckets (
   name text not null,
   public boolean default false
 );
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if to_regprocedure('auth.uid()') is null then
+    create function auth.uid() returns uuid language sql stable
+      as $f$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
+  end if;
+end;
+$$;
+create schema if not exists realtime;
+create table if not exists realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null,
+  extension text not null,
+  event text,
+  payload jsonb
+);
+alter table realtime.messages enable row level security;
+do $$
+begin
+  if to_regprocedure('realtime.topic()') is null then
+    create function realtime.topic() returns text language sql stable
+      as $f$ select nullif(current_setting('realtime.topic', true), '') $f$;
+  end if;
+end;
+$$;
+grant usage on schema auth, realtime to authenticated;
+grant select on realtime.messages to authenticated;
+-- As Supabase does: every privilege on new tables in public goes to anon and authenticated.
+alter default privileges in schema public grant all on tables to anon, authenticated;
 """
 
 

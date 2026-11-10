@@ -1,13 +1,16 @@
 import type { AnswerView, Citation, EvidenceFile, Id, OpenQuestion } from "@/lib/api";
 import { date } from "@/lib/format";
 import { Quote } from "../thread/Decide";
+import type { OnWrite } from "../thread/useThreadActions";
+import { AnswerOpenQuestion, OverruleAnswer } from "./actions";
 import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
 import styles from "./charge.module.css";
 
 /**
  * The answers to the questions code asked about the charge: the question, the
  * answer, the reasoning, the rule it used and its quotes, labeled with who
- * wrote it. Then the questions still open, and who answers each.
+ * wrote it. Then the questions still open, and who answers each. With
+ * `onWrite`, the accountant answers an open question or overrules an answer.
  */
 export function AgentAnswers({
   answers,
@@ -15,12 +18,16 @@ export function AgentAnswers({
   rechecking,
   files,
   quoteHref,
+  chargeId,
+  onWrite,
 }: {
   answers: AnswerView[];
   questions: OpenQuestion[];
   rechecking: boolean;
   files: Record<Id, EvidenceFile>;
   quoteHref?: (citation: Citation) => string | undefined;
+  chargeId?: Id;
+  onWrite?: OnWrite;
 }) {
   if (answers.length === 0 && questions.length === 0) {
     return <p className="ft-empty">No questions about this charge yet.</p>;
@@ -79,6 +86,7 @@ export function AgentAnswers({
             {quotes.map((q, i) => (
               <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} />
             ))}
+            {onWrite && <OverruleAnswer judgment={judgment} onWrite={onWrite} />}
           </li>
         );
       })}
@@ -89,6 +97,7 @@ export function AgentAnswers({
             <span className={styles.label}>{QUESTION_LABELS[q.question] ?? q.question}</span>
           </p>
           <p className="ft-caption">{q.answer_by === "agent" ? "Waiting for the agent" : "Waiting for the accountant"}</p>
+          {onWrite && <AnswerOpenQuestion chargeId={chargeId ?? q.charge_id} question={q} onWrite={onWrite} />}
         </li>
       ))}
     </ul>
