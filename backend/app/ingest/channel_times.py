@@ -9,12 +9,16 @@ instead. The stored original (the .eml bytes, a Drive file's bytes) is never cha
   (`document_date`), which the screens, the evidence report and the agent's file
   list show.
 - `reading_text`: the text of an email for the agent to read. Of its top-level
-  headers it keeps only From, To, Cc and Subject, and Date with its value replaced by
-  the grant's "now". Every other header is dropped, because trace headers are channel
+  headers it keeps only From, To, Cc and Subject, the MIME (Multipurpose Internet Mail
+  Extensions) headers MIME-Version, Content-Type and Content-Transfer-Encoding, which
+  carry no time and say how to read the body, and Date with its value replaced by the
+  grant's "now". Every other header is dropped, because trace headers are channel
   times too: Received and X-Received carry the real delivery time, and ARC-Seal and
   DKIM-Signature carry Unix timestamps (`t=`). The body is the stored file's, character
   for character, and `ReadingText.stored_index` maps a position in the text back to the
   stored file, so a citation into the text still points into the original.
+- `reading_view`: the same text for the viewer, with the spans it shares with the
+  stored file as `TextSegment`s (stored start, reading start, length), in order.
 
 Drive's modified and created times are not stored or shown anywhere: the checker uses
 the modified time only to tell versions apart and to wait for a file to stop
@@ -30,7 +34,16 @@ from email.utils import format_datetime
 
 # The top-level headers kept as they are in the text the agent reads. Date is kept with
 # its value replaced; every other header is dropped.
-_KEPT_HEADERS = {"from", "to", "cc", "subject"}
+_KEPT_HEADERS = {
+    "from",
+    "to",
+    "cc",
+    "subject",
+    # They carry no time, and the agent needs them to read a multipart or encoded body.
+    "mime-version",
+    "content-type",
+    "content-transfer-encoding",
+}
 # The blank line that ends the headers: the header block runs to the end of its first
 # line ending, so each header field includes its own line ending.
 _HEADER_END = re.compile(r"\r?\n(?=\r?\n)")
@@ -71,9 +84,9 @@ def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
     """The text the agent reads for an email whose stored text is `stored`.
 
     With no grant "now" (a grant on the real date) the text is the stored text. On a
-    sample grant, the top-level headers are cut down to From, To, Cc and Subject as
-    stored, and Date with the grant's "now" (`Date :` with a space is a Date header
-    too). Every other header is dropped as a zero-length span. The body, including a
+    sample grant, the top-level headers are cut down to From, To, Cc, Subject and the
+    three MIME headers as stored, and Date with the grant's "now" (`Date :` with a space
+    is a Date header too). Every other header is dropped as a zero-length span. The body, including a
     forwarded message's own headers, is what the sender wrote and stays.
     """
     if grant_now is None:
@@ -126,6 +139,50 @@ def _line_ending(line: str) -> str:
     if line.endswith("\r\n"):
         return "\r\n"
     return "\n" if line.endswith("\n") else ""
+
+
+@dataclass(frozen=True)
+class TextSegment:
+    """A run of characters the reading text shares with the stored text.
+
+    Matches the contract's coming `TextSegment` (ruling 45). Positions are characters
+    of the text decoded as `open_file` decodes it: UTF-8, with errors replaced.
+    """
+
+    stored_start: int
+    reading_start: int
+    length: int
+
+
+@dataclass(frozen=True)
+class ReadingView:
+    """What the viewer shows for an email on a grant: the reading text, and the spans of
+    it that are the stored file's, in order. Text outside every segment (the grant's
+    "now" in the Date header) isn't in the stored file."""
+
+    text: str
+    segments: tuple[TextSegment, ...]
+
+
+def reading_view(stored: bytes, grant_now: datetime | None) -> ReadingView:
+    """The reading text of a stored email and its kept spans, for the viewer.
+
+    The stored bytes are decoded as `open_file` decodes them (UTF-8, errors replaced).
+    On a grant on the real date the whole text is one segment.
+    """
+    decoded = stored.decode("utf-8", errors="replace")
+    reading = reading_text(decoded, grant_now)
+    segments: list[TextSegment] = []
+    stored_at = reading_at = 0
+    for start, end, stored_start, stored_end in reading.replaced:
+        length = stored_start - stored_at
+        if length:
+            segments.append(TextSegment(stored_at, reading_at, length))
+        reading_at += length + (end - start)
+        stored_at = stored_end
+    if len(decoded) > stored_at:
+        segments.append(TextSegment(stored_at, reading_at, len(decoded) - stored_at))
+    return ReadingView(reading.text, tuple(segments))
 
 
 def _utc(value: datetime) -> datetime:

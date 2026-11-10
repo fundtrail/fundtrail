@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.agent.files import describe
-from app.ingest.channel_times import reading_text, sample_sent_date
+from app.ingest.channel_times import reading_text, reading_view, sample_sent_date
 from app.ingest.checker import CheckState, check_mail
 from app.ingest.incoming import GrantRoute, IncomingFile, to_evidence_file
 from app.ingest.sources import DiskMailbox
@@ -115,6 +115,7 @@ GMAIL_STYLE = (
     "Message-ID: <synthetic-1@university.example>\r\n"
     "MIME-Version: 1.0\r\n"
     "Content-Type: text/plain; charset=utf-8\r\n"
+    "Content-Transfer-Encoding: 8bit\r\n"
     "\r\n"
     "Approved for SYN-2401. Pat\r\n"
 )
@@ -132,6 +133,10 @@ def test_no_real_time_survives_in_a_gmail_style_message() -> None:
         "To: fundtrail-demo+abc23def@mail.example",
         "Cc: Lab <lab@university.example>",
         "Subject: Approval for sequencing, award SYN-2401",
+        # The MIME headers carry no time and say how to read the body (ruling 42 amended).
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=utf-8",
+        "Content-Transfer-Encoding: 8bit",
     ]
     # Citations map exactly back into the stored file, for every kept character.
     for quote in ("Approval for sequencing", "Cc: Lab", "Approved for SYN-2401. Pat"):
@@ -155,8 +160,63 @@ def test_a_forwarded_messages_own_date_is_what_the_sender_wrote() -> None:
     assert "12 Mar 2019" in reading.text  # the forwarded message's header, in the body
 
 
+def test_a_multipart_message_keeps_its_mime_headers_and_boundary() -> None:
+    msg = with_attachments(email(sent=SENT_2019))
+    stored = msg.as_bytes().decode()
+    reading = reading_text(stored, SAMPLE_NOW)
+    boundary = msg.get_boundary()
+    assert boundary is not None
+    head = reading.text.split("\n\n", 1)[0]
+    assert "MIME-Version: 1.0" in head
+    assert "Content-Type: multipart/mixed" in head and f'boundary="{boundary}"' in head
+    # The parts are still delimited by that boundary in the body the agent reads.
+    assert reading.text.count(f"--{boundary}") == stored.count(f"--{boundary}")
+    assert "Authentication-Results" not in head and "2019" not in head
+
+
 def test_the_grants_now_is_read_in_utc_and_must_be_aware() -> None:
     late_pacific = datetime(2026, 6, 2, 20, 0, tzinfo=timezone(timedelta(hours=-7)))
     assert sample_sent_date(late_pacific) == date(2026, 6, 3)
     with pytest.raises(ValueError):
         sample_sent_date(datetime(2026, 6, 2, 20, 0))
+
+
+# The viewer's segments (ruling 45)
+
+# Non-ASCII text and an invalid UTF-8 byte, so positions are characters of the text
+# decoded as open_file decodes it.
+GMAIL_STYLE_BYTES = GMAIL_STYLE.replace("Pat\r\n", "Pat, café\r\n").encode() + b"\xff end\r\n"
+
+
+def test_every_stored_position_in_a_kept_span_maps_forward_and_back_exactly() -> None:
+    view = reading_view(GMAIL_STYLE_BYTES, SAMPLE_NOW)
+    decoded = GMAIL_STYLE_BYTES.decode("utf-8", errors="replace")
+    reading = reading_text(decoded, SAMPLE_NOW)
+    assert view.text == reading.text
+    previous_stored = previous_reading = 0
+    covered = 0
+    for segment in view.segments:
+        # In order, and not overlapping, in both texts.
+        assert segment.stored_start >= previous_stored
+        assert segment.reading_start >= previous_reading
+        assert segment.length > 0
+        for offset in range(segment.length):
+            stored_at = segment.stored_start + offset
+            reading_at = segment.reading_start + offset
+            assert view.text[reading_at] == decoded[stored_at]  # forward
+            assert reading.stored_index(reading_at) == stored_at  # back
+        previous_stored = segment.stored_start + segment.length
+        previous_reading = segment.reading_start + segment.length
+        covered += segment.length
+    # What no segment covers in the reading text is the grant's now in the Date header.
+    assert len(view.text) - covered == len("Date: Tue, 02 Jun 2026 15:30:00 +0000\r\n")
+    assert "café" in view.text and "� end" in view.text
+
+
+def test_a_grant_on_the_real_date_is_one_segment() -> None:
+    view = reading_view(GMAIL_STYLE_BYTES, None)
+    decoded = GMAIL_STYLE_BYTES.decode("utf-8", errors="replace")
+    assert view.text == decoded
+    assert [(s.stored_start, s.reading_start, s.length) for s in view.segments] == [
+        (0, 0, len(decoded))
+    ]
