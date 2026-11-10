@@ -98,9 +98,16 @@
 }
 /* The panel's tags wrap inside their column instead of running past it. */
 .ft-tl__loaded,
-.ft-tl__delivered {
+.ft-tl__delivered,
+.ft-tl__highlight {
   height: auto;
   min-height: 20px;
   max-width: 100%;
+  padding: 2px 6px;
   white-space: normal;
+}
+/* A highlight: solid ink outline, the same in Coming up and Just happened. */
+.ft-tl__highlight {
+  align-self: flex-start;
+  border-color: var(--ink);
 }

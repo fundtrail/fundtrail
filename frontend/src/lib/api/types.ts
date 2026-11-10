@@ -795,6 +795,8 @@ export interface TimelineEvent {
   /** Once played or on file. */
   charge_id?: Id | null;
   file_id?: Id | null;
+  /** A highlight's short label (ruling 58); null for an ordinary event. */
+  highlight?: string | null;
 }
 
 /** An event the last move played, with what the agent wrote from it so far. */
