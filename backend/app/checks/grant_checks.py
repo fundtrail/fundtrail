@@ -256,12 +256,18 @@ def _notice_keys(view: GrantView, lines: list[Record]) -> dict[str, tuple[str, s
     return keys
 
 
-def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
-    """One notice's budget for a category: its parent line's amount, or its lines' sum."""
+def _notice_budget(category: BudgetCategory, members: list[Record], typed: bool = False) -> int:
+    """One notice's budget for a category: its parent line's amount, or its lines' sum.
+
+    In a group of typed lines (grouped by date because nothing ties them to a notice),
+    each typed parent line may be a different notice's, so every parent counts (#104).
+    Counting them all can only raise the budget, so it can miss a note but never give
+    a false one.
+    """
     parents = [
         r for r in members if isinstance(r.data, BudgetLine) and _is_parent(category, r.data)
     ]
-    counted = parents[-1:] if parents else members
+    counted = (parents if typed else parents[-1:]) if parents else members
     return sum(r.data.amount.value for r in counted if isinstance(r.data, BudgetLine))
 
 
@@ -275,8 +281,8 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
         by_notice[(r.data.category, keys[r.id])].append(r)
         lines[r.data.category].append(r)
     budget: dict[BudgetCategory, int] = defaultdict(int)
-    for (category, _), members in by_notice.items():
-        budget[category] += _notice_budget(category, members)
+    for (category, (kind, _)), members in by_notice.items():
+        budget[category] += _notice_budget(category, members, typed=kind == "dated")
     spent: dict[BudgetCategory, int] = defaultdict(int)
     for c in view.charges:
         assigned = view.assigned_line(c.id)
