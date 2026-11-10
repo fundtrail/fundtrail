@@ -1,0 +1,144 @@
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+}
+
+.entry:first-child {
+  border-top: none;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.whoName {
+  font-weight: 600;
+}
+
+.who[data-who="user"] .whoName {
+  color: var(--ledger);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.body p {
+  margin: 0;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.box {
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--paper-raised);
+}
+
+.box p {
+  margin: 0;
+}
+
+.waiting {
+  border-color: var(--needs-human);
+  background: var(--needs-human-tint);
+}
+
+.boxHead {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.change {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.change dt {
+  color: var(--ink-muted);
+}
+
+.change dd {
+  margin: 0;
+}
+
+.struck {
+  text-decoration: line-through;
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.quote {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--rule-strong);
+}
+
+.quote blockquote {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px solid var(--rule);
+  padding-top: var(--space-3);
+}
+
+.ask textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  min-height: 64px;
+  resize: vertical;
+}
+
+.padded {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.busy {
+  color: var(--ink-muted);
+}

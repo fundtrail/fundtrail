@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { Charge, ChargeStatus, EvidenceFile, ProblemRow, Reason } from "@/lib/api";
-import { problemLists, SAMPLE_GRANT_ID } from "@/lib/api/fixtures";
+import type { Charge, ChargeStatus, EvidenceFile, FtRecord, ProblemRow, Reason } from "@/lib/api";
+import { createFakeApiClient } from "@/lib/api/fake";
+import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
 import { ProblemList } from "./ProblemList";
 
 function charge(id: string, line: string, tx: string, description: string): Charge {
@@ -109,9 +110,17 @@ describe("ProblemList", () => {
     expect(screen.queryByText("Bills cover it.")).toBeNull();
   });
 
-  it("renders the sample grant's fixture: the waiting extension first, then L-1002", () => {
-    render(<ProblemList rows={problemLists[SAMPLE_GRANT_ID].rows} />);
-    expect(shownOrder()).toEqual(["terms_waiting:1 term waiting to be confirmed", "charge:L-1002"]);
+  it("renders the sample grant's fixture: the waiting extension, the held mail, then L-1002", async () => {
+    const { rows } = await createFakeApiClient().getProblemList(SAMPLE_GRANT_ID);
+    render(<ProblemList rows={rows} />);
+    expect(shownOrder()).toEqual(["terms_waiting:1 term waiting to be confirmed", "held_mail:Held: the sender isn't a known sender · billing@labsupply.example", "charge:L-1002"]);
+  });
+
+  it("links each row to its page", async () => {
+    const { rows } = await createFakeApiClient().getProblemList(SAMPLE_GRANT_ID);
+    render(<ProblemList rows={rows} />);
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(["/grants/grant-sample/terms", "/w/ws-sample/mail", "/grants/grant-sample/charges/chg-l-1002"]);
   });
 
   it("shows when a missing item is expected and marks an accepted reason", () => {
@@ -129,7 +138,7 @@ describe("ProblemList", () => {
           {
             kind: "record",
             status: { grant_id: "g", record_id: "r1", file_id: null, problems: [{ check: "terms", problem: "disagree", text: "Confirmed terms disagree.", record_ids: [] }], flagged: true, accepted: false, snoozed: false },
-            record: { id: "r1", workspace_id: "ws", grant_id: "g", author: "agent", author_user_id: null, written_at: "2026-03-02T10:00:00Z", replaces_id: null, data: { kind: "approval_rule" } },
+            record: { id: "r1", workspace_id: "ws", grant_id: "g", author: "agent", author_user_id: null, written_at: "2026-03-02T10:00:00Z", replaces_id: null, data: { kind: "approval_rule" } as unknown as FtRecord["data"] },
             file: null,
           },
         ]}

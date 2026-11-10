@@ -57,6 +57,7 @@ def inputs(charge: Charge) -> RunInputs:
         run_checks=run_checks,
         charge_ids=[charge.id],
         new_id=lambda: next(ids),
+        read_through_seq=10**9,  # the run's read point (call 40)
     )
 
 

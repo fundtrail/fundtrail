@@ -124,6 +124,8 @@ def record_values(g: dict[str, Any], data: Any, **envelope: Any) -> dict[str, An
         "data": data,
     }
     values.update(envelope)
+    if values["author"] == "agent":
+        values.setdefault("read_through_seq", 0)  # the run's read point (call 40)
     return values
 
 
@@ -202,7 +204,8 @@ def test_creates_every_table_with_row_level_security_and_no_policies(
 ) -> None:
     rows = db.execute(
         "select relname, relrowsecurity from pg_class "
-        "where relnamespace = 'public'::regnamespace and relkind = 'r'"
+        "where relnamespace = 'public'::regnamespace and relkind = 'r' "
+        "and relname not like 'procrastinate\\_%'"  # Procrastinate's, from a later migration
     ).fetchall()
     assert dict(rows) == {table: True for table in TABLES}
     policies = db.execute("select count(*) from pg_policies where schemaname = 'public'").fetchone()
@@ -217,11 +220,6 @@ def test_creates_the_current_statuses_view(db: psycopg.Connection) -> None:
 def test_creates_the_private_evidence_bucket(db: psycopg.Connection) -> None:
     row = db.execute("select public from storage.buckets where id = 'evidence'").fetchone()
     assert row == (False,)
-
-
-def test_has_no_procrastinate_tables(db: psycopg.Connection) -> None:
-    row = db.execute("select count(*) from pg_class where relname like 'procrastinate%'").fetchone()
-    assert row == (0,)
 
 
 # Rows match the contract models, with the differences section 11 lists.

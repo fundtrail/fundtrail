@@ -1,5 +1,7 @@
 import type { GrantSummary } from "@/lib/api";
+import Link from "next/link";
 import { date, FUNDER_LABELS } from "@/lib/format";
+import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
 /** Where a grant stands, at the top of its pages: its name, readiness and dates. Counts only, never a percentage. */
@@ -11,7 +13,7 @@ export function GrantHeader({ summary }: { summary: GrantSummary }) {
         <p className="ft-caption">
           {grant.award_number && <span className="ft-id">{grant.award_number}</span>}
           {grant.award_number && " · "}
-          {FUNDER_LABELS[grant.funder] ?? grant.funder}
+          {FUNDER_LABELS[grant.funder ?? "NSF"] ?? grant.funder}
         </p>
         <h1 className="ft-title">{grantName(summary)}</h1>
         <p className="ft-caption">
@@ -22,6 +24,15 @@ export function GrantHeader({ summary }: { summary: GrantSummary }) {
               {summary.next_closeout.label} {date(summary.next_closeout.date)}
             </>
           )}
+        </p>
+        <p className="ft-caption">
+          <Link className="ft-link" href={routes.terms(grant.id)}>
+            Grant terms
+          </Link>
+          {" · "}
+          <Link className="ft-link" href={routes.reusableNotes(grant.id)}>
+            Reusable notes
+          </Link>
         </p>
       </div>
       <div className="ft-ready">

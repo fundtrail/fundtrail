@@ -88,6 +88,7 @@ class RunContext:
             data=data,
             replaces_id=replaces_id,
             trigger=i.trigger,
+            read_through_seq=i.read_through_seq,
         )
         if record is None:
             return None, problems
