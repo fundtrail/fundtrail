@@ -35,7 +35,6 @@ from app.db.pool import transaction, workspace_now
 
 from .bodies import RunRow
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
-from .views import sign_off_refusals
 
 
 class PlainErrorsRoute(APIRoute):
@@ -144,14 +143,17 @@ def create_record(
     body: NewRecordInput, grant: GrantDep, user: UserDep, platform: PlatformDep
 ) -> Record:
     if isinstance(body.data, SignOffInput):
-        problems = sign_off_refusals(platform, grant, body.data)
-        if problems:
-            return _rejected(actions.WriteRejected(problems))  # pyright: ignore[reportReturnType]
         from .report import signed_report_maker
+        from .views import open_check
 
         try:
             return actions.add_sign_off(
-                platform, grant, user.id, body.data.note, signed_report_maker(platform, user.id)
+                platform,
+                grant,
+                user.id,
+                body.data.note,
+                signed_report_maker(platform, user.id),
+                open_check(platform),
             )
         except actions.WriteRejected as error:
             return _rejected(error)  # pyright: ignore[reportReturnType]

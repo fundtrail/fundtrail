@@ -156,7 +156,12 @@ def replay(
         items.append(_CatchUp(max(window, after), 0, Trigger(kind=TriggerKind.CLOCK)))
     items.sort(key=lambda i: (i.at, i.order, i.trigger.id or ""))
 
-    first = items[0].at if items else None
+    # Stop at the first catch-up run on the grant, this move's or one an earlier move left
+    # waiting: from there, the runs' saves step time on, so no status runs ahead of them.
+    pending = store.next_catch_up_time(conn, grant.id, "")
+    first = min(
+        (t for t in (items[0].at if items else None, pending) if t is not None), default=None
+    )
     clock = Trigger(kind=TriggerKind.CLOCK)
     points = [m for m in _midnights(after, until) if first is None or m < first]
     if first is None and until not in points:

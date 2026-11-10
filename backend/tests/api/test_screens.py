@@ -577,3 +577,47 @@ def test_the_grant_page_lists_reusable_notes_and_term_values(api: Api) -> None:
     )
     assert period["values"] and all(v["confirmed"] for v in period["values"])
     assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}
+
+
+def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:
+    """Feb 1 to Feb 25, then to Jun 1 before the agent has run: L-1002 is Evidence complete
+    on Feb 24, never flagged, and time alone adds no row while its status holds."""
+    checks = _LinkedChecks()
+    api.platform.checks = checks
+    feb_1 = datetime(2026, 2, 1, tzinfo=UTC)
+    sample = sample_into_db(api.platform, api.user_id, feb_1)
+    checks.defaults = sample.default_items
+    held = [r for r in sample.records if r.written_at > feb_1]
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "delete from public.records where grant_id = %s and written_at > %s",
+            (sample.grant.id, feb_1),
+        )
+        # Nothing arrives between the two moves.
+        conn.execute(
+            "delete from public.evidence_files where id = %s",
+            (_id(sample, "file-extension-notice"),),
+        )
+        recheck_grant(conn, checks, sample.grant, feb_1, Trigger(kind=TriggerKind.CLOCK))
+    agent = api.platform.agent
+    assert isinstance(agent, FakeAgent)
+
+    def behave(i: AgentInput) -> AgentResult:
+        return AgentResult(
+            records=[r for r in held if r.author == "agent" and r.written_at == i.run.clock_now]
+        )
+
+    agent.behave = behave
+    clock = f"/workspaces/{sample.workspace.id}/clock"
+    for to in ("2026-02-25T00:00:00Z", "2026-06-01T00:00:00Z"):
+        moved = api.client.post(clock, json={"to": to}, headers=api.headers)
+        assert moved.status_code == 200, moved.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    with transaction(api.platform.pool) as conn:
+        history = store.status_history(conn, charge_id=_id(sample, "chg-l-1002"))
+    rows = [
+        (row.changed_at.date().isoformat(), row.status.bucket)  # pyright: ignore[reportAttributeAccessIssue]
+        for row in history
+    ]
+    assert rows == [("2026-02-24", Bucket.EVIDENCE_COMPLETE)]
+    assert not any(row.status.flagged for row in history)

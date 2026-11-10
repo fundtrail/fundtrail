@@ -67,8 +67,8 @@ def budget_figures(
     one figure per NSF category, a category's amount added up per notice, its spending
     counting its sub-lines, and the limit chosen by date, amendment number, then position.
 
-    It reads the checks' own helpers in app/checks/grant_checks.py, which are private; a
-    public `budget_figures` there should replace them (asked of W2)."""
+    It reads the checks' own helpers in app/checks/grant_checks.py, which are private;
+    issue #105 adds a public function there to replace them and this loop."""
     view = GrantView(grant_id, state, charges, files)
     by_notice: dict[tuple[BudgetCategory, tuple[str, str]], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)

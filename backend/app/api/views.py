@@ -6,7 +6,7 @@ The server works out everything nothing stores, through the contract functions
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
@@ -34,7 +34,6 @@ from app.contracts.api import (
     RecordProblemRow,
     RecordThreadEntry,
     ReusableNoteView,
-    SignOffInput,
     SignOffState,
     StatusThreadEntry,
     SuggestionView,
@@ -88,7 +87,7 @@ from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
 from app.db.platform import Platform
-from app.db.pool import transaction, workspace_now
+from app.db.pool import workspace_now
 from app.db.store import Conn, Status, StatusRow
 
 # The buckets on the problem list, most serious first (answer 1).
@@ -451,6 +450,8 @@ def reusable_notes(snap: GrantSnapshot) -> list[ReusableNoteView]:
             and (st := snap.charge_status(c.id)) is not None
             and any(reason.accepted_by in under for reason in st.reasons)
         ]
+        # The same rule as app/checks/decisions.py's limit(); one public function in
+        # the checks replaces this when issue #105 lands.
         accepted_amounts = [abs(written_on.amount_cents)] + [
             abs(c.amount_cents)
             for r in snap.state.current()
@@ -586,7 +587,7 @@ def run_reaching(
         if t.kind == TriggerKind.CHARGE and charge_id is not None and t.id:
             return charge_id in {c.id for c in batch_for(t.id, snap.charges)}
         if t.kind == TriggerKind.FILE:
-            return run.clock_now < snap.now  # a catch-up arrival: it can link to anything
+            return True  # a file's run reads it and can link it to any charge
         return t.id is not None and (t.id == charge_id or t.id in record_ids)
 
     reaching = [r for r in snap.pending if reaches(r)]
@@ -773,13 +774,11 @@ def anything_open(snap: GrantSnapshot) -> bool:
     return bool(problem_rows(snap))
 
 
-def sign_off_refusals(p: Platform, grant: Grant, data: SignOffInput) -> list[str]:
-    """Decision 0022: nothing blocks a sign-off except a run in progress or queued, and a
-    sign-off with anything still open needs a note."""
-    with transaction(p.pool) as conn:
-        snap = load_snapshot(p, conn, grant)
-    if snap.pending:
-        return ["The agent is still working on this grant. Sign off once it's done."]
-    if anything_open(snap) and not (data.note and data.note.strip()):
-        return ["Something is still open, so a sign-off needs a note."]
-    return []
+def open_check(p: Platform) -> Callable[[Conn, Grant], bool]:
+    """Whether anything is open on a grant, read in the caller's transaction (decision 0022):
+    for the sign-off's note check, under the grant's lock."""
+
+    def check(conn: Conn, grant: Grant) -> bool:
+        return anything_open(load_snapshot(p, conn, grant))
+
+    return check

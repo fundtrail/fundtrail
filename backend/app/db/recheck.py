@@ -48,7 +48,10 @@ def recheck_grant(
         *(s for s in output.records if s.grant_id == grant.id),
         *(s for s in output.grants if s.grant_id == grant.id),
     ]
-    current = store.current_statuses(conn, grant.id)
+    # Compared with each status as it stood at `now`, which matters when a catch-up
+    # works out a moment before the latest row: only a real change at that moment
+    # gets a row.
+    current = store.statuses_as_of(conn, grant.id, now)
     for status in statuses:
         key = store.status_key(status)
         old = current.pop(key, None)

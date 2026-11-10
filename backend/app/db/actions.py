@@ -254,12 +254,18 @@ type MakeReport = Callable[[store.Conn, Grant, datetime, str | None], tuple[byte
 
 
 def add_sign_off(
-    p: Platform, grant: Grant, user_id: str, note: str | None, make_report: MakeReport
+    p: Platform,
+    grant: Grant,
+    user_id: str,
+    note: str | None,
+    make_report: MakeReport,
+    anything_open: Callable[[store.Conn, Grant], bool],
 ) -> Record:
     """Sign off on the grant's evidence report (decision 0022).
 
-    Under the grant's lock, so nothing lands between the report and the record: refuse
-    while a run is queued or running, build the report at the workspace's "now" with this
+    Under the grant's lock, so nothing lands between the checks, the report and the record:
+    refuse while a run is queued or running, or without a note while anything is open,
+    build the report at the workspace's "now" with this
     sign-off on it, store the PDF, then write the sign_off record with the report's path,
     checksum and snapshot. The stored report is never made again.
     """
@@ -269,6 +275,8 @@ def add_sign_off(
             raise WriteRejected(
                 ["The agent is still working on this grant. Sign off once it's done."]
             )
+        if not (note and note.strip()) and anything_open(conn, grant):
+            raise WriteRejected(["Something is still open, so a sign-off needs a note."])
         now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
         pdf, snapshot = make_report(conn, grant, now, note)
         record_id = _new_id()
