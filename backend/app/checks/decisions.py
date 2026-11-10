@@ -24,6 +24,7 @@ See contracts.md sections 5 and 8.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from enum import StrEnum
 
 from app.checks.findings import Finding
 from app.checks.text import money, norm
@@ -31,6 +32,14 @@ from app.checks.view import GrantView
 from app.contracts.charges import Charge
 from app.contracts.checks import CLOSEOUT_WINDOW_DAYS, MISSING_EVIDENCE_DAYS, Bucket
 from app.contracts.records import AcceptedReason, Decision, Dispute, Record, Snooze
+from app.contracts.rules import RecordState
+
+
+class Coverage(StrEnum):
+    """How a reusable note stands toward a charge's problem."""
+
+    COVERED = "covered"  # inside its three limits: it accepts the problem on its own
+    OFFERED = "offered"  # the same problem and account, outside the vendor or amount limit
 
 
 @dataclass(frozen=True)
@@ -149,26 +158,36 @@ class Decisions:
                 amounts.append(abs(self.charges[d.charge_id].amount_cents))
         return max(amounts)
 
+    def coverage(self, note: Record, charge: Charge, check: str, problem: str) -> Coverage | None:
+        """Whether a reusable note covers a charge's failing (check, problem): inside its three
+        limits it's COVERED; with the same problem and account but outside the vendor or
+        amount limit it's OFFERED; otherwise None."""
+        data = note.data
+        assert isinstance(data, AcceptedReason) and data.charge_id is not None
+        if data.charge_id == charge.id:
+            return None
+        if (data.reason.check, data.reason.problem) != (check, problem):
+            return None
+        noted = self.charges[data.charge_id]
+        if noted.account != charge.account or charge.arrived_at <= note.written_at:
+            return None
+        same_vendor = (
+            charge.vendor is not None
+            and noted.vendor is not None
+            and norm(charge.vendor) == norm(noted.vendor)
+        )
+        if same_vendor and abs(charge.amount_cents) <= self.limit(note):
+            return Coverage.COVERED
+        return Coverage.OFFERED
+
     def _reusable(self, charge: Charge, finding: Finding) -> tuple[str | None, str | None]:
         offered: str | None = None
         for note in reversed(self.notes):
-            data = note.data
-            assert isinstance(data, AcceptedReason) and data.charge_id is not None
-            if data.charge_id == charge.id:
-                continue
-            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
-                continue
-            noted = self.charges[data.charge_id]
-            if noted.account != charge.account or charge.arrived_at <= note.written_at:
-                continue
-            same_vendor = (
-                charge.vendor is not None
-                and noted.vendor is not None
-                and norm(charge.vendor) == norm(noted.vendor)
-            )
-            if same_vendor and abs(charge.amount_cents) <= self.limit(note):
+            found = self.coverage(note, charge, finding.check, finding.problem)
+            if found == Coverage.COVERED:
                 return note.id, None
-            offered = offered or note.id
+            if found == Coverage.OFFERED:
+                offered = offered or note.id
         return None, offered
 
     def mark_charge(self, charge: Charge, findings: list[Finding]) -> list[Marked]:
@@ -243,3 +262,45 @@ class Decisions:
             assert isinstance(r.data, Snooze)
             covered |= {(x.check, x.problem) for x in r.data.reasons}
         return all((m.finding.check, m.finding.problem) in covered for m in flagging)
+
+
+def _decisions_for(
+    note_id: str, records: Sequence[Record], charges: Sequence[Charge], now: datetime
+) -> tuple[Decisions, Record] | None:
+    state = RecordState(records)
+    note = state.by_id.get(note_id)
+    if note is None:
+        return None
+    view = GrantView(note.grant_id, state, list(charges), [])
+    dec = Decisions(view, now)
+    found = next((n for n in dec.notes if n.id == note_id), None)
+    return (dec, found) if found is not None else None
+
+
+def note_limit(
+    note_id: str, records: Sequence[Record], charges: Sequence[Charge], now: datetime
+) -> int | None:
+    """The largest amount accepted under a reusable note (issue 106): its own charge's,
+    raised by acceptances of the offer as "this and similar charges". None when the
+    record isn't a current reusable note."""
+    found = _decisions_for(note_id, records, charges, now)
+    return found[0].limit(found[1]) if found is not None else None
+
+
+def note_covers(
+    note_id: str,
+    charge: Charge,
+    check: str,
+    problem: str,
+    records: Sequence[Record],
+    charges: Sequence[Charge],
+    now: datetime,
+) -> Coverage | None:
+    """Whether a reusable note covers a charge's (check, problem) (issue 106), by the same
+    rule the checks apply: COVERED inside its three limits, OFFERED for the same problem and
+    account outside the vendor or amount limit, None otherwise or when the record isn't a
+    current reusable note. `records` and `charges` are what's visible at `now`."""
+    found = _decisions_for(note_id, records, charges, now)
+    if found is None:
+        return None
+    return found[0].coverage(found[1], charge, check, problem)

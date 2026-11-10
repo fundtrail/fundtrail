@@ -24,12 +24,14 @@ category, named as NSF prints the category.
 import hashlib
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from app.checks.findings import (
     AGENT_RUN,
     BUDGET,
     GRANT_TERMS,
     NOTICE,
+    OVER_LIMIT,
     SKIPPED_FILES,
     Finding,
 )
@@ -37,18 +39,18 @@ from app.checks.ledger_accounts import CATEGORY_NAMES, category_name
 from app.checks.rules_match import name_key
 from app.checks.text import money
 from app.checks.view import GrantView, notice_number
+from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, GrantNote
 from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.records import (
     CATEGORY_PARENT,
-    OVER_LIMIT_CHECK,
-    OVER_LIMIT_PROBLEM,
     BudgetCategory,
     BudgetLine,
     Notice,
     Record,
     RecordKind,
 )
+from app.contracts.rules import RecordState
 from app.contracts.runs import AgentRun, TriggerKind
 
 _SKIP_WHY = {
@@ -185,8 +187,8 @@ def grant_problems(
         over = spending - limit[0]
         out.append(
             Finding(
-                OVER_LIMIT_CHECK,
-                OVER_LIMIT_PROBLEM,
+                BUDGET,
+                OVER_LIMIT,
                 Bucket.NEEDS_HUMAN,
                 f"Spending of {money(spending)} is {money(over)} over the award's limit of "
                 f"{money(limit[0])}, the total obligated to date on amendment "
@@ -270,8 +272,44 @@ def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
     return sum(r.data.amount.value for r in counted if isinstance(r.data, BudgetLine))
 
 
-def grant_notes(view: GrantView) -> list[GrantNote]:
-    """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
+@dataclass(frozen=True)
+class LineFigure:
+    """One confirmed budget line: its amount, and what's spent on it."""
+
+    record_id: str
+    name: str
+    category: BudgetCategory
+    amount_cents: int
+    spent_cents: int  # the charges assigned to this line
+
+
+@dataclass(frozen=True)
+class CategoryFigure:
+    """One NSF category's budget and spending, as the grant notes compute them.
+
+    The budget counts each notice once (its parent line, or its lines' sum). Spending
+    counts the charges assigned to the category's lines and, for Other Direct Costs,
+    to its sub-lines too.
+    """
+
+    category: BudgetCategory
+    name: str  # as NSF prints the category
+    budget_cents: int
+    spent_cents: int
+    record_ids: tuple[str, ...]  # the category's budget lines
+
+    @property
+    def overspent(self) -> bool:
+        return self.spent_cents > self.budget_cents
+
+
+@dataclass(frozen=True)
+class BudgetFigures:
+    lines: tuple[LineFigure, ...]
+    categories: tuple[CategoryFigure, ...]
+
+
+def _figures(view: GrantView) -> BudgetFigures:
     by_notice: dict[tuple[BudgetCategory, tuple[str, str]], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
     keys = _notice_keys(view, view.budget_lines())
@@ -283,26 +321,65 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
     for (category, _), members in by_notice.items():
         budget[category] += _notice_budget(category, members)
     spent: dict[BudgetCategory, int] = defaultdict(int)
+    spent_on_line: dict[str, int] = defaultdict(int)
     for c in view.charges:
         assigned = view.assigned_line(c.id)
         if assigned is None or assigned[1] is None:
             continue
         line = assigned[1].data
         assert isinstance(line, BudgetLine)
+        spent_on_line[assigned[1].id] += c.amount_cents
         spent[line.category] += c.amount_cents
         parent = CATEGORY_PARENT.get(line.category)
         if parent is not None:
             spent[parent] += c.amount_cents
-    notes: list[GrantNote] = []
-    for category, amount in budget.items():
-        if spent[category] > amount:
-            name = category_name(category)
-            notes.append(
-                GrantNote(
-                    grant_id=view.grant_id,
-                    check=BUDGET,
-                    text=f"{name}: {money(spent[category])} of {money(amount)}",
-                    record_ids=tuple(r.id for r in lines[category]),
-                )
+    line_figures: list[LineFigure] = []
+    for r in view.budget_lines():
+        assert isinstance(r.data, BudgetLine)
+        line_figures.append(
+            LineFigure(
+                record_id=r.id,
+                name=r.data.name.value,
+                category=r.data.category,
+                amount_cents=r.data.amount.value,
+                spent_cents=spent_on_line[r.id],
             )
-    return notes
+        )
+    category_figures = tuple(
+        CategoryFigure(
+            category=category,
+            name=category_name(category),
+            budget_cents=amount,
+            spent_cents=spent[category],
+            record_ids=tuple(r.id for r in lines[category]),
+        )
+        for category, amount in budget.items()
+    )
+    return BudgetFigures(lines=tuple(line_figures), categories=category_figures)
+
+
+def budget_figures(
+    grant_id: str, records: Sequence[Record], charges: Sequence[Charge]
+) -> BudgetFigures:
+    """A grant's budget figures, the same ones the grant notes come from (issue 106).
+
+    Per confirmed budget line: its amount and what's spent on it. Per category: its
+    budget and spending. `records` are the workspace's records visible at the clock's
+    "now", in the order they were written, and `charges` the charges that have arrived.
+    """
+    view = GrantView(grant_id, RecordState(records), list(charges), [])
+    return _figures(view)
+
+
+def grant_notes(view: GrantView) -> list[GrantNote]:
+    """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
+    return [
+        GrantNote(
+            grant_id=view.grant_id,
+            check=BUDGET,
+            text=f"{f.name}: {money(f.spent_cents)} of {money(f.budget_cents)}",
+            record_ids=f.record_ids,
+        )
+        for f in _figures(view).categories
+        if f.overspent
+    ]
