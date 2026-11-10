@@ -5,7 +5,11 @@ description = "FundTrail backend: FastAPI app"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.162.2",
+    "google-api-python-client>=2.202.0",
+    "google-auth>=2.62.2",
+    "google-auth-oauthlib>=1.5.0",
     "openpyxl>=3.1.5",
+    "pillow>=13.0.0",
     "procrastinate>=3.10.0",
     "psycopg-pool>=3.3.3",
     "psycopg[binary]>=3.3.8",
@@ -17,7 +21,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "psycopg[binary]>=3.3.8",
     "pyright[nodejs]>=1.1.414",
     "pytest>=9.2.0",
     "reportlab>=5.1.0",
