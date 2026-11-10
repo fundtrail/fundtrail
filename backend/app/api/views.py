@@ -12,7 +12,41 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
 
-from app.contracts.api import SignOffInput
+from app.contracts.api import (
+    AnswerView,
+    BudgetLineView,
+    BudgetView,
+    ChargeDetail,
+    ChargeProblemRow,
+    CloseoutDate,
+    DuplicateView,
+    EvidenceCard,
+    FactLink,
+    FactView,
+    GrantDetail,
+    GrantProblem,
+    GrantProblemRow,
+    GrantSummary,
+    HistoryEntry,
+    LinkView,
+    MessageThreadEntry,
+    ProblemRow,
+    RecordProblemRow,
+    RecordThreadEntry,
+    ReusableNoteView,
+    SignOffInput,
+    SignOffState,
+    StatusThreadEntry,
+    SuggestionView,
+    TermsWaitingRow,
+    TermView,
+    Thread,
+    ThreadEntry,
+    ValueHow,
+    ValueState,
+    problem_row_key,
+)
+from app.contracts.api import RecordState as RecordStateName
 from app.contracts.charges import Charge
 from app.contracts.checks import (
     SEVERITY,
@@ -25,11 +59,13 @@ from app.contracts.checks import (
     RecordStatus,
     StatusEntry,
     ready_for_closeout,
+    snapshot_of,
 )
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     FOUND,
     TERM_KINDS,
+    AcceptedReason,
     Author,
     BudgetAssignment,
     BudgetLine,
@@ -46,46 +82,15 @@ from app.contracts.records import (
     cited_values,
 )
 from app.contracts.rules import RecordState
-from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
+from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind, batch_for
+from app.contracts.signoff import SignOffSnapshot, changes_since
+from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
 from app.db.platform import Platform
 from app.db.pool import transaction, workspace_now
 from app.db.store import Conn, Status, StatusRow
-
-from .screens import (
-    AnswerView,
-    BudgetAssignmentView,
-    BudgetLineView,
-    BudgetView,
-    ChargeDetail,
-    ChargeProblemRow,
-    CheckItem,
-    CloseoutDate,
-    DecisionItem,
-    DuplicateView,
-    EvidenceCard,
-    FactView,
-    GrantDetail,
-    GrantProblem,
-    GrantProblemRow,
-    GrantSummary,
-    HistoryEntry,
-    LinkView,
-    MessageItem,
-    ProblemRow,
-    RecordProblemRow,
-    RecordStateName,
-    SignOffState,
-    SuggestionItem,
-    SuggestionView,
-    TermsWaitingRow,
-    TermView,
-    Thread,
-    ThreadItem,
-    ValueState,
-)
 
 BUCKET_LABEL = {
     Bucket.EVIDENCE_COMPLETE: "Evidence complete",
@@ -173,16 +178,16 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
 
 def record_state(state: RecordState, record: Record) -> RecordStateName:
     if state.is_waiting(record.id):
-        return "waiting"
+        return RecordStateName.WAITING
     if state.is_current(record.id):
-        return "counts"
+        return RecordStateName.COUNTS
     if state.decision(record.id) == Decision.REJECTED:
-        return "rejected"
+        return RecordStateName.REJECTED
     retracted = any(
         isinstance(r.data, Retraction) and r.replaces_id == record.id and state.is_effective(r.id)
         for r in state.records
     )
-    return "retracted" if retracted else "replaced"
+    return RecordStateName.RETRACTED if retracted else RecordStateName.REPLACED
 
 
 def value_states(state: RecordState, record: Record) -> list[ValueState]:
@@ -194,33 +199,36 @@ def value_states(state: RecordState, record: Record) -> list[ValueState]:
             out.append(ValueState(path=path, confirmed=False))
         elif value.citation is None:
             out.append(
-                ValueState(path=path, confirmed=True, how="typed", confirmed_at=record.written_at)
+                ValueState(
+                    path=path, confirmed=True, how=ValueHow.TYPED, confirmed_at=record.written_at
+                )
             )
         elif value.citation.match in FOUND:
-            out.append(ValueState(path=path, confirmed=True, how="found"))
+            out.append(ValueState(path=path, confirmed=True, how=ValueHow.FOUND))
         else:
             at = decided.written_at if decided else None
             out.append(
-                ValueState(path=path, confirmed=True, how="record_confirmed", confirmed_at=at)
+                ValueState(
+                    path=path, confirmed=True, how=ValueHow.RECORD_CONFIRMED, confirmed_at=at
+                )
             )
     return out
 
 
-def _link_view(snap: GrantSnapshot, link: Record) -> LinkView:
+def _link_view(snap: GrantSnapshot, link: Record) -> LinkView | None:
+    """A link with the record it points to now, after corrections. None when that record no
+    longer counts (retracted, or rejected with nothing in its place)."""
     assert isinstance(link.data, Link)
     target = snap.state.current_version(link.data.record_id)
+    if target is None:
+        return None
     part_file = link.data.part.file_id if link.data.part else None
-    file_id = (
-        part_file or next((c.file_id for c in citations(target.data)), None)
-        if target
-        else part_file
-    )
+    file_id = part_file or next((c.file_id for c in citations(target.data)), None)
     return LinkView(
         link=link,
         record=target,
-        values=value_states(snap.state, target) if target else [],
+        values=tuple(value_states(snap.state, target)),
         file=snap.files_by_id.get(file_id) if file_id else None,
-        charge=snap.charges_by_id.get(link.data.charge_id),
     )
 
 
@@ -241,7 +249,7 @@ def _touched_charges(snap: GrantSnapshot, record: Record) -> list[str]:
 def _suggestion(snap: GrantSnapshot, record: Record) -> SuggestionView:
     replaces = snap.state.by_id.get(record.replaces_id) if record.replaces_id else None
     return SuggestionView(
-        record=record, replaces=replaces, charge_ids=_touched_charges(snap, record)
+        record=record, replaces=replaces, charge_ids=tuple(_touched_charges(snap, record))
     )
 
 
@@ -257,7 +265,7 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         if status is None:
             continue
         counts[status.bucket] += 1
-        if (status.bucket == Bucket.EVIDENCE_COMPLETE or status.accepted) and not status.snoozed:
+        if ready_for_closeout(status):  # Evidence complete, accepted or fully reversed
             ready += 1
     step = terms.next_closeout(end, snap.now.date())
     return GrantSummary(
@@ -327,7 +335,10 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
         if flagged:
             text = f"{n} term{'s' if n != 1 else ''} waiting, {flagged} flagged"
         records.append(
-            (f.arrived_at, TermsWaitingRow(file=f, record_ids=[r.id for r in group], text=text))
+            (
+                f.arrived_at,
+                TermsWaitingRow(file=f, record_ids=tuple(r.id for r in group), text=text),
+            )
         )
     for key, status in snap.statuses.items():
         if not isinstance(status, RecordStatus) or not status.flagged:
@@ -341,8 +352,9 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
         at = record.written_at if record else f.arrived_at  # pyright: ignore[reportOptionalMemberAccess]
         records.append((at, RecordProblemRow(status=status, record=record, file=f)))
     rows += [row for _, row in sorted(records, key=lambda x: x[0])]
-    # A charge whose only failing reasons point at terms that have their own rows isn't a
-    # row of its own: the term's row stands for it.
+    # A charge whose only failing reasons are Needs a human reasons pointing at terms that
+    # have their own rows (a term code can't place, or one waiting) isn't a row of its own:
+    # the term's row stands for it (checks-rulings 3). Any other reason keeps its row.
     term_rows = in_groups | {
         key[1]
         for key, status in snap.statuses.items()
@@ -369,7 +381,10 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
 
 def _covered_by_terms(status: ChargeStatus, term_rows: set[str | None]) -> bool:
     failing = [r for r in status.reasons if r.bucket != Bucket.EVIDENCE_COMPLETE]
-    return bool(failing) and all(r.record_ids and set(r.record_ids) <= term_rows for r in failing)
+    return bool(failing) and all(
+        r.bucket == Bucket.NEEDS_HUMAN and r.record_ids and set(r.record_ids) <= term_rows
+        for r in failing
+    )
 
 
 def term_views(snap: GrantSnapshot) -> list[TermView]:
@@ -382,10 +397,11 @@ def term_views(snap: GrantSnapshot) -> list[TermView]:
             out.append(
                 TermView(
                     record=r,
-                    state=want,  # pyright: ignore[reportArgumentType]
+                    state=RecordStateName(want),
                     decision=snap.state.decided_by(r.id),
                     status=snap.record_status(r.id),
                     replaces=snap.state.by_id.get(r.replaces_id) if r.replaces_id else None,
+                    values=tuple(value_states(snap.state, r)),
                 )
             )
     return out
@@ -402,55 +418,88 @@ def budget(snap: GrantSnapshot) -> BudgetView:
             )
         )
     return BudgetView(
-        lines=lines,
+        lines=tuple(lines),
         limit_cents=terms.award_limit(snap.state),
         spent_cents=sum(c.amount_cents for c in snap.charges),
     )
 
 
-def sign_off_state(conn: Conn, snap: GrantSnapshot) -> SignOffState:
-    """Decision 0022: changes since the latest sign-off in a charge's bucket, an accepted
-    status, the problem list or the total spent."""
+def snapshot_now(snap: GrantSnapshot) -> SignOffSnapshot:
+    statuses = [st for c in snap.charges if (st := snap.charge_status(c.id)) is not None]
+    return snapshot_of(statuses, snap.charges, (problem_row_key(r) for r in problem_rows(snap)))
+
+
+def sign_off_view(snap: GrantSnapshot) -> SignOffState:
+    """Decision 0022: not signed, signed, or changed since, comparing the snapshot the
+    sign-off stored with one taken now (each charge's bucket, accepted and reversed state,
+    the problem list row by row, and the totals)."""
     signed = [r for r in snap.state.current() if isinstance(r.data, SignOff)]
     if not signed:
-        return SignOffState(state="not_signed")
+        return SignOffState(state=signed_state(None, snapshot_now(snap)))
     sign_off = signed[-1]
-    at = sign_off.written_at
-    then = store.statuses_as_of(conn, snap.grant.id, at)
-    changes: list[str] = []
-    for c in snap.charges:
-        before = then.get(("charge", c.id))
-        after = snap.charge_status(c.id)
-        if not isinstance(before, ChargeStatus):
-            if after is not None:
-                changes.append(
-                    f"{c.ledger_line_id} arrived after sign-off: {BUCKET_LABEL[after.bucket]}"
-                )
-            continue
-        if after is not None and (before.bucket, before.accepted) != (after.bucket, after.accepted):
-            was = BUCKET_LABEL[before.bucket] + (" (accepted)" if before.accepted else "")
-            now = BUCKET_LABEL[after.bucket] + (" (accepted)" if after.accepted else "")
-            changes.append(f"{c.ledger_line_id}: {was} → {now}")
-    flagged_then = sum(1 for s in then.values() if s.flagged)
-    flagged_now = sum(1 for s in snap.statuses.values() if s.flagged)
-    if flagged_then != flagged_now:
-        changes.append(f"Problems flagged: {flagged_then} → {flagged_now}")
-    spent_then = sum(c.amount_cents for c in snap.charges if c.arrived_at <= at)
-    spent_now = sum(c.amount_cents for c in snap.charges)
-    if spent_then != spent_now:
-        changes.append(f"Spending: {_money(spent_then)} → {_money(spent_now)}")
+    assert isinstance(sign_off.data, SignOff)
+    now = snapshot_now(snap)
     return SignOffState(
-        state="changed" if changes else "signed", sign_off=sign_off, changes=changes
+        state=signed_state(sign_off.data.snapshot, now),
+        sign_off=sign_off,
+        changes=changes_since(sign_off.data.snapshot, now),
     )
+
+
+def reusable_notes(snap: GrantSnapshot) -> list[ReusableNoteView]:
+    """Each reusable note: what it excuses, who wrote it and when (its record), and every
+    charge it covers now. Code does the matching (the checks mark a reason accepted_by the
+    note, or by an accepted offer that reuses it); nothing stores it per charge."""
+    notes = [
+        r
+        for r in snap.state.current()
+        if isinstance(r.data, AcceptedReason) and r.data.reusable and r.data.charge_id
+    ]
+    out: list[ReusableNoteView] = []
+    for note in notes:
+        assert isinstance(note.data, AcceptedReason)
+        written_on = snap.charges_by_id.get(note.data.charge_id or "")
+        if written_on is None:
+            continue
+        under = {note.id} | {
+            r.id
+            for r in snap.state.current()
+            if isinstance(r.data, AcceptedReason) and r.data.reuses_id == note.id
+        }
+        covered = [
+            c
+            for c in snap.charges
+            if c.id != written_on.id
+            and (st := snap.charge_status(c.id)) is not None
+            and any(reason.accepted_by in under for reason in st.reasons)
+        ]
+        accepted_amounts = [abs(written_on.amount_cents)] + [
+            abs(c.amount_cents)
+            for r in snap.state.current()
+            if isinstance(r.data, AcceptedReason)
+            and r.data.reuses_id == note.id
+            and r.data.reusable
+            and (c := snap.charges_by_id.get(r.data.charge_id or "")) is not None
+        ]
+        out.append(
+            ReusableNoteView(
+                note=note,
+                charge=written_on,
+                amount_limit_cents=max(accepted_amounts),
+                covered=tuple(covered),
+            )
+        )
+    return out
 
 
 def grant_detail(conn: Conn, snap: GrantSnapshot) -> GrantDetail:
     return GrantDetail(
         summary=summary(snap),
-        terms=term_views(snap),
+        terms=tuple(term_views(snap)),
         budget=budget(snap),
-        grant_notes=[n for n in snap.output.notes if n.grant_id == snap.grant.id],
-        sign_off=sign_off_state(conn, snap),
+        grant_notes=tuple(n for n in snap.output.notes if n.grant_id == snap.grant.id),
+        reusable_notes=tuple(reusable_notes(snap)),
+        sign_off=sign_off_view(snap),
     )
 
 
@@ -568,26 +617,15 @@ def history_entries(snap: GrantSnapshot, rows: Sequence[StatusRow]) -> list[Hist
         bucket = row.status.bucket if isinstance(row.status, ChargeStatus) else None
         out.append(
             HistoryEntry(
-                changed_at=row.changed_at,
-                trigger=row.trigger,
-                bucket=bucket,
-                previous_bucket=previous,
+                entry=StatusEntry(
+                    changed_at=row.changed_at, trigger=row.trigger, status=row.status
+                ),
                 text=history_text(snap, row, previous, previous_row),
             )
         )
         previous = bucket or previous
         previous_row = row
     return out
-
-
-def _check_text(snap: GrantSnapshot, row: StatusRow) -> str:
-    status = row.status
-    if isinstance(status, ChargeStatus):
-        failing = [r.text for r in status.reasons if r.bucket != Bucket.EVIDENCE_COMPLETE]
-        head = BUCKET_LABEL[status.bucket]
-        return f"{head}. " + " ".join(failing) if failing else f"{head}."
-    problems = [p.text for p in status.problems]
-    return " ".join(problems) if problems else "No problems."
 
 
 def thread(
@@ -597,52 +635,58 @@ def thread(
     record_ids: Sequence[str] = (),
     history: Sequence[StatusRow] = (),
 ) -> Thread:
-    """One thread in time order: code's check results when the status changed, the agent's
-    messages and suggestions, and the accountant's decisions and messages."""
+    """One thread in time order (answer 10): code's check results when the status changed,
+    the agent's suggestions, and the accountant's decisions and messages. At the same moment
+    a record comes first, then the status it caused, then messages."""
     subject = set(record_ids)
-    items: list[tuple[datetime, int, ThreadItem]] = []
+    items: list[tuple[datetime, int, ThreadEntry]] = []
     for row in history:
-        items.append((row.changed_at, 1, CheckItem(at=row.changed_at, text=_check_text(snap, row))))
+        entry = StatusEntry(changed_at=row.changed_at, trigger=row.trigger, status=row.status)
+        items.append((row.changed_at, 1, StatusThreadEntry(entry=entry)))
     messages = [
         m
         for m in snap.messages
         if (charge_id and m.charge_id == charge_id) or (m.record_id and m.record_id in subject)
     ]
     for m in messages:
-        items.append((m.written_at, 2, MessageItem(at=m.written_at, message=m)))
+        items.append((m.written_at, 2, MessageThreadEntry(message=m)))
     for r in _records_about(snap, charge_id, subject):
-        if r.author == Author.AGENT and snap.state.waits(r.id):
+        if (r.author == Author.AGENT and snap.state.waits(r.id)) or r.author == Author.USER:
             items.append(
-                (
-                    r.written_at,
-                    0,
-                    SuggestionItem(
-                        at=r.written_at,
-                        record=r,
-                        state=record_state(snap.state, r),
-                        text=describe_record(snap, r),
-                    ),
-                )
-            )
-        elif r.author == Author.USER:
-            items.append(
-                (
-                    r.written_at,
-                    0,
-                    DecisionItem(at=r.written_at, record=r, text=describe_record(snap, r)),
-                )
+                (r.written_at, 0, RecordThreadEntry(record=r, state=record_state(snap.state, r)))
             )
     items.sort(key=lambda x: (x[0], x[1]))
-    asked = {m.id for m in messages if m.author == Author.USER}
-    run = next(
-        (
-            r
-            for r in snap.pending
-            if r.trigger.kind == TriggerKind.THREAD_MESSAGE and r.trigger.id in asked
-        ),
-        None,
+    return Thread(
+        entries=tuple(i for _, _, i in items),
+        agent_run=run_reaching(snap, charge_id=charge_id, record_ids=subject),
     )
-    return Thread(items=[i for _, _, i in items], agent=run.status if run else None, agent_run=run)
+
+
+def run_reaching(
+    snap: GrantSnapshot, *, charge_id: str | None, record_ids: set[str]
+) -> AgentRun | None:
+    """A queued or running run that will reach this thread (answer 12): one its own
+    messages started, one triggered by its charge (or a charge in the same batch), its
+    record, or a question open on it, and any closeout review or catch-up of the grant.
+    The running one first, then the earliest queued."""
+
+    def reaches(run: AgentRun) -> bool:
+        t = run.trigger
+        if t.kind == TriggerKind.CLOCK:
+            return True
+        if t.kind == TriggerKind.THREAD_MESSAGE:
+            return (charge_id is not None and run.thread_charge_id == charge_id) or (
+                run.thread_record_id in record_ids
+            )
+        if t.kind == TriggerKind.CHARGE and charge_id is not None and t.id:
+            return charge_id in {c.id for c in batch_for(t.id, snap.charges)}
+        if t.kind == TriggerKind.FILE:
+            return run.clock_now < snap.now  # a catch-up arrival: it can link to anything
+        return t.id is not None and (t.id == charge_id or t.id in record_ids)
+
+    reaching = [r for r in snap.pending if reaches(r)]
+    reaching.sort(key=lambda r: (r.status != RunStatus.RUNNING, r.queued_at))
+    return reaching[0] if reaching else None
 
 
 def _records_about(
@@ -691,6 +735,7 @@ def charge_detail(
     line = None
     if assignment is not None and isinstance(assignment.data, BudgetAssignment):
         line = state.current_version(assignment.data.record_id)
+    status = snap.charge_status(charge.id)
     questions = [q for q in snap.output.questions if q.charge_id == charge.id]
     open_keys = {(q.question, q.record_id) for q in questions}
     answers = [
@@ -698,27 +743,40 @@ def charge_detail(
         for r in state.current()
         if isinstance(r.data, Judgment) and r.data.charge_id == charge.id
     ]
+    links = [
+        view
+        for r in state.current()
+        if isinstance(r.data, Link)
+        and r.data.charge_id == charge.id
+        and (view := _link_view(snap, r)) is not None
+    ]
+    # Lookups for what the status's reasons rest on, and the links' files.
+    rest_on = {i for reason in (status.reasons if status else ()) for i in reason.record_ids}
+    records = {i: state.by_id[i] for i in sorted(rest_on) if i in state.by_id}
+    files = {v.file.id: v.file for v in links if v.file is not None}
+    corrections = [
+        snap.charges_by_id[i]
+        for i in (status.corrections if status else ())
+        if i in snap.charges_by_id
+    ]
     return ChargeDetail(
         charge=charge,
-        status=snap.charge_status(charge.id),
-        budget=BudgetAssignmentView(assignment=assignment, line=line)
-        if assignment and line
-        else None,
-        account_categories=list(p.checks.account_categories(charge.account)),
-        history=history_entries(snap, rows),
-        links=[
-            _link_view(snap, r)
-            for r in state.current()
-            if isinstance(r.data, Link) and r.data.charge_id == charge.id
-        ],
-        answers=answers,
-        questions=questions,
-        waiting=[
+        status=status,
+        budget_line=line,
+        account_categories=tuple(p.checks.account_categories(charge.account)),
+        corrections=tuple(corrections),
+        history=tuple(history_entries(snap, rows)),
+        links=tuple(links),
+        answers=tuple(answers),
+        questions=tuple(questions),
+        waiting=tuple(
             _suggestion(snap, r)
             for r in state.waiting()
             if r.author == Author.AGENT and charge.id in _touched_charges(snap, r)
-        ],
+        ),
         thread=thread(snap, charge_id=charge.id, history=rows),
+        records=records,
+        files=files,
     )
 
 
@@ -755,28 +813,41 @@ def evidence_cards(snap: GrantSnapshot) -> list[EvidenceCard]:
         mark = duplicates.get(f.id)
         mark_state = record_state(state, mark) if mark else None
         duplicate = None
-        if mark and mark_state in ("waiting", "counts"):
-            assert isinstance(mark.data, Duplicate)
-            duplicate = DuplicateView(
-                mark=mark,
-                state=mark_state,
-                original=snap.files_by_id.get(mark.data.original_file_id),
+        lookups: dict[str, EvidenceFile] = {}
+        if (
+            mark
+            and mark_state is not None
+            and mark_state
+            in (
+                RecordStateName.WAITING,
+                RecordStateName.COUNTS,
             )
+        ):
+            assert isinstance(mark.data, Duplicate)
+            duplicate = DuplicateView(mark=mark, state=mark_state)
+            original = snap.files_by_id.get(mark.data.original_file_id)
+            if original is not None:
+                lookups[original.id] = original
         cards.append(
             EvidenceCard(
                 file=f,
-                facts=[
+                facts=tuple(
                     FactView(
                         record=r,
                         state=record_state(state, r),
-                        values=value_states(state, r),
-                        links=[_link_view(snap, link) for link in links_by_record.get(r.id, [])],
+                        values=tuple(value_states(state, r)),
+                        links=tuple(
+                            FactLink(link=link, charge=snap.charges_by_id[link.charge_id])
+                            for link in links_by_record.get(r.id, [])
+                            if link.charge_id is not None and link.charge_id in snap.charges_by_id
+                        ),
                         status=snap.record_status(r.id),
                     )
                     for r in facts_by_file.get(f.id, [])
-                ],
+                ),
                 status=snap.file_status(f.id),
                 duplicate=duplicate,
+                files=lookups,
             )
         )
     return cards

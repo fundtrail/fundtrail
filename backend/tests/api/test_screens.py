@@ -104,7 +104,7 @@ def test_the_charge_page(api: Api) -> None:
     sample = _sample(api)
     charge_id = _id(sample, "chg-l-1001")
     detail = _get(api, f"/charges/{charge_id}")
-    assert detail["budget"]["line"]["data"]["name"]["value"] == "Materials and Supplies"
+    assert detail["budget_line"]["data"]["name"]["value"] == "Materials and Supplies"
     [link] = detail["links"]
     assert link["record"]["data"]["kind"] == "bill" and link["file"]["name"] == "invoice_1001.txt"
     assert link["values"] and all(v["confirmed"] and v["how"] == "found" for v in link["values"])
@@ -113,7 +113,9 @@ def test_the_charge_page(api: Api) -> None:
     assert detail["account_categories"] == ["materials_and_supplies"]
     [entry] = detail["history"]
     assert entry["text"] == "Apr 10, 2026 · time passed · Evidence complete"
-    assert [i["kind"] for i in detail["thread"]["items"]] == ["check"]
+    assert entry["entry"]["trigger"] == {"kind": "clock", "id": None}
+    assert [i["kind"] for i in detail["thread"]["entries"]] == ["status"]
+    assert detail["thread"]["agent_run"] is None
     response = api.client.get(f"/charges/{_id(sample, 'chg-l-1002')}x", headers=api.headers)
     assert response.status_code == 404
 
@@ -135,8 +137,8 @@ def test_a_thread_question_is_queued_ahead_and_the_thread_says_so(api: Api) -> N
     assert response.status_code == 201, response.text
     assert response.json()["author"] == "user"
     thread = _get(api, f"/charges/{charge_id}/thread")
-    assert [i["kind"] for i in thread["items"]] == ["check", "message"]
-    assert thread["agent"] == "queued"
+    assert [i["kind"] for i in thread["entries"]] == ["status", "message"]
+    assert thread["agent_run"]["status"] == "queued"
     with transaction(api.platform.pool) as conn:
         [job] = conn.execute("select priority from procrastinate_jobs").fetchall()
     assert job["priority"] == THREAD_PRIORITY
@@ -145,6 +147,12 @@ def test_a_thread_question_is_queued_ahead_and_the_thread_says_so(api: Api) -> N
 def test_a_records_thread_follows_its_correction(api: Api) -> None:
     sample = _sample(api)
     old = _id(sample, "rec-person-pi")
+    # Only a record with a problem has a thread: give this one the agent's flag.
+    checks = _checks(api)
+    checks.record_problems = {old: [Problem(check="flag", problem="unsure", text="Check this.")]}
+    with transaction(api.platform.pool) as conn:
+        recheck_grant(conn, checks, sample.grant, APRIL_10, Trigger(kind=TriggerKind.CLOCK))
+    checks.record_problems = {}
     correction = api.client.post(
         f"/grants/{sample.grant.id}/records",
         json={
@@ -161,10 +169,24 @@ def test_a_records_thread_follows_its_correction(api: Api) -> None:
     assert correction.status_code == 201, correction.text
     posted = api.client.post(f"/records/{old}/thread", json={"text": "Right?"}, headers=api.headers)
     assert posted.json()["record_id"] == correction.json()["id"]
-    items = _get(api, f"/records/{old}/thread")["items"]
-    # The award terms' confirmation, the correction, then the message.
-    assert [i["kind"] for i in items] == ["decision", "decision", "message"]
-    assert items[1]["text"] == "person corrected by the accountant"
+    entries = _get(api, f"/records/{old}/thread")["entries"]
+    # The award terms' confirmation, the flag's status, the correction and the status it
+    # cleared, then the message.
+    kinds = [i["kind"] for i in entries]
+    assert kinds[0] == "record" and kinds[-1] == "message"
+    corrected = [e for e in entries if e["kind"] == "record" and e["record"]["replaces_id"] == old]
+    assert [e["record"]["id"] for e in corrected] == [correction.json()["id"]]
+
+
+def test_a_record_with_no_problem_has_no_thread(api: Api) -> None:
+    sample = _sample(api)
+    response = api.client.post(
+        f"/records/{_id(sample, 'rec-person-pi')}/thread",
+        json={"text": "Right?"},
+        headers=api.headers,
+    )
+    assert response.status_code == 422
+    assert "problem" in response.json()["detail"][0]
 
 
 def test_evidence_cards_show_facts_and_what_they_pay_for(api: Api) -> None:
@@ -226,7 +248,8 @@ def test_a_sign_off_needs_a_note_while_any_charge_isnt_ready(api: Api) -> None:
 def test_the_report_route_gives_the_draft(api: Api) -> None:
     sample = _sample(api)
     path = f"/grants/{sample.grant.id}/report"
-    assert api.client.get(path, headers=api.headers).status_code == 503
+    missing = api.client.get(path, headers=api.headers)
+    assert missing.status_code == 501 and "#38" in missing.json()["detail"]
 
     class Maker:
         def render(self, conn: object, snapshot: object) -> bytes:
@@ -260,7 +283,7 @@ def test_the_clock_names_the_next_arrival_and_only_moves_forward(api: Api) -> No
     assert back.status_code == 422 and "forward" in back.json()["detail"][0]
     moved = api.client.post(path, json={}, headers=api.headers).json()
     assert moved["now"] == "2025-11-14T00:00:00Z"
-    assert moved["next_arrival"]["source"] == "email"
+    assert moved["next_arrival"]["source"] == "gmail"
     assert moved["next_arrival"]["name"] == "sequencing_statement.eml"
 
 
@@ -472,3 +495,76 @@ def test_a_jump_records_no_late_flag_the_stepped_clock_wouldnt(api: Api) -> None
     assert first.changed_at == datetime(2026, 2, 24, tzinfo=UTC)
     assert first.status.bucket == Bucket.EVIDENCE_COMPLETE  # pyright: ignore[reportAttributeAccessIssue]
     assert not any(row.status.flagged for row in history)
+
+
+def test_a_possible_conflict_charge_stays_on_the_list_beside_its_terms_problem(api: Api) -> None:
+    """Only Needs a human reasons pointing at a term with its own row are covered by it."""
+    checks = _checks(api)
+    sample = sample_into_db(api.platform, api.user_id, APRIL_10)
+    period = _id(sample, "rec-period")
+    checks.buckets = {"L-1002": Bucket.POSSIBLE_CONFLICT}
+    checks.reason_records = {"L-1002": [period]}
+    checks.record_problems = {period: [Problem(check="terms", problem="disagree", text="!")]}
+    with transaction(api.platform.pool) as conn:
+        recheck_grant(conn, checks, sample.grant, APRIL_10, Trigger(kind=TriggerKind.CLOCK))
+    rows = _get(api, f"/grants/{sample.grant.id}/problems")["rows"]
+    assert [r["kind"] for r in rows] == ["record", "charge"]
+
+
+def test_the_thread_shows_any_run_that_will_reach_it(api: Api) -> None:
+    sample = _sample(api)
+    charge_id = _id(sample, "chg-l-1002")
+    with transaction(api.platform.pool) as conn:
+        from app.db.jobs import queue_run
+
+        queue_run(conn, sample.grant, Trigger(kind=TriggerKind.CHARGE, id=charge_id), APRIL_10)
+    thread = _get(api, f"/charges/{charge_id}/thread")
+    assert thread["agent_run"]["trigger"] == {"kind": "charge", "id": charge_id}
+    other = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}/thread")
+    assert other["agent_run"] is None
+
+
+def test_the_closeout_review_is_queued_inside_an_open_window_and_for_a_new_end_date(
+    api: Api,
+) -> None:
+    """Inside the window already: the next move queues it. A new end date gets its own."""
+    sample = _sample(api, datetime(2025, 12, 1, tzinfo=UTC))  # window opened Nov 2, 2025
+    path = f"/workspaces/{sample.workspace.id}/clock"
+    api.client.post(path, json={"to": "2025-12-11T00:00:00Z"}, headers=api.headers)
+    with transaction(api.platform.pool) as conn:
+        reviews = [r for r in store.list_runs(conn, sample.grant.id) if r.trigger.kind == "clock"]
+    assert [r.clock_now.date().isoformat() for r in reviews] == ["2025-12-01"]
+    # The extension (end Jan 31, 2027) is confirmed on Apr 10, 2026: its window opens
+    # Nov 2, 2026, and a move past it queues a review for the new end date.
+    api.client.post(path, json={"to": "2026-11-05T00:00:00Z"}, headers=api.headers)
+    with transaction(api.platform.pool) as conn:
+        reviews = [r for r in store.list_runs(conn, sample.grant.id) if r.trigger.kind == "clock"]
+    assert sorted(r.clock_now.date().isoformat() for r in reviews) == ["2025-12-01", "2026-11-02"]
+
+
+def test_the_grant_page_lists_reusable_notes_and_term_values(api: Api) -> None:
+    sample = _sample(api)
+    l1001 = _id(sample, "chg-l-1001")
+    note = api.client.post(
+        f"/grants/{sample.grant.id}/records",
+        json={
+            "data": {
+                "kind": "accepted_reason",
+                "charge_id": l1001,
+                "reason": {"check": "fake", "problem": "evidence_complete"},
+                "note": "Lab supplies from this vendor are standard.",
+                "reusable": True,
+            }
+        },
+        headers=api.headers,
+    )
+    assert note.status_code == 201, note.text
+    detail = _get(api, f"/grants/{sample.grant.id}")
+    [view] = detail["reusable_notes"]
+    assert view["note"]["id"] == note.json()["id"] and view["charge"]["id"] == l1001
+    assert view["amount_limit_cents"] == 124000
+    period = next(
+        t for t in detail["terms"] if t["record"]["data"]["kind"] == "period_of_performance"
+    )
+    assert period["values"] and all(v["confirmed"] for v in period["values"])
+    assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}

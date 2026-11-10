@@ -7,18 +7,10 @@ from typing import Any, Protocol
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
 
-from app.contracts.records import Record
-from app.contracts.threads import ThreadMessage
-from app.contracts.workspaces import Grant
-from app.db import actions, store
-from app.db.clock import ClockError, ClockState, clock_state, move_clock
-from app.db.pool import transaction
-
-from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
-from .screens import (
+from app.contracts.api import (
+    ArrivalSource,
     ChargeDetail,
     ClockMove,
-    ClockView,
     EvidenceCard,
     GrantDetail,
     GrantSummary,
@@ -27,6 +19,17 @@ from .screens import (
     ProblemList,
     Thread,
 )
+from app.contracts.checks import RecordStatus
+from app.contracts.records import Record
+from app.contracts.threads import ThreadMessage
+from app.contracts.workspaces import Grant
+from app.db import actions, store
+from app.db.clock import ClockError, ClockState, clock_state, move_clock
+from app.db.pool import transaction
+
+from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
+from .routes import PlainErrorsRoute
+from .screens import ClockView
 from .views import (
     GrantSnapshot,
     charge_detail,
@@ -39,7 +42,14 @@ from .views import (
     thread,
 )
 
-router = APIRouter()
+router = APIRouter(route_class=PlainErrorsRoute)
+
+
+def _rejected(problems: list[str]) -> JSONResponse:
+    """A 422 in the one shape every route uses: the contracts' WriteRejected."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": problems}
+    )
 
 
 def _not_found() -> HTTPException:
@@ -62,7 +72,7 @@ def get_grant(grant: GrantDep, platform: PlatformDep) -> GrantDetail:
 @router.get("/grants/{grant_id}/problems")
 def get_problems(grant: GrantDep, platform: PlatformDep) -> ProblemList:
     with transaction(platform.pool) as conn:
-        return ProblemList(rows=problem_rows(load_snapshot(platform, conn, grant)))
+        return ProblemList(rows=tuple(problem_rows(load_snapshot(platform, conn, grant))))
 
 
 @router.get("/grants/{grant_id}/evidence")
@@ -139,6 +149,17 @@ def post_record_thread(
 ) -> ThreadMessage:
     snap, record = _record_snapshot(platform, user.id, record_id)
     subject = _thread_subject(snap, record)
+    chain = record_chain(snap, subject.id)
+    with transaction(platform.pool) as conn:
+        had_problem = any(
+            isinstance(row.status, RecordStatus) and row.status.problems
+            for row in store.status_history(conn, record_ids=chain)
+        )
+    has_thread = any(m.record_id in chain for m in snap.messages)
+    if not (had_problem or has_thread):
+        return _rejected(  # pyright: ignore[reportReturnType]
+            ["Only a record with a problem has a thread (contracts.md section 10)."]
+        )
     return actions.add_message(platform, snap.grant, user.id, body.text, record_id=subject.id)
 
 
@@ -151,32 +172,34 @@ class ReportMaker(Protocol):
         ...
 
 
-class ModuleReport:
-    """The real report: `app.packet.render_report(conn, snapshot) -> bytes` (W6)."""
+def _report_module_ready() -> bool:
+    """Whether #38's `app.packet.build_report(ReportInputs)` is on main."""
+    import importlib
 
-    def render(self, conn: Any, snapshot: GrantSnapshot, /) -> bytes:
-        from app import packet
-
-        return packet.render_report(conn, snapshot)  # pyright: ignore[reportAttributeAccessIssue]
+    return hasattr(importlib.import_module("app.packet"), "build_report")
 
 
 @router.get(
     "/grants/{grant_id}/report",
     response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}, "description": "The current draft"}},
+    responses={
+        200: {"content": {"application/pdf": {}}, "description": "The current draft"},
+        501: {"description": "The evidence report isn't on main yet"},
+    },
 )
 def get_report(grant: GrantDep, platform: PlatformDep, request: Request) -> Response:
     """The current draft of the evidence report (decision 0022). A signed report is fetched
-    through its sign-off, once the stored copy is built."""
-    maker: ReportMaker = getattr(request.app.state, "report_maker", None) or ModuleReport()
+    through its sign-off. Until #38's `build_report` is wired here, this is a 501."""
+    maker: ReportMaker | None = getattr(request.app.state, "report_maker", None)
+    if maker is None:
+        detail = (
+            "The evidence report is on main but isn't wired to this route yet."
+            if _report_module_ready()
+            else "The evidence report isn't built yet (#38)."
+        )
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail)
     with transaction(platform.pool) as conn:
-        snap = load_snapshot(platform, conn, grant)
-        try:
-            pdf = maker.render(conn, snap)
-        except (ImportError, AttributeError, NotImplementedError):
-            raise HTTPException(
-                status.HTTP_503_SERVICE_UNAVAILABLE, "The evidence report isn't built yet."
-            ) from None
+        pdf = maker.render(conn, load_snapshot(platform, conn, grant))
     name = f"evidence-report-{_slug(grant)}.pdf"
     return Response(
         pdf,
@@ -201,10 +224,7 @@ def _clock_view(state: ClockState) -> ClockView:
         simulated=state.simulated,
         next_arrival_at=arrival.at if arrival else None,
         next_arrival=NextArrival(
-            at=arrival.at,
-            source=arrival.source,  # pyright: ignore[reportArgumentType]
-            name=arrival.name,
-            grant_id=arrival.grant_id,
+            at=arrival.at, source=ArrivalSource(arrival.source), name=arrival.name
         )
         if arrival
         else None,
@@ -224,6 +244,4 @@ def post_clock(workspace: WorkspaceDep, body: ClockMove, platform: PlatformDep) 
     try:
         return _clock_view(move_clock(platform, workspace.id, body.to))
     except ClockError as error:
-        return JSONResponse(  # pyright: ignore[reportReturnType]
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": [str(error)]}
-        )
+        return _rejected([str(error)])  # pyright: ignore[reportReturnType]

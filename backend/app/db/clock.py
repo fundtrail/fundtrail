@@ -36,7 +36,7 @@ from .pool import transaction, workspace_now
 from .recheck import recheck_grant
 from .store import Conn
 
-_SOURCE_NAMES = {Source.GMAIL: "email", Source.DRIVE: "drive", Source.UPLOAD: "upload"}
+_SOURCE_NAMES = {Source.GMAIL: "gmail", Source.DRIVE: "drive", Source.UPLOAD: "upload"}
 
 
 class ClockError(Exception):
@@ -46,7 +46,7 @@ class ClockError(Exception):
 @dataclass(frozen=True)
 class Arrival:
     at: datetime
-    source: str  # ledger, email, drive or upload
+    source: str  # ledger, gmail, drive or upload (contracts.api.ArrivalSource)
     name: str  # the file name, or the ledger line ID
     grant_id: str
 
