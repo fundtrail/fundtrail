@@ -6,10 +6,11 @@ bring in, and dates the checks work out. Every timeline route is 404 on a grant
 that isn't a sample.
 
 - GET  /grants/{grant_id}/timeline: TimelineView.
-- POST /grants/{grant_id}/timeline: TimelineMove; returns TimelineView.
+- POST /grants/{grant_id}/timeline: TimelineMove; returns TimelineView. The
+  read-live limit can refuse it with a 409 whose `detail` is api.SampleRefusal (see
+  TimelineMove).
 - POST /grants/{grant_id}/timeline/start-over: TimelineStartOver; resets that one
-  grant; returns TimelineView. On a larger live sample it counts as opening one, so
-  the larger-live limit can refuse it with a 409 whose `detail` is api.SampleRefusal.
+  grant; returns TimelineView. The read-live limit never refuses it.
 - POST /grants/{grant_id}/timeline/deliveries/{event_id}: "Deliver for me"; brings
   the item in as if the user had; returns TimelineView.
 - GET  /grants/{grant_id}/timeline/deliveries/{event_id}/file: "Get the file"; a
@@ -92,6 +93,12 @@ class TimelineMove(Model):
     """POST /grants/{grant_id}/timeline. None in `to` moves to the next event.
 
     Forward only: a time before the grant's now is a 409.
+
+    The read-live limit (ruling 48, a first version): while one of the user's larger
+    read-live samples has agent runs queued or running from a move of its clock,
+    moving the clock of another of the user's larger read-live samples is refused
+    with a 409 whose `detail` is an api.SampleRefusal with reason
+    `another_sample_working`, naming the one still working.
     """
 
     to: UtcDatetime | None = None
@@ -106,7 +113,8 @@ class TimelineStartOver(Model):
     """POST /grants/{grant_id}/timeline/start-over: resets that one grant.
 
     With `confirmed` false it's refused: a 409 whose `detail` is an api.SampleRefusal
-    with reason `needs_confirm`.
+    with reason `needs_confirm`. The read-live limit never refuses it: that limit is
+    on moving the clock (TimelineMove).
     """
 
     confirmed: bool

@@ -47,6 +47,7 @@ META_FILES = {
     "timeline.json",
     "user_actions.json",
     "sample.json",
+    "agent_records.json",
     "README.md",
 }
 TIMELINE_KINDS = {"file", "ledger", "ledger_line"}
@@ -195,6 +196,7 @@ def generated() -> dict:
     out: dict = {SAMPLES / name: g for name, g in samples.items()}
     out.update({DEMO / g.slug: g for g in unused})
     out["sample_json"] = build.sample_json
+    out["agent_records_json"] = build.agent_records_json
     return out
 
 
@@ -256,6 +258,7 @@ def check_generated(key_dir: Path, files: Path, grant, problems: list[str]) -> N
     ]
     if key_dir.parent == SAMPLES:
         made_files.append(("sample.json", gen()["sample_json"](grant)))
+        made_files.append(("agent_records.json", gen()["agent_records_json"](grant)))
     for fname, made in made_files:
         path = key_dir / fname
         if not path.is_file():
@@ -609,7 +612,7 @@ def check_key_data(
 
 def check_synthetic(files: Path, text: dict[str, str], problems: list[str]) -> None:
     for p in sorted(files.iterdir()):
-        if p.is_file() and p.stat().st_size > MAX_FILE_BYTES:
+        if p.is_file() and p.name not in META_FILES and p.stat().st_size > MAX_FILE_BYTES:
             problems.append(f"{p.name}: {p.stat().st_size} bytes, keep files small")
         if p.suffix in PHOTO_SUFFIXES and not p.read_bytes().startswith(b"\xff\xd8"):
             problems.append(f"{p.name}: isn't a JPEG")
@@ -1349,6 +1352,124 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
         assert expected in text, (expected, problems)
 
 
+def citations(obj) -> list[dict]:
+    """Every citation inside a record's data."""
+    found = []
+    if isinstance(obj, dict):
+        if "file_id" in obj and "location" in obj:
+            found.append(obj)
+        for v in obj.values():
+            found += citations(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += citations(v)
+    return found
+
+
+def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
+    """agent_records.json, the agent's expected records for the checks-only play.
+
+    - Every link, budget line and answer the key expects is there, on the same
+      charge, with the same amount or answer.
+    - Every citation points at a file of the sample and its passage is really
+      there: at its characters in a text file, on its page in a PDF. A photo's box
+      lies inside the photo.
+    - Nothing is written before its file or its charge arrives.
+    """
+    body = load(folder, "agent_records.json")
+    key = load(folder, "answer_key.json")
+    where = f"{folder.name}: agent_records.json"
+    records = body["records"]
+    by_id = {r["id"]: r for r in records}
+    file_of: dict[str, str] = {}
+    for r in records:
+        if r["data"]["kind"] in ("bill", "note"):
+            cites = citations(r["data"])
+            file_of[r["id"]] = cites[0]["file_id"].removeprefix("file-") if cites else ""
+    links = {
+        (
+            file_of.get(r["data"]["record_id"]),
+            r["data"]["charge_id"].removeprefix("chg-"),
+            r["data"].get("amount_cents"),
+        )
+        for r in records
+        if r["data"]["kind"] == "link"
+    }
+    for lk in key["links"]:
+        if (lk["file"], lk["line_id"], lk.get("amount_cents")) not in links:
+            problems.append(f"{where}: no link of {lk['file']} to {lk['line_id']}")
+    names = {
+        r["id"]: r["data"]["name"]["value"] for r in records if r["data"]["kind"] == "budget_line"
+    }
+    budgets = {
+        (r["data"]["charge_id"].removeprefix("chg-"), names.get(r["data"]["record_id"]))
+        for r in records
+        if r["data"]["kind"] == "budget_assignment"
+    }
+    for b in key["budget_lines"]:
+        if (b["line_id"], b["budget_line"]) not in budgets:
+            problems.append(f"{where}: no budget line {b['budget_line']!r} for {b['line_id']}")
+    last_answer: dict[tuple[str, str], str] = {}
+    for r in records:
+        d = r["data"]
+        if d["kind"] == "judgment":
+            last_answer[(d["charge_id"].removeprefix("chg-"), d["question"])] = d["answer"]
+    for a in key["answers"]:
+        if last_answer.get((a["line_id"], a["question"])) != a["answer"]:
+            problems.append(f"{where}: no {a['question']} answer {a['answer']} on {a['line_id']}")
+
+    docs = {d.name: d for d in grant.docs}
+    arrived = {d.name: d.at for d in grant.docs}
+    line_at = {f"chg-{ln.line_id}": grant.line_arrival(ln) for ln in grant.lines}
+    for r in records:
+        rid = r["id"]
+        written = ev.parse_time(r["written_at"])
+        charge = r["data"].get("charge_id")
+        if charge is not None and (charge not in line_at or written < line_at[charge]):
+            problems.append(f"{where}: {rid} is written before its charge arrives")
+        for target in ("record_id", "replaces_id"):
+            ref = r["data"].get(target) if target == "record_id" else r.get(target)
+            if ref is not None and (ref not in by_id or by_id[ref]["written_at"] > r["written_at"]):
+                problems.append(f"{where}: {rid} points to {ref}, not written before it")
+        for c in citations(r["data"]):
+            name = c["file_id"].removeprefix("file-")
+            if name not in docs:
+                problems.append(f"{where}: {rid} cites {name}, which isn't a file of the sample")
+                continue
+            if written < arrived[name]:
+                problems.append(f"{where}: {rid} cites {name} before it arrives")
+            loc, rows = c["location"], docs[name].text.split("\n")
+            if loc["type"] == "char_location":
+                got = docs[name].text[loc["start_char_index"] : loc["end_char_index"]]
+                if got != c["passage"]:
+                    problems.append(f"{where}: {rid}'s passage isn't at its characters in {name}")
+            elif loc["type"] == "page_location":
+                page = loc["start_page_number"]
+                text = "\n".join(rows[(page - 1) * 60 : page * 60])
+                if loc["end_page_number"] != page + 1 or c["passage"] not in text:
+                    problems.append(f"{where}: {rid}'s passage isn't on page {page} of {name}")
+            elif loc["type"] == "image_box":
+                if not (
+                    0 <= loc["left"]
+                    and loc["left"] + loc["width"] <= 1
+                    and 0 <= loc["top"]
+                    and loc["top"] + loc["height"] <= 1
+                ):
+                    problems.append(f"{where}: {rid}'s box isn't inside {name}")
+            else:
+                problems.append(f"{where}: {rid} has a {loc['type']} citation")
+
+
+def test_agent_records_match_the_key() -> None:
+    """Each sample's agent_records.json gives the key's links, budget lines and
+    answers, with citations that point at their files."""
+    g = gen()
+    problems: list[str] = []
+    for folder in (LARGER, SMALL):
+        check_agent_records(folder, g[folder], problems)
+    assert not problems, "\n".join(problems[:30])
+
+
 def test_larger_sample() -> None:
     """The larger sample reaches closeout: its timeline starts with its award
     letter and runs past the start of its 90-day closeout window."""
@@ -1392,6 +1513,7 @@ if __name__ == "__main__":
         test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action,
         test_suggestion_kinds_are_record_kinds,
         test_a_script_with_more_than_the_key_assumes_fails,
+        test_agent_records_match_the_key,
         test_larger_sample,
         test_small_sample,
         test_line_ids_are_unique,

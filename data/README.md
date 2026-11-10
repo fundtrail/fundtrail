@@ -10,6 +10,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/user_actions.json` | What the user does in the play the answer key assumes: confirming terms, and bringing in the files marked for them |
 | `samples/<sample>/answer_key.json` | Each charge's expected result, in the eval's format (contracts.md section 14) |
 | `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves, with placeholder names |
+| `samples/<sample>/agent_records.json` | The agent's expected records, shaped as the contract's records, for the checks-only play |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
@@ -60,7 +61,31 @@ A suggestion's kind must be one of the contract's record kinds that wait for the
 Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 
 - **Doing nothing.** No user action. Every scheduled event plays through to the end without an error. Charges are expected to wait, so no bucket is asserted.
-- **Doing everything expected.** Every scripted step, at its time. Then the key's buckets hold at the key's times. A checks-only version runs in CI, on hand-written agent records (`agent_records.json`, a later step). The live-agent version runs on demand, like the eval.
+- **Doing everything expected.** Every scripted step, at its time. Then the key's buckets hold at the key's times. A checks-only version runs in CI, on the hand-written agent records in `agent_records.json` (below). The live-agent version runs on demand, like the eval.
+
+## The agent's expected records
+
+`agent_records.json` holds what the agent is expected to write on each sample, for the checks-only play. The play feeds these records to the checks in place of the live agent's, with the scripted confirmations, and asserts the key's buckets. Each record is shaped as the contract's `Record` (`backend/app/contracts/records.py`), author `agent`:
+
+- **Terms** from the award letter: the period, the notice, every budget line with its category, and the people.
+- **Facts**: a bill or a note from each file the key names. A note gives its label, its statement and, for an effort report or an appointment letter, its period.
+- **Links** with their amounts, parts and the default checklist item each fills. Where a note gives a share, such as "56 of the 96", the link carries the share with its three cited numbers (decision 0021). S3c's link has no basis, so it has none.
+- **Budget assignments.**
+- **Allowable answers**, written again each time something new is linked. Each new one replaces the last, as the agent answers again.
+
+IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the grant `grant-<sample>`, a file `file-<file name>`, a charge `chg-<ledger line ID>`. Citations are counted, not typed:
+
+- a text or email file gets a `char_location`
+- a PDF gets a `page_location`
+- a photo gets an `image_box` around the value's line, worked out from the photo's layout
+
+Each record is written when its file and its charge have both arrived. Confirmations aren't here, because they're the accountant's and live in `user_actions.json`.
+
+The records validate against the contract's models. Played through main's checks at every key time, with the scripted confirmations, they give the key's bucket each time: 103 of 103 in the larger sample and 8 of 8 in the small one. The static test checks four things:
+- every link, budget line and answer the key expects is there
+- every passage is at its place in its file
+- every photo box lies inside its photo
+- nothing is written before what it rests on
 
 ## The seed grants
 

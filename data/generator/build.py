@@ -78,6 +78,15 @@ def sample_json(g) -> str:
     return json.dumps(body, indent=2) + "\n"
 
 
+def agent_records_json(g) -> str:
+    """The agent's expected records for the checks-only play, one record per line."""
+    import agent_records
+    from model import dump_list_obj
+
+    body = agent_records.build(g, json.loads(g.key_json()))
+    return dump_list_obj(body, "records")
+
+
 def built() -> tuple[dict[str, object], list[object]]:
     """The samples by name, and the unused grants."""
     import demo
@@ -103,6 +112,7 @@ def main() -> None:
         g.write(SAMPLES / name)
         g.write_key(SAMPLES / name)
         (SAMPLES / name / "sample.json").write_text(sample_json(g), encoding="utf-8")
+        (SAMPLES / name / "agent_records.json").write_text(agent_records_json(g), encoding="utf-8")
     for g in unused:
         g.write(DEMO / g.slug)
         g.write_key(DEMO / g.slug)

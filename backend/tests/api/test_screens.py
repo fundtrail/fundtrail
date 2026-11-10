@@ -658,3 +658,35 @@ def test_an_accepted_over_limit_problem_takes_the_amount_over_from_the_problem(a
 
     assert accept({"check": "budget", "problem": "over_limit"}) == 5000
     assert accept({"check": "budget", "problem": "something_else"}) is None
+
+
+def test_accepting_a_notes_offer_raises_its_limit_and_isnt_a_note_of_its_own(api: Api) -> None:
+    """Accepting the offer as "this and similar charges" on a larger charge raises the
+    original note's amount limit (the checks' note_limit); the acceptance isn't listed as a
+    second reusable note."""
+    sample = _sample(api)
+    l1001, l1002 = _id(sample, "chg-l-1001"), _id(sample, "chg-l-1002")
+
+    def accept(charge_id: str, **extra: object) -> str:
+        response = api.client.post(
+            f"/grants/{sample.grant.id}/records",
+            json={
+                "data": {
+                    "kind": "accepted_reason",
+                    "charge_id": charge_id,
+                    "reason": {"check": "fake", "problem": "evidence_complete"},
+                    "note": "Lab supplies from this vendor are standard.",
+                    "reusable": True,
+                    **extra,
+                }
+            },
+            headers=api.headers,
+        )
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    note_id = accept(l1001)
+    accept(l1002, reuses_id=note_id)
+    [view] = _get(api, f"/grants/{sample.grant.id}")["reusable_notes"]
+    assert view["note"]["id"] == note_id and view["charge"]["id"] == l1001
+    assert view["amount_limit_cents"] == 218000  # L-1002's amount, above L-1001's 124000
