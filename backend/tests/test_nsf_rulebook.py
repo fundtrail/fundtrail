@@ -28,6 +28,7 @@ META_PREFIXES = (
     "- Older source: ",
     "- Older status: ",
     "- Older editions: ",
+    "- Older answer: ",
     "- Quote: ",
     "- Checked: ",
 )
@@ -183,6 +184,36 @@ def test_every_asr_citation_says_what_the_earlier_editions_say(rulebook: Ruleboo
             assert editions, f"{rule.id} cites the ASR but has no older editions line"
         else:
             assert not editions, f"{rule.id} has an older editions line but no ASR citation"
+
+
+def test_older_ecfr_sources_link_to_a_dated_edition(rulebook: Rulebook) -> None:
+    for rule in rulebook.rules:
+        for line in rule.lines("- Older source:"):
+            if "ecfr.gov" in line:
+                assert re.search(r"ecfr\.gov/on/\d{4}-\d{2}-\d{2}/", line), (
+                    f"{rule.id} older eCFR source must link to a dated edition: {line}"
+                )
+
+
+def test_header_lists_the_2_cfr_comparison(rulebook: Rulebook) -> None:
+    assert "2 CFR 200 on older awards" in rulebook.header
+    assert "- Older answer: from the governing wording" in rulebook.header
+
+
+def test_older_answer_rests_on_a_quoted_dated_older_wording(rulebook: Rulebook) -> None:
+    """The agent answers from the governing wording only where the older text is quoted."""
+    for rule in rulebook.rules:
+        answers = rule.lines("- Older answer:")
+        assert len(answers) <= 1, f"{rule.id} has more than one older answer line"
+        if not answers:
+            continue
+        assert answers[0] == "- Older answer: from the governing wording", (
+            f"{rule.id} older answer line malformed: {answers[0]}"
+        )
+        dated = [line for line in rule.lines("- Older source:") if "ecfr.gov/on/" in line]
+        assert dated, f"{rule.id} answers from an older wording but cites no dated eCFR edition"
+        quotes = [line for line in rule.lines("- Quote:") if "edition in force on" in line]
+        assert quotes, f"{rule.id} answers from an older wording but doesn't quote it"
 
 
 def test_every_quote_is_quoted_and_attributed(rulebook: Rulebook) -> None:
