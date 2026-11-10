@@ -467,16 +467,24 @@ def test_two_notices_add_up_even_when_they_share_a_date() -> None:
 
 
 def _typed_line(
-    g: Grant, name: str, amount: int, dated: date, when: datetime, replaces: str | None = None
+    g: Grant,
+    name: str,
+    amount: int,
+    dated: date,
+    when: datetime,
+    replaces: str | None = None,
+    notice: str | None = None,
 ) -> str:
-    """A budget line the accountant typed: no citation."""
-    data = {
+    """A budget line the accountant typed: no citation, and optionally the notice it's on."""
+    data: dict[str, object] = {
         "kind": "budget_line",
         "dated": {"value": dated},
         "name": {"value": name},
         "amount": {"value": amount},
         "category": "participant_support",
     }
+    if notice is not None:
+        data["notice_file_id"] = notice
     return g.user(data, when, replaces=replaces)
 
 
@@ -625,3 +633,48 @@ def test_a_failed_open_question_run_goes_on_the_charge_whose_question_is_open() 
     out = g.run(at(2024, 3, 2))
     assert problems(out.charges[0]) == {("agent_run", "failed:run-1")}
     assert out.records == () and out.grants == ()
+
+
+# Call 42 (3): a typed line that names its notice goes with that notice. Both of #104's
+# false notes are cured when the line names it.
+
+
+def test_an_increments_typed_sub_line_naming_its_notice_doesnt_join_the_letter() -> None:
+    """#104's first false note: Stipends $5,000 from an increment, typed with the letter's
+    date. Named to its own notice, it adds to the budget: $22,000 of $25,000, no note."""
+    g = Grant()
+    g.standard_terms()  # the letter: Participant Support Costs $20,000
+    g.file("f-increment", at(2023, 6, 1))
+    stipends = _typed_line(
+        g, "Stipends", 500_000, date(2023, 1, 10), at(2023, 6, 2), notice="f-increment"
+    )
+    g.charge("stip", date(2024, 3, 1), 2_200_000, account=STIPENDS, vendor=None)
+    g.assign("stip", stipends, at(2024, 3, 1))
+    assert [n.text for n in g.run(at(2024, 3, 2)).notes] == []
+
+
+def test_two_notices_typed_parent_and_sub_line_on_one_date_both_count() -> None:
+    """#104's second false note: one notice's typed parent ($20,000) and another's typed
+    sub-line ($15,000) on the same date. Named to their notices: $31,000 of $35,000."""
+    g = Grant()
+    g.file("f-one", at(2023, 1, 12))
+    g.file("f-two", at(2023, 6, 1))
+    parent = _typed_line(
+        g, "Participant Support Costs", 2_000_000, date(2023, 1, 10), at(2023, 2, 1), notice="f-one"
+    )
+    _typed_line(g, "Stipends", 1_500_000, date(2023, 1, 10), at(2023, 6, 2), notice="f-two")
+    g.charge("stip", date(2024, 3, 1), 3_100_000, account=STIPENDS, vendor=None)
+    g.assign("stip", parent, at(2024, 3, 1))
+    assert [n.text for n in g.run(at(2024, 3, 2)).notes] == []
+
+
+def test_a_typed_sub_line_naming_the_letter_counts_once_with_its_parent() -> None:
+    """The case #84 fixed, now by the notice it names rather than its date."""
+    g = Grant()
+    g.standard_terms()  # the letter (f-letter): Participant Support Costs $20,000
+    stipends = _typed_line(
+        g, "Stipends", 1_500_000, date(2023, 2, 1), at(2023, 2, 1), notice="f-letter"
+    )
+    assert _stipend_overspend(g, stipends) == [
+        "Participant Support Costs: $25,000.00 of $20,000.00"
+    ]

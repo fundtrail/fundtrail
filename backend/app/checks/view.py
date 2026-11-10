@@ -31,6 +31,7 @@ from app.contracts.records import (
     Question,
     Record,
     RecordKind,
+    Remainder,
     citations,
 )
 from app.contracts.rules import RecordState
@@ -132,6 +133,25 @@ class GrantView:
                 break
             r = older
         return r.id if r is not None else record_id
+
+    def using_links(self, fact_id: str) -> list[LinkInForce]:
+        """The links that use up a bill's total. Decision 0020: a link to a fully reversed
+        charge doesn't, so the bill is free to be linked to the line that now carries it."""
+        return [
+            lk
+            for lk in self.links_to_fact.get(fact_id, [])
+            if not ((net := self.nets.get(lk.data.charge_id)) is not None and net.reversed)
+        ]
+
+    def has_remainder(self, bill_id: str) -> bool:
+        """Decision 0021: a current remainder record says the rest of this bill belongs
+        to another award. The agent's waits for the accountant."""
+        for r in self.current:
+            if isinstance(r.data, Remainder):
+                now = self.state.current_version(r.data.record_id)
+                if now is not None and now.id == bill_id:
+                    return True
+        return False
 
     def files_of(self, record: Record) -> set[str]:
         return {c.file_id for c in citations(record.data)}

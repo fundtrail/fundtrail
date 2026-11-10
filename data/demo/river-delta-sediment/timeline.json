@@ -1,8 +1,8 @@
 {
-  "case": "river-delta-sediment",
+  "sample": "river-delta-sediment",
+  "starts_at": "2023-08-14T17:00:00Z",
   "events": [
-    {"at": "2023-08-14T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The accountant adds the grant with its award letter."},
-    {"at": "2023-08-15T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "award_letter.txt", "note": "The accountant confirms every term read from the award letter."},
+    {"at": "2023-08-14T17:00:00Z", "kind": "file", "file": "award_letter.txt", "source": "upload", "note": "The award letter arrives: the grant's first scheduled event."},
     {"at": "2023-08-21T18:00:00Z", "kind": "file", "file": "appointment_letter_samplewell_2023.txt", "source": "upload", "note": "Jules Samplewell's appointment letter."},
     {"at": "2023-10-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0001"},
     {"at": "2023-11-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0002"},
@@ -91,8 +91,7 @@
     {"at": "2026-10-05T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0037"},
     {"at": "2026-10-06T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0059", "note": "S2. Work done after the end date in the award letter, August 31, 2026."},
     {"at": "2026-11-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0038"},
-    {"at": "2026-11-20T16:30:00Z", "kind": "file", "file": "extension_notice_001.txt", "source": "drive", "note": "S2. After the demo opens, the extension notice, dated 17 days before the old end date, turns up in the PI's Drive folder."},
-    {"at": "2026-11-23T17:00:00Z", "kind": "accountant", "action": "confirm_terms", "file": "extension_notice_001.txt", "note": "The accountant confirms the new end date, August 31, 2027. In the demo the user does this."},
+    {"at": "2026-11-20T16:30:00Z", "kind": "file", "file": "extension_notice_001.txt", "source": "drive", "note": "S2. Weeks later, the extension notice, dated 17 days before the old end date, turns up in the PI's Drive folder."},
     {"at": "2026-12-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0039"},
     {"at": "2027-01-04T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0040"},
     {"at": "2027-02-03T00:00:00Z", "kind": "ledger_line", "line_id": "L-9472-0041"},

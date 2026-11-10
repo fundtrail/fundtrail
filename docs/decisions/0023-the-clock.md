@@ -1,6 +1,6 @@
 # 0023. Every workspace has a "now", and only the demo workspace can move it
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Builds on [0007](0007-real-app-first.md).
+**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Builds on [0007](0007-real-app-first.md). Amended by [0028](0028-one-clock-per-grant.md) (the clock belongs to a grant, not a workspace, and a live email on a sample grant is dated to the simulated time) and [0027](0027-sample-grants.md) (the demo workspace's controls and reset become a sample grant's timeline panel and start over).
 
 ## Context
 

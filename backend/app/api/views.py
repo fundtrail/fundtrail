@@ -86,8 +86,8 @@ from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
+from app.db.clock import grant_now
 from app.db.platform import Platform
-from app.db.pool import workspace_now
 from app.db.store import Conn, Status, StatusRow
 
 # The buckets on the problem list, most serious first (answer 1).
@@ -125,7 +125,7 @@ class GrantSnapshot:
 
 def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
     workspace = store.workspace_by_id(conn, grant.workspace_id)
-    now = workspace_now(workspace)
+    now = grant_now(conn, grant.id)
     charges = store.list_charges(conn, grant.id, now)
     files = store.list_files(conn, grant.id, now)
     records = store.list_records(conn, grant.id, now)
@@ -256,6 +256,7 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         waiting=sum(1 for r in snap.state.waiting() if r.author == Author.AGENT),
         bucket_counts=counts,
         next_closeout=CloseoutDate(date=step.date, label=step.label) if step else None,
+        now=snap.now,
     )
 
 

@@ -5,7 +5,8 @@ import { AppShell, Loadable } from "@/components/AppShell";
 import { grantName } from "@/components/GrantList";
 import { GrantTerms } from "@/components/setup/GrantTerms";
 import { ReusableNotes } from "@/components/setup/ReusableNotes";
-import { useGrant, useProblemList } from "@/lib/api";
+import { NoticeFilesProvider, noticeFilesFor } from "@/components/setup/noticeFiles";
+import { useEvidence, useGrant, useProblemList } from "@/lib/api";
 
 /**
  * A grant's terms: those waiting for the accountant, one group per source
@@ -16,6 +17,7 @@ export function TermsScreen() {
   const { grantId } = useParams<{ grantId: string }>();
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
+  const evidence = useEvidence(grantId);
   const summary = grant.data?.summary;
 
   return (
@@ -27,7 +29,13 @@ export function TermsScreen() {
       <p className="ft-caption">Checks use only confirmed terms.</p>
       <Loadable result={grant}>
         {(detail) => (
-          <Loadable result={problems}>{(list) => <GrantTerms terms={detail.terms} rows={list.rows} />}</Loadable>
+          <Loadable result={problems}>
+            {(list) => (
+              <NoticeFilesProvider value={noticeFilesFor(detail.terms, evidence)}>
+                <GrantTerms terms={detail.terms} rows={list.rows} />
+              </NoticeFilesProvider>
+            )}
+          </Loadable>
         )}
       </Loadable>
 
