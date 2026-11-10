@@ -20,9 +20,9 @@ The eval is an automated test that measures how often FundTrail gets the right a
    - its answers to the questions code asks, for example "Allowable: contradicts" for a break-room espresso machine
    - the bucket the expense should be in after each arrival
 
-   Decisions 0010 to 0012 add more to check: the items on each charge's evidence checklist, the suggestions and disputes the agent should raise, and which facts should come out unconfirmed. They join the key with the contract change (see [contracts.md](contracts.md#13-agreed-changes-not-yet-in-the-code)).
+   Decisions 0010 to 0012 add more to check: the items on each charge's evidence checklist, the suggestions and disputes the agent should raise, and which facts should come out unconfirmed. They join the key with the contract change (see [contracts.md](contracts.md#14-eval-answer-key)).
 
-   The format is in [contracts.md](contracts.md#11-eval-answer-key).
+   The format is in [contracts.md](contracts.md#14-eval-answer-key).
 2. **Make the documents.** These are award letters, emails, invoices, receipts and the ledger file, all matching the answer key.
 3. **Run FundTrail on them** with the same code as the app: the same file handling, the same agent, the same checks. Documents are read from local folders rather than through the connectors.
 4. **Compare, scored in two separate parts:**

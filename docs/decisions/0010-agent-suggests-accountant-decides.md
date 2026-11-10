@@ -44,7 +44,7 @@ A design review before the build found places where [0009](0009-agent-judges-cod
 
 ## Consequences
 
-- The contracts change: more of the agent's writes wait, and there are new records for accepted reasons, snoozes, disputes and flags on records, plus a thread messages table. The changes are listed in [contracts.md](../contracts.md#13-agreed-changes-not-yet-in-the-code) and need their own contract PR.
+- The contracts change: more of the agent's writes wait, and there are new records for accepted reasons, snoozes, disputes and flags on records, plus a thread messages table. The changes are listed in [contracts.md](../contracts.md) and need their own contract PR.
 - Trust rule 1 becomes "the agent reads, links, answers and suggests."
 - A reusable note never covers a different vendor on its own. The five January charges an amendment allows come from different vendors, so each is accepted with its own click.
 - Details that only change how a part is built are listed under "Not decided yet" in each doc. They're discussed with Alex before that part is built.

@@ -35,7 +35,7 @@ We looked at how production systems do this instead of inventing our own. Anthro
 
 - Trust rule 2 becomes "every quote is checked against its file." The ledger-line match for photo values is gone.
 - [0004](0004-files-to-claude-as-is.md) changes for photos and scanned pages only: they're sent as images at a size we control. Other files still go as they are.
-- The contracts change: a citation stores where its highlight goes and how it matched, a cited value is confirmed or unconfirmed, and the write check reads the file (see [contracts.md](../contracts.md#13-agreed-changes-not-yet-in-the-code)).
+- The contracts change: a citation stores where its highlight goes and how it matched, a cited value is confirmed or unconfirmed, and the write check reads the file (see [contracts.md](../contracts.md)).
 - Open details, discussed with Alex before that part is built: how loose the PDF match can be, quotes that cross a page break, the cost of the second look, and the fact that citations can't be combined with structured outputs. They're listed in [architecture.md](../architecture.md#not-decided-yet).
 
 ## Sources

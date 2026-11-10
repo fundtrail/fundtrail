@@ -10,9 +10,4 @@
 
 ## What runs today
 
-Only the shared contracts exist as code so far. Their tests run with:
-
-```bash
-cd backend
-uv run pytest
-```
+Nothing yet. The design is in [docs/](docs/), and the code gets written from it.
