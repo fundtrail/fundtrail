@@ -263,6 +263,12 @@ def records() -> list[dict[str, Any]]:
                     "obligated_to_date": money(
                         award, "Total Amount Obligated to Date: $120,000", "$120,000"
                     ),
+                    "award_number": words(award, "Award Number (FAIN): SYN-2300117", "SYN-2300117"),
+                    "title": words(
+                        award,
+                        "Project Title: Sediment Microbiome Survey of Example Bay",
+                        "Sediment Microbiome Survey of Example Bay",
+                    ),
                 }
             ),
         ),
@@ -598,6 +604,8 @@ def answer_key() -> dict[str, Any]:
                 amendment_type="New Project",
                 obligated_by_amendment="12000000",
                 obligated_to_date="12000000",
+                award_number="SYN-2300117",
+                title="Sediment Microbiome Survey of Example Bay",
             ),
             expect(
                 "bill",
