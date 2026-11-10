@@ -17,8 +17,8 @@ from typing import Protocol
 from .addresses import find_tag, grant_address
 from .authentication import GMAIL_AUTHSERV_ID, is_verified
 from .drive_files import DriveState, drive_file, files_to_take, version_of
-from .email_files import email_to_files, parse_headers
-from .incoming import GrantRoute, HeldMail, HoldReason, IncomingFile
+from .email_files import ParsedEmail, email_parts, parse_headers
+from .incoming import GrantRoute, HeldMail, HoldReason, IncomingFile, SkippedFile
 from .sources import CannotTake, DriveSource, MailSource, RawMessage
 
 log = logging.getLogger(__name__)
@@ -33,6 +33,10 @@ class IngestSink(Protocol):
         ...
 
     def hold(self, held: HeldMail) -> None: ...
+
+    def skip(self, skipped: SkippedFile) -> None:
+        """Record a file that was sent but not taken in, so the grant shows a problem."""
+        ...
 
 
 # The workspace's "now", given its ID.
@@ -101,11 +105,14 @@ def _take(
     if message.id in state.seen_messages:
         return True
     try:
-        _store_or_hold(message, mailbox, by_tag, now, sink, authserv_id)
+        taken = _store_or_hold(message, mailbox, by_tag, now, sink, authserv_id)
     except Exception:
         log.exception("could not take in a message; tried again next check")
         return False
-    state.seen_messages.add(message.id)
+    # A message no grant's route knows yet isn't marked seen: if its grant's route turns
+    # up later, that grant's first read takes it in.
+    if taken:
+        state.seen_messages.add(message.id)
     return True
 
 
@@ -116,20 +123,39 @@ def _store_or_hold(
     now: WorkspaceNow,
     sink: IngestSink,
     authserv_id: str,
-) -> None:
+) -> bool:
+    """Store or hold one message. False when no grant's route knows its address."""
     parsed = parse_headers(message.raw)
     tag = find_tag(parsed.headers, mailbox)
     route = by_tag.get(tag) if tag else None
     if route is None:
         log.info("ignored a message with no tag or an unknown one")
-        return
-    files = email_to_files(
+        return False
+    parts = email_parts(
         message.raw,
         message_id=message.id,
         grant_id=route.grant_id,
         workspace_id=route.workspace_id,
     )
+    files = parts.files
     at = now(route.workspace_id)
+    _arrive_or_hold(parsed, route, message.id, files, at, sink, authserv_id)
+    # Reported whether the message arrives or is held: either way the accountant sent it.
+    # Reported after the message is stored, so a retry doesn't report it twice.
+    for skipped in parts.skipped:
+        sink.skip(skipped.at(at))
+    return True
+
+
+def _arrive_or_hold(
+    parsed: ParsedEmail,
+    route: GrantRoute,
+    message_id: str,
+    files: list[IncomingFile],
+    at: datetime,
+    sink: IngestSink,
+    authserv_id: str,
+) -> None:
     reason: HoldReason | None = None
     if parsed.sender is None:
         reason = "unverified_sender"  # the From line isn't exactly one readable address
@@ -147,7 +173,7 @@ def _store_or_hold(
             workspace_id=route.workspace_id,
             sender=parsed.sender,
             from_header=parsed.from_header,
-            gmail_message_id=message.id,
+            gmail_message_id=message_id,
             files=tuple(files),
             held_at=at,
             reason=reason,
@@ -197,9 +223,20 @@ def _check_folder(
                 source, entry, grant_id=route.grant_id, workspace_id=route.workspace_id
             )
             sink.store([incoming.arriving(now(route.workspace_id))])
-        except CannotTake as reason:
-            # Not tried again until the file changes.
-            log.warning("skipped a Drive file: %s", reason)
+        except CannotTake as cannot:
+            # Reported, and not tried again until the file changes.
+            sink.skip(
+                SkippedFile(
+                    grant_id=route.grant_id,
+                    workspace_id=route.workspace_id,
+                    name=entry.name,
+                    source="drive",
+                    message_or_folder=folder_id,
+                    reason=cannot.reason,
+                    source_ref=entry.id,
+                    skipped_at=now(route.workspace_id),
+                )
+            )
         except Exception:
             log.exception("could not take in a Drive file; tried again next check")
             continue

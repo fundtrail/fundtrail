@@ -75,16 +75,18 @@ def drive_file(
         media_type = "application/pdf"
         exported_from = entry.mime_type
     elif entry.mime_type.startswith(GOOGLE_PREFIX):
-        raise CannotTake(f"a Google file of type {entry.mime_type} can't be exported to PDF")
+        raise CannotTake(
+            "not_exportable", f"a Google file of type {entry.mime_type} can't be exported to PDF"
+        )
     else:
         if entry.size is not None and entry.size > MAX_FILE_BYTES:
-            raise CannotTake("file over the size limit")
+            raise CannotTake("too_large", "file over the size limit")
         data = source.download(entry.id)
         name = safe_name(entry.name, "file")
         media_type = entry.mime_type
         exported_from = None
     if len(data) > MAX_FILE_BYTES:
-        raise CannotTake("file over the size limit")
+        raise CannotTake("too_large", "file over the size limit")
     return IncomingFile(
         key=f"drive:{entry.id}:{version_of(entry)}",
         grant_id=grant_id,

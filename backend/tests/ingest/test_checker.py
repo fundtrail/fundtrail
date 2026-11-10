@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from app.ingest import drive_files
+from app.ingest import drive_files, email_files
 from app.ingest.checker import CheckState, check_drive, check_mail, check_once
 from app.ingest.drive_files import SETTLE, folder_id_from_link
-from app.ingest.incoming import GrantRoute, HeldMail, IncomingFile
+from app.ingest.incoming import GrantRoute, HeldMail, IncomingFile, SkippedFile
 from app.ingest.sources import (
     EXPORT_LIMIT_BYTES,
     GOOGLE_DOC,
@@ -47,12 +47,16 @@ class MemorySink:
     def __init__(self) -> None:
         self.stored: list[IncomingFile] = []
         self.held: list[HeldMail] = []
+        self.skipped: list[SkippedFile] = []
 
     def store(self, files: list[IncomingFile]) -> None:
         self.stored.extend(files)
 
     def hold(self, held: HeldMail) -> None:
         self.held.append(held)
+
+    def skip(self, skipped: SkippedFile) -> None:
+        self.skipped.append(skipped)
 
 
 def now(_workspace_id: str) -> datetime:
@@ -372,6 +376,19 @@ def test_google_files_that_cant_be_exported_are_skipped_once(tmp_path: Path) -> 
     check_drive(source, routes=[ROUTE], state=state, now=now, sink=sink)
     assert Counting.exports == exports  # not tried again every check
     assert len(sink.stored) == 1
+    # Each file that wasn't taken in is reported once, so the grant shows a problem.
+    assert sorted((s.name, s.reason) for s in sink.skipped) == [
+        ("Huge", "too_large"),
+        ("Survey", "not_exportable"),
+    ]
+    assert all(
+        s.source == "drive"
+        and s.message_or_folder == "grant-g1"
+        and s.skipped_at == WORKSPACE_NOW
+        and s.grant_id == "g1"
+        for s in sink.skipped
+    )
+    assert {s.source_ref for s in sink.skipped} == {"grant-g1/Huge.gdoc", "grant-g1/Survey.gform"}
 
 
 def test_drive_files_over_the_size_limit_are_skipped(tmp_path: Path, monkeypatch) -> None:
@@ -380,6 +397,21 @@ def test_drive_files_over_the_size_limit_are_skipped(tmp_path: Path, monkeypatch
     sink = MemorySink()
     check_drive(DiskDrive(tmp_path), routes=[ROUTE], state=CheckState(), now=now, sink=sink)
     assert sink.stored == []
+    assert [(s.name, s.reason) for s in sink.skipped] == [("big.pdf", "too_large")]
+
+
+@pytest.mark.parametrize("sender", [PI, STRANGER])
+def test_a_too_large_attachment_is_reported_whether_the_mail_arrives_or_is_held(
+    mailbox, monkeypatch, sender
+) -> None:
+    monkeypatch.setattr(email_files, "MAX_FILE_BYTES", 10)
+    source, folder, state = mailbox
+    write_mail(folder, "001", with_attachments(email(sender=sender)))
+    sink = check(source, state)
+    assert [(s.name, s.reason, s.source, s.message_or_folder) for s in sink.skipped] == [
+        ("invoice_1001.pdf", "too_large", "gmail", "001")
+    ]
+    assert sink.skipped[0].skipped_at == WORKSPACE_NOW
 
 
 def test_disk_drive_refuses_paths_outside_its_root(tmp_path: Path) -> None:
@@ -390,3 +422,12 @@ def test_disk_drive_refuses_paths_outside_its_root(tmp_path: Path) -> None:
         drive.download("../secret.txt")
     with pytest.raises(ValueError):
         drive.list_tree("../")
+
+
+def test_mail_that_arrives_before_its_grants_route_is_known_isnt_lost(mailbox) -> None:
+    source, folder, state = mailbox
+    write_mail(folder, "001", email(to="fundtrail-demo+g2tag234@mail.example", subject="Early"))
+    assert check(source, state).stored == []  # no route for g2 yet: ignored, not seen
+    sink = check(source, state, routes=(ROUTE, ROUTE_2))  # g2's first read finds it
+    assert [(f.grant_id, f.name) for f in sink.stored] == [("g2", "Early.eml")]
+    assert check(source, state, routes=(ROUTE, ROUTE_2)).stored == []

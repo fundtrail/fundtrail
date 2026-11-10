@@ -20,7 +20,7 @@ from email.utils import parsedate_to_datetime
 
 from PIL import Image
 
-from .incoming import MAX_FILE_BYTES, IncomingFile, safe_name
+from .incoming import MAX_FILE_BYTES, IncomingFile, SkippedFile, safe_name
 
 # An image smaller than this many pixels (about 200 by 200) is a logo or a
 # signature mark, not evidence.
@@ -120,10 +120,24 @@ def _is_evidence_part(part: Message) -> bool:
     return part.get_content_maintype() == "image"
 
 
+@dataclass(frozen=True)
+class EmailParts:
+    files: list[IncomingFile]  # the message first, then its attachments
+    skipped: list[SkippedFile]  # attachments not taken in, to show the accountant
+
+
 def email_to_files(
     raw: bytes, *, message_id: str, grant_id: str, workspace_id: str
 ) -> list[IncomingFile]:
     """The message first, then one file per attachment, in the order they appear."""
+    return email_parts(
+        raw, message_id=message_id, grant_id=grant_id, workspace_id=workspace_id
+    ).files
+
+
+def email_parts(raw: bytes, *, message_id: str, grant_id: str, workspace_id: str) -> EmailParts:
+    """The files an email becomes, and the attachments that were too large to take in."""
+    skipped: list[SkippedFile] = []
     parsed = parse_headers(raw)
     message_key = f"gmail:{message_id}"
     files = [
@@ -148,14 +162,23 @@ def email_to_files(
         data = _part_bytes(part)
         if not data:
             continue
-        if len(data) > MAX_FILE_BYTES:
-            log.warning("skipped an attachment over %d bytes", MAX_FILE_BYTES)
-            continue
         content_type = part.get_content_type()
         if part.get_content_maintype() == "image" and is_small_image(data):
-            continue
+            continue  # skipped on purpose (0025), so not reported
         extension = mimetypes.guess_extension(content_type) or ".bin"
         name = safe_name(part.get_filename() or "", f"attachment-{index}{extension}")
+        if len(data) > MAX_FILE_BYTES:
+            skipped.append(
+                SkippedFile(
+                    grant_id=grant_id,
+                    workspace_id=workspace_id,
+                    name=name,
+                    source="gmail",
+                    message_or_folder=message_id,
+                    reason="too_large",
+                )
+            )
+            continue
         files.append(
             IncomingFile(
                 key=f"{message_key}:{index}",
@@ -173,4 +196,4 @@ def email_to_files(
                 parent_key=message_key,
             )
         )
-    return files
+    return EmailParts(files=files, skipped=skipped)

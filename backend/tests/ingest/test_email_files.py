@@ -4,7 +4,7 @@ import pytest
 
 from app.contracts.evidence import Source
 from app.ingest import email_files
-from app.ingest.email_files import email_to_files, is_small_image, parse_headers
+from app.ingest.email_files import email_parts, email_to_files, is_small_image, parse_headers
 from app.ingest.incoming import safe_name, to_evidence_file
 
 from .mail_factory import (
@@ -102,9 +102,15 @@ def test_one_clean_address_is_the_sender() -> None:
 
 def test_attachments_over_the_size_limit_are_skipped(monkeypatch) -> None:
     monkeypatch.setattr(email_files, "MAX_FILE_BYTES", len(PDF) - 1)
-    assert [f.name for f in files_of(with_attachments(email()))] == [
-        "Approval for sequencing, award SYN-2401.eml"
-    ]
+    msg = with_attachments(email())
+    assert [f.name for f in files_of(msg)] == ["Approval for sequencing, award SYN-2401.eml"]
+    parts = email_parts(msg.as_bytes(), message_id="m1", grant_id="g1", workspace_id="w1")
+    (skipped,) = parts.skipped  # the small logo isn't reported: 0025 skips it on purpose
+    assert (skipped.name, skipped.reason, skipped.message_or_folder) == (
+        "invoice_1001.pdf",
+        "too_large",
+        "m1",
+    )
 
 
 def test_safe_name_is_ascii_and_keeps_the_extension() -> None:
@@ -112,4 +118,8 @@ def test_safe_name_is_ascii_and_keeps_the_extension() -> None:
     long = safe_name("a" * 300 + ".pdf", "x")
     assert len(long) == 120 and long.endswith(".pdf")
     assert safe_name("\u62a5\u544a", "fallback") == "fallback"
-    assert safe_name("../../etc", "x") == "etc"
+    # A stem that cleans away keeps its extension and takes the fallback's stem.
+    assert safe_name("\u8bf7\u6c42.pdf", "attachment-3.bin") == "attachment-3.pdf"
+    assert safe_name("\u8bf7\u6c42", "attachment-3.bin") == "attachment-3.bin"
+    traversal = safe_name("../../etc", "x")
+    assert "/" not in traversal and not traversal.startswith(".")

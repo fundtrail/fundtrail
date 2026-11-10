@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from email import message_from_bytes, policy
 from email.utils import getaddresses, parsedate_to_datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 FOLDER = "application/vnd.google-apps.folder"
 GOOGLE_DOC = "application/vnd.google-apps.document"
@@ -34,8 +34,13 @@ EXPORT_LIMIT_BYTES = 10 * 1024 * 1024
 class CannotTake(Exception):
     """A file that can't be taken in as it is, such as an export over Drive's 10 MB limit.
 
-    It isn't tried again until the file changes.
+    It isn't tried again until the file changes, and it's reported as a skipped file.
+    `reason` is "too_large" or "not_exportable".
     """
+
+    def __init__(self, reason: Literal["too_large", "not_exportable"], detail: str) -> None:
+        super().__init__(detail)
+        self.reason: Literal["too_large", "not_exportable"] = reason
 
 
 @dataclass(frozen=True)
@@ -173,7 +178,7 @@ class DiskDrive:
     def export_pdf(self, file_id: str) -> bytes:
         data = self._path(file_id).read_bytes()
         if len(data) > EXPORT_LIMIT_BYTES:
-            raise CannotTake("export over Drive's 10 MB limit")
+            raise CannotTake("too_large", "export over Drive's 10 MB limit")
         return data
 
 

@@ -1,4 +1,11 @@
-from app.ingest.addresses import TAG_LENGTH, find_tag, grant_address, new_tag, tag_of
+from app.ingest.addresses import (
+    _ALPHABET,  # pyright: ignore[reportPrivateUsage]
+    TAG_LENGTH,
+    find_tag,
+    grant_address,
+    new_tag,
+    tag_of,
+)
 
 MAILBOX = "fundtrail.demo@mail.example"
 # Treat the synthetic domain as one that ignores dots, the way Gmail treats gmail.com.
@@ -8,7 +15,9 @@ DOTLESS = frozenset({"mail.example"})
 def test_new_tags_are_short_random_codes() -> None:
     tags = {new_tag() for _ in range(200)}
     assert len(tags) == 200
-    assert all(len(t) == TAG_LENGTH and t.isalnum() and t.islower() for t in tags)
+    # Every character from the alphabet; an all-digit tag is valid too.
+    assert all(len(t) == TAG_LENGTH and set(t) <= set(_ALPHABET) for t in tags)
+    assert not set(_ALPHABET) & set("01ilo")
 
 
 def test_grant_address_is_mailbox_plus_tag() -> None:

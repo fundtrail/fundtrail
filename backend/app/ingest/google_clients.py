@@ -181,5 +181,5 @@ class GoogleDrive:
             return self._drive.files().export(fileId=file_id, mimeType="application/pdf").execute()
         except HttpError as error:
             if error.resp.status == 403 and b"exportSizeLimitExceeded" in (error.content or b""):
-                raise CannotTake("export over Drive's 10 MB limit") from error
+                raise CannotTake("too_large", "export over Drive's 10 MB limit") from error
             raise

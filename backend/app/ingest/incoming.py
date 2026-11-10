@@ -29,15 +29,29 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9._\-(), ]+")
 _MAX_NAME = 120
 
 
+def _clean(text: str) -> str:
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return _UNSAFE.sub("_", ascii_text).strip(" ._")
+
+
+def _split_extension(name: str) -> tuple[str, str]:
+    stem, dot, extension = name.rpartition(".")
+    if not dot or not extension or len(extension) > 10 or " " in extension:
+        return name, ""
+    return stem, extension
+
+
 def safe_name(name: str, fallback: str) -> str:
-    """An ASCII file name that is safe inside a storage path, keeping its extension."""
-    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    cleaned = _UNSAFE.sub("_", ascii_name).strip(" ._")
-    if not cleaned:
-        return fallback
-    stem, dot, extension = cleaned.rpartition(".")
-    if not dot or not stem or len(extension) > 10:
-        stem, extension = cleaned, ""
+    """An ASCII file name that is safe inside a storage path, keeping its extension.
+
+    The stem and the extension are cleaned apart, so `请求.pdf` keeps `.pdf`. A stem that
+    cleans away to nothing takes the fallback's stem.
+    """
+    raw_stem, raw_extension = _split_extension(name)
+    stem, extension = _clean(raw_stem), _clean(raw_extension)
+    fallback_stem, fallback_extension = _split_extension(fallback)
+    if not stem:
+        stem, extension = fallback_stem, extension or fallback_extension
     suffix = f".{extension}" if extension else ""
     return stem[: _MAX_NAME - len(suffix)].rstrip(" ._") + suffix
 
@@ -118,6 +132,35 @@ class HeldMail:
     def let_in(self, now: datetime) -> list[IncomingFile]:
         """A message that's let in arrives at that moment (0025)."""
         return [f.arriving(now) for f in self.files]
+
+
+# Why a file the accountant sent wasn't taken in:
+# - "too_large": over MAX_FILE_BYTES, or a Google export over Drive's 10 MB limit.
+# - "not_exportable": a Google file with no PDF export, such as a Form or a Site.
+SkipReason = Literal["too_large", "not_exportable"]
+
+
+@dataclass(frozen=True)
+class SkippedFile:
+    """A file that was sent but not taken in, so the grant can show it as a problem.
+
+    The contracts add this as `SkippedFile` (issue 39). Very small images and signature
+    parts aren't reported: 0025 skips them on purpose.
+    """
+
+    grant_id: str
+    workspace_id: str
+    name: str
+    source: IncomingSource
+    # Where it came from: the Gmail message ID for an attachment, the grant's Drive
+    # folder ID for a Drive file.
+    message_or_folder: str
+    reason: SkipReason
+    source_ref: str | None = None  # the Drive file ID; None for an attachment
+    skipped_at: datetime | None = None  # the workspace's "now" when it was skipped
+
+    def at(self, now: datetime) -> "SkippedFile":
+        return replace(self, skipped_at=now)
 
 
 def to_evidence_file(
