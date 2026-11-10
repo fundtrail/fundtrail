@@ -49,7 +49,6 @@ from app.contracts.records import (
 from app.contracts.rules import RecordState
 
 PRE_AWARD_DAYS = 90  # costs up to this many days before the start date are allowed
-EFFORT_CERTIFY_DAYS = 120  # Berkeley certifies effort within 120 days of the half-year's end
 
 # Item kinds that are approvals: missing ones go on the problem list right away.
 APPROVAL_KINDS = frozenset({"rule", "nsf", "pre_award"})
@@ -96,14 +95,6 @@ class ChecklistResult:
     findings: list[Finding]
 
 
-def _effort_expected(period: Period) -> date:
-    """Berkeley certifies effort for January to June and July to December, within 120 days."""
-    half_end = (
-        date(period.end.year, 6, 30) if period.end.month <= 6 else date(period.end.year, 12, 31)
-    )
-    return half_end + timedelta(days=EFFORT_CERTIFY_DAYS)
-
-
 def _correction_items(charge: Charge) -> list[ItemSpec]:
     """The two items of a line that corrects another. The rest of decision 0020 plugs in here."""
     corrects = "The line it corrects"
@@ -125,7 +116,8 @@ def _approval_needed(rule: ApprovalRule) -> str:
 def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
     """The charge's default items, before amounts are worked out and removals applied."""
     specs: list[ItemSpec] = []
-    # The account group's items; the table gives none to a line that takes money off.
+    # The account group's items, with the table's due dates. The table applies
+    # decision 0020's sign rule, so a line that takes money off gets none here.
     for item in group_items(charge):
         specs.append(
             ItemSpec(
@@ -133,9 +125,11 @@ def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
                 "bill_like" if item.bill_like else "plain",
                 item.key,
                 period=item.period,
-                expected_by=_effort_expected(item.period) if item.period else None,
+                expected_by=item.expected_by,
             )
         )
+    # Decision 0020's two correction items, which the table doesn't hold: for a
+    # line that takes money off the grant, or one that names a line it corrects.
     if charge.amount_cents < 0 or charge.original_line_id:
         specs += _correction_items(charge)
     for rule in rules_for(view, charge).applying:

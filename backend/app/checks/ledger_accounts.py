@@ -1,15 +1,17 @@
 """The one place the checks read the account groups table (account_groups.py, #30).
 
 - A charge's items from its account group come from `account_group_items`,
-  which already applies decision 0020 (a line that takes money off the grant
-  gets none). The table gives the bill-like item the charge's amount and the
-  month-covering item the charge's month; the checks then work out the bill-like
-  item's amount each time (checklist.py).
+  which applies decision 0020's sign rule (a line that takes money off the
+  grant gets none). The checks don't apply that rule again. The table gives the
+  bill-like item the charge's amount, the month-covering item the charge's
+  month, and the effort report its due date; the checks then work out the
+  bill-like item's amount each time (checklist.py).
 - The account's NSF categories, for the comparison with the assigned budget
   line, come from `lookup_account`.
 """
 
 from dataclasses import dataclass
+from datetime import date
 
 from app.checks import account_groups
 from app.contracts.charges import Charge
@@ -27,6 +29,7 @@ class GroupItem:
     needed: str
     bill_like: bool  # covers whatever the charge's other amount-carrying items don't
     period: Period | None  # the month the linked document has to cover, if any
+    expected_by: date | None  # when it's due, if not the posting date
 
 
 def group_items(charge: Charge) -> list[GroupItem]:
@@ -38,6 +41,7 @@ def group_items(charge: Charge) -> list[GroupItem]:
             # Only the bill-like item carries an amount in the table.
             bill_like=item.amount_cents is not None,
             period=item.period,
+            expected_by=item.expected_by,
         )
         for item in account_groups.account_group_items(charge)
     ]
