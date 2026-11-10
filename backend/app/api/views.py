@@ -401,7 +401,6 @@ def budget(snap: GrantSnapshot) -> BudgetView:
                 spent_cents=f.spent_cents,
             )
             for f in figures.categories
-            if f.record_ids
         ),
         limit_cents=figures.limit_cents,
         spent_cents=figures.spent_cents,
