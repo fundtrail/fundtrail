@@ -100,6 +100,9 @@ class GrantRoute:
     known_senders: frozenset[str] = frozenset()
     # When the grant's address was made. Its first check takes in everything delivered
     # to the address since then.
+    # This is machine time, never a grant's clock: it's compared with real delivery times
+    # and becomes Gmail's `after:` search filter. A grant clock can sit ahead of real time,
+    # and a time taken from one would make the first search miss real mail.
     address_created_at: datetime | None = None
 
     def __post_init__(self) -> None:

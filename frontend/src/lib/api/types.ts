@@ -213,6 +213,8 @@ export interface BudgetLine {
   name: CitedText;
   amount: CitedMoney;
   category: BudgetCategory;
+  /** The evidence file of the notice (award letter or amendment) the line belongs to (issue 104). */
+  notice_file_id?: Id | null;
 }
 export interface Person {
   kind: "person";
