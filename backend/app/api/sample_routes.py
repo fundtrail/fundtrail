@@ -71,7 +71,9 @@ def list_samples(user: UserDep) -> list[SampleOption]:
     status_code=status.HTTP_201_CREATED,
     responses=_REFUSAL,
 )
-def open_sample(workspace: WorkspaceDep, body: SampleCreate, platform: PlatformDep) -> GrantSummary:
+def open_sample(
+    workspace: WorkspaceDep, body: SampleCreate, user: UserDep, platform: PlatformDep
+) -> GrantSummary:
     """Open a sample grant in the workspace, its clock at its timeline's first event."""
     if body.choice is SampleChoice.LARGER_LIVE and not body.confirmed:
         return _refused(  # pyright: ignore[reportReturnType]
@@ -82,7 +84,7 @@ def open_sample(workspace: WorkspaceDep, body: SampleCreate, platform: PlatformD
             )
         )
     try:
-        grant = player.open_sample(platform, workspace.id, body.choice)
+        grant = player.open_sample(platform, user.id, workspace.id, body.choice)
     except player.SampleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, [str(error)]) from error
     return _summary(platform, grant)
@@ -105,6 +107,8 @@ def move_timeline(
         )
     try:
         player.move(platform, user.id, grant, body.to)
+    except player.GrantGone as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except MoveRefused as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     except player.SampleError as error:
@@ -123,7 +127,9 @@ def move_timeline(
 
 
 @router.post("/grants/{grant_id}/timeline/start-over", responses=_REFUSAL)
-def start_over(grant: GrantDep, body: TimelineStartOver, platform: PlatformDep) -> TimelineView:
+def start_over(
+    grant: GrantDep, body: TimelineStartOver, user: UserDep, platform: PlatformDep
+) -> TimelineView:
     """Reset that one sample grant and start its timeline again at the first event. The
     read-live limit never refuses it."""
     _sample_grant(grant)
@@ -135,7 +141,11 @@ def start_over(grant: GrantDep, body: TimelineStartOver, platform: PlatformDep) 
                 "what you uploaded and decided. Confirm to start over.",
             )
         )
-    return _view(platform, player.start_over(platform, grant))
+    try:
+        fresh = player.start_over(platform, user.id, grant)
+    except player.GrantGone as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
+    return _view(platform, fresh)
 
 
 @router.post("/grants/{grant_id}/timeline/deliveries/{event_id}")
@@ -144,7 +154,7 @@ def deliver_for_me(grant: GrantDep, event_id: str, platform: PlatformDep) -> Tim
     _sample_grant(grant)
     try:
         player.deliver_for_me(platform, grant, event_id)
-    except player.NoSuchItem as error:
+    except (player.NoSuchItem, player.GrantGone) as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except player.SampleError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
@@ -159,4 +169,8 @@ def get_the_file(grant: GrantDep, event_id: str, platform: PlatformDep) -> FileL
         path, media_type = player.item_file(platform, grant, event_id)
     except player.NoSuchItem as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
+    except Exception as error:  # noqa: BLE001 - the original couldn't be staged this time
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "The file can't be fetched right now. Try again."
+        ) from error
     return signed_link(platform, path, media_type)

@@ -3,6 +3,10 @@ version)."""
 
 from __future__ import annotations
 
+import threading
+import time
+from typing import Any
+
 import pytest
 
 from app.contracts.evidence import Source
@@ -15,7 +19,7 @@ from app.samples.pack import EventKind, event_id
 from tests.api.conftest import Api
 from tests.db.platform_fixtures import FakeAgent, FakeStorage, run_worker_until_idle
 
-from .test_player import SMALL_START, _files, _get, _move, _names, _open, _post
+from .test_player import SMALL_START, _files, _get, _move, _names, _open, _post, _workspace
 
 RECEIPT = event_id(EventKind.FILE, "hardware_receipt.jpg")
 LETTER = event_id(EventKind.FILE, "award_letter.pdf")
@@ -145,7 +149,7 @@ def test_a_run_in_progress_saves_nothing_into_the_fresh_copy(api: Api) -> None:
             with transaction(api.platform.pool) as conn:
                 grant = store.get_grant(conn, grant_id)
             assert grant is not None
-            player.start_over(api.platform, grant)
+            player.start_over(api.platform, api.user_id, grant)
             return AgentResult(summary="read before the start over")
         return AgentResult(summary="read after")
 
@@ -164,3 +168,108 @@ def test_save_run_refuses_a_run_whose_row_is_gone(api: Api) -> None:
         conn.execute("delete from public.agent_runs where id = %s", (run.id,))
     with pytest.raises(jobs.RunGone), transaction(api.platform.pool) as conn:
         jobs.save_run(api.platform, conn, run, AgentResult())
+
+
+@pytest.fixture(autouse=True)
+def _a_fresh_process() -> None:
+    """Each test's storage is new, so nothing is known to be staged in it yet."""
+    player._STAGED.clear()  # pyright: ignore[reportPrivateUsage]
+
+
+class _FlakyStorage(FakeStorage):
+    """Fails the next put with `error`, once."""
+
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error: Exception | None = error
+
+    def put(self, path: str, data: bytes, media_type: str, /) -> None:
+        if self.error is not None:
+            error, self.error = self.error, None
+            raise error
+        super().put(path, data, media_type)
+
+
+def test_get_the_file_tries_again_after_a_failed_staging(api: Api) -> None:
+    grant_id = _open(api)
+    api.platform.storage = _FlakyStorage(ConnectionError("storage unreachable"))
+    path = f"/grants/{grant_id}/timeline/deliveries/{RECEIPT}/file"
+    failed = api.client.get(path, headers=api.headers)
+    assert failed.status_code == 503
+    # Not cached as staged: the next request stores it and links it.
+    link = _get(api, path)
+    storage = api.platform.storage
+    assert isinstance(storage, FakeStorage)
+    assert any(p in link["url"] for p in storage.objects)
+
+
+def test_get_the_file_counts_a_duplicate_as_staged(api: Api) -> None:
+    grant_id = _open(api)
+    api.platform.storage = _FlakyStorage(RuntimeError('{"error":"Duplicate","statusCode":"409"}'))
+    path = f"/grants/{grant_id}/timeline/deliveries/{RECEIPT}/file"
+    assert "hardware_receipt.jpg" in _get(api, path)["url"]
+    assert _get(api, path)["url"]
+
+
+def _waiting(api: Api, n: int) -> None:
+    """Wait until `n` other sessions wait on a lock."""
+    for _ in range(200):
+        with api.platform.pool.connection() as conn:
+            row = conn.execute(
+                "select count(*) as n from pg_stat_activity"
+                " where wait_event_type = 'Lock' and pid <> pg_backend_pid()"
+            ).fetchone()
+        if row is not None and row["n"] >= n:
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"{n} sessions never waited on a lock")
+
+
+def test_a_delivery_waiting_on_a_start_over_lands_in_the_fresh_copy(api: Api) -> None:
+    grant_id = _at_the_receipts_date(api)
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+    assert grant is not None
+    errors: list[BaseException] = []
+
+    def run(fn: Any) -> threading.Thread:
+        def go() -> None:
+            try:
+                fn()
+            except BaseException as error:  # noqa: BLE001 - reported below
+                errors.append(error)
+
+        thread = threading.Thread(target=go)
+        thread.start()
+        return thread
+
+    with api.platform.pool.connection() as holder:
+        holder.execute("select 1 from public.grants where id = %s for update", (grant_id,))
+        over = run(lambda: player.start_over(api.platform, api.user_id, grant))
+        _waiting(api, 1)
+        deliver = run(lambda: player.deliver_for_me(api.platform, grant, RECEIPT))
+        _waiting(api, 2)
+        holder.rollback()
+    over.join(10)
+    deliver.join(10)
+    assert errors == []
+    [receipt] = [f for f in _files(api, grant_id) if f.name == "hardware_receipt.jpg"]
+    assert receipt.arrived_at == SMALL_START  # the fresh copy's first event
+
+
+def test_opening_waits_for_the_users_move_lock(api: Api) -> None:
+    from app.contracts.workspaces import SampleChoice
+    from app.db import sample_store
+
+    workspace_id = _workspace(api)
+    with transaction(api.platform.pool) as held:
+        sample_store.lock_users_moves(held, api.user_id)
+        thread = threading.Thread(
+            target=player.open_sample,
+            args=(api.platform, api.user_id, workspace_id, SampleChoice.SMALL_LIVE),
+        )
+        thread.start()
+        _waiting(api, 1)
+        assert thread.is_alive()
+    thread.join(10)
+    assert not thread.is_alive()

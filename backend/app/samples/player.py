@@ -241,12 +241,28 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
     return runs
 
 
-def open_sample(p: Platform, workspace_id: str, choice: SampleChoice) -> Grant:
+class GrantGone(Exception):
+    """The grant was removed while the request waited for it."""
+
+
+def _lock_grant(conn: Conn, grant_id: str) -> Grant:
+    """Take the grant's row lock. A start over remakes the row: a request that waited on the
+    old row finds it gone, so it reads once more and goes on with the fresh copy."""
+    grant = store.get_grant(conn, grant_id, lock=True) or store.get_grant(conn, grant_id, lock=True)
+    if grant is None:
+        raise GrantGone(grant_id)
+    return grant
+
+
+def open_sample(p: Platform, user_id: str, workspace_id: str, choice: SampleChoice) -> Grant:
     """A new sample grant in the workspace, its clock at the timeline's first event."""
     if choice is SampleChoice.LARGER_PRERUN:
         raise SampleError(PRERUN_UNAVAILABLE)
     info = GrantSample(sample=PACK_FOR_CHOICE[choice], choice=choice)
     with transaction(p.pool) as conn:
+        # The user's move lock, so a move of another larger read-live sample waits for this
+        # one's first runs and sees them. Opening itself is never refused for the limit.
+        sample_store.lock_users_moves(conn, user_id)
         grant = store.create_grant(conn, workspace_id)
         store.get_grant(conn, grant.id, lock=True)
         runs = _begin(p, conn, grant, info)
@@ -256,7 +272,7 @@ def open_sample(p: Platform, workspace_id: str, choice: SampleChoice) -> Grant:
     return grant
 
 
-def start_over(p: Platform, grant: Grant) -> Grant:
+def start_over(p: Platform, user_id: str, grant: Grant) -> Grant:
     """Reset that one sample grant: everything on it goes (what arrived, what anyone
     wrote, its runs, its moves and its queued jobs), and its timeline starts again at the
     first event. It keeps its ID, its address and Drive folder, and what it was opened
@@ -266,8 +282,9 @@ def start_over(p: Platform, grant: Grant) -> Grant:
     cleared by its foreign key. Stored originals stay in storage, unread."""
     info = _sample_of(grant)
     with transaction(p.pool) as conn:
-        old = store.get_grant(conn, grant.id, lock=True)
-        assert old is not None
+        # As opening: the user's move lock, never a refusal for the limit.
+        sample_store.lock_users_moves(conn, user_id)
+        old = _lock_grant(conn, grant.id)
         sample_store.drop_queued_jobs(conn, grant.id)
         sample_store.remake_grant(conn, old)
         store.get_grant(conn, grant.id, lock=True)
@@ -297,10 +314,11 @@ def _item_upload(pack: SamplePack, e: ScheduledEvent) -> Upload:
 
 def deliver_for_me(p: Platform, grant: Grant, event_id: str) -> EvidenceFile:
     """ "Deliver for me": the item comes in as the user's own upload would, at the grant's
-    now (ruling 44). An item already on the grant is a SampleError."""
+    now (ruling 44). An item already on the grant is a SampleError. One that waited on a
+    start over lands in the fresh copy, at its first event."""
     pack, e = _user_item(grant, event_id)
     with transaction(p.pool) as conn:
-        store.get_grant(conn, grant.id, lock=True)
+        grant = _lock_grant(conn, grant.id)
         now = clock.grant_now(conn, grant.id)
         files = store.list_files(conn, grant.id, now)
         items = items_for(pack.sample)
@@ -325,10 +343,21 @@ def item_file(p: Platform, grant: Grant, event_id: str) -> tuple[str, str]:
     if path not in _STAGED:
         try:
             p.storage.put(path, upload.data, upload.media_type)
-        except Exception:  # noqa: BLE001 - staged by an earlier process; signing says if not
-            pass
+        except Exception as error:
+            if not _already_stored(error):
+                raise  # not staged: the next request tries again
         _STAGED.add(path)
     return path, upload.media_type
+
+
+def _already_stored(error: Exception) -> bool:
+    """Whether a put failed only because the object is there already, as an earlier
+    process staged it: Supabase Storage's 409 or "Duplicate", or the test storage's."""
+    response = getattr(error, "response", None)
+    text = f"{error} {getattr(response, 'text', '')}".lower()
+    return getattr(response, "status_code", None) == 409 or (
+        "duplicate" in text or "already stored" in text or "already exists" in text
+    )
 
 
 def check_read_live_limit(conn: Conn, user_id: str, grant: Grant) -> None:
@@ -352,8 +381,7 @@ def move(p: Platform, user_id: str, grant: Grant, to: datetime | None) -> None:
         # One move at a time per user, so two moves can't both pass the read-live limit
         # before either has queued its runs. Taken before the grant's lock.
         sample_store.lock_users_moves(conn, user_id)
-        locked = store.get_grant(conn, grant.id, lock=True)
-        assert locked is not None
+        locked = _lock_grant(conn, grant.id)
         check_read_live_limit(conn, user_id, locked)
         now = clock.grant_now(conn, grant.id)
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
