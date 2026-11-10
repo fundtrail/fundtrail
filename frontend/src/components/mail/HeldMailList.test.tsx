@@ -59,6 +59,17 @@ describe("HeldMailList", () => {
     expect(within(screen.getByRole("list", { name: "Skipped files" })).getByText("scan.tiff")).toBeInTheDocument();
   });
 
+  it("says the From line couldn't be read when a message has no sender", () => {
+    const { Wrapper } = fakeHarness();
+    for (const sender of [null, ""]) {
+      const held = { ...SAMPLE_HELD_MAIL[0]!, id: `held-${String(sender)}`, sender, reason: "unverified_sender" as const };
+      const { unmount } = render(<HeldMailList mail={[held]} />, { wrapper: Wrapper });
+      expect(screen.getByText("The From line couldn't be read.")).toBeInTheDocument();
+      expect(screen.queryByText(/couldn't be verified/)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it("says so when no mail is held", () => {
     render(<HeldMailList mail={[]} />);
     expect(screen.getByText("No mail is held.")).toBeInTheDocument();
