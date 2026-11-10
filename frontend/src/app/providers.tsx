@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ApiProvider, HttpApiClient } from "@/lib/api";
-import { FakeApiClient } from "@/lib/api/fake";
+import { createFakeApiClient } from "@/lib/api/fake";
 import { FakeAuthProvider, SupabaseAuthProvider, useAuth } from "@/lib/auth";
 import { appConfig, type AppConfig } from "@/lib/config";
 
@@ -44,7 +44,7 @@ function RealApi({ apiUrl, children }: { apiUrl: string; children: ReactNode }) 
 }
 
 export function Providers({ config = appConfig, children }: { config?: AppConfig; children: ReactNode }) {
-  const [fakeClient] = useState(() => new FakeApiClient());
+  const [fakeClient] = useState(() => createFakeApiClient());
   switch (config.mode) {
     case "error":
       return <ConfigError missing={config.missing} />;
