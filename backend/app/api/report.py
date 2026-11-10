@@ -57,9 +57,7 @@ def report_inputs(
         terms=tuple(term_views(snap)),
         budget=budget(snap),
         end_date=summary(snap).end_date,
-        # Held mail has no table until #43; once it does, only the messages for which
-        # rules.still_held is true go here.
-        held_mail=(),
+        held_mail=tuple(snap.held),  # only the messages rules.still_held keeps held
         thread_messages=tuple(snap.messages),
         sign_off=signing,
         file_texts=texts,

@@ -27,6 +27,7 @@ from app.contracts.api import (
     GrantProblem,
     GrantProblemRow,
     GrantSummary,
+    HeldMailRow,
     HistoryEntry,
     LinkView,
     MessageThreadEntry,
@@ -61,6 +62,7 @@ from app.contracts.checks import (
     snapshot_of,
 )
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import HeldMail
 from app.contracts.records import (
     FOUND,
     TERM_KINDS,
@@ -86,6 +88,7 @@ from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
+from app.db.held_mail import still_held_mail
 from app.db.platform import Platform
 from app.db.pool import workspace_now
 from app.db.store import Conn, Status, StatusRow
@@ -106,6 +109,7 @@ class GrantSnapshot:
     pending: list[AgentRun]
     messages: list[ThreadMessage]
     output: ChecksOutput
+    held: list[HeldMail]  # the grant's messages still held at "now" (rules.still_held)
     state: RecordState = field(init=False)
 
     def __post_init__(self) -> None:
@@ -150,6 +154,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
         pending=store.pending_runs(conn, grant.id),
         messages=store.grant_messages(conn, grant.id, now),
         output=output,
+        held=still_held_mail(conn, grant, now, RecordState(records, files)),
     )
 
 
@@ -331,6 +336,7 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
             continue  # not visible at "now"
         at = record.written_at if record else f.arrived_at  # pyright: ignore[reportOptionalMemberAccess]
         records.append((at, RecordProblemRow(status=status, record=record, file=f)))
+    records += [(h.held_at, HeldMailRow(held=h)) for h in snap.held]
     rows += [row for _, row in sorted(records, key=lambda x: x[0])]
     # A charge whose only failing reasons are Needs a human reasons pointing at terms that
     # have their own rows (a term code can't place, or one waiting) isn't a row of its own:
