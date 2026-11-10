@@ -89,7 +89,10 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
             continue
         all_links = view.links_to_fact.get(r.id, [])
         links = _using(view, all_links)
-        freed = len(links) < len(all_links)  # linked to a fully reversed charge
+        # Links to a fully reversed charge don't use up the total (it's free to be linked
+        # again), but the ledger shows what happened to that money, so it's accounted
+        # for when asking whether any of the bill is money nobody charged (decision 0020).
+        freed = sum(lk.data.amount_cents or 0 for lk in all_links if lk not in links)
         total = sum(lk.data.amount_cents or 0 for lk in links)
         target = bill.total.value
         side = compare(total, target)
@@ -107,10 +110,12 @@ def _bill_problems(view: GrantView, now: datetime) -> list[SubjectFinding]:
                     ),
                 )
             )
-        # A bill freed by a full reversal isn't "money nobody charged": the ledger shows
-        # what happened to the money (decision 0020).
-        elif side < 0 and not freed and not _credit_on_a_credit_line(view, target, links):
-            found = _unused_bill(view, r, now, total, target, ids)
+        elif (
+            side < 0
+            and compare(total + freed, target) < 0
+            and not _credit_on_a_credit_line(view, target, links)
+        ):
+            found = _unused_bill(view, r, now, total + freed, target, ids)
             if found is not None:
                 out.append(found)
     return out
