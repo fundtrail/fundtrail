@@ -23,6 +23,8 @@ export const routes = {
 
   // A grant
   grant: (grantId: Id) => `/grants/${e(grantId)}`,
+  /** The problem list, a section of the grant page. */
+  problemList: (grantId: Id) => `/grants/${e(grantId)}#problem-list`,
   terms: (grantId: Id) => `/grants/${e(grantId)}/terms`,
   /** The reusable notes, a section of the terms page. */
   reusableNotes: (grantId: Id) => `/grants/${e(grantId)}/terms#reusable-notes`,

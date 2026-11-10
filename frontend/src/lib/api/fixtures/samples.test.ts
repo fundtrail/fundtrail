@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HttpApiClient, SampleRefusalError } from "../client";
+import { ApiError, HttpApiClient, SampleRefusalError } from "../client";
 import { createFakeApiClient } from "../fake";
 import { FAKE_NOW, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
 import { SAMPLE_OPENS_AT } from "./samples";
@@ -45,7 +45,7 @@ describe("sample grants in fake mode", () => {
     expect(atNow.coming_up).toEqual([]);
     expect(atNow.now.waiting_on_problem_list).toBe(3);
 
-    const fresh = await api.startOver(SAMPLE_GRANT_ID);
+    const fresh = await api.startOver(SAMPLE_GRANT_ID, true);
     expect(fresh.now.now).toBe(SAMPLE_OPENS_AT);
     expect(fresh.coming_up?.map((e) => e.name)).toEqual([
       "award_letter.txt",
@@ -89,12 +89,38 @@ describe("HttpApiClient for sample grants", () => {
     expect((error as SampleRefusalError).refusal).toEqual(refusal);
   });
 
+  it("leaves a 409 that isn't a refusal a plain ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "The timeline only moves forward." }), { status: 409 })));
+    const api = new HttpApiClient("https://api.example", async () => "t");
+    const error = await api.moveTimeline("g", { to: "2020-01-01T00:00:00Z" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).not.toBeInstanceOf(SampleRefusalError);
+    expect((error as ApiError).status).toBe(409);
+    const refusing = await api.createSample("ws", { choice: "small_live" }).catch((e: unknown) => e);
+    expect(refusing).not.toBeInstanceOf(SampleRefusalError);
+  });
+
+  it("sends the sample routes", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new HttpApiClient("https://api.example", async () => "t");
+    await api.listSamples();
+    await api.createSample("ws 1", { choice: "larger_live", confirmed: true });
+    await api.getTimeline("g");
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, init]) => [init.method ?? "GET", url, init.body ?? null])).toEqual([
+      ["GET", "https://api.example/samples", null],
+      ["POST", "https://api.example/workspaces/ws%201/samples", '{"choice":"larger_live","confirmed":true}'],
+      ["GET", "https://api.example/grants/g/timeline", null],
+    ]);
+  });
+
   it("sends the timeline routes", async () => {
     const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const api = new HttpApiClient("https://api.example", async () => "t");
     await api.moveTimeline("g", { to: null });
-    await api.startOver("g");
+    await api.startOver("g", true);
     await api.deliverForMe("g", "ev 1");
     await api.deliveryFileUrl("g", "ev 1");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];

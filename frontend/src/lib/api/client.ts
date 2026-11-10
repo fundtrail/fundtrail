@@ -80,8 +80,12 @@ export interface ApiClient {
   getTimeline(grantId: Id): Promise<TimelineView>;
   /** No `to` plays to the next event. Forward only: earlier is a 409. */
   moveTimeline(grantId: Id, move: TimelineMove): Promise<TimelineView>;
-  /** Starts the one grant over. A refusal (409) throws SampleRefusalError. */
-  startOver(grantId: Id): Promise<TimelineView>;
+  /**
+   * Starts the one grant over. `confirmed` must be true: only call it after the
+   * user has confirmed in the panel's confirm step. A refusal (409) throws
+   * SampleRefusalError.
+   */
+  startOver(grantId: Id, confirmed: true): Promise<TimelineView>;
   /** "Deliver for me": brings in an item the user was to deliver. */
   deliverForMe(grantId: Id, eventId: Id): Promise<TimelineView>;
   /** "Get the file": a short-lived link to an item the user was to deliver. */
@@ -268,8 +272,8 @@ export class HttpApiClient implements ApiClient {
   moveTimeline(grantId: Id, move: TimelineMove) {
     return this.post<TimelineView>(`/grants/${e(grantId)}/timeline`, move);
   }
-  startOver(grantId: Id) {
-    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline/start-over`, { confirmed: true }));
+  startOver(grantId: Id, confirmed: true) {
+    return refusable(this.post<TimelineView>(`/grants/${e(grantId)}/timeline/start-over`, { confirmed }));
   }
   deliverForMe(grantId: Id, eventId: Id) {
     return this.post<TimelineView>(`/grants/${e(grantId)}/timeline/deliveries/${e(eventId)}`);
