@@ -684,6 +684,33 @@ def test_other_statuses_have_problems_and_no_reasons_or_checklist(
             rejects(db, errors.CheckViolation, "statuses", **status_values(g, **about, **wrong))
 
 
+@pytest.mark.parametrize("value", [None, "not a list", {"check": "budget"}, 1])
+def test_status_lists_are_json_arrays(
+    db: psycopg.Connection, g: dict[str, Any], value: object
+) -> None:
+    json_value = Jsonb(value)  # None becomes JSON null, not SQL null
+    charge = {"charge_id": make_charge(db, g), "bucket": "needs_human"}
+    for wrong in [{"reasons": json_value}, {"checklist": json_value}]:
+        rejects(db, errors.CheckViolation, "statuses", **status_values(g, **charge, **wrong))
+    rejects(db, errors.CheckViolation, "statuses", **status_values(g, problems=json_value))
+
+
+def test_every_foreign_key_has_an_index(db: psycopg.Connection) -> None:
+    unindexed = db.execute(
+        """
+        select c.conrelid::regclass::text, a.attname
+        from pg_constraint c
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+        where c.contype = 'f' and c.connamespace = 'public'::regnamespace
+          and not exists (
+            select 1 from pg_index i
+            where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1]
+          )
+        """
+    ).fetchall()
+    assert unindexed == []
+
+
 def test_a_status_trigger_has_an_id_unless_it_is_the_clock(
     db: psycopg.Connection, g: dict[str, Any]
 ) -> None:

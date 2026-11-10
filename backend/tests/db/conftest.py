@@ -4,7 +4,7 @@ Set TEST_DATABASE_URL to a Postgres server where the user may create databases,
 for example ``postgresql://postgres:postgres@localhost:5432/postgres``. Each test
 session creates a fresh database, applies the stubs below and every file in
 ``supabase/migrations/`` in order, and drops the database at the end. Without
-TEST_DATABASE_URL, or without a reachable server, the tests skip.
+TEST_DATABASE_URL, the tests skip. With it set and no server answering, they fail.
 
 Supabase's own schemas aren't in a plain Postgres, so the session stubs the two
 pieces the migrations touch: ``auth.users`` (only its ``id``) and
@@ -55,7 +55,9 @@ def database_url() -> Iterator[str]:
     try:
         admin = psycopg.connect(server_url, autocommit=True, connect_timeout=5)
     except psycopg.OperationalError as error:
-        pytest.skip(f"no Postgres at TEST_DATABASE_URL: {error}")
+        # Set but unreachable is a broken setup, such as a CI service that didn't
+        # start, so it fails rather than skipping every database test.
+        pytest.fail(f"TEST_DATABASE_URL is set, but no Postgres answers there: {error}")
 
     name = f"fundtrail_test_{uuid.uuid4().hex[:12]}"
     with admin:

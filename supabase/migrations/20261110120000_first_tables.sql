@@ -178,6 +178,7 @@ create table public.thread_messages (
 create index thread_messages_charge_id_idx on public.thread_messages (charge_id, written_at, created_at);
 create index thread_messages_record_id_idx on public.thread_messages (record_id, written_at, created_at);
 create index thread_messages_grant_id_idx on public.thread_messages (grant_id);
+create index thread_messages_workspace_id_idx on public.thread_messages (workspace_id);
 create index thread_messages_run_id_idx on public.thread_messages (run_id);
 create index thread_messages_author_user_id_idx on public.thread_messages (author_user_id);
 
@@ -220,6 +221,13 @@ create table public.statuses (
     ),
   constraint statuses_problems_exactly_unless_charge
     check ((charge_id is null) = (problems is not null)),
+  -- Where they're set, the lists are JSON arrays, so a JSON null or a string can't pass.
+  constraint statuses_lists_are_arrays
+    check (
+      (reasons is null or jsonb_typeof(reasons) = 'array')
+      and (checklist is null or jsonb_typeof(checklist) = 'array')
+      and (problems is null or jsonb_typeof(problems) = 'array')
+    ),
   constraint statuses_rechecking_only_for_charge
     check (charge_id is not null or not rechecking),
   constraint statuses_trigger_id_unless_clock
