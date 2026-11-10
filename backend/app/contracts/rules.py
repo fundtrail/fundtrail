@@ -1041,9 +1041,9 @@ def still_held(held: HeldMail, state: RecordState, known_senders: Collection[str
 
     Held until the accountant lets it in or dismisses it (a current `mail_action`), or,
     for an unknown sender, until the sender becomes known: a confirmed person term, one
-    the accountant added, or the accountant's own address, given in `known_senders` in
-    lower case. Mail held because a known address couldn't be verified stays held
-    until the accountant decides.
+    the accountant added, or the address of one of the workspace's members who can act,
+    given in `known_senders` in lower case. Mail held because a known address
+    couldn't be verified stays held until the accountant decides.
     """
     decided = any(
         isinstance(r.data, MailDecision) and r.data.held_mail_id == held.id for r in state.current()
