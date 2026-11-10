@@ -137,17 +137,6 @@ def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> lis
                     "The agent couldn't finish its review of the grant.",
                 )
             )
-        # A thread message's run belongs on the charge or record its thread is
-        # about. Until the run carries that subject (#39), it waits on the grant.
-        elif run.trigger.kind == TriggerKind.THREAD_MESSAGE and run.grant_id == view.grant_id:
-            out.append(
-                Finding(
-                    AGENT_RUN,
-                    f"failed:{run.id}",
-                    Bucket.NEEDS_HUMAN,
-                    "The agent couldn't finish answering a message in a thread.",
-                )
-            )
     limit = _limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:

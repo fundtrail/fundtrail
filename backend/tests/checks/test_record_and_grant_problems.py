@@ -147,16 +147,23 @@ def test_an_accepted_record_problem_leaves_the_list() -> None:
     assert status.accepted and not status.flagged
 
 
-def _failed(trigger: Trigger) -> AgentRun:
+def _failed(
+    trigger: Trigger,
+    run_id: str = "run-1",
+    thread_charge_id: str | None = None,
+    thread_record_id: str | None = None,
+) -> AgentRun:
     t = datetime(2024, 3, 1, tzinfo=UTC)
     return AgentRun(
-        id="run-1",
+        id=run_id,
         workspace_id="w",
         grant_id="g1",
         trigger=trigger,
         status=RunStatus.FAILED,
         clock_now=t,
         queued_at=t,
+        thread_charge_id=thread_charge_id,
+        thread_record_id=thread_record_id,
     )
 
 
@@ -254,13 +261,28 @@ def test_a_notice_that_prints_only_sub_lines_sums_them() -> None:
     ]
 
 
-def test_a_failed_thread_message_run_waits_on_the_grant() -> None:
-    """Until #39 gives the run its thread's subject."""
+def test_a_failed_thread_message_run_goes_on_its_threads_charge_or_record() -> None:
     g = Grant()
-    g.standard_terms()
-    g.failed_runs = [_failed(Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1"))]
+    t = g.standard_terms()
+    g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
+    message = Trigger(kind=TriggerKind.THREAD_MESSAGE, id="msg-1")
+    g.failed_runs = [
+        _failed(message, "run-1", thread_charge_id="c1"),
+        _failed(message, "run-2", thread_record_id=t["period"]),
+    ]
     out = g.run(at(2024, 3, 2))
-    assert grant_problems(out) == {"failed:run-1"}
-    assert out.grants[0].problems[0].text == (
-        "The agent couldn't finish answering a message in a thread."
-    )
+    assert out.grants == ()
+    status = out.charges[0]
+    assert problems(status) == {("agent_run", "failed:run-1")}
+    assert status.bucket == Bucket.NEEDS_HUMAN and status.flagged
+    assert record_problems(out) == {t["period"]: {"failed:run-2"}}
+
+
+def test_a_failed_open_question_run_goes_on_the_charge_whose_question_is_open() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
+    g.failed_runs = [_failed(Trigger(kind=TriggerKind.OPEN_QUESTION, id="c1"))]
+    out = g.run(at(2024, 3, 2))
+    assert problems(out.charges[0]) == {("agent_run", "failed:run-1")}
+    assert out.records == () and out.grants == ()

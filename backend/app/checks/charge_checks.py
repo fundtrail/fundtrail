@@ -567,6 +567,18 @@ def suggestions_by_charge(view: GrantView) -> dict[str, list[Record]]:
     return out
 
 
+def _failed_run_on_charge(run: AgentRun, charge_id: str) -> str | None:
+    """The text of a failed run's reason on this charge, when the run was about it."""
+    kind = run.trigger.kind
+    if kind == TriggerKind.CHARGE and run.trigger.id == charge_id:
+        return "The agent couldn't finish reading this."
+    if kind == TriggerKind.THREAD_MESSAGE and run.thread_charge_id == charge_id:
+        return "The agent couldn't finish answering a message in this charge's thread."
+    if kind == TriggerKind.OPEN_QUESTION and run.trigger.id == charge_id:
+        return "The agent couldn't finish answering an open question on this charge."
+    return None
+
+
 def evaluate_charge(
     charge: Charge,
     view: GrantView,
@@ -624,15 +636,9 @@ def evaluate_charge(
             )
 
     for run in failed_runs:
-        if run.trigger.kind == TriggerKind.CHARGE and run.trigger.id == charge.id:
-            findings.append(
-                Finding(
-                    AGENT_RUN,
-                    f"failed:{run.id}",
-                    Bucket.NEEDS_HUMAN,
-                    "The agent couldn't finish reading this.",
-                )
-            )
+        text = _failed_run_on_charge(run, charge.id)
+        if text is not None:
+            findings.append(Finding(AGENT_RUN, f"failed:{run.id}", Bucket.NEEDS_HUMAN, text))
 
     # A waiting dispute: the disputed reason counts as Needs a human.
     for r in view.waiting:
