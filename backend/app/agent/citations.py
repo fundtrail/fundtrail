@@ -263,6 +263,28 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
 
+_SPACED_DASH = re.compile(r"[-\u2013]\s+$")
+_LEADING_SPACED_DASH = re.compile(r"^\s*[-\u2013]\s+")
+
+
+def sign_is_doubtful(passage: str, value_text: str) -> bool:
+    """Whether the sign beside an amount can be read either way (provisional call 31).
+
+    That's a hyphen or en dash with a space between it and the amount, as in "Hotel - $612.40":
+    a minus, or only a separator. The agent's sign stands there, so its reason has to say what
+    it read the sign from (call 38). The value's own text may carry the dash ("- $612.40").
+    """
+    if _LEADING_SPACED_DASH.match(value_text):
+        return True
+    at = passage.find(value_text)
+    while at >= 0:
+        before = passage[max(0, at - 4) : at]
+        if _SPACED_DASH.search(before):
+            return True
+        at = passage.find(value_text, at + 1)
+    return False
+
+
 # A minus sign as documents write it: a hyphen, an en dash, or the minus sign itself.
 _MINUS = "-\u2013\u2212"
 _AMOUNT = re.compile(r"^[\d,]*\d(?:\.\d{1,2})?$")
