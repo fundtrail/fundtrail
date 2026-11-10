@@ -241,6 +241,18 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     return output
 
 
+def set_and_replay(
+    p: Platform, conn: Conn, grant: Grant, old: datetime | None, to: datetime
+) -> list[AgentRun]:
+    """Set the grant's stored clock to `to` and replay what that passes, in the caller's
+    transaction, which holds the grant's lock and has checked the move goes forward. With
+    `old` None (a sample just opened or started over), what's stored at `to` itself is
+    replayed: everything that arrived at the clock's first "now". The caller pings."""
+    store.set_grant_clock(conn, grant.id, to)
+    after = old if old is not None else to - timedelta(microseconds=1)
+    return replay(p, conn, grant, after, to) if to > after else []
+
+
 def move_grant_clock(p: Platform, grant_id: str, to: datetime | None) -> datetime:
     """Move a grant's stored clock forward: to `to`, or with None, to the next charge or
     file stored on it and waiting. Everything the move passes is replayed in order. Returns
@@ -259,8 +271,7 @@ def move_grant_clock(p: Platform, grant_id: str, to: datetime | None) -> datetim
             to = arrival.at
         if to < old:
             raise ClockError("The clock only moves forward.")
-        store.set_grant_clock(conn, grant_id, to)
-        runs = replay(p, conn, grant, old, to) if to > old else []
+        runs = set_and_replay(p, conn, grant, old, to)
     for run in runs:
         ping_run(p.pinger, run)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "charges", "evidence", "statuses")

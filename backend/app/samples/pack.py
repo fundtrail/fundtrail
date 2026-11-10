@@ -161,11 +161,7 @@ class SamplePack:
         """An email file's Message-ID header, without its angle brackets, if it has one."""
         if not name.lower().endswith(".eml"):
             return None
-        headers = BytesParser(policy=policy.default).parsebytes(
-            self.file_bytes(name), headersonly=True
-        )
-        value = str(headers.get("Message-ID") or "").strip().strip("<>").strip()
-        return value or None
+        return message_id_of(self.file_bytes(name))
 
     def sha256(self, name: str) -> str:
         return self._hashes[name] if name in self._hashes else _sha256(self.file_bytes(name))
@@ -211,6 +207,13 @@ def event_id(kind: EventKind, name: str) -> str:
     key = "line" if kind is EventKind.LEDGER_LINE else kind.value
     digest = hashlib.sha256(f"{key}/{name}".encode()).hexdigest()[:16]
     return f"{key}-{digest}"
+
+
+def message_id_of(raw: bytes) -> str | None:
+    """An email's Message-ID header, without its angle brackets, if it has one."""
+    headers = BytesParser(policy=policy.default).parsebytes(raw, headersonly=True)
+    value = str(headers.get("Message-ID") or "").strip().strip("<>").strip()
+    return value or None
 
 
 def _sha256(data: bytes) -> str:
@@ -314,7 +317,7 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
         if raw["suggestion"] not in SUGGESTION_KINDS:
             raise PackError(
                 f"{where}: suggestion {raw['suggestion']!r} isn't one of "
-                f"{sorted(SUGGESTION_KINDS)}."
+                f"{sorted(k.value for k in SUGGESTION_KINDS)}."
             )
     if action == "answer_flag" and raw["answer"] not in ANSWERS:
         raise PackError(f"{where}: an answer is one of {sorted(ANSWERS)}.")

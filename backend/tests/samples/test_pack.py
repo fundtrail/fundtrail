@@ -259,7 +259,8 @@ def test_the_script_keeps_every_reference(tmp_path: Path) -> None:
         ),
         # Ruling 51: the seed's own rules.
         ({**SCRIPT[2], "answer": "yes"}, "an answer is one of"),
-        ({**SCRIPT[1], "suggestion": "bill"}, "suggestion 'bill' isn't one of"),
+        # The kinds print as plain values, not enum reprs.
+        ({**SCRIPT[1], "suggestion": "bill"}, r"'bill' isn't one of \['checklist_removal', 'corr"),
         ({**SCRIPT[1], "suggestion": "confirmation"}, "isn't one of"),
         ({**SCRIPT[2], "line_id": "L-0000-0000"}, "has no line L-0000-0000"),
         ({**SCRIPT[1], "line_id": None, "file": "nope.txt"}, "isn't on the timeline"),

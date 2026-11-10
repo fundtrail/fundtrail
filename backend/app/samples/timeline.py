@@ -51,6 +51,9 @@ class ChecksDate:
     at: datetime
     name: str
     note: str | None = None
+    # What the date belongs to, such as a snooze or a charge, so two dates of the same kind
+    # on the same day stay apart. Part of the ID; not shown.
+    key: str = ""
 
 
 @dataclass(frozen=True)
@@ -142,7 +145,8 @@ def pack_items(pack: SamplePack) -> tuple[TimelineItem, ...]:
 
 def _checks_id(d: ChecksDate) -> str:
     utc = d.at.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return f"checks-{utc}-{hashlib.sha256(d.name.encode()).hexdigest()[:8]}"
+    digest = hashlib.sha256(f"{d.name}/{d.key}".encode()).hexdigest()[:8]
+    return f"checks-{utc}-{digest}"
 
 
 def checks_items(dates: Iterable[ChecksDate]) -> list[TimelineItem]:
