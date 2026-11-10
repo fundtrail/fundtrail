@@ -1,5 +1,7 @@
 """Issue 70: an answer's new evidence is ordered by stored order, not clock dates."""
 
+import pytest
+
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import Record
 from app.contracts.rules import RecordState
@@ -91,3 +93,35 @@ def test_a_rejected_suggestion_comes_back_after_a_file_stored_since_the_rejectio
     assert any(
         "rejected the same suggestion" in p for p in problems(again, written, [*FILES, receipt(3)])
     )
+
+
+# The review of PR 77.
+
+
+def test_d1_a_new_record_cant_claim_a_stored_order():
+    written = [stored(agent("b1", bill()), 1)]
+    claiming = stored(agent("l1", link()), 0)
+    assert any("stored order when it's saved" in p for p in problems(claiming, written))
+    assert problems(agent("l1", link()), written) == []
+
+
+def test_d2_a_stored_record_missing_its_order_is_refused():
+    """The reviewer's mixed case: a stored record read without its stored_seq, before
+    other stored records, would read as "after everything" and clear a problem."""
+    unsure = stored(agent("j1", answer("unsure")), 1)
+    unread = agent("j2", answer("supports"), replaces_id="j1")  # stored, seq not read
+    after = stored(agent("b1", bill()), 100)
+    with pytest.raises(ValueError, match="stored_seq"):
+        RecordState([unsure, unread, after], [*FILES, receipt(99)])
+
+
+def test_d2_only_the_record_being_checked_comes_after_everything():
+    # In data with no stored order at all, a record that isn't last is never treated
+    # as being checked, so a file at the same time isn't counted for it.
+    unsure = agent("j1", answer("unsure"))
+    supports = agent("j2", answer("supports"), replaces_id="j1")
+    tail = agent("b1", bill(), 1)
+    state = RecordState([unsure, supports, tail], [*FILES, receipt(None)])
+    assert state.waits("j2") is True
+    # The last record, not stored yet, is the one being checked.
+    assert RecordState([stored(unsure, 1), supports], [*FILES, receipt(2)]).waits("j2") is False

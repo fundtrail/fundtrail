@@ -79,8 +79,19 @@ class RecordState:
 
     def __init__(self, records: Iterable[Record], files: Iterable[EvidenceFile] = ()):
         self.records: list[Record] = list(records)
-        if self.records and all(r.stored_seq is not None for r in self.records):
-            self.records.sort(key=lambda r: r.stored_seq or 0)
+        # The record being checked: the last one, when it isn't stored yet. It comes
+        # after everything stored. Every other record is either stored with its order,
+        # or (in test data) none is; a mix would let a missing order clear a problem.
+        self._checking_id: str | None = None
+        if self.records and self.records[-1].stored_seq is None:
+            self._checking_id = self.records[-1].id
+        head = self.records[:-1] if self._checking_id is not None else self.records
+        with_order = [r for r in head if r.stored_seq is not None]
+        if with_order and len(with_order) != len(head):
+            raise ValueError("stored records either all carry their stored_seq or none does")
+        if with_order:
+            head = sorted(head, key=lambda r: r.stored_seq or 0)
+            self.records = head + self.records[len(head) :]
         self.files: dict[str, EvidenceFile] = {f.id: f for f in files}
         self.by_id: dict[str, Record] = {}
         self._pos: dict[str, int] = {}
@@ -145,6 +156,12 @@ class RecordState:
     def answers_of(self, answer: Judgment) -> list[str]:
         """The IDs of the answers to the same question about the same things, in order."""
         return self._answers_of.get(_answer_key(answer), [])
+
+    def _is_checking(self, record: Record) -> bool:
+        """Whether `record` is the record being checked: not stored yet, so after everything."""
+        return record.stored_seq is None and (
+            record.id == self._checking_id or record.id not in self._pos
+        )
 
     def suggestion_key(self, record: Record, i: int | None = None) -> tuple[str, ...] | None:
         """What makes two of the agent's records "the same one", for the no-repeats rule and
@@ -240,7 +257,8 @@ class RecordState:
         - a grant term the accountant typed, or confirmed for the first time, stored
           after `since` and before `new`: stored order only, never clock dates.
         Something the agent links later from what was already on file doesn't count.
-        `new` may be a record not stored yet, which comes after everything stored.
+        `new` may be the record being checked, not stored yet, which comes after
+        everything stored. A missing order otherwise never counts as new.
         `before` limits it to the records stored before that position.
         """
         for f in self.files.values():
@@ -250,7 +268,8 @@ class RecordState:
                 f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
             )
             before_new = f.arrived_at < new.written_at or (
-                f.arrived_at == new.written_at and _stored_before(f.stored_seq, new.stored_seq)
+                f.arrived_at == new.written_at
+                and (self._is_checking(new) or _stored_after(new.stored_seq, f.stored_seq))
             )
             if after_since and before_new:
                 return True
@@ -410,12 +429,6 @@ def _stored_after(a: int | None, b: int | None) -> bool:
     return a is not None and b is not None and a > b
 
 
-def _stored_before(a: int | None, new: int | None) -> bool:
-    """Whether `a`, already stored, was stored before `new`. A record not stored yet
-    (`new` is None) comes after everything stored."""
-    return new is None or (a is not None and a < new)
-
-
 def _first_file(record: Record) -> str:
     return next((c.file_id for c in citations(record.data)), "")
 
@@ -566,6 +579,8 @@ def check_new_record(
 
     if new.id in state.by_id:
         problems.append(f"the ID {new.id} is already used")
+    if new.stored_seq is not None:
+        problems.append("a new record gets its stored order when it's saved, not before")
 
     # The agent writes inside a run, so its record comes with the run's trigger; the
     # accountant's doesn't.

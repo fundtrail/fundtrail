@@ -40,3 +40,15 @@ def test_rows_in_one_transaction_get_increasing_stored_order_across_tables(
         stored_seq(db, "records", record_id),
     ]
     assert order == sorted(order) and len(set(order)) == 3
+
+
+def test_existing_rows_are_numbered_files_and_charges_first_and_records_last() -> None:
+    """D3: the migration adds the columns to files, then charges, then records, so on a
+    tie in time no existing file can look stored after an existing record."""
+    from tests.db.conftest import MIGRATIONS_DIR
+
+    text = (MIGRATIONS_DIR / "20261110200000_stored_order.sql").read_text()
+    files = text.index("alter table public.evidence_files")
+    charges = text.index("alter table public.charges")
+    records = text.index("alter table public.records")
+    assert files < charges < records
