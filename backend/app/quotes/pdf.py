@@ -29,10 +29,11 @@ from app.quotes.text_match import (
     CleanText,
     clean,
     close_span_ok,
-    contains_exactly,
     find_exact,
     find_letters_and_digits,
     find_within_edits,
+    span_stands_alone,
+    value_in_span,
 )
 from app.quotes.types import HighlightRect, MatchMethod, PdfQuoteMatch, QuoteOccurrence
 
@@ -82,9 +83,11 @@ def find_pdf_quote(
     that names one page is searched on that page alone.
 
     Every place the passage appears is returned. An exact match wins; otherwise the close steps
-    run, and a close match counts only when it passes `close_span_ok` (its digits and the value
-    appear exactly). A match that can't be placed on the page (no boxes) counts as not found.
-    `value_text` is the cited value exactly as the document writes it.
+    run, and a close match counts only when it passes `close_span_ok` (its numbers and the value
+    appear exactly). A match that starts or ends in the middle of a word or number on the page
+    isn't a match, and one that can't be placed on the page (no boxes) counts as not found.
+    `value_text` is the cited value exactly as the document writes it; it's checked against the
+    whole page, so it can't be the tail or head of a longer number there.
 
     Raises FileNotFoundError for a path that doesn't exist, UnreadablePdfError when the file
     can't be opened as a PDF, and ValueError for a bad range.
@@ -119,7 +122,11 @@ def _read_and_match(
                     QuoteOccurrence(
                         rects=boxes,
                         matched_text=matched.replace(LINE_HYPHEN, "-"),
-                        value_found=contains_exactly(value_text, matched) if value_text else None,
+                        value_found=(
+                            value_in_span(value_text, pages.text.text, start, end)
+                            if value_text
+                            else None
+                        ),
                     )
                 )
     finally:
@@ -160,22 +167,30 @@ def _read_pages(doc: pdfium.PdfDocument, indexes: range) -> _Pages:
 def _find(
     passage: str, text: CleanText, value_text: str | None
 ) -> tuple[MatchMethod, list[tuple[int, int]]] | None:
-    """Exact first, then letters and digits, then the fewest edits. Close spans must pass guards."""
-    spans = find_exact(passage, text)
+    """Exact first, then letters and digits, then within a few edits.
+
+    Every span has to stand on its own on the page (it can't start or end in the middle of a word
+    or number), and every close span has to pass `close_span_ok`. Each step returns all its
+    spans that pass; a step with none falls through to the next.
+    """
+    page = text.text
+    spans = [s for s in find_exact(passage, text) if span_stands_alone(page, *s)]
     if spans:
         return "exact", spans
     spans = [
-        span
-        for span in find_letters_and_digits(passage, text)
-        if close_span_ok(passage, value_text, text.text[span[0] : span[1]])
+        s
+        for s in find_letters_and_digits(passage, text)
+        if span_stands_alone(page, *s) and close_span_ok(passage, value_text, page, *s)
     ]
     if spans:
         return "letters_and_digits", spans
-    within = find_within_edits(passage, text)
-    if within is not None:
-        span = within[0]
-        if close_span_ok(passage, value_text, text.text[span[0] : span[1]]):
-            return "edit_distance", [span]
+    spans = [
+        s
+        for s, _edits in find_within_edits(passage, text)
+        if span_stands_alone(page, *s) and close_span_ok(passage, value_text, page, *s)
+    ]
+    if spans:
+        return "edit_distance", spans
     return None
 
 

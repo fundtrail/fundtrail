@@ -12,16 +12,25 @@ exactly), and the main coordinator ruled on the details below. They're pending A
     (the Government Publishing Office prints a double quote that way);
   - the Unicode hyphens U+2010 and U+2011 become "-", typographic ligatures such as "fi" are
     spelled out, and zero-width characters are dropped;
-  - a soft hyphen (U+00AD) is an invisible hyphenation point and may be dropped;
+  - a soft hyphen (U+00AD) is an invisible hyphenation point and may be dropped, also between
+    digits;
   - en and em dashes are left alone.
+- **Any match** has to stand on its own on the page: a span whose first or last letter or digit
+  continues a word or number there ("450.00 was paid" cut out of "$12,450.00 was paid") isn't a
+  match (`span_stands_alone`).
 - **Close** is anything looser, in two steps tried in order: the letters and digits alone match,
-  ignoring case, spaces and punctuation; or they match within CLOSE_MAX_EDIT_RATIO edits. A
-  passage needs CLOSE_MIN_CHARS letters and digits before either is tried. A close match still
-  confirms a value, so it has to be unable to hide a wrong number. Two guards (`close_span_ok`):
-  every run of digits in the passage appears in the matched text, in order, so edits only touch
-  letters; and the value itself appears exactly in the matched text.
-- **A value is found** only when it appears exactly in the matched text, and not as part of a
-  longer number or word: "450.00" isn't found in "$12,450.00".
+  ignoring case, spaces and punctuation; or they match within CLOSE_MAX_EDIT_RATIO edits, at every
+  place on the page. A passage needs CLOSE_MIN_CHARS letters and digits before either is tried. A
+  close match still confirms a value, so it has to be unable to hide a wrong number. Two guards
+  (`close_span_ok`): the matched text's numbers are exactly the passage's, the same runs of
+  digits in the same order with none added or dropped (edits only touch letters), where any
+  numeric character counts (fractions, superscripts) and a minus sign or accounting parentheses
+  belong to the number; and the value appears exactly in the matched text. A space that splits a
+  number ("12 345" for "12345") therefore makes a different number. A changed separator ("$12.450"
+  for "$12,450") passes the first guard, so with no value given it's close.
+- **A value is found** only when it appears exactly in the matched text and stands on its own on
+  the whole page: not part of a longer number or word ("450.00" isn't in "$12,450.00"), and
+  without a minus sign or accounting parentheses the value lacks ("$450.00" isn't in "-$450.00").
 
 Every cleaned-up text keeps a map from each of its characters back to the character it came
 from, so a match can be turned back into a span of the original page text.
@@ -71,6 +80,8 @@ _REPLACEMENTS = {
     "\ufb06": "st",
 }
 _NUMBER_SEPARATORS = frozenset(".,")
+_SIGNS = frozenset("-\u2212")
+_CURRENCY = frozenset("$\u20ac\u00a3\u00a5")
 
 
 @dataclass(frozen=True)
@@ -93,6 +104,7 @@ def clean(chars: Sequence[str]) -> CleanText:
     origin: list[int] = []
     space_at: int | None = None
     space_has_break = False
+    soft_at = -1  # where in `out` the last LINE_HYPHEN from a soft hyphen (U+00AD) sits
 
     for i, ch in enumerate(chars):
         if ch in _ZERO_WIDTH:
@@ -113,12 +125,19 @@ def clean(chars: Sequence[str]) -> CleanText:
         space_at = None
         space_has_break = False
         if out and out[-1] == LINE_HYPHEN and after_digit and ch.isdigit():
-            out[-1] = "-"
+            if soft_at == len(out) - 1:
+                # A soft hyphen is only a place a word may break, so between digits it goes.
+                out.pop()
+                origin.pop()
+            else:
+                out[-1] = "-"
 
         if ch in _SOFT_HYPHENS:
             if not out or out[-1] != LINE_HYPHEN:
                 out.append(LINE_HYPHEN)
                 origin.append(i)
+                if ch == "\u00ad":
+                    soft_at = len(out) - 1
             continue
         for piece in _REPLACEMENTS.get(ch, ch):
             if piece == "'" and out and out[-1] == "'" and origin[-1] == i - 1:
@@ -173,21 +192,39 @@ def find_exact(passage: str, page: CleanText) -> list[tuple[int, int]]:
 
 
 def contains_exactly(value_text: str, text: str) -> bool:
-    """Whether a value appears exactly in a cleaned-up text, under the same clean-up.
+    """Whether a value appears exactly in a cleaned-up text, standing on its own."""
+    return value_in_span(value_text, text, 0, len(text))
 
-    The value has to stand on its own: where its first or last character is a letter or digit,
-    the text beside it can't be a letter or digit, and a number can't go on through a separator
-    (so "450.00" isn't in "$12,450.00", and "$12,450" isn't in "$12,450.00").
+
+def value_in_span(value_text: str, text: str, start: int, end: int) -> bool:
+    """Whether a value appears exactly inside text[start:end], standing on its own in `text`.
+
+    `text` is the whole cleaned-up page, so the value's neighbours are checked on the page, not
+    just inside the span: a value at the edge of a span can't be part of a longer number there.
+    Standing on its own means: where its first or last character is a letter or digit, the text
+    beside it isn't a letter or digit, and a number doesn't go on through a separator ("450.00"
+    isn't in "$12,450.00", "$12,450" isn't either). A number doesn't carry a minus sign or
+    accounting parentheses on the page that the value lacks ("$450.00" isn't in "-$450.00").
     """
     pattern = exact_pattern(value_text)
     if pattern is None:
         return False
-    pos = 0
-    while (found := pattern.search(text, pos)) is not None:
-        if found.end() > found.start() and _stands_alone(text, found.start(), found.end()):
+    pos = start
+    while (found := pattern.search(text, pos)) is not None and found.start() < end:
+        s, e = found.start(), found.end()
+        if s < e <= end and _stands_alone(text, s, e) and not _signed(text, s, e):
             return True
-        pos = found.start() + 1
+        pos = s + 1
     return False
+
+
+def span_stands_alone(text: str, start: int, end: int) -> bool:
+    """Whether a matched span's first and last letter or digit don't continue a word or number.
+
+    A passage cut out of the middle of "$12,450.00" ("450.00 was paid") isn't a match.
+    """
+    alnum = [i for i in range(start, end) if text[i].isalnum()]
+    return not alnum or _stands_alone(text, alnum[0], alnum[-1] + 1)
 
 
 def _stands_alone(text: str, start: int, end: int) -> bool:
@@ -197,10 +234,10 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
         if before.isalnum():
             return False
         if (
-            first.isdigit()
+            first.isnumeric()
             and before in _NUMBER_SEPARATORS
             and start > 1
-            and text[start - 2].isdigit()
+            and text[start - 2].isnumeric()
         ):
             return False
     if last.isalnum() and end < len(text):
@@ -208,13 +245,29 @@ def _stands_alone(text: str, start: int, end: int) -> bool:
         if after.isalnum():
             return False
         if (
-            last.isdigit()
+            last.isnumeric()
             and after in _NUMBER_SEPARATORS
             and end + 1 < len(text)
-            and text[end + 1].isdigit()
+            and text[end + 1].isnumeric()
         ):
             return False
     return True
+
+
+def _signed(text: str, start: int, end: int) -> bool:
+    """Whether the number in text[start:end] has a minus sign or accounting parentheses outside it.
+
+    Currency symbols between the sign and the number are skipped ("-$450.00"). A hyphen right
+    after a letter or digit is a hyphen, not a sign ("10-20", "SYN-2026").
+    """
+    if not any(ch.isnumeric() for ch in text[start:end]):
+        return False
+    k = start
+    while k > 0 and text[k - 1] in _CURRENCY:
+        k -= 1
+    if k > 0 and text[k - 1] in _SIGNS and (k < 2 or not text[k - 2].isalnum()):
+        return True
+    return k > 0 and text[k - 1] == "(" and end < len(text) and text[end] == ")"
 
 
 def letters_and_digits(text: str) -> CleanText:
@@ -246,42 +299,109 @@ def find_letters_and_digits(passage: str, page: CleanText) -> list[tuple[int, in
     return spans
 
 
-def find_within_edits(passage: str, page: CleanText) -> tuple[tuple[int, int], int] | None:
-    """Find the passage's letters and digits among the page's, allowing a few edits.
+def find_within_edits(passage: str, page: CleanText) -> list[tuple[tuple[int, int], int]]:
+    """Every place the passage's letters and digits appear among the page's within a few edits.
 
-    Returns the span in `page.text` and the number of edits, or None when the best match needs
-    more than CLOSE_MAX_EDIT_RATIO of the passage's length.
+    Returns each span in `page.text` with its number of edits, not overlapping, in page order.
+    Each is the best alignment in its stretch of the page, and none needs more than
+    CLOSE_MAX_EDIT_RATIO of the passage's length. Empty for a passage shorter than
+    CLOSE_MIN_CHARS.
     """
     q = letters_and_digits(clean(passage).text).text
     if len(q) < CLOSE_MIN_CHARS:
-        return None
+        return []
     p = letters_and_digits(page.text)
     if not p.text:
-        return None
-    best = best_substring_match(q, p.text)
-    if best is None:
-        return None
-    start, end, edits = best
-    if edits > int(len(q) * CLOSE_MAX_EDIT_RATIO):
-        return None
-    return _widen(page.text, p.origin[start], p.origin[end - 1] + 1), edits
+        return []
+    limit = int(len(q) * CLOSE_MAX_EDIT_RATIO)
+    scores = _end_scores(q, p.text)
+    found: list[tuple[tuple[int, int], int]] = []
+    last_end = 0
+    j = 0
+    while j < len(scores):
+        if scores[j] > limit:
+            j += 1
+            continue
+        # A run of end positions within the limit is one place; take its best end.
+        best = j
+        while j < len(scores) and scores[j] <= limit:
+            if scores[j] < scores[best]:
+                best = j
+            j += 1
+        end = best + 1
+        start = end - _best_reach(q, p.text[:end])
+        if start < last_end:
+            continue
+        span = _to_word_edges(page.text, p.origin[start], p.origin[end - 1] + 1)
+        found.append((_widen(page.text, *span), scores[best]))
+        last_end = end
+    return found
 
 
-def close_span_ok(passage: str, value_text: str | None, span_text: str) -> bool:
-    """The guards on a close match, so it can't hide a wrong number.
+def close_span_ok(passage: str, value_text: str | None, text: str, start: int, end: int) -> bool:
+    """The guards on a close match at text[start:end], so it can't hide a wrong number.
 
-    Every run of digits in the passage appears in the matched text, in order, and the value (when
-    there is one) appears exactly in the matched text.
+    The numbers in the matched text are the passage's numbers, the same runs of digits in the
+    same order with nothing added or dropped (edits only touch letters), each with the same
+    minus sign or accounting parentheses; and the value (when there is one) appears exactly in
+    the matched text, standing on its own on the page.
     """
-    if not _digits_in_order(clean(passage).text, span_text):
+    q = clean(passage).text
+    if _number_tokens(q, 0, len(q)) != _number_tokens(text, start, end):
         return False
-    return value_text is None or contains_exactly(value_text, span_text)
+    return value_text is None or value_in_span(value_text, text, start, end)
 
 
-def _digits_in_order(passage: str, span_text: str) -> bool:
-    wanted = re.findall(r"\d+", passage)
-    found = iter(re.findall(r"\d+", span_text.replace(LINE_HYPHEN, "")))
-    return all(any(run == have for have in found) for run in wanted)
+def _number_tokens(text: str, start: int, end: int) -> list[str]:
+    """The runs of numeric characters in text[start:end], each marked with its sign.
+
+    Numeric means any character Unicode counts as a number, so fractions and superscripts
+    ("4\u00bd", "10\u00b2") count. A run that starts a number carries "-" when a minus sign
+    belongs to it, or "(" for accounting parentheses. Separators split runs but aren't kept, so
+    "$12,450" and "$12.450" give the same runs.
+    """
+    tokens: list[str] = []
+    i = start
+    while i < end:
+        if not text[i].isnumeric():
+            i += 1
+            continue
+        j = i
+        while j < end and text[j].isnumeric():
+            j += 1
+        continues = i >= 2 and text[i - 1] in _NUMBER_SEPARATORS and text[i - 2].isnumeric()
+        number_end = j
+        while (
+            number_end + 1 < len(text)
+            and text[number_end] in _NUMBER_SEPARATORS
+            and text[number_end + 1].isnumeric()
+        ):
+            number_end += 2
+            while number_end < len(text) and text[number_end].isnumeric():
+                number_end += 1
+        sign = ""
+        if not continues and _signed(text, i, number_end):
+            k = i
+            while k > 0 and text[k - 1] in _CURRENCY:
+                k -= 1
+            sign = "(" if text[k - 1] == "(" else "-"
+        tokens.append(sign + text[i:j])
+        i = j
+    return tokens
+
+
+def _to_word_edges(text: str, start: int, end: int) -> tuple[int, int]:
+    """Stretch an edit-distance span over letters to the edges of the words it cuts.
+
+    The cheapest alignment of a misread "staf" stops inside "staff"; edits only touch letters, so
+    the span may take the rest of the word. Never over digits: a span that cuts a number stays cut
+    and is refused.
+    """
+    while start > 0 and text[start - 1].isalpha() and text[start].isalpha():
+        start -= 1
+    while end < len(text) and text[end].isalpha() and text[end - 1].isalpha():
+        end += 1
+    return start, end
 
 
 def _widen(text: str, start: int, end: int) -> tuple[int, int]:
@@ -309,14 +429,26 @@ def best_substring_match(pattern: str, text: str) -> tuple[int, int, int] | None
     scores = _end_scores(pattern, text)
     edits = min(scores)
     end = scores.index(edits) + 1
-    # Search backwards from that end for where the alignment starts.
-    back = _end_scores(pattern[::-1], text[:end][::-1])
-    reach = back.index(min(back)) + 1
-    return end - reach, end, edits
+    return end - _best_reach(pattern, text[:end]), end, edits
 
 
-def _end_scores(pattern: str, text: str) -> list[int]:
-    """For each end position in `text`, the fewest edits to match `pattern` ending there."""
+def _best_reach(pattern: str, text: str) -> int:
+    """How far back from the end of `text` the best alignment of `pattern` ending there starts.
+
+    Searches the reversed text with the alignment pinned to its first character (the original's
+    last), so it measures alignments that end exactly at the end of `text`. The shortest best one
+    wins.
+    """
+    back = _end_scores(pattern[::-1], text[::-1], anchored=True)
+    return back.index(min(back)) + 1
+
+
+def _end_scores(pattern: str, text: str, *, anchored: bool = False) -> list[int]:
+    """For each end position in `text`, the fewest edits to match `pattern` ending there.
+
+    Unanchored, the match may start anywhere in `text`. Anchored, it must start at its first
+    character (skipping text costs an edit per character).
+    """
     m = len(pattern)
     full = (1 << m) - 1
     top = 1 << (m - 1)
@@ -335,7 +467,7 @@ def _end_scores(pattern: str, text: str) -> list[int]:
             score += 1
         elif mh & top:
             score -= 1
-        ph = (ph << 1) & full
+        ph = ((ph << 1) | (1 if anchored else 0)) & full
         mh = (mh << 1) & full
         pv = (mh | ~(xv | ph)) & full
         mv = ph & xv
