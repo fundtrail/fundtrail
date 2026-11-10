@@ -47,7 +47,7 @@ Each highlight's events carry a short `highlight` label in `timeline.json`, and 
 
 The small sample marks highlights 1 to 3: its award letter, invoice ESS-32410 emailed on 2026-11-19 before its line posts on 2026-12-07, and the hardware store receipt photo, the user's to deliver.
 
-**Benefits (background, not a highlight).** Beside each of the postdoc's six salary lines is a benefit line on 53080 Benefit Assessment - Limited, at 15.00% of that month's $6,500.00, from the synthetic rate agreement (laid out like a real Colleges and Universities Rate Agreement: a fixed rate per employee group and fiscal year, July 1 to June 30). The key expects a benefit line to clear when its salary line does, which assumes the benefit check the checks builder is building.
+**Benefits (background, not a highlight).** The postdoc's salary is on 51232, the benefit check's Limited salary account, and beside each of the six salary lines is a benefit line on 53080 Benefit Assessment - Limited, at 15.00% of that month's $6,500.00. The rate comes from the synthetic rate agreement, laid out like a real Colleges and Universities Rate Agreement: a fixed rate per employee group and fiscal year, July 1 to June 30. The agent reads each fixed row as a rate term (ruling 61), and the script confirms them. Code fills a benefit line's "Benefit rate" item from the confirmed rate and its salary line, with no link, and the line clears when its salary line does.
 
 ## The timeline
 
@@ -113,7 +113,7 @@ The larger sample's records also hold the agent's suggestions the highlights sho
 
 Within one moment, a record comes after every record it points to, the way a run writes them: terms, then facts, then links and assignments, then answers and suggestions.
 
-The records validate against the contract's models. Played through main's checks at every key time, with the scripted steps the key measures, they give the key's bucket 8 of 8 times in the small sample. In the larger sample they give it 48 of 54 times. The six others are the benefit lines before the effort report arrives: main's checks clear a benefit line as soon as the rate agreement is linked, and the key waits for the benefit check that ties it to its salary line.
+The records validate against the contract's models. Played through main's checks at every key time, with the scripted steps the key measures, they give the key's bucket 8 of 8 times in the small sample. In the larger sample they give it 54 of 54 times, on the benefit check's branch (PR 219). Main's checks, without that check, can't fill a benefit line's item, so the six benefit lines' final buckets wait for it.
 
 The static test checks five things:
 - every link, budget line and answer the key expects is there

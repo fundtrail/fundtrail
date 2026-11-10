@@ -32,8 +32,9 @@ from __future__ import annotations
 
 import random
 from datetime import date, timedelta
+from decimal import Decimal
 
-from demo import FIELD, HARPER, JAMIE, LAB, POSTDOC_SALARY, ROWAN, RTC, SASHA, SCI, SUPPLIES_ACCOUNT
+from demo import FIELD, HARPER, JAMIE, LAB, ROWAN, RTC, SASHA, SCI, SUPPLIES_ACCOUNT
 from model import (
     EVIDENCE_COMPLETE,
     MISSING_EVIDENCE,
@@ -81,6 +82,9 @@ POSTDOC_MONTHLY = 650000
 LIMITED_RATE = (15, 100)
 BENEFITS_LIMITED = "53080 Benefit Assessment - Limited"
 RATE_AGREEMENT = "rate_agreement_2025-05-28.pdf"
+# The benefit check's table puts the Limited group's pay on 51232 (PR 219); the
+# postdoc is in the Limited group.
+POSTDOC_SALARY = "51232 Salaries-Limited Benefit Staff"
 EMS = "Example Marine Station"
 
 # The budget of amendment 000 and of the increment, 001. Names are unique, so a
@@ -608,9 +612,9 @@ def salaries(g: Grant) -> None:
             BENEFITS_LIMITED,
             reference=f"PAY-{me:%Y-%m}",
         )
-        g.link(RATE_AGREEMENT, ben)
+        # Code fills its "Benefit rate" item from the confirmed rate and the salary
+        # line, with no link (ruling 61), and it waits on its salary line.
         g.budget(ben, "Fringe Benefits")
-        g.answer(ben, "allowable", "supports")
         g.ordinary.append(Ordinary(ben, [RATE_AGREEMENT, appt, report]))
 
 
@@ -631,15 +635,16 @@ def rate_agreement(g: Grant) -> None:
         ("43.00", "Staff"),
         ("2.90", "Student"),
     ]
-    rows = [f"{'TYPE':<7}{'FROM':<11}{'TO':<11}{'RATE(%)':<9}{'LOCATION':<10}APPLICABLE TO"]
+    rows = [f"{'TYPE':<7}{'FROM':<12}{'TO':<12}{'RATE(%)':<9}{'LOCATION':<10}APPLICABLE TO"]
     rows += [
-        f"{'FIXED':<7}{'7/1/2024':<11}{'6/30/2025':<11}{r:<9}{'All':<10}{who}" for r, who in fy25
+        f"{'FIXED':<7}{'07/01/2024':<12}{'06/30/2025':<12}{r:<9}{'All':<10}{who}" for r, who in fy25
     ]
     rows += [
-        f"{'FIXED':<7}{'7/1/2025':<11}{'6/30/2026':<11}{r:<9}{'All':<10}{who}" for r, who in groups
+        f"{'FIXED':<7}{'07/01/2025':<12}{'06/30/2026':<12}{r:<9}{'All':<10}{who}"
+        for r, who in groups
     ]
     rows += [
-        f"{'PROV.':<7}{'7/1/2026':<11}Until Amended   Use same rates and conditions as those",
+        f"{'PROV.':<7}{'07/01/2026':<12}Until Amended  Use same rates and conditions as those",
         "                         cited for fiscal year ending June 30, 2026",
     ]
     text = "\n".join(
@@ -691,7 +696,24 @@ def rate_agreement(g: Grant) -> None:
         "July 1, 2025.",
         text=text,
     )
-    g.record("note", RATE_AGREEMENT)
+    # Each fixed row is a rate term (ruling 61): its group, its rate as a fraction,
+    # and the dates it's in effect. The accountant confirms them once.
+    g.confirm(RATE_AGREEMENT, at(date(2025, 6, 17), 17), "The user confirms the benefit rates.")
+    for (from_, to), rows_ in (
+        (("2024-07-01", "2025-06-30"), fy25),
+        (("2025-07-01", "2026-06-30"), groups),
+    ):
+        for r, who in rows_:
+            g.record(
+                "rate",
+                RATE_AGREEMENT,
+                name=who,
+                rate=str(Decimal(r) / 100),
+                applies_to=who.casefold().replace(" ", "_"),
+                effective_from=from_,
+                effective_to=to,
+                dated="2025-05-28",
+            )
 
 
 # ---------------------------------------------------------------- 10. the same invoice twice

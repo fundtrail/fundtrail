@@ -36,6 +36,8 @@ DEFAULT_ITEMS: list[tuple[str, str, str]] = [
     # (account prefix, kind of document, default item key)
     ("50", "appointment", "appointment_letter"),
     ("50", "effort", "effort_report"),
+    ("51", "appointment", "appointment_letter"),
+    ("51", "effort", "effort_report"),
     ("550", "bill", "bill"),
     ("5721", "expense", "expense_report"),
     ("5721", "bill", "bills"),
@@ -293,6 +295,8 @@ class Builder:
                         for j in items
                     ]
                 self.part_by_file[name] = data["total"]["citation"]
+            elif kind == "rate":
+                data.update(self.rate(name, f))
             elif kind == "approval_rule":
                 data.update(self.approval_rule(name, f))
             elif kind == "approval":
@@ -322,6 +326,25 @@ class Builder:
             i, row = self.find(name, lambda r: "diverted" in r)
             data["scope"] = self.cited(name, f["scope"], "diverted", i)
         return data
+
+    def rate(self, name: str, f: dict) -> dict:
+        """One row of a rate agreement: its group, rate and dates, all on that row."""
+        start = date.fromisoformat(f["effective_from"])
+        end = date.fromisoformat(f["effective_to"])
+        group = f["name"]
+
+        def row(r: str) -> bool:
+            return r.startswith("FIXED") and f"{start:%m/%d/%Y}" in r and r.rstrip().endswith(group)
+
+        i, line = self.find(name, row)
+        percent = line.split()[3]
+        return {
+            "name": self.cited(name, group, group, i),
+            "rate": self.cited(name, f["rate"], percent, i),
+            "applies_to": self.cited(name, f["applies_to"], group, i),
+            "effective_from": self.cited(name, f["effective_from"], f"{start:%m/%d/%Y}", i),
+            "effective_to": self.cited(name, f["effective_to"], f"{end:%m/%d/%Y}", i),
+        }
 
     def approved_line(self, name: str) -> str:
         _, row = self.find(name, lambda r: r.strip().startswith("Approved."))
@@ -556,6 +579,7 @@ KIND_ORDER = {
     "budget_line": 0,
     "person": 0,
     "approval_rule": 0,
+    "rate": 0,
     "bill": 1,
     "note": 1,
     "approval": 1,

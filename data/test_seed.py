@@ -167,9 +167,17 @@ ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str] | None], ...] = tuple(
 # the key's value isn't looked for in the file.
 RECORD_FIELDS = {
     **ev.RECORD_FIELDS,
+    # Ruling 61: a benefit rate term, one row of the rate agreement. Its rate is a
+    # fraction and its group the contract's BenefitGroup, so neither is written as
+    # such in the file; its name and dates are.
+    "rate": {"name", "rate", "applies_to", "effective_from", "effective_to", "dated"},
     "approval_rule": ev.RECORD_FIELDS["approval_rule"] | {"scope"},
 }
-UNCITED_FIELDS = ev.UNCITED_FIELDS | {"scope"}
+UNCITED_FIELDS = ev.UNCITED_FIELDS | {"scope", "rate", "applies_to"}
+DATE_FIELDS = ev.DATE_FIELDS | {"effective_from", "effective_to"}
+# The composite benefit rate accounts (ruling 61): code fills a benefit charge's
+# "Benefit rate" item from the confirmed rate and its salary lines, with no link.
+BENEFIT_ACCOUNTS = {"53060", "53070", "53080", "53085", "53086"}
 APPROVAL_SCOPES = {"every_charge", "moved_out"}
 # The photos depend on the machine's fonts, so the generator's bytes can't be
 # compared. Their hashes catch a photo swapped or edited by hand. After
@@ -515,7 +523,7 @@ def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -
         elif ftype == "category":
             if value not in CATEGORIES:
                 problems.append(f"{where}: category {value!r} isn't one of {sorted(CATEGORIES)}")
-        elif ftype in ev.DATE_FIELDS:
+        elif ftype in DATE_FIELDS:
             d = date.fromisoformat(value)
             if not any(ev.normalize(r) in body for r in ev.date_renderings(d)):
                 problems.append(f"{where}: {field} {value} isn't written in {name}")
@@ -527,7 +535,7 @@ def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -
                 problems.append(f"{where}: scope must be one of {sorted(APPROVAL_SCOPES)}")
         elif ftype not in UNCITED_FIELDS and ev.normalize(value) not in body:
             problems.append(f"{where}: {field} {value!r} doesn't appear in {name}")
-    if kind in ev.TERM_KINDS and "dated" not in fields:
+    if kind in ev.TERM_KINDS | {"rate"} and "dated" not in fields:
         problems.append(f"{where}: a term should give its dated")
 
 
@@ -902,7 +910,8 @@ def check_invariants(
         )
         if lid in doubtful and not cleared:
             problems.append(f"{where}: complete, but an answer isn't supports")
-        if not links_by_line.get(lid):
+        benefit = lines[lid]["account"].split(" ")[0] in BENEFIT_ACCOUNTS
+        if not links_by_line.get(lid) and not benefit:
             problems.append(f"{where}: complete with nothing linked")
         shared = arrivals.get(f"enter_share:{lid}")
         if lid in unbased and (shared is None or shared >= when):
