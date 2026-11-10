@@ -380,17 +380,43 @@ def test_a_typed_sub_line_joins_the_one_cited_notice_of_its_date() -> None:
     ]
 
 
-def test_a_typed_line_whose_date_two_cited_notices_share_stays_on_its_own() -> None:
-    """Code doesn't pick between two notices of the same date."""
+def test_a_typed_sub_line_two_notices_could_own_stays_on_its_own() -> None:
+    """Code doesn't pick when two cited notices of the same date print the parent."""
     g = Grant()
     g.standard_terms()  # the letter: PSC $20,000, dated Jan 10, 2023
     g.file("f-other", at(2023, 6, 1))
     other = g.budget_line(
-        "Equipment", 500_000, "equipment", at(2023, 6, 1), dated=date(2023, 1, 10), f="f-other"
+        "Participant Support Costs",
+        1_000_000,
+        "participant_support",
+        at(2023, 6, 1),
+        dated=date(2023, 1, 10),
+        f="f-other",
     )
     g.confirm(other, when=at(2023, 6, 1, 13))
     stipends = _typed_line(g, "Stipends", 1_500_000, date(2023, 1, 10), at(2023, 6, 2))
-    # Counted on its own: $20,000 + $15,000, so $25,000 isn't over.
+    # Counted on its own: $20,000 + $10,000 + $15,000, so $25,000 isn't over.
+    assert _stipend_overspend(g, stipends) == []
+
+
+def test_a_typed_parent_line_never_joins_a_cited_notice() -> None:
+    """The reviewer's probe: an increment's PSC $10,000, typed with the letter's date, is a
+    separate notice's line. Joining would replace the letter's $20,000 and give a false note."""
+    g = Grant()
+    g.standard_terms()  # the letter: PSC $20,000, dated Jan 10, 2023
+    increment = _typed_line(
+        g, "Participant Support Costs", 1_000_000, date(2023, 1, 10), at(2023, 6, 2)
+    )
+    # $20,000 + $10,000: $25,000 isn't over.
+    assert _stipend_overspend(g, increment) == []
+
+
+def test_a_typed_sub_line_with_its_typing_date_still_counts_twice() -> None:
+    """Known miss, kept on purpose: with no date to tie it to a notice, a typed sub-line
+    counts on its own, so the parent and it add up. A missed note, never a false one."""
+    g = Grant()
+    g.standard_terms()
+    stipends = _typed_line(g, "Stipends", 1_500_000, date(2023, 2, 1), at(2023, 2, 1))
     assert _stipend_overspend(g, stipends) == []
 
 
