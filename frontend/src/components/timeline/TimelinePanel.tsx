@@ -323,6 +323,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   // Ruling 47: Next event and Go to a date can let the sample accountant do the human steps.
   const [skip, setSkip] = useState(false);
   const skipId = useId();
+  const highlightHintId = useId();
 
   async function act(run: () => Promise<unknown>): Promise<void> {
     await attempt(run);
@@ -374,15 +375,21 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             >
               Next event
             </button>
-            {/* Ruling 58: straight to the next highlight, with the human steps skipped. */}
-            <button
-              type="button"
-              className="ft-btn ft-btn--sm"
-              disabled={busy || !nextHighlight}
-              onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
-            >
-              Next highlight
-            </button>
+            {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
+            <span className="ft-tl__hinted">
+              <button
+                type="button"
+                className="ft-btn ft-btn--sm"
+                aria-describedby={highlightHintId}
+                disabled={busy || !nextHighlight}
+                onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+              >
+                Next highlight
+              </button>
+              <span id={highlightHintId} className="ft-caption">
+                Always skips the human steps.
+              </span>
+            </span>
             <GoToDate
               now={view.now.now}
               busy={busy}

@@ -34,6 +34,9 @@ describe("highlights (ruling 58)", () => {
     expect(within(coming).getByText("Highlight: Work after the end date")).toBeInTheDocument();
 
     const next = screen.getByRole("button", { name: "Next highlight" });
+    // It says it skips the human steps, since the Skip checkbox stays unticked.
+    expect(next).toHaveAccessibleDescription("Always skips the human steps.");
+    expect(screen.getByLabelText("Skip the human steps")).not.toBeChecked();
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
     await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { to: "2026-02-21T17:30:00Z", skip_human_steps: true }));
