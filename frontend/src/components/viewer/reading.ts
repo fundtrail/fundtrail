@@ -89,3 +89,27 @@ export function mapSpanToReading(span: CharSpan, segments: readonly TextSegment[
 export function mapSpansToReading(spans: readonly CharSpan[], segments: readonly TextSegment[], readingText: string): CharSpan[] {
   return spans.map((s) => mapSpanToReading(s, segments, readingText)).filter((s): s is CharSpan => s !== null);
 }
+
+/**
+ * For a view that shows only the cited passage (ruling 50): on a sample grant
+ * the passage is reading text, while its location and highlights stay in stored
+ * positions. Returns the highlights in reading positions and where the passage
+ * starts in the reading text, to split the passage by.
+ */
+export function passageInReading(
+  spans: readonly CharSpan[],
+  passageStart: number,
+  segments: readonly TextSegment[],
+  readingText: string,
+): { spans: CharSpan[]; offset: number } {
+  const sorted = [...segments].sort((a, b) => a.stored_start - b.stored_start);
+  const kept = segmentAt(sorted, passageStart);
+  let offset: number;
+  if (kept) offset = kept.reading_start + (passageStart - kept.stored_start);
+  else {
+    // A passage that starts in a gap starts on the replaced line, or on the kept text after a dropped header.
+    const gap = gapAt(sorted, passageStart, Array.from(readingText));
+    offset = gap.line.end > gap.line.start ? gap.line.start : gap.region.end;
+  }
+  return { spans: mapSpansToReading(spans, segments, readingText), offset };
+}
