@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from typing import Any
 
+from app.checks.ledger_accounts import ODC_OTHER
 from app.checks.run import run_checks
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus, ChecksInput, ChecksOutput, Reason
@@ -30,7 +31,9 @@ def at(y: int, m: int, d: int, h: int = 12) -> datetime:
     return datetime(y, m, d, h, tzinfo=UTC)
 
 
-def cited(value: Any, text: str | None = None, file_id: str = "f-letter", match: str = "exact") -> dict[str, Any]:
+def cited(
+    value: Any, text: str | None = None, file_id: str = "f-letter", match: str = "exact"
+) -> dict[str, Any]:
     text = text if text is not None else str(value)
     return {
         "value": value,
@@ -38,7 +41,11 @@ def cited(value: Any, text: str | None = None, file_id: str = "f-letter", match:
         "citation": {
             "file_id": file_id,
             "passage": text,
-            "location": {"type": "char_location", "start_char_index": 0, "end_char_index": len(text)},
+            "location": {
+                "type": "char_location",
+                "start_char_index": 0,
+                "end_char_index": len(text),
+            },
             "match": match,
         },
     }
@@ -146,11 +153,15 @@ class Grant:
         return self.add("user", data, when, replaces)
 
     def confirm(self, *ids: str, when: datetime, decision: str = "confirmed") -> str:
-        return self.user({"kind": "confirmation", "record_ids": list(ids), "decision": decision}, when)
+        return self.user(
+            {"kind": "confirmation", "record_ids": list(ids), "decision": decision}, when
+        )
 
     # Terms, written by the agent from the award letter.
 
-    def period(self, start: date | None, end: date, dated: date, when: datetime, f: str = "f-letter") -> str:
+    def period(
+        self, start: date | None, end: date, dated: date, when: datetime, f: str = "f-letter"
+    ) -> str:
         data: dict[str, Any] = {
             "kind": "period_of_performance",
             "dated": cited(dated, file_id=f),
@@ -160,7 +171,9 @@ class Grant:
             data["start"] = cited(start, file_id=f)
         return self.agent(data, when)
 
-    def budget_line(self, name: str, amount: int, category: str, when: datetime, dated: date = date(2023, 1, 10)) -> str:
+    def budget_line(
+        self, name: str, amount: int, category: str, when: datetime, dated: date = date(2023, 1, 10)
+    ) -> str:
         return self.agent(
             {
                 "kind": "budget_line",
@@ -184,7 +197,9 @@ class Grant:
             when,
         )
 
-    def approval_rule(self, applies_to: str, approver: str, channel: str | None, when: datetime) -> str:
+    def approval_rule(
+        self, applies_to: str, approver: str, channel: str | None, when: datetime
+    ) -> str:
         data: dict[str, Any] = {
             "kind": "approval_rule",
             "dated": cited(date(2023, 1, 10)),
@@ -196,7 +211,12 @@ class Grant:
         return self.agent(data, when)
 
     def notice(
-        self, number: str, by: int | None, to_date: int | None, when: datetime, dated: date = date(2023, 1, 10)
+        self,
+        number: str,
+        by: int | None,
+        to_date: int | None,
+        when: datetime,
+        dated: date = date(2023, 1, 10),
     ) -> str:
         data: dict[str, Any] = {
             "kind": "notice",
@@ -211,28 +231,42 @@ class Grant:
         return self.agent(data, when)
 
     def standard_terms(self, confirm: bool = True, with_rule: bool = True) -> dict[str, str]:
-        """A grant from Feb 1, 2023 to Jan 31, 2026, like the sample grant, confirmed on Jan 12, 2023."""
+        """A grant from Feb 1, 2023 to Jan 31, 2026, like the sample grant.
+
+        The agent writes the terms, and the accountant confirms them on Jan 12, 2023.
+        """
         when = at(2023, 1, 12, 15)
         ids = {
             "period": self.period(date(2023, 2, 1), date(2026, 1, 31), date(2023, 1, 10), when),
-            "psc": self.budget_line("Participant Support Costs", 2_000_000, "participant_support", when),
+            "psc": self.budget_line(
+                "Participant Support Costs", 2_000_000, "participant_support", when
+            ),
             "odc": self.budget_line("Other Direct Costs", 10_000_000, "other_direct_costs", when),
-            "ms": self.budget_line("Materials and Supplies", 4_000_000, "materials_and_supplies", when),
-            "other": self.budget_line("Other", 6_000_000, "other", when),
+            "ms": self.budget_line(
+                "Materials and Supplies", 4_000_000, "materials_and_supplies", when
+            ),
+            "other": self.budget_line("Other", 6_000_000, ODC_OTHER.value, when),
             "pi": self.person("Dr. Robin Example", PI_EMAIL, "Principal Investigator", when),
             "po": self.person("Dr. Jesse Sample", PO_EMAIL, "Program Officer", when),
             "notice": self.notice("000", 12_000_000, 12_000_000, when),
         }
         if with_rule:
-            ids["rule"] = self.approval_rule("Participant Support Costs", "Program Officer", "Research.gov", when)
+            ids["rule"] = self.approval_rule(
+                "Participant Support Costs", "Program Officer", "Research.gov", when
+            )
         if confirm:
             ids["confirm"] = self.confirm(*ids.values(), when=at(2023, 1, 12, 16))
         return ids
 
     # Facts, links and answers.
 
-    def bill(self, total: int, f: str, when: datetime, match: str = "exact", number: str | None = None) -> str:
-        data: dict[str, Any] = {"kind": "bill", "total": cited(total, f"${total / 100:,.2f}", f, match)}
+    def bill(
+        self, total: int, f: str, when: datetime, match: str = "exact", number: str | None = None
+    ) -> str:
+        data: dict[str, Any] = {
+            "kind": "bill",
+            "total": cited(total, f"${total / 100:,.2f}", f, match),
+        }
         if number:
             data["document_number"] = cited(number, file_id=f)
         return self.agent(data, when)
@@ -242,7 +276,7 @@ class Grant:
         f: str,
         when: datetime,
         email: str = PO_EMAIL,
-        on: date | None = date(2025, 1, 2),
+        on: date | None = date(2024, 5, 1),
         channel: str | None = "Research.gov",
     ) -> str:
         data: dict[str, Any] = {
@@ -256,8 +290,14 @@ class Grant:
             data["channel"] = cited(channel, file_id=f)
         return self.agent(data, when)
 
-    def note(self, f: str, when: datetime, start: date | None = None, end: date | None = None) -> str:
-        data: dict[str, Any] = {"kind": "note", "label": "Effort report", "statement": cited("Certified", file_id=f)}
+    def note(
+        self, f: str, when: datetime, start: date | None = None, end: date | None = None
+    ) -> str:
+        data: dict[str, Any] = {
+            "kind": "note",
+            "label": "Effort report",
+            "statement": cited("Certified", file_id=f),
+        }
         if start and end:
             data["period"] = {"start": cited(start, file_id=f), "end": cited(end, file_id=f)}
         return self.agent(data, when)
@@ -288,7 +328,9 @@ class Grant:
         return self.add(author, data, when, replaces)
 
     def assign(self, charge_id: str, line_id: str, when: datetime) -> str:
-        return self.agent({"kind": "budget_assignment", "charge_id": charge_id, "record_id": line_id}, when)
+        return self.agent(
+            {"kind": "budget_assignment", "charge_id": charge_id, "record_id": line_id}, when
+        )
 
     def answer(
         self,
@@ -317,11 +359,19 @@ class Grant:
         }
         return self.add(author, data, when, replaces)
 
-    def item(self, charge_id: str, needed: str, when: datetime, author: str = "agent", **fields: Any) -> str:
-        return self.add(author, {"kind": "checklist_item", "charge_id": charge_id, "needed": needed, **fields}, when)
+    def item(
+        self, charge_id: str, needed: str, when: datetime, author: str = "agent", **fields: Any
+    ) -> str:
+        return self.add(
+            author,
+            {"kind": "checklist_item", "charge_id": charge_id, "needed": needed, **fields},
+            when,
+        )
 
-    def supplies_charge(self, id: str, cost_date: date, amount: int, when: datetime, **kw: Any) -> str:
-        """A supplies charge with its invoice linked, assigned to Materials and Supplies, answered supports."""
+    def supplies_charge(
+        self, id: str, cost_date: date, amount: int, when: datetime, **kw: Any
+    ) -> str:
+        """A supplies charge with its invoice linked, assigned to a line, answered supports."""
         line = kw.pop("line")
         self.charge(id, cost_date, amount, **kw)
         f = self.file(f"f-{id}", when)
