@@ -814,6 +814,10 @@ export interface PlayedEvent {
   event: TimelineEvent;
   agent_records?: FtRecord[];
   charge_ids?: Id[];
+  /** Decisions the workspace's sample accountant made in that move (ruling 47). */
+  scripted_decisions?: FtRecord[];
+  /** The result was loaded from the prerun, not worked live. */
+  loaded?: boolean;
 }
 
 export interface UserDelivery {
@@ -841,11 +845,15 @@ export interface TimelineView {
   coming_up?: TimelineEvent[];
   finished: boolean;
   catching_up: boolean;
+  /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
+  on_run_through?: boolean | null;
 }
 
 /** POST /grants/{grant_id}/timeline. No `to` plays to the next event. Forward only: earlier is a 409. */
 export interface TimelineMove {
   to?: IsoDatetime | null;
+  /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
+  skip_human_steps?: boolean;
 }
 
 export interface TermView {

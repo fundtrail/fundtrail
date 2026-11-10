@@ -72,3 +72,19 @@
   color: var(--conflict);
   background: var(--conflict-tint);
 }
+.ft-tl__skip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: center;
+}
+.ft-tl__note {
+  padding: 0 var(--space-4) var(--space-2);
+}
+.ft-tl__decisions {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+.ft-tl__loaded {
+  align-self: flex-start;
+}
