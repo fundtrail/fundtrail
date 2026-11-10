@@ -40,6 +40,20 @@ def _user(claims: dict[str, Any]) -> User:
     return User(id=str(sub), email=str(email), name=str(name) if name else None)
 
 
+# The sign-in methods in a Supabase session token's `amr` claim that mean an email
+# sign-in: a password, a one-time code or link, or an email invite or recovery link.
+EMAIL_METHODS = frozenset({"password", "otp", "magiclink", "email/signup", "invite", "recovery"})
+
+
+def _email_session(claims: dict[str, Any]) -> bool:
+    """Whether this session was signed in by email. Read from the token's `amr` claim (the
+    methods behind this session), not `app_metadata.provider`, which is only the method the
+    user first signed up with."""
+    amr = claims.get("amr") or []
+    methods = {(m.get("method") if isinstance(m, dict) else m) for m in amr}  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+    return bool(methods & EMAIL_METHODS)
+
+
 def is_local(supabase_url: str) -> bool:
     """Whether the Supabase URL is a local development stack (the Supabase CLI's)."""
     from urllib.parse import urlparse
@@ -68,7 +82,11 @@ class SupabaseTokenVerifier:
     ):
         """`signing_key(token)` returns the key for a token. By default it comes from the
         project's JWKS through `jwks_client` (made here unless a test passes one): the key
-        set is cached for five minutes and fetched again on a `kid` it doesn't have."""
+        set is cached for five minutes and fetched again on a `kid` it doesn't have, at
+        most once every 30 seconds (PyJWT's cooldown, which also stops made-up key IDs from
+        fetching on every request). A token signed with a key rotated in during those 30
+        seconds is refused until then; Supabase publishes a standby key before signing with
+        it, so that's unlikely."""
         base = supabase_url.rstrip("/")
         self._issuer = f"{base}/auth/v1"
         # Email sign-in is for local development only: the app signs people in with Google.
@@ -105,7 +123,6 @@ class SupabaseTokenVerifier:
             )
         except (jwt.PyJWTError, ValueError) as error:
             raise InvalidToken(type(error).__name__) from error
-        provider = (claims.get("app_metadata") or {}).get("provider")
-        if provider == "email" and not self._allow_email:
+        if not self._allow_email and _email_session(claims):
             raise InvalidToken("email sign-in is only for local development")
         return _user(claims)
