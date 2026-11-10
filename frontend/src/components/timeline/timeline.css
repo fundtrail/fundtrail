@@ -88,3 +88,13 @@
 .ft-tl__loaded {
   align-self: flex-start;
 }
+/* Loaded from the prerun: dashed, like other marks about where a result came from. */
+.ft-tl__loaded {
+  border-style: dashed;
+}
+/* Delivered for the user by the sample accountant: solid, on a sunken fill, so it never reads as loaded. */
+.ft-tl__delivered {
+  align-self: flex-start;
+  border-color: var(--ink);
+  background: var(--paper-sunken);
+}

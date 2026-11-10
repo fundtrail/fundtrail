@@ -162,9 +162,12 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
 
 /**
  * Skipping the human steps: as the clock passes them, the sample accountant
- * delivers what was the user's to deliver, and each item it delivered is
- * listed under Just happened, marked delivered_by_sample_accountant. The sample's own accountant decisions are listed
- * under the event they follow.
+ * delivers what was the user's to deliver. Each item it delivered is listed
+ * under Just happened, marked delivered_by_sample_accountant. The sample's own
+ * accountant decisions hang on the arrivals this move played: the latest at or
+ * before each decision, or else the move's first arrival. A move that played
+ * no arrival lists no decisions. So a delivery only ever shows under the move
+ * that delivered it.
  *
  * The fake only lists those decisions; it doesn't carry them out. It has no
  * checks, so the grant's terms, problem list and records stay as they are.
@@ -177,12 +180,12 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
       if (!state.justHappened.includes(e.id)) state.justHappened.push(e.id);
     }
   }
+  const arrivals = events.filter((e) => e.kind !== "user_delivery" && state.justHappened.includes(e.id));
   const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
   for (const decision of decisions) {
-    const after = events.filter((e) => state.played.has(e.id) && time(e.at) <= time(decision.written_at)).at(-1);
-    if (!after) continue;
-    if (!state.justHappened.includes(after.id)) state.justHappened.push(after.id);
-    state.scripted.set(after.id, [...(state.scripted.get(after.id) ?? []), decision]);
+    const on = arrivals.filter((e) => time(e.at) <= time(decision.written_at)).at(-1) ?? arrivals[0];
+    if (!on) continue;
+    state.scripted.set(on.id, [...(state.scripted.get(on.id) ?? []), decision]);
   }
   // In date order, as the server sends them.
   const at = new Map(events.map((e) => [e.id, time(e.at)]));

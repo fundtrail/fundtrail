@@ -39,6 +39,43 @@ describe("skipping the human steps (ruling 47)", () => {
     expect(decisions).toEqual(["rec-confirm-award-terms"]);
   });
 
+  it("hangs the sample accountant's decisions on arrivals, so an earlier delivery doesn't come back", async () => {
+    const api = createFakeApiClient();
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    await api.deliverForMe(SAMPLE_GRANT_ID, "event-file-award-letter");
+    const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
+    expect((view.just_happened ?? []).map((p) => p.event.name)).toEqual(["invoice_1001.txt", "L-1001"]);
+    const l1001 = view.just_happened!.find((p) => p.event.name === "L-1001")!;
+    expect(l1001.scripted_decisions?.map((d) => d.id)).toEqual(["rec-confirm-award-terms"]);
+  });
+
+  it("credits the user only when the flag is false and the item really was delivered", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    const base = await client.getTimeline(SAMPLE_GRANT_ID);
+    const awardLetter = base.now.deliveries![0].event;
+    const invoice = { ...awardLetter, id: "event-file-invoice-1001", name: "invoice_1001.txt" };
+    const receipt = { ...awardLetter, id: "event-receipt", name: "receipt.jpg" };
+    const view: TimelineView = {
+      ...base,
+      // The award letter is still waiting in Now, so its unflagged entry credits nobody.
+      just_happened: [
+        { event: awardLetter, delivered_by_sample_accountant: false },
+        { event: invoice, delivered_by_sample_accountant: true },
+        { event: receipt },
+      ],
+    };
+    vi.spyOn(client, "getTimeline").mockResolvedValue(view);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    const just = await waitFor(() => part("Just happened"));
+    const items = await within(just).findAllByRole("listitem");
+    expect(within(items[0]).queryByText("Delivered by you.")).toBeNull();
+    expect(within(items[1]).getByText("Delivered for you by the sample accountant")).toHaveClass("ft-tl__delivered");
+    // No flag at all: nobody is credited.
+    expect(within(items[2]).queryByText("Delivered by you.")).toBeNull();
+    expect(within(items[2]).queryByText("Delivered for you by the sample accountant")).toBeNull();
+  });
+
   it("shows the user's own delivery under Just happened, untagged", async () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
