@@ -67,7 +67,7 @@ the agent (our code, in backend/app/agent/)
 - **Correcting earlier mistakes.** The agent is told to look for them: every time it matches, when a sum goes over, and once in a review of all the grant's links as closeout nears. That review also looks again at every checklist item still missing. Every fix is a suggestion that waits for the accountant. When a new link conflicts with an old one, the agent still writes it and suggests a fix for the old one, and the over sum keeps the charges with the accountant until they decide.
 - **Reading files.** For text and for PDFs with real text, citations are on, and the API (application programming interface) returns each cited passage with its location: page numbers for PDFs, character ranges for plain text, block indexes for custom content documents. For photos and scans the API has no citations, so the agent returns a box around each value, in pixels on the image we sent. The agent never types a quote itself. How quotes are checked and highlighted is in [Quotes and highlights](#quotes-and-highlights).
 - **No database access.** The agent only proposes. The backend checks every write as it happens and returns any problems to the agent. Everything a run wrote is saved together at the end, so a run that fails saves nothing.
-- **Still to design: its exact actions and prompts (W1).** Only the idea above is settled. Whoever builds the agent decides the actions, the wording of the prompts and the guidance, and whether to tune them against the eval, and discusses them with Alex before building. The NSF rulebook is written before the agent is built. The eval can help, but it isn't required. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Starting points from the design discussion, as guidance rather than rules:
+- **Still to design: its exact actions and prompts (W1).** Only the idea above is settled. Whoever builds the agent decides the actions, the wording of the prompts and the guidance, and whether to tune them against the eval, and discusses them with Alex before building. The NSF rulebook is written before the agent is built. The eval can help, but it isn't required. The prompts have to balance firm rules against flexibility, because models follow rules too literally. Starting points, as guidance rather than rules:
   - Write the links you believe are right. Don't skip or shrink a link to make a sum fit, because code checks the sums.
   - When matching a new item, check whether it shows that an earlier link was wrong. If it does, suggest a fix and say why.
   - Don't guess between charges that look alike. Flag it instead.
@@ -172,7 +172,7 @@ browser ─► Next.js (Vercel) ─► FastAPI (Railway) ─► Supabase: Postgr
 
 ## Repo layout
 
-The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams are in [plan.md](plan.md).
+The layout is in [CLAUDE.md](../CLAUDE.md#repo-map). The areas of the repo are in [plan.md](plan.md#areas).
 
 ## Not decided yet
 

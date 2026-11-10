@@ -1,6 +1,6 @@
 # Contracts
 
-Contracts are the seams between workstreams. Once one is agreed, each side can build without waiting for the other. The design behind them is in decisions [0009](decisions/0009-agent-judges-code-checks.md), [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md), [0012](decisions/0012-checked-quotes-and-highlights.md), [0013](decisions/0013-stack-additions-and-repo-structure.md), [0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), [0016](decisions/0016-default-checklists-by-account-group.md), [0017](decisions/0017-grant-terms-from-award-notices.md) and [0018](decisions/0018-agent-works-from-saved-facts.md).
+Contracts are the seams between areas of the repo. Once one is agreed, each side can build without waiting for the other. The design behind them is in decisions [0009](decisions/0009-agent-judges-code-checks.md), [0010](decisions/0010-agent-suggests-accountant-decides.md), [0011](decisions/0011-evidence-checklist.md), [0012](decisions/0012-checked-quotes-and-highlights.md), [0013](decisions/0013-stack-additions-and-repo-structure.md), [0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), [0016](decisions/0016-default-checklists-by-account-group.md), [0017](decisions/0017-grant-terms-from-award-notices.md) and [0018](decisions/0018-agent-works-from-saved-facts.md).
 
 **Status:** a design, not yet code ([decisions/0014](decisions/0014-contracts-are-a-document-first.md)). This file is the source of truth for the contracts until the contract code is written. From then on the code is the truth and this file explains it. Changes to it go through the main coordinator, with Alex.
 
@@ -83,7 +83,7 @@ Rules every record follows:
 - The agent's values always carry a citation, its link always has a `part`, and its flag is always `unsure`.
 - The agent never writes the kinds marked "Accountant".
 
-- **`bill`** is the working name for the kind the earlier code called `receipt`. It covers invoices, receipts, card slips and credit memos.
+- **`bill`** is the working name for any document that bills for a cost. It covers invoices, receipts, card slips, credit memos, and a facility's usage statement.
 - **A bill's document number** is its invoice or order number. The ledger line often carries the same number, which makes it the strongest match. The agent puts anything else that identifies a document in its description: names, order numbers, and the project or award number it mentions.
 - **Terms come from the award letter, an amendment, or a program solicitation** added to the grant as a source. A solicitation's terms use the same kinds. It has no record kind of its own.
 - **A `budget_line`** is one line or sub-line the award letter's budget prints, named as NSF prints it. Each one is its own term: Other Direct Costs is a term, and so is Materials and Supplies inside it.
@@ -109,7 +109,7 @@ New with [0012](decisions/0012-checked-quotes-and-highlights.md):
 
 - **What goes with the flow takes effect, and what goes against it waits** ([0010](decisions/0010-agent-suggests-accountant-decides.md)). These records of the agent's count only once a `confirmation` lists them with `confirmed`:
   - its grant terms
-  - any record that replaces or retracts an existing record: a suggested fix to a link, a withdrawn flag, a correction. That link fixes, changed answers and withdrawn flags wait is decided. Whether the agent's corrections to its own facts wait is open (see "Not decided yet"), and this design makes them wait.
+  - any record that replaces or retracts an existing record: a suggested fix to a link, a withdrawn flag, a correction. Link fixes, changed answers and withdrawn flags wait for the accountant. Whether the agent's corrections to its own facts wait is open (see "Not decided yet"), and this design makes them wait.
   - a second link between a bill and a charge that already have one in force. It's saved and waits like a fix.
   - removing a checklist item
   - a dispute
@@ -124,7 +124,7 @@ New with [0012](decisions/0012-checked-quotes-and-highlights.md):
 - **Current records** are the records that count, minus those an effective record replaces, minus retractions.
 - **A pointer follows a correction.** When a record is corrected, links to the old one aren't rewritten. They follow it to the record that replaced it, and the checks rerun.
 
-The contract code provides functions for these rules, so every workstream applies them the same way. Pass them only the records and files visible at the clock's "now". The exact list of the agent's writes that wait, as code enforces it, is still to settle (see "Not decided yet").
+The contract code provides functions for these rules, so every area applies them the same way. Pass them only the records and files visible at the clock's "now". The exact list of the agent's writes that wait, as code enforces it, is still to settle (see "Not decided yet").
 
 ### Checking a write
 
@@ -182,7 +182,7 @@ New with [0011](decisions/0011-evidence-checklist.md). Every charge has a checkl
 - **Defaults hang on groups of accounts** ([0016](decisions/0016-default-checklists-by-account-group.md)). A small table in the code says which account codes belong to which group, and gives each group its default list and its NSF budget category. It covers Berkeley's accounts first, and the starting lists are in [domain.md](domain.md#default-checklists-by-account-group). An account in no group gets only the items the agent adds.
 - **A required approval is a default item too.** Code adds it when one of the grant's approval rules applies to the charge. "NSF approval" also goes on the checklist when the agent recognizes something on NSF's standing list.
 - **A cost dated up to 90 days before the start date** gets an item for the university's own pre-award approval.
-- **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account, in place of its account group's default. The line's NSF category still comes from its account's group. Check 6 is carried out through them, so a gap gives one reason, not two.
+- **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account, in place of its account group's default. The line's NSF category still comes from its account's group. Check 6 is these two items and nothing more. It has no reason of its own: the checklist check reports each item as filled or missing.
 - **An added item is a record** on the charge: what's needed, and who added it. It takes effect right away.
 - **Removing an item** is a record too. The agent's removal waits for the accountant. The accountant's takes effect right away.
 - **An item can carry an amount.** Either the bills linked to it add up to that amount, or the amount comes from a rate: a quantity times a rate, both cited, with the math re-checked by code. The rate has to come from a file on the grant or from a confirmed rate term.
@@ -280,11 +280,12 @@ A pure function, with no database and no model inside. W2 implements it in `back
   - **Grant notes:** anything else about the grant as a whole that isn't about one charge or record, such as an overspent budget line. A note isn't a problem.
 - **Confirmed terms only.** The checks read only confirmed terms. Where an older confirmed term exists, it stays in force. Where none exists, each charge is in Needs a human, with a reason that says which terms aren't confirmed. Checks that need no terms still run.
 - **The code checks.** There are six ([0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), and [product.md](product.md#what-code-checks) for what each one fails to).
-  - **Five give a charge its reasons:** the cost's date against the period in force, the evidence checklist and its sums, required approvals, that every value the charge rests on is confirmed, and that a reversal or cost transfer names the line it corrects and has a written justification. The last is carried out through the checklist (section 3), so a gap gives one reason, not two.
+  - **Five are about a charge:** the cost's date against the period in force, the evidence checklist and its sums, required approvals, that every value the charge rests on is confirmed, and that a reversal or cost transfer names the line it corrects and has a written justification. The last has no reason of its own. It's the reversal's two default checklist items (section 3), and the checklist check reports them, filled or missing.
   - **One is about the grant:** the budget. It never adds a reason to a charge.
 - **The cost's date.** A cost dated more than 90 days before the start date is in Possible conflict unless NSF's approval is on file. That means an `approval` record linked to the charge that the agent's `covers` answer supports.
 - **The buckets,** as the code and the answer key write them: `evidence_complete`, `possible_conflict`, `missing_evidence` and `needs_human`.
-- **A reason** holds the check's stable ID, such as `period_of_performance`, the bucket that check puts the charge in, text built by code, and the records it rests on. A charge's reasons come from the five checks about a charge, and include the ones that pass. A pass is `evidence_complete`.
+- **A reason** holds the check's stable ID, such as `period_of_performance`, the bucket that check puts the charge in, text built by code, and the records it rests on. A charge's reasons include the checks that pass. A pass is `evidence_complete`.
+- **Where a charge's reasons come from:** the checks about a charge, the agent's answers and flags, a suggestion waiting for the accountant, a disputed check, and a disagreement between the ledger account's category and the assigned budget line. That last one is a reason of its own, in Needs a human, and belongs to none of the numbered checks. The budget check never adds a reason to a charge.
 - **The bucket** is the most serious bucket among the reasons, in the order Possible conflict, Needs a human, Missing evidence, Evidence complete. It's the bucket the checks give, whether or not the accountant accepted a reason.
 - **Flagged** means on the accountant's problem list.
   - Possible conflict and Needs a human are flagged, unless the accountant accepted the reason or snoozed the charge.
@@ -417,7 +418,7 @@ The key grows to cover checklist items, suggestions, disputes, unconfirmed value
 
 ## 15. The sample grant
 
-One small synthetic grant that every workstream tests against. It follows the extension-notice example in [product.md](product.md#demo-data-examples). The contract code carries it as a fixture, with its four documents, and tests that check the contracts against it.
+One small synthetic grant that every area tests against. It follows the extension-notice example in [product.md](product.md#demo-data-examples). The contract code carries it as a fixture, with its four documents, and tests that check the contracts against it.
 
 **The grant:** award SYN-2300117, "Sediment Microbiome Survey of Example Bay", funded by NSF. It runs from February 1, 2023 to January 31, 2026. The award letter, dated January 10, 2023, is laid out like a real NSF award notice (see [domain.md](domain.md#what-an-nsf-award-notice-contains)). It gives:
 

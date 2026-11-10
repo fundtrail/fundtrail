@@ -274,7 +274,7 @@ The supporting documents for every charge, kept for the retention period and han
 | Ledger account | The expense category the university's accounting system gives each ledger line, such as Materials and Supplies. Names differ between universities. At Berkeley it's a 5-digit code. |
 | Account group | FundTrail's grouping of ledger accounts, such as salaries or travel. Each group has one default evidence checklist and one NSF budget category. Reversals and cost transfers aren't a group. |
 | Rulebook | The plain file of a funder's rules that the agent gets on every run, each rule with its source |
-| Bill | FundTrail's working name for any document that bills for a cost: an invoice, a receipt or a card slip |
+| Bill | FundTrail's working name for any document that bills for a cost: an invoice, a receipt, a card slip, a credit memo or a facility's usage statement |
 | Effort report | A signed statement of how a person's time was split across projects. It backs salary charges. |
 | Per diem | A daily allowance for meals and lodging at a set rate, paid instead of itemized receipts |
 | Fringe benefits | Benefit costs such as health insurance and retirement, usually charged as a rate on salary |
