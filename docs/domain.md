@@ -4,29 +4,80 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 
 ## The rules
 
-- **Two layers of rules.** NSF's own terms (the award's general conditions, and NSF's proposal and award policies) sit on top of the federal Uniform Guidance, 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200). Both are shared by every grant. The clear-cut rules are written into code once. The ones that take judgment, such as whether a cost is necessary and reasonable, become questions the agent answers (see [architecture.md](architecture.md#trust-rules)).
-- **The award letter adds grant-specific terms:** the period of performance, the budget and its lines, the people and their roles, any special approval rules, and anything else it says that those don't hold, such as a principal investigator going on leave.
+- **Two layers of rules.** NSF's own terms (the award's general conditions, and NSF's proposal and award policies) sit on top of the federal Uniform Guidance, 2 CFR 200 (Title 2 of the Code of Federal Regulations, Part 200). Both are shared by every grant. The clear-cut rules are written into code once. The ones that take judgment, such as whether a cost is necessary and reasonable, become questions the agent answers (see [architecture.md](architecture.md#trust-rules)). Which rules go where is in [What code checks, and what goes to the agent](#what-code-checks-and-what-goes-to-the-agent).
+- **Which NSF conditions govern an award.** NSF's [page on award terms and conditions](https://www.nsf.gov/awards/terms-conditions) says its Grant General Conditions (GC-1) apply to all recipients of NSF grants issued on or after October 1, 2024, and it names institutions of higher education among them. A recipient of an award issued before that date follows the terms and conditions issued at the time of the award. For a university, those were the Research Terms and Conditions plus NSF's Agency Specific Requirements. The award notice itself states which conditions govern, and their date. For the rules FundTrail uses, the two sets differ only in citation, not in substance: pre-award costs within 90 days, the first extension with 10 days' notice, moving money between budget categories, participant support needing the Program Officer's written approval, requests through Research.gov, and U.S.-flag carriers.
+- **The award letter adds grant-specific terms:** the period of performance, the budget and its lines, the people and their roles, any special approval rules, and anything else it says that those don't hold, such as a principal investigator going on leave. What a real one contains is in [What an NSF award notice contains](#what-an-nsf-award-notice-contains).
 - **Amendments change the terms,** for example an extension notice. A check uses the terms in force, based on each document's own date.
-- For now: NSF only, direct costs only. Rules get organized per funder so more funders can be added later.
+- **A program solicitation can hold terms too,** such as a cap on a stipend. When one is added to a grant as a source, its terms are read like the award letter's.
+- **The university's own policies** reach FundTrail only through the default evidence checklists for now (see [Default checklists by account group](#default-checklists-by-account-group)).
+- For now: NSF only, direct costs only. Rules are organized per funder so more funders can be added later.
 
 ## Concepts the checks use
 
 | Concept | What it means for a check | Pointer to verify |
 |---|---|---|
-| Period of performance | A cost has to be incurred between the start and end dates. An extension moves the end date. | 2 CFR 200.309, 200.308 |
+| Period of performance | A cost has to be incurred between the start and end dates, with the exceptions in [The cost's date](#the-costs-date). An extension moves the end date. | 2 CFR 200.309, 200.308, GC-1 Article 5 |
 | Allowable cost | A cost has to be necessary, reasonable, allocable and consistent with the award's terms. Code can't judge this, so it's the Allowable question the agent answers. | 2 CFR 200.403 |
 | Allocable cost, shared costs | A cost shared across grants has to be split on a documented basis, for example "56 of 96 samples". | 2 CFR 200.405 |
-| Budget lines and rebudgeting | Some moves between budget lines need prior approval from the funder. | 2 CFR 200.308, the award letter |
-| Participant support costs | Costs for participants, such as stipends, travel and registration, not for project staff. Moving these funds to other uses needs prior approval. | 2 CFR 200.1, 200.456 |
-| Prior approval | The approval has to come from the right person, through the right channel, before the cost. | The award letter, NSF policy |
+| Budget lines and rebudgeting | The university may move money between budget categories, so going over one line isn't a violation by itself. The total can't exceed the award. Moving money out of participant support needs NSF's approval. | 2 CFR 200.308, NSF's Prior Approval Matrix, the award letter |
+| Participant support costs | Costs for participants and trainees, such as stipends, travel and registration, not for employees or project staff. Speakers generally don't count as participants. Moving these funds to other uses needs prior approval. | 2 CFR 200.1, 200.456 |
+| Prior approval | The approval has to come from the right person, through the right channel, before the cost. NSF has a standing list of what needs its approval (see [Approvals](#approvals)), and the award letter can add to it. | GC-1 Article 2, NSF's Prior Approval Matrix, the award letter |
 | Supporting documentation | Every charge has to be backed by source documentation, and the documentation should show the university's review or approval, ideally before the cost. | 2 CFR 200.302(b)(3), NSF's Proposal and Award Policies and Procedures Guide (PAPPG) Chapter VII.A.1 |
-| Cost transfer | Moving a charge off a grant needs a written explanation. Berkeley asks why the move is needed, why the wrong fund was charged, and how the expense relates to the project. | University policy, for example Berkeley's cost transfer procedures |
+| Cost transfer | Moving a charge off a grant needs a written explanation. Berkeley asks why the move is needed, why the wrong fund was charged, and how the expense relates to the project. NSF sets no time limit. The 90-day figure people cite comes from the National Institutes of Health (NIH) and from university policies. Berkeley's own limit is 120 days after the close of the month the charge posted. | University policy, for example Berkeley's cost transfer procedures |
 | Closeout | Reports to NSF and the final payment amount are due 120 days after the end date. Universities set earlier internal deadlines (see [Closeout](#closeout)). | 2 CFR 200.344, NSF PAPPG Chapters VII.D.4 and VIII.E |
 | Record retention | Records, including the supporting documents for every charge, are kept for 3 years. NSF counts from financial closeout. 2 CFR 200.334 counts from the final financial report. Some universities keep them longer, for example Stanford keeps 4 years. | 2 CFR 200.334, NSF PAPPG Chapter VII.E |
 
+## What code checks, and what goes to the agent
+
+The decision is [0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md). The six checks themselves are listed in [product.md](product.md#what-code-checks). This section holds the NSF rules behind them.
+
+**How far these were checked.** Researched on Nov 10, 2026. NSF's Grant General Conditions (GC-1, the edition dated July 31, 2026) and its Prior Approval Matrix (October 1, 2024) were read in full. NSF's policy guide (PAPPG 24-1) and 2 CFR 200 were read in parts: 200.403 to 200.406, 200.413, the shorter cost items and the policy guide's Chapter X in full, and 200.430 in part. About a dozen cost sections of 2 CFR 200 and the policy guide's Chapter XI weren't read. Spot-check a rule against its source before coding it or writing it into the rulebook.
+
+### The cost's date
+
+The date check follows NSF's four zones:
+
+| When the cost is dated | What the check says | Pointer to verify |
+|---|---|---|
+| During the grant | Fine | 2 CFR 200.309 |
+| Up to 90 days before the start date | Allowed. The university may approve these costs on its own, at its own risk, documented under its own policy. The charge's checklist asks for the university's own pre-award approval, so a missing one is missing evidence, not a conflict. | GC-1 Article 5 |
+| More than 90 days before the start date | Possible conflict, unless NSF's approval is on file | GC-1 Article 5 |
+| After the end date | Possible conflict. A cost after the end date is allowed only to pay for a commitment made on or before the end date, so the agent can dispute the check with proof that the order was placed by then. | PAPPG Chapter X.A.2.c |
+
+- **Extensions.** The university can extend the grant once, by up to 12 months, by notifying NSF through Research.gov at least 10 days before the end date. Later extensions need NSF's approval. Code doesn't check the 10 days. A notice filed later than that, with no NSF approval on file, is the agent's to flag.
+- 2 CFR 200.403(h) states its date rule in terms of the budget period, and lets administrative closeout costs be incurred until the final report is due.
+
+### Budget lines
+
+NSF lets the university move money between budget categories, so an overspent budget line isn't a problem on any charge. FundTrail shows it as a note on the grant. Spending more than the whole award is flagged on the grant itself. Moving money out of participant support is different: it needs NSF's approval, and the approvals check covers it.
+
+### Rules that go to the agent
+
+Every rule of the form "this kind of cost isn't allowed, or is allowed only under a condition" goes to the agent, not to code. The agent's rulebook carries them, each with its source, and a rule goes into the rulebook only after it's checked against that source. The rules found so far:
+
+| Rule | Pointer to verify |
+|---|---|
+| Airfare above the least expensive unrestricted class isn't allowed, except for five listed reasons, such as medical need or a much longer route, each justified and documented | 2 CFR 200.475(e) |
+| International flights use a U.S.-flag carrier, with listed exceptions: Open Skies agreements, long delays, short trips | GC-1 Article 10 |
+| No travel, meal or hotel costs for employees who aren't travelling | PAPPG Chapter X |
+| Publication fees only for work the award supported, and only when the journal charges every author the same way. They can be charged during closeout. | 2 CFR 200.461 |
+| Fringe benefit rates apply to salary and wages, not to stipends | A 2026 university audit by NSF's Office of Inspector General |
+| Kinds of cost that are never allowed. Found so far, and not yet a verified list: alcohol, promotional items, entertainment, donations, fines, fundraising, lobbying, goods for personal use, interest, club dues, alumni and student activities, banned telecommunications equipment and covered foreign drones | 2 CFR 200.421 and other sections of Subpart E |
+| Consultants are people who aren't employees, paid at a rate that can be justified | GC-1 Article 7 |
+| Administrative and clerical salaries are charged directly only when they're integral to the award. This is what Berkeley's "consistently treated" criterion means in practice. | 2 CFR 200.413, Berkeley's cost principles |
+| Short-term visas can be charged. Long-term immigration visas can't. | 2 CFR 200.463 |
+
+Three more rules go to the agent because they need its reading of the documents:
+
+- **Purchases close to the end date.** NSF's policy guide says the university "typically should not" buy equipment or computers, or restock supplies, to use up funds when little or no time is left to use them (PAPPG Chapter X). It names no number of days and doesn't word it as unallowable, so code has no day count. The agent flags the charge.
+- **Participant support paid to project staff.** The definition of a participant excludes consultants, project personnel and university staff, and lists students as examples. It's worded with "generally" (2 CFR 200.1). The agent compares who was paid with the people named on the grant.
+- **A late extension notice,** as above.
+
+Two side notes from the same reading. The two-month limit on senior salary is a proposal-budget rule and doesn't bind after the award. The federal equipment threshold is $10,000 in 2 CFR 200.1, while the policy guide still prints $5,000.
+
 ## Evidence a charge needs
 
-Verify this section against Berkeley's own documentation requirements before writing the default checklists. It comes from UC Davis's list (see [What the university keeps](#what-the-university-keeps)) and general practice.
+The table of usual evidence below comes from UC Davis's list (see [What the university keeps](#what-the-university-keeps)) and general practice. The default checklists after it say which parts were checked on Berkeley's own pages.
 
 - **Bills.** An invoice asks to be paid, and a receipt shows it was paid. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. FundTrail treats invoices, receipts and card slips as one kind of evidence. "Bill" is the working name.
 - **Many charges never have a bill:**
@@ -42,13 +93,108 @@ Verify this section against Berkeley's own documentation requirements before wri
 | Reversals and cost transfers | The line being corrected and a written explanation |
 
 - **These kinds overlap,** so FundTrail doesn't sort charges into fixed groups. One trip can be part airfare, with a receipt, and part per diem, at a rate. Each charge gets its own evidence checklist instead (see [product.md](product.md#the-evidence-checklist)).
-- **How soon evidence has to be on file.** We found no federal rule that sets a number of days. Universities set their own paperwork deadlines. FundTrail's 60 days is its own choice.
+- **How soon evidence has to be on file.** We found no federal rule that sets a number of days. Every cost has to be adequately documented, and salaries need records that reflect the work performed. Universities set their own paperwork deadlines. FundTrail's 60 days is its own choice.
+
+### Default checklists by account group
+
+The decision is [0016](decisions/0016-default-checklists-by-account-group.md). A default checklist hangs on a group of ledger accounts, not on each account. At Berkeley an account is a 5-digit code, and expense accounts run from 50000 to 59999. Its public account list has about 359 expense accounts, which fall into about a dozen groups. Code keeps a small table that says which account codes belong to which group.
+
+A default holds only what every charge in the group needs. The agent adds the rest, such as a flight's itinerary when the bill doesn't show the airline and fare class. Differences inside a group, such as a flight and a hotel, are left to the agent's own items. An account in no group gets no default.
+
+An account group only sets the default. It isn't a fixed kind of charge: the agent still adds what the charge needs, and can suggest removing a default that doesn't fit.
+
+This list is a starting point:
+
+| Group | Berkeley accounts | Default items |
+|---|---|---|
+| Salaries | 50xxx, 51xxx | Appointment letter. Certified effort report covering the month. |
+| Benefits | 53xxx | Benefit rate |
+| Tuition and fee remission | 538xx, 5742x | The student's appointment letter |
+| Travel | 5721x, 5722x | Expense report. Bills that add up to the charge. |
+| Supplies | 550xx, 553xx | A bill that adds up to the charge |
+| Equipment | 542xx | A bill that adds up to the charge |
+| Participant support | 5671x | Participant list. Payment record. |
+| Subawards | 5781x | The partner's invoice. The professor's approval to pay. The subaward agreement. |
+| Consultants and services | 5672x | A bill that adds up to the charge. The agreement or rate. |
+| Printing | 564xx | A bill that adds up to the charge |
+| Internal recharges | 590xx | The facility's usage statement |
+| Reversals and cost transfers | Any account | The line it corrects. A written justification. |
+
+- **Where each default comes from.** Checked on Berkeley's pages: the effort report's timing, receipts for travel, the participant list, and the professor's approval on a subaward invoice. From general practice, not a Berkeley page: benefits, tuition, supplies, equipment, consultants, printing and recharges. The account codes came through a page reader that cuts long sentences, so check a row against Berkeley's account list before coding it.
+- **Effort reports.** Berkeley certifies effort twice a year, for January to June and for July to December, within 120 days of the period's end. So the report covering January to June is expected by late October, and the checklist item carries that date. Berkeley is replacing its Effort Reporting System with a new one, Employee Compensation Compliance, whose first certification is in March 2027. Re-check the timing before building.
+- **Budget lines.** A budget line in an NSF award is one of NSF's standard budget categories, or a sub-line of one (see [What an NSF award notice contains](#what-an-nsf-award-notice-contains)). So the budget line needs no category of its own, and only the ledger's account is translated. Each account group carries its NSF category, in the same table as its default list, and code compares that with the budget line the agent picked. Example: a laptop filed on 56712 Participant Support-Stipends, which the agent assigns to Materials and Supplies, goes to Needs a human as a likely misfiling.
+
+**What Berkeley's pages say to keep.** These came from Berkeley's public pages on Nov 10, 2026. Pages behind a login, the University of California accounting manual and its travel policy weren't read.
+
+- Travel: receipts for registration, airfare, lodging and car rental at any amount, and an expense report within 45 days of the trip.
+- Subawards: an invoice detailed enough to show the costs are allowable, with the principal investigator's approval.
+- Participant support: tracked separately, and a participant may not be a Berkeley employee.
+- Consultants: generally not campus employees.
+- Cost transfers: within 120 days of the close of the month the charge posted, with a written answer to why the correct fund wasn't charged. Salary transfers need an approval specific to the transfer.
+- Recharges: records of the amount and the basis of billing.
+- Thresholds: equipment at $5,000 or more, and the first $25,000 of a subaward on its own account.
+
+Only the documents on the default checklists come into FundTrail for now, such as a lodging receipt at any amount. Berkeley's other rules, such as the expense report within 45 days, are out for now.
 
 ## Approvals
 
-- **Code decides an approver's role** by matching the sender against the people named in the award letter. The agent never decides who someone is.
-- **Example: the approval channel.** An email approval reaches Needs a human at best, even one from the real Program Officer. Only a Research.gov record reaches Evidence complete. The exact NSF rule gets confirmed before it's coded.
+- **Code decides an approver's role** by matching the sender against the people named in the award letter. The agent never decides who someone is. A real award notice names NSF's officials with their email addresses, which supports matching by address.
+- **NSF's standing list.** Some things need NSF's approval on every NSF grant, so FundTrail carries the list itself, and each award letter adds what's specific to its grant. Among the things a charge can show, the list is:
+  - moving money out of participant support
+  - a payment to a partner institution (a subaward) that wasn't in the proposal
+  - faculty salary above the base salary
+  - dependents' travel
+  - buildings and land
+  - extra participant items, such as gifts and t-shirts
+
+  Equipment and foreign travel don't need NSF's approval. When the agent recognizes one of these on a charge, "NSF approval" goes on the charge's checklist, and a missing one is flagged right away.
+- **Who approves, and how.** Requests "must be submitted via Research.gov" (GC-1 Article 2.b), by the university's authorized representative. The Program Officer approves moving money out of participant support. A Grants Officer approves most other things.
+- **The approval channel.** An approval from the wrong person, through the wrong channel or after the cost is Possible conflict. One case is held back: an approval from the right NSF person that came by email, outside Research.gov, stays in Needs a human, because no source we read says whether it counts (see [Not decided yet](#not-decided-yet)). Only a Research.gov record reaches Evidence complete.
 - **Example: self-approval.** A professor approving their own charge is not a prior approval.
+
+## What an NSF award notice contains
+
+Checked on Nov 10, 2026 against real award notices: one new-project notice to a community college, read end to end, four more notices, and NSF's own samples. No new-project notice to a research university was read, only amendments to one. These docs say "award letter" for the notice that creates the grant.
+
+**What a notice holds, in order:**
+
+1. The recipient.
+2. Amendment information: its type, date and number, and a free-text "Amendment Description".
+3. Award information: the award number, the instrument, the award date, the period of performance's start and end dates, the project title and the funding opportunity.
+4. Funding information: the amount obligated by this amendment, the total intended award amount, cost share, the total obligated to date, and the expenditure limitation.
+5. Project personnel: the principal investigator (PI) and any co-PIs, each with an email address and organization.
+6. NSF contacts: the Managing Grants Official, the Awarding Official and the Managing Program Officer, each with an email address.
+7. The general terms and conditions that govern, with their date.
+8. The budget.
+
+**What that means for FundTrail:**
+
+- **The budget is printed in the notice, in NSF's standard categories,** in one column, not split by year. The policy guide's Chapter II names the same lines:
+
+  | Line | Category | Sub-lines |
+  |---|---|---|
+  | A | Senior Personnel | |
+  | B | Other Personnel | Several, by kind of staff |
+  | C | Fringe Benefits | |
+  | D | Equipment | |
+  | E | Travel | Domestic, International |
+  | F | Participant Support Costs | Stipends, Travel, Subsistence, Other |
+  | G | Other Direct Costs | Materials and Supplies, Publication Costs, Consultant Services, Computer Services, Subawards, Other |
+  | H | Total Direct Costs | |
+  | I | Indirect Costs | |
+  | J | Total | |
+  | K | Fees | |
+  | L | Total Amount of Request | |
+  | M | Cost Sharing | |
+
+  So Materials and Supplies is a sub-line inside Other Direct Costs, not a category beside it.
+- **The notice names its solicitation,** as the funding opportunity's number and name, and sometimes in a sentence saying the award is made under that solicitation's provisions. An unsolicited award shows the policy guide's number there.
+- **Special conditions are free text inside the Amendment Description.** Seen in one notice: participant support funds "may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer", entertainment and meals are unallowable except working meals at a conference, the proposed subaward is authorized, human-subjects approval is the university's responsibility, and a possible cap on indirect costs. This fits reading approval rules and other terms from the letter.
+- **Every notice is an amendment,** with a number and a date. Amendment 000 is the new project. Each states its "Amendment Type". Seen: New Project, Increment, Frwd Funded, No Cost Extensions, and Other Admin No Fund Actions. Amendments end with "Except as modified by this amendment, the award conditions remain unchanged."
+- **A no-cost extension** has only a few sections and states the change as dates, in the form "extend the end date from" one date "to" another.
+- **A funding amendment,** such as an increment on a continuing grant or a supplement, says its purpose is to add funding. It prints a budget for that increment only, beside "Amount Obligated by this Amendment", "Total Intended Award Amount" and "Total Amount Obligated to Date" for the whole award. So a grant's budget can be the sum of several notices.
+
+How FundTrail reads these is in [product.md](product.md#grants) and decision [0017](decisions/0017-grant-terms-from-award-notices.md).
 
 ## Closeout
 
@@ -103,7 +249,12 @@ The supporting documents for every charge, kept for the retention period and han
 
 | Term | Meaning |
 |---|---|
-| Award letter, award notice | The document that creates the grant and states its terms |
+| Award letter, award notice | The document that creates the grant and states its terms. NSF calls it an award notice. |
+| Amendment | A later notice that changes the award: an extension, added funding, or an administrative change. NSF numbers them, and 000 is the new project. |
+| Program solicitation | NSF's call for proposals for a program. It can set limits of its own, such as a stipend cap, and the award notice names it. |
+| Grant General Conditions (GC-1) | NSF's standard conditions for grants. They apply to every NSF grant issued on or after October 1, 2024. |
+| Research Terms and Conditions | The shared federal conditions that, with NSF's Agency Specific Requirements, governed NSF awards to universities issued before October 1, 2024 |
+| Prior Approval Matrix | NSF's table of what needs its approval and who gives it |
 | Principal Investigator (PI) | The professor who leads the project |
 | Program Officer (PO) | The NSF person responsible for the program, who approves scientific and budget changes |
 | Grants Officer | The NSF person with authority over the award's financial and legal terms |
@@ -115,7 +266,9 @@ The supporting documents for every charge, kept for the retention period and han
 | Project Outcomes Report | The PI's short public summary of a grant's results, filed in Research.gov at closeout |
 | Evidence report | FundTrail's PDF per grant: the proof behind every charge, attached to the university's closeout step |
 | General ledger | The accounting system's record of every charge to every grant |
-| Ledger account | The expense category the university's accounting system gives each ledger line, such as Materials and Supplies. Names differ between universities. |
+| Ledger account | The expense category the university's accounting system gives each ledger line, such as Materials and Supplies. Names differ between universities. At Berkeley it's a 5-digit code. |
+| Account group | FundTrail's grouping of ledger accounts, such as salaries or travel. Each group has one default evidence checklist and one NSF budget category. |
+| Rulebook | The plain file of a funder's rules that the agent gets on every run, each rule with its source |
 | Bill | FundTrail's working name for any document that bills for a cost: an invoice, a receipt or a card slip |
 | Effort report | A signed statement of how a person's time was split across projects. It backs salary charges. |
 | Per diem | A daily allowance for meals and lodging at a set rate, paid instead of itemized receipts |
@@ -131,14 +284,26 @@ The supporting documents for every charge, kept for the retention period and han
 
 | Item | Who settles it |
 |---|---|
-| The exact list of NSF rules for the hackathon build, and which are coded and which become questions for the agent | product |
-| The exact approval-channel rule, verified against NSF's pages | product |
+| Whether a Program Officer's email, outside Research.gov, counts as approval. No source we read says either way. Until it's settled, such an approval stays in Needs a human. | product |
+| The exact federal list for the rulebook, above all the kinds of cost that are never allowed. About a dozen cost sections of 2 CFR 200 are unread. Each rule is checked against its source before it goes in. | builder (W1), discussed with Alex before building |
+| The exact table of which Berkeley account codes belong to which group, and each group's NSF budget category | builder (W2), discussed with Alex before building |
+| Whether Berkeley has moved its equipment and subaward thresholds from $5,000 and $25,000 to the federal $10,000 and $50,000 | builder (W2), verified before coding |
+| Berkeley's effort report timing under its new system, re-checked before building | builder (W2) |
+| Berkeley's 120-day limit on cost transfers | product, discussed with reversals and cost transfers |
+| Anything specific to program solicitations: a cap that adds up over several charges, such as twelve monthly payments that pass a yearly cap together, and noticing that an award letter names a solicitation that isn't on file | product, later |
+| The university's own policies beyond the default checklists, such as an expense report within 45 days of a trip | later |
 | Which universities' closeout steps to support after Berkeley | product |
-| The default evidence checklist for each of Berkeley's ledger accounts, verified against Berkeley's documentation requirements | product, then W2 |
 | How each rule is coded, and how rules are organized per funder | builder (W2) |
 
 ## Sources
 
+- [NSF: Award terms and conditions](https://www.nsf.gov/awards/terms-conditions)
+- NSF Grant General Conditions (GC-1), and NSF's Prior Approval Matrix (October 1, 2024)
+- NSF PAPPG 24-1, Chapter II (the budget lines) and Chapter X (allowability of costs)
+- 2 CFR 200.1 and the cost principles in Subpart E: 200.403 to 200.406, 200.413, 200.421, 200.430, 200.461, 200.463 and 200.475
+- NSF Office of Inspector General audit reports, read in part: a 2022 summary of 18 audits, and two university audits from 2025 and 2026
+- Real NSF award notices and NSF's sample notices, read on Nov 10, 2026
+- Berkeley's public account list, and its pages on effort reporting, travel, subawards, participant support and cost principles
 - [NSF PAPPG 24-1, Chapter VII: Award Administration](https://www.nsf.gov/policies/pappg/24-1/ch-7-award-administration)
 - [NSF PAPPG 24-1, Chapter VIII: Financial Requirements and Payments](https://www.nsf.gov/policies/pappg/24-1/ch-8-financial-requirements-payments)
 - [NSF PAPPG 24-1, Chapter XI: Other Post Award Requirements](https://www.nsf.gov/policies/pappg/24-1/ch-11-other-post-award-requirements)
