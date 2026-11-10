@@ -261,6 +261,15 @@ def value_in_span(value_text: str, text: str, start: int, end: int) -> bool:
     return False
 
 
+def sign_reads_either_way(text: str, start: int, end: int) -> bool:
+    """Whether the text signs the first number in text[start:end] either way (call 31).
+
+    That's where `value_in_span` accepts a value of either sign: the value's own sign stands.
+    `text` is the cleaned-up page or passage. The agent asks for the sign's source there.
+    """
+    return _number_sign(text, start, end) == EITHER
+
+
 def _signs_agree(value_sign: str, page_sign: str) -> bool:
     """A value's sign confirms against the page's sign (provisional call 31).
 

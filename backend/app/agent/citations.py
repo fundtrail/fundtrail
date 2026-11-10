@@ -29,7 +29,7 @@ from typing import Any
 
 from app.agent.adapter import char_citation
 from app.quotes import UnreadablePdfError, find_pdf_quote
-from app.quotes.text_match import clean, value_in_span
+from app.quotes.text_match import clean, exact_pattern, sign_reads_either_way, value_in_span
 
 LABEL_LINE = re.compile(r"^\s*[-*]?\s*@([A-Za-z0-9_.\-]+)\s*:\s?(.*?)\s*$")
 
@@ -263,84 +263,25 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
 
-_DOUBT_DASHES = "-\u2013"  # a hyphen or an en dash; the true minus U+2212 is always a minus
-_CURRENCY_SIGNS = "$\u20ac\u00a3\u00a5"
-# A currency code before the amount, in any case: "USD 612.40", "usd 612.40", and "US" in "US$".
-_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|US)$", re.IGNORECASE)
-_PROSE_PUNCTUATION = ",;"
-
-
-def _amount_starts(passage: str, value_text: str) -> list[int]:
-    """Where the amount's digits start in the passage, for each place the value's text is."""
-    first = next((i for i, ch in enumerate(value_text) if ch.isdigit()), None)
-    if first is None:
-        return []
-    starts: list[int] = []
-    at = passage.find(value_text)
-    while at >= 0:
-        starts.append(at + first)
-        at = passage.find(value_text, at + 1)
-    return starts
-
-
-def _amount_end(passage: str, digit: int) -> int:
-    j = digit
-    while j < len(passage) and (
-        passage[j].isdigit()
-        or (passage[j] in ",." and j + 1 < len(passage) and passage[j + 1].isdigit())
-    ):
-        j += 1
-    return j
-
-
-def _doubtful_at(passage: str, digit: int) -> bool:
-    """Whether the amount whose digits start at `digit` has a sign that reads either way.
-
-    Steps left from the digits over any white space (a space, a tab, a non-breaking or thin
-    space, a line break), a currency sign and a currency code. Doubtful when it lands on a
-    hyphen or en dash that has white space between it and the amount and itself follows white
-    space or the start of the passage ("Hotel - $612.40", "- USD 612.40"), or when the amount
-    sits in brackets inside prose ("the fee ($450.00) was paid", "the fee, ($450.00), was paid").
-    """
-    k = digit
-    spaced = False
-    while k > 0:
-        ch = passage[k - 1]
-        if ch.isspace():
-            spaced = True
-            k -= 1
-        elif ch in _CURRENCY_SIGNS:
-            k -= 1
-        elif code := _CURRENCY_CODE.search(passage, 0, k):
-            k = code.start()
-        else:
-            break
-    if k > 0 and passage[k - 1] in _DOUBT_DASHES and spaced:
-        before = passage[k - 2] if k > 1 else "\n"
-        if before.isspace():
-            return True
-    if k > 0 and passage[k - 1] == "(":
-        end = _amount_end(passage, digit)
-        if end < len(passage) and passage[end] == ")":
-            left = passage[: k - 1].rstrip()
-            right = passage[end + 1 :].lstrip().lstrip(_PROSE_PUNCTUATION + ".").lstrip()
-            before = left[-1:]
-            in_prose = (
-                before.isalpha() or before in tuple(_PROSE_PUNCTUATION) or right[:1].isalpha()
-            )
-            if in_prose:
-                return True
-    return False
-
 
 def sign_is_doubtful(passage: str, value_text: str) -> bool:
     """Whether the sign beside an amount can be read either way (provisional calls 31 and 38).
 
-    Judged from where the amount sits in the cited passage, not from how the value's text was
-    written, so citing "248.00" out of "Credit amount - $248.00" is still doubtful. The agent's
-    sign stands there, so its reason has to say what it read the sign from.
+    Exactly where the quote finder accepts a value of either sign (`sign_reads_either_way`),
+    judged at each place the value's text stands in the cleaned passage, so citing "248.00" out
+    of "Credit amount - $248.00" is still doubtful. The agent's sign stands there, so its
+    reason has to say what it read the sign from.
     """
-    return any(_doubtful_at(passage, digit) for digit in _amount_starts(passage, value_text))
+    pattern = exact_pattern(value_text)
+    if pattern is None:
+        return False
+    page = clean(passage).text
+    pos = 0
+    while (found := pattern.search(page, pos)) is not None:
+        if sign_reads_either_way(page, found.start(), found.end()):
+            return True
+        pos = found.start() + 1
+    return False
 
 
 # A minus sign as documents write it: a hyphen, an en dash, or the minus sign itself.
