@@ -269,9 +269,13 @@ def _notice_budget(category: BudgetCategory, members: list[Record], typed: bool 
     In a group of typed lines (grouped by date because nothing ties them to a notice),
     each typed parent line may be a different notice's, so every parent counts (#104).
     Counting them all can only raise the budget, so this rule can miss a note but
-    doesn't make a false one. A false note is still possible elsewhere: an increment's
-    typed sub-line that shares the award letter's date joins the letter (see
-    _notice_keys) and its amount drops out (#104, item 2).
+    doesn't make a false one. Two false notes are still possible, both because nothing
+    ties a typed line to its notice (#104):
+    - an increment's typed sub-line that shares the award letter's date joins the
+      letter (see _notice_keys), and its amount drops out;
+    - in a group of typed lines, one notice's typed parent and another notice's typed
+      sub-line with the same date: the sub-line drops out, because a group with a
+      parent counts only parents.
     """
     parents = [
         r for r in members if isinstance(r.data, BudgetLine) and _is_parent(category, r.data)
