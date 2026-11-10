@@ -70,9 +70,6 @@ export function useWorkspaces() {
   return useResource(["workspaces"], (api) => api.listWorkspaces());
 }
 
-export function useClock(workspaceId: Id | null) {
-  return useResource(workspaceId ? ["clock", workspaceId] : null, (api) => api.getClock(workspaceId!));
-}
 
 export function useGrants(workspaceId: Id | null) {
   return useResource(workspaceId ? ["grants", workspaceId] : null, (api) => api.listGrants(workspaceId!));

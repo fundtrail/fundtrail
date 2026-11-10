@@ -206,7 +206,7 @@ export function newGrantDetail(grant: Grant): GrantDetail {
 
 export function grantFake(): Pick<
   ApiClient,
-  "listWorkspaces" | "createWorkspace" | "listGrants" | "getGrant" | "getProblemList" | "listCharges" | "listRecords" | "writeRecord" | "listRuns"
+  "listWorkspaces" | "createWorkspace" | "resetWorkspace" | "listGrants" | "getGrant" | "getProblemList" | "listCharges" | "listRecords" | "writeRecord" | "listRuns"
 > & {
   /** Serve a grant added in fake mode (setup.ts creates it). */
   addGrant(grant: Grant): void;
@@ -222,6 +222,8 @@ export function grantFake(): Pick<
       added.set(grant.id, grant);
     },
     listWorkspaces: () => served(workspaces),
+    // The fake keeps nothing per workspace to clear; a sample grant starts over from its timeline panel.
+    resetWorkspace: (workspaceId) => served(workspaces.find((w) => w.id === workspaceId)),
     createWorkspace: (name) => {
       // A workspace the user creates runs on the real date (architecture.md, The clock).
       const workspace: Workspace = { id: fakeId("ws"), name, owner_id: sample.user.id, clock_now: null };
