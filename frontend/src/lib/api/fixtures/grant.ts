@@ -7,7 +7,7 @@
 // nothing else changes.
 
 import type { ApiClient } from "../client";
-import type { AgentRun, BudgetLine, ChargeRow, FtRecord, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, TermView, Workspace } from "../types";
+import type { AgentRun, BudgetLine, ChargeRow, FtRecord, Grant, GrantDetail, GrantSummary, Id, ProblemList, RecordData, RecordState, RecordView, TermView, Workspace } from "../types";
 import { chargeStatusAt } from "./statuses";
 import {
   atNow,
@@ -129,14 +129,44 @@ const sampleRuns: AgentRun[] = [
   },
 ];
 
+/** A grant just added, before the agent has read its award letter: no terms, charges or problems. */
+function newGrantDetail(grant: Grant): GrantDetail {
+  return {
+    summary: {
+      grant,
+      end_date: null,
+      charges_ready: 0,
+      charges_total: 0,
+      on_problem_list: 0,
+      waiting: 0,
+      bucket_counts: { evidence_complete: 0, possible_conflict: 0, missing_evidence: 0, needs_human: 0 },
+      next_closeout: null,
+    },
+    terms: [],
+    budget: { lines: [], limit_cents: null, spent_cents: 0 },
+    grant_notes: [],
+    reusable_notes: [],
+    sign_off: SAMPLE_SIGN_OFF,
+  };
+}
+
 export function grantFake(): Pick<
   ApiClient,
   "listWorkspaces" | "createWorkspace" | "listGrants" | "getGrant" | "getProblemList" | "listCharges" | "listRecords" | "writeRecord" | "listRuns"
-> {
+> & {
+  /** Serve a grant added in fake mode (setup.ts creates it). */
+  addGrant(grant: Grant): void;
+} {
   const workspaces: Workspace[] = [sampleWorkspace];
   const records: RecordView[] = atNow.records.map((record) => ({ record, state: stateAt(record) }));
+  const added = new Map<Id, Grant>();
   const isSample = (grantId: Id) => grantId === SAMPLE_GRANT_ID;
+  const known = (grantId: Id) => isSample(grantId) || added.has(grantId);
+  const addedIn = (workspaceId: Id) => [...added.values()].filter((g) => g.workspace_id === workspaceId).map((g) => newGrantDetail(g).summary);
   return {
+    addGrant: (grant) => {
+      added.set(grant.id, grant);
+    },
     listWorkspaces: () => served(workspaces),
     createWorkspace: (name) => {
       // A workspace the user creates runs on the real date (architecture.md, The clock).
@@ -144,14 +174,24 @@ export function grantFake(): Pick<
       workspaces.push(workspace);
       return served(workspace);
     },
-    listGrants: (workspaceId) => served(workspaceId === WORKSPACE_ID ? [sampleSummary] : workspaces.some((w) => w.id === workspaceId) ? [] : undefined),
-    getGrant: (grantId) => served(isSample(grantId) ? grantDetail() : undefined),
-    getProblemList: (grantId) => served(isSample(grantId) ? problemList() : undefined),
-    listCharges: (grantId) => served(isSample(grantId) ? chargeRows() : undefined),
-    listRecords: (grantId) => served(isSample(grantId) ? records : undefined),
-    listRuns: (grantId) => served(isSample(grantId) ? sampleRuns : undefined),
+    listGrants: (workspaceId) =>
+      served(
+        workspaceId === WORKSPACE_ID
+          ? [sampleSummary, ...addedIn(workspaceId)]
+          : workspaces.some((w) => w.id === workspaceId)
+            ? addedIn(workspaceId)
+            : undefined,
+      ),
+    getGrant: (grantId) => {
+      const grant = added.get(grantId);
+      return served(isSample(grantId) ? grantDetail() : grant ? newGrantDetail(grant) : undefined);
+    },
+    getProblemList: (grantId) => served(isSample(grantId) ? problemList() : known(grantId) ? { rows: [] } : undefined),
+    listCharges: (grantId) => served(isSample(grantId) ? chargeRows() : known(grantId) ? [] : undefined),
+    listRecords: (grantId) => served(isSample(grantId) ? records : known(grantId) ? records.filter((r) => r.record.grant_id === grantId) : undefined),
+    listRuns: (grantId) => served(isSample(grantId) ? sampleRuns : known(grantId) ? [] : undefined),
     writeRecord: (grantId, body) => {
-      if (!isSample(grantId)) return served<FtRecord>(undefined);
+      if (!known(grantId)) return served<FtRecord>(undefined);
       const record: FtRecord = {
         id: fakeId("rec"),
         workspace_id: WORKSPACE_ID,

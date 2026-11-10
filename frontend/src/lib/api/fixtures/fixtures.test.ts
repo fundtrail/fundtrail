@@ -61,6 +61,17 @@ describe("the fake client", () => {
     await expect(api.listEvidence("nope")).rejects.toMatchObject({ status: 404 });
   });
 
+  it("serves a grant added in fake mode, with nothing read yet", async () => {
+    const api = createFakeApiClient();
+    const grant = await api.createGrant(WORKSPACE_ID, new Blob(["letter"]), "award_letter.pdf");
+    const detail = await api.getGrant(grant.id);
+    expect(detail.summary.grant).toEqual(grant);
+    expect(detail.terms).toEqual([]);
+    expect((await api.getProblemList(grant.id)).rows).toEqual([]);
+    expect((await api.listGrants(WORKSPACE_ID)).map((g) => g.grant.id)).toEqual([SAMPLE_GRANT_ID, grant.id]);
+    await expect(createFakeApiClient().getGrant(grant.id)).rejects.toMatchObject({ status: 404 });
+  });
+
   it("counts a ledger upload by line ID", () => {
     expect(countLedger(SAMPLE_LEDGER_CSV)).toEqual({ added: 0, already_present: 2, rejected: [] });
     expect(countLedger(`${SAMPLE_LEDGER_CSV}\nL-1003,2026-03-01,2026-03-02,10.00,Tips,55016 Lab,,,\n,2026-03-01,2026-03-02,1.00,x,y,,,`)).toEqual({
