@@ -15,7 +15,6 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from app.contracts.api import LedgerUploadResult, RowError
-from app.contracts.charges import Charge
 from app.contracts.evidence import EvidenceFile, Source, storage_path
 from app.contracts.records import TERM_KINDS, Author, Record, RecordData
 from app.contracts.rules import check_new_record
@@ -102,14 +101,6 @@ def add_evidence(p: Platform, grant: Grant, upload: Upload) -> EvidenceFile:
     return f
 
 
-def _arrival(charge: Charge, now: datetime) -> Charge:
-    """Decision 0023: a ledger line arrives at 00:00 UTC on its posting date if that's still
-    ahead of "now", and otherwise now."""
-    if charge.arrived_at > now:
-        return charge
-    return charge.model_copy(update={"arrived_at": now})
-
-
 def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
     """Read a ledger file into charges. Lines already on file are skipped, and rows that
     can't be read are reported. Charges that have arrived by the clock's "now" get agent
@@ -126,12 +117,11 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
                 workspace_id=grant.workspace_id,
                 grant_id=grant.id,
                 existing_line_ids=store.ledger_line_ids(conn, grant.workspace_id),
+                now=now,  # the reader applies decision 0023's arrival rule
             )
         except LedgerFileError as error:
             raise WriteRejected([str(error)]) from error
-        charges = [
-            _arrival(Charge.model_validate(c, from_attributes=True), now) for c in read.charges
-        ]
+        charges = list(read.charges)
         store.insert_charges(conn, charges)
         arrived = [c for c in charges if c.arrived_at <= now]
         if arrived:
