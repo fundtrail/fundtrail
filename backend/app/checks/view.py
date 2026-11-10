@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.contracts.charges import Charge
+from app.contracts.corrections import NetAmount, net_amounts
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     FACT_KINDS,
@@ -30,6 +31,7 @@ from app.contracts.records import (
     Question,
     Record,
     RecordKind,
+    Remainder,
     citations,
 )
 from app.contracts.rules import RecordState
@@ -115,6 +117,8 @@ class GrantView:
                 self.judgments.append(r)
 
         self.period = _period_in_force(self.terms[RecordKind.PERIOD_OF_PERFORMANCE])
+        # Decision 0020: each charge netted with the lines that correct it.
+        self.nets: dict[str, NetAmount] = net_amounts(self.charges, state)
 
     # Small helpers every check uses.
 
@@ -129,6 +133,25 @@ class GrantView:
                 break
             r = older
         return r.id if r is not None else record_id
+
+    def using_links(self, fact_id: str) -> list[LinkInForce]:
+        """The links that use up a bill's total. Decision 0020: a link to a fully reversed
+        charge doesn't, so the bill is free to be linked to the line that now carries it."""
+        return [
+            lk
+            for lk in self.links_to_fact.get(fact_id, [])
+            if not ((net := self.nets.get(lk.data.charge_id)) is not None and net.reversed)
+        ]
+
+    def has_remainder(self, bill_id: str) -> bool:
+        """Decision 0021: a current remainder record says the rest of this bill belongs
+        to another award. The agent's waits for the accountant."""
+        for r in self.current:
+            if isinstance(r.data, Remainder):
+                now = self.state.current_version(r.data.record_id)
+                if now is not None and now.id == bill_id:
+                    return True
+        return False
 
     def files_of(self, record: Record) -> set[str]:
         return {c.file_id for c in citations(record.data)}
@@ -277,3 +300,15 @@ def _period_in_force(terms: list[Record]) -> PeriodInForce | None:
 def notice_number(notice: Notice) -> int | None:
     text = notice.amendment_number.value.strip()
     return int(text) if text.isdigit() else None
+
+
+def net_of(view: GrantView, charge: Charge) -> int:
+    """The amount that counts for a charge: its net once corrections are netted into it."""
+    found = view.nets.get(charge.id)
+    return found.net_cents if found is not None else charge.amount_cents
+
+
+def is_reversed(view: GrantView, charge: Charge) -> bool:
+    """Fully corrected (decision 0020): something was netted into it and the net is zero."""
+    found = view.nets.get(charge.id)
+    return found is not None and found.reversed

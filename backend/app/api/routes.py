@@ -31,7 +31,8 @@ from app.contracts.records import BudgetAssignment, Record
 from app.contracts.rules import RecordState
 from app.contracts.workspaces import Grant, Workspace
 from app.db import actions, store
-from app.db.pool import transaction, workspace_now
+from app.db.clock import grant_now
+from app.db.pool import transaction
 
 from .bodies import RunRow
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
@@ -134,7 +135,7 @@ async def upload_evidence(grant: GrantDep, platform: PlatformDep, file: UploadFi
 def list_records(grant: GrantDep, platform: PlatformDep) -> list[Record]:
     """Every record on the grant, replaced and waiting ones included, in the order written."""
     with transaction(platform.pool) as conn:
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = grant_now(conn, grant.id)
         return store.list_records(conn, grant.id, now)
 
 
@@ -178,7 +179,7 @@ def list_charges(grant: GrantDep, platform: PlatformDep) -> list[ChargeRow]:
     """Each charge that has arrived, with its latest status, its assigned budget line and its
     account group's categories. Posting date order, then ledger line ID."""
     with transaction(platform.pool) as conn:
-        now = workspace_now(store.workspace_by_id(conn, grant.workspace_id))
+        now = grant_now(conn, grant.id)
         charges = store.list_charges(conn, grant.id, now)
         records = store.list_records(conn, grant.id, now)
         files = store.list_files(conn, grant.id, now)
@@ -209,7 +210,7 @@ def file_content(file_id: str, user: UserDep, platform: PlatformDep) -> FileLink
     """A short-lived link to the original file."""
     with transaction(platform.pool) as conn:
         f = store.get_file(conn, file_id, user.id)
-        now = workspace_now(store.workspace_by_id(conn, f.workspace_id)) if f else None
+        now = grant_now(conn, f.grant_id) if f else None
     if f is None or now is None or f.arrived_at > now:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
     expires_at = datetime.now(UTC) + timedelta(seconds=CONTENT_LINK_SECONDS)

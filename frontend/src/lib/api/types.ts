@@ -52,10 +52,12 @@ export interface Grant {
   sample?: GrantSample | null;
 }
 
-// --- Sample grants (ruling 40, issue 165). Not in the contract code yet: these
-// follow the shapes the contracts PR is writing, and change with it. ---
+// --- Sample grants (ruling 40, issue 165), as in workspaces.py, api.py and timeline.py. ---
 
 export type SampleChoice = "small_live" | "larger_live" | "larger_prerun";
+
+/** A workspace member's role (issue 160): the person who signs in, or the workspace's sample accountant. */
+export type MemberRole = "owner" | "sample";
 
 export interface GrantSample {
   /** The sample pack's ID, for example "nitrate-sensors". */
@@ -228,6 +230,8 @@ export interface BudgetLine {
   name: CitedText;
   amount: CitedMoney;
   category: BudgetCategory;
+  /** The evidence file of the notice (award letter or amendment) the line belongs to (issue 104). */
+  notice_file_id?: Id | null;
 }
 export interface Person {
   kind: "person";
@@ -646,7 +650,7 @@ export interface HeldMail {
   held_at: IsoDatetime;
   /** The message first, then its attachments. */
   files: HeldFile[];
-  /** The message's files that weren't taken in. Not in the contract yet: #43 adds it. */
+  /** The message's files that weren't taken in. */
   skipped?: SkippedFile[];
 }
 
@@ -820,6 +824,10 @@ export interface PlayedEvent {
   event: TimelineEvent;
   agent_records?: FtRecord[];
   charge_ids?: Id[];
+  /** Decisions the workspace's sample accountant made in that move (ruling 47). */
+  scripted_decisions?: FtRecord[];
+  /** The result was loaded from the prerun, not worked live. */
+  loaded?: boolean;
 }
 
 export interface UserDelivery {
@@ -847,11 +855,20 @@ export interface TimelineView {
   coming_up?: TimelineEvent[];
   finished: boolean;
   catching_up: boolean;
+  /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
+  on_run_through?: boolean | null;
 }
 
 /** POST /grants/{grant_id}/timeline. No `to` plays to the next event. Forward only: earlier is a 409. */
 export interface TimelineMove {
   to?: IsoDatetime | null;
+  /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
+  skip_human_steps?: boolean;
+}
+
+/** POST /grants/{grant_id}/timeline/start-over. */
+export interface TimelineStartOver {
+  confirmed: boolean;
 }
 
 export interface TermView {

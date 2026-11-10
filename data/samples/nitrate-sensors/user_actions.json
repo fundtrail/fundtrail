@@ -1,0 +1,9 @@
+{
+  "sample": "nitrate-sensors",
+  "actions": [
+    {"at": "2026-11-16T17:40:00Z", "action": "confirm_terms", "file": "award_letter.pdf", "note": "The user confirms every term read from the award letter."},
+    {"at": "2026-11-18T17:00:00Z", "action": "deliver_file", "file": "email_invoice_ESS-32410.eml", "note": "The user brings in a file marked for them, by upload, on its date."},
+    {"at": "2026-11-18T17:00:00Z", "action": "deliver_file", "file": "hardware_receipt.jpg", "note": "The user brings in a file marked for them, by upload, on its date."},
+    {"at": "2026-11-18T17:00:00Z", "action": "deliver_file", "file": "invoice_EES-7420.pdf", "note": "The user brings in a file marked for them, by upload, on its date."}
+  ]
+}
