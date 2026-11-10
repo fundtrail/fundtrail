@@ -1,0 +1,18 @@
+UNIVERSITY OF EXAMPLE
+Example Stable Isotope Facility
+Campus Core Facilities
+
+RECHARGE USAGE STATEMENT
+
+Statement number: SIF-2502-81
+Statement date: March 3, 2025
+Service period: February 1, 2025 to February 28, 2025
+Principal investigator: Harper Fixture
+Award charged: SYN-2401835
+
+Service                                         Units        Rate        Amount
+Total organic carbon, per sample                   36      $12.50       $450.00
+
+Total charged to award                                                  $450.00
+
+Rates are the facility's approved recharge rates for the fiscal year.

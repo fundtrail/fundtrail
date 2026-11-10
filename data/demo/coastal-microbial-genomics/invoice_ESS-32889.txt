@@ -1,0 +1,26 @@
+EXAMPLE SCIENTIFIC SUPPLY
+55 Example Road, Example Town, CA 94010
+billing@scisupply.example
+
+INVOICE
+
+Invoice number: ESS-32889
+Invoice date: October 23, 2026
+Customer PO: PO-26-3147
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Kendall Dummy
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2507264, coastal microbial genomics
+
+Item  Description                                   Qty   Unit price      Amount
+1     Tin capsules, 5 x 9 mm, 1000 count              4       $98.75     $395.00
+2     Balance calibration weights, set                5      $215.00   $1,075.00
+3     Sample bottles, acid washed, 125 mL, 72         4      $134.40     $537.60
+
+Subtotal                                                               $2,007.60
+Shipping                                                                   $0.00
+Total due                                                              $2,007.60
+
+Terms: net 30

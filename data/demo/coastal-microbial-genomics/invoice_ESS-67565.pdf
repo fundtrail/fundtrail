@@ -1,0 +1,66 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 1114 >>
+stream
+BT
+/F1 9.5 Tf
+12 TL
+40 752 Td
+(EXAMPLE SCIENTIFIC SUPPLY) Tj T*
+(55 Example Road, Example Town, CA 94010) Tj T*
+(billing@scisupply.example) Tj T*
+() Tj T*
+(INVOICE) Tj T*
+() Tj T*
+(Invoice number: ESS-67565) Tj T*
+(Invoice date: March 23, 2026) Tj T*
+(Customer PO: PO-26-8789) Tj T*
+() Tj T*
+(Bill to:) Tj T*
+(  University of Example, Department of Earth and Ocean Sciences) Tj T*
+(  Attn: Kendall Dummy) Tj T*
+(  100 Example Hall, Example City, CA 94000) Tj T*
+(Project reference: SYN-2507264, coastal microbial genomics) Tj T*
+() Tj T*
+(Item  Description                                   Qty   Unit price      Amount) Tj T*
+(1     Hydrochloric acid, trace metal, 2.5 L           5      $164.20     $821.00) Tj T*
+(2     Tin capsules, 5 x 9 mm, 1000 count              4       $98.75     $395.00) Tj T*
+() Tj T*
+(Subtotal                                                               $1,216.00) Tj T*
+(Shipping                                                                  $12.50) Tj T*
+(Total due                                                              $1,228.50) Tj T*
+() Tj T*
+(Terms: net 30) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Title (Invoice ESS-67565) /Producer (FundTrail seed generator) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000216 00000 n 
+0000001382 00000 n 
+0000001508 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+startxref
+1593
+%%EOF

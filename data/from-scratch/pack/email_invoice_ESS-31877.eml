@@ -1,0 +1,43 @@
+From: Emery Testwell <emery.testwell@university.example>
+To: Earth and Ocean Sciences Grants <grants@university.example>
+Date: Mon, 20 Apr 2026 15:10:00 -0700
+Subject: Fwd: Invoice ESS-31877
+Message-ID: <fwd-ess-31877@university.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Invoice ESS-31877 for SYN-2511958.
+
+Emery
+
+---------- Forwarded message ----------
+From: Example Scientific Supply Billing <billing@scisupply.example>
+Date: Mon, 20 Apr 2026 12:10:00 -0700
+Subject: Invoice ESS-31877
+To: emery.testwell@university.example
+
+EXAMPLE SCIENTIFIC SUPPLY
+55 Example Road, Example Town, CA 94010
+billing@scisupply.example
+
+INVOICE
+
+Invoice number: ESS-31877
+Invoice date: April 20, 2026
+Customer PO: PO-26-7313
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Emery Testwell
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2511958, nitrate sensors
+
+Item  Description                                   Qty   Unit price      Amount
+1     Nitrate standard solution, 1000 ppm             3       $89.50     $268.50
+2     Ionic strength adjuster, 500 mL                 2       $26.50      $53.00
+
+Subtotal                                                                 $321.50
+Shipping                                                                   $0.00
+Total due                                                                $321.50
+
+Terms: net 30
