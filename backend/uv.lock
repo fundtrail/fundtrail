@@ -619,6 +619,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
+    { name = "psycopg", extra = ["binary"] },
     { name = "pyright", extra = ["nodejs"] },
     { name = "pytest" },
     { name = "reportlab" },
@@ -640,6 +641,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.8" },
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "reportlab", specifier = ">=5.1.0" },
