@@ -113,7 +113,7 @@ describe("ProblemList", () => {
   it("renders the sample grant's fixture: the waiting extension, the held mail, then L-1002", async () => {
     const { rows } = await createFakeApiClient().getProblemList(SAMPLE_GRANT_ID);
     render(<ProblemList rows={rows} />);
-    expect(shownOrder()).toEqual(["terms_waiting:1 term waiting to be confirmed", "held_mail:Held: The sender isn't a known sender. · billing@labsupply.example", "charge:L-1002"]);
+    expect(shownOrder()).toEqual(["terms_waiting:1 term waiting to be confirmed", "held_mail:The sender isn't a known sender. · billing@labsupply.example", "charge:L-1002"]);
   });
 
   it("links each row to its page", async () => {

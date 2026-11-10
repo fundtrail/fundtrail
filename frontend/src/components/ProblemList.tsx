@@ -152,7 +152,7 @@ function Row({ row }: { row: ProblemRow }) {
               </Link>
             </p>
             <p className="ft-problem__text">
-              Held: {HOLD_REASON_LABELS[row.held.reason]}
+              {HOLD_REASON_LABELS[row.held.reason]}
               {row.held.sender && <> · {row.held.sender}</>}
             </p>
           </div>

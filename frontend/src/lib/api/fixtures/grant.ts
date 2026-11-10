@@ -188,7 +188,7 @@ export function grantFake(): Pick<
     },
     getProblemList: (grantId) => served(isSample(grantId) ? problemList() : known(grantId) ? { rows: [] } : undefined),
     listCharges: (grantId) => served(isSample(grantId) ? chargeRows() : known(grantId) ? [] : undefined),
-    listRecords: (grantId) => served(isSample(grantId) ? records : known(grantId) ? records.filter((r) => r.record.grant_id === grantId) : undefined),
+    listRecords: (grantId) => served(known(grantId) ? records.filter((r) => r.record.grant_id === grantId) : undefined),
     listRuns: (grantId) => served(isSample(grantId) ? sampleRuns : known(grantId) ? [] : undefined),
     writeRecord: (grantId, body) => {
       if (!known(grantId)) return served<FtRecord>(undefined);

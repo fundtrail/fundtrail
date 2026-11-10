@@ -38,7 +38,7 @@ export const routes = {
   /**
    * One file in the viewer. With `at`, it opens at one value of one record:
    * `value` names it the server's way ("total", "items[0].amount"), or "part"
-   * for a link's part, or "quotes[0]" for an answer's first quote.
+   * for a link's part. An answer's quotes aren't supported by the viewer yet.
    */
   file: (grantId: Id, fileId: Id, at?: ViewerSpot) => {
     const base = `/grants/${e(grantId)}/files/${e(fileId)}`;

@@ -70,6 +70,11 @@ describe("the fake client", () => {
     expect((await api.getProblemList(grant.id)).rows).toEqual([]);
     expect((await api.listGrants(WORKSPACE_ID)).map((g) => g.grant.id)).toEqual([SAMPLE_GRANT_ID, grant.id]);
     await expect(createFakeApiClient().getGrant(grant.id)).rejects.toMatchObject({ status: 404 });
+
+    // Its records stay on it.
+    const written = await api.writeRecord(grant.id, { data: { kind: "retraction" } });
+    expect((await api.listRecords(grant.id)).map((r) => r.record.id)).toEqual([written.id]);
+    expect((await api.listRecords(SAMPLE_GRANT_ID)).map((r) => r.record.id)).not.toContain(written.id);
   });
 
   it("counts a ledger upload by line ID", () => {
