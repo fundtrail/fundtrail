@@ -37,6 +37,8 @@ from .citations import (
     parse_date,
     parse_decimal,
     parse_money,
+    parse_quantity,
+    parse_rate,
     resolve_citation,
 )
 from .context import REPEAT_LIMIT, RunContext
@@ -302,47 +304,45 @@ def _set_path(data: dict[str, Any], path: str, value: Any) -> None:
 
 
 def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
-    """The value for a field, re-derived from its text where code can (trust rule 3)."""
-    given = None if raw is None else str(raw)
+    """The value for a field, derived from its own text (trust rules 2 and 3).
+
+    Money, dates, rates and quantities are read from the text as the document writes it, and a
+    normalized value the model gives has to equal what code reads. Text that can't be read as
+    its kind of value is refused, never taken on the model's word. A text field's value is its
+    text.
+    """
+    given = None if raw is None else str(raw).strip()
     leaf = _leaf(field)
     if leaf in MONEY_FIELDS:
         derived = parse_money(text)
-        if given is not None:
-            try:
-                cents = int(given)
-            except ValueError as error:
-                raise WriteProblem(f"{field}: '{given}' isn't a whole number of cents") from error
-            if derived is not None and derived != cents:
-                raise WriteProblem(
-                    f"{field}: {cents} cents doesn't match its text '{text}' ({derived} cents)"
-                )
-            return cents
         if derived is None:
+            raise WriteProblem(f"{field}: '{text}' can't be read as an amount of money")
+        if given is not None and given != str(derived):
             raise WriteProblem(
-                f"{field}: give the amount in cents, since '{text}' can't be read as money"
+                f"{field}: {given} cents doesn't match its text '{text}' ({derived} cents)"
             )
         return derived
     if leaf in DATE_FIELDS:
         parsed = parse_date(text)
-        if given is not None:
-            try:
-                day = date.fromisoformat(given)
-            except ValueError as error:
-                raise WriteProblem(f"{field}: '{given}' isn't a YYYY-MM-DD date") from error
-            if parsed is not None and parsed != day:
-                raise WriteProblem(f"{field}: {day} doesn't match its text '{text}' ({parsed})")
-            return day.isoformat()
         if parsed is None:
-            raise WriteProblem(
-                f"{field}: give the date as YYYY-MM-DD, since '{text}' can't be read as a date"
-            )
+            raise WriteProblem(f"{field}: '{text}' can't be read as a date")
+        if given is not None and given != parsed.isoformat():
+            raise WriteProblem(f"{field}: {given} doesn't match its text '{text}' ({parsed})")
         return parsed.isoformat()
     if leaf in DECIMAL_FIELDS:
-        number = parse_decimal(given) if given is not None else parse_decimal(text)
+        number = parse_rate(text) if leaf == "rate" else parse_quantity(text)
         if number is None:
-            raise WriteProblem(f"{field}: give the number as a decimal")
+            raise WriteProblem(f"{field}: '{text}' can't be read as a {leaf}")
+        if given is not None:
+            claimed = parse_decimal(given)
+            if claimed is None or claimed != number:
+                raise WriteProblem(f"{field}: {given} doesn't match its text '{text}' ({number})")
         return str(number)
-    return given if given is not None else text
+    if given is not None and given != text:
+        raise WriteProblem(
+            f"{field}: a text value is the text as the document writes it, '{text}', not '{given}'"
+        )
+    return text
 
 
 def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:

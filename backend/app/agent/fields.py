@@ -27,7 +27,7 @@ def _describe(annotation: Any, prefix: str) -> list[str]:
     name = getattr(annotation, "__name__", str(annotation))
     if name in _CITED:
         return [f"{prefix} ({_CITED[name]})"]
-    if get_origin(annotation) is list:
+    if get_origin(annotation) in (list, tuple):
         inner = get_args(annotation)[0]
         if isinstance(inner, type) and issubclass(inner, BaseModel):
             return [

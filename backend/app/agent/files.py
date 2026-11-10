@@ -107,6 +107,8 @@ def open_file(f: EvidenceFile, data: bytes) -> Opened:
         }
         block = {
             "type": "image",
+            # We sized it ourselves; the API errors rather than resize it without saying so.
+            "transformations": {"oversized_image": "error"},
             "source": {
                 "type": "base64",
                 "media_type": sent_type,
