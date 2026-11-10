@@ -242,7 +242,10 @@ def save_run(
     """
     _check_result(run, result)
     grant = store.get_grant(conn, run.grant_id, lock=True)
-    assert grant is not None
+    if grant is None or store.get_run(conn, run.id) is None:
+        # The run's grant was removed, or started over (a sample grant), while it ran:
+        # nothing it wrote may land in what's there now.
+        raise RunGone(run.id)
     now = clock.grant_now(conn, grant.id)
     records = store.list_records(conn, grant.id)
     charges = store.list_charges(conn, grant.id, now)
@@ -338,6 +341,9 @@ def _attempt(p: Platform, run: AgentRun, attempt: int, catch_up: bool) -> None:
             with transaction(p.pool) as conn:
                 questions = save_run(p, conn, run, result, attempt, catch_up=catch_up)
                 follow_ups = _follow_ups(conn, run, _open_questions(run, result, questions))
+        except RunGone:
+            log.info("run %s ended unsaved: its grant was started over or removed", run.id)
+            return
         except RunConflict as conflict:
             if result.log is not None:
                 # A refused try's debug log is kept too, beside the try's own.
@@ -367,6 +373,10 @@ def _open_questions(
     open_questions = [*getattr(result, "other_open_questions", ())]
     open_questions += [q for q in questions if q.answer_by == Author.AGENT]
     return follow_up_triggers(open_questions)[:MAX_FOLLOW_UPS]
+
+
+class RunGone(Exception):
+    """The run's row is gone: its grant was removed or started over while it ran."""
 
 
 class RunFailed(Exception):

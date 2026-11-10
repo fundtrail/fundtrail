@@ -48,6 +48,7 @@ from app.contracts.timeline import (
 )
 from app.contracts.workspaces import Grant, GrantSample, SampleChoice
 from app.db import clock, sample_store, store
+from app.db.actions import Upload, arrive_upload
 from app.db.jobs import grant_catching_up
 from app.db.mail_sink import arrive_files
 from app.db.pings import ping_changed, ping_run
@@ -64,6 +65,7 @@ from .pack import (
     EventKind,
     PackError,
     SamplePack,
+    ScheduledEvent,
     load_pack,
     message_id_of,
 )
@@ -227,25 +229,106 @@ def _ping(p: Platform, grant: Grant, runs: Sequence[AgentRun]) -> None:
     ping_changed(p.pinger, grant.workspace_id, grant.id, "charges", "evidence", "statuses")
 
 
+def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[AgentRun]:
+    """Start a sample grant's timeline: its clock at the first event, and every event at
+    that moment played. The caller holds the grant's lock."""
+    pack = pack_for(info.sample)
+    start = plan_start(items_for(info.sample), pack.starts_at)
+    sample_store.set_sample(conn, grant.id, info)
+    _store_events(p, conn, grant, pack, [e.id for e in start.play])
+    runs = clock.set_and_replay(p, conn, grant, None, start.until)
+    sample_store.insert_move(conn, grant.id, None, start.until)
+    return runs
+
+
 def open_sample(p: Platform, workspace_id: str, choice: SampleChoice) -> Grant:
     """A new sample grant in the workspace, its clock at the timeline's first event."""
     if choice is SampleChoice.LARGER_PRERUN:
         raise SampleError(PRERUN_UNAVAILABLE)
-    sample = PACK_FOR_CHOICE[choice]
-    pack = pack_for(sample)
-    items = items_for(sample)
-    move = plan_start(items, pack.starts_at)
+    info = GrantSample(sample=PACK_FOR_CHOICE[choice], choice=choice)
     with transaction(p.pool) as conn:
         grant = store.create_grant(conn, workspace_id)
         store.get_grant(conn, grant.id, lock=True)
-        info = GrantSample(sample=sample, choice=choice)
-        sample_store.set_sample(conn, grant.id, info)
-        _store_events(p, conn, grant, pack, [e.id for e in move.play])
-        runs = clock.set_and_replay(p, conn, grant, None, move.until)
-        sample_store.insert_move(conn, grant.id, None, move.until)
-        grant = grant.model_copy(update={"clock_now": move.until, "sample": info})
+        runs = _begin(p, conn, grant, info)
+        grant = store.get_grant(conn, grant.id)
+        assert grant is not None
     _ping(p, grant, runs)
     return grant
+
+
+def start_over(p: Platform, grant: Grant) -> Grant:
+    """Reset that one sample grant: everything on it goes (what arrived, what anyone
+    wrote, its runs, its moves and its queued jobs), and its timeline starts again at the
+    first event. It keeps its ID, its address and Drive folder, and what it was opened
+    from. A run in progress saves nothing into the fresh copy: its row is gone.
+
+    The grant's row is removed and made again, so every table that hangs off it is
+    cleared by its foreign key. Stored originals stay in storage, unread."""
+    info = _sample_of(grant)
+    with transaction(p.pool) as conn:
+        old = store.get_grant(conn, grant.id, lock=True)
+        assert old is not None
+        sample_store.drop_queued_jobs(conn, grant.id)
+        sample_store.remake_grant(conn, old)
+        store.get_grant(conn, grant.id, lock=True)
+        runs = _begin(p, conn, old, info)
+        fresh = store.get_grant(conn, grant.id)
+        assert fresh is not None
+    _ping(p, fresh, runs)
+    return fresh
+
+
+class NoSuchItem(Exception):
+    """No item for the user to bring in has that ID on this sample's timeline."""
+
+
+def _user_item(grant: Grant, event_id: str) -> tuple[SamplePack, ScheduledEvent]:
+    pack = pack_for(_sample_of(grant).sample)
+    e = pack.event(event_id)
+    if e is None or not e.deliver_by_user:
+        raise NoSuchItem(event_id)
+    return pack, e
+
+
+def _item_upload(pack: SamplePack, e: ScheduledEvent) -> Upload:
+    media_type = mimetypes.guess_type(e.name)[0] or "application/octet-stream"
+    return Upload(name=e.name, media_type=media_type, data=pack.file_bytes(e.name))
+
+
+def deliver_for_me(p: Platform, grant: Grant, event_id: str) -> EvidenceFile:
+    """ "Deliver for me": the item comes in as the user's own upload would, at the grant's
+    now (ruling 44). An item already on the grant is a SampleError."""
+    pack, e = _user_item(grant, event_id)
+    with transaction(p.pool) as conn:
+        store.get_grant(conn, grant.id, lock=True)
+        now = clock.grant_now(conn, grant.id)
+        files = store.list_files(conn, grant.id, now)
+        items = items_for(pack.sample)
+        if delivered_at(pack, e, _on_grant(p, pack, items, files)) is not None:
+            raise SampleError(f"{e.name} is already on the grant.")
+        f, run = arrive_upload(p, conn, grant, _item_upload(pack, e))
+    _ping(p, grant, [run])
+    return f
+
+
+# Where a pack's file is staged in private storage for "Get the file": under the sample and
+# the file's own hash, apart from any grant's evidence. Paths known to be staged.
+_STAGED: set[str] = set()
+
+
+def item_file(p: Platform, grant: Grant, event_id: str) -> tuple[str, str]:
+    """ "Get the file": the item's original, staged in private storage once, as a path to
+    sign and its media type."""
+    pack, e = _user_item(grant, event_id)
+    upload = _item_upload(pack, e)
+    path = f"samples/{pack.sample}/{pack.sha256(e.name)}/{e.name}"
+    if path not in _STAGED:
+        try:
+            p.storage.put(path, upload.data, upload.media_type)
+        except Exception:  # noqa: BLE001 - staged by an earlier process; signing says if not
+            pass
+        _STAGED.add(path)
+    return path, upload.media_type
 
 
 def check_read_live_limit(conn: Conn, user_id: str, grant: Grant) -> None:

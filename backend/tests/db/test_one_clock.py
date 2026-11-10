@@ -60,7 +60,7 @@ ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
     ("backend/app/db/store.py", "insert_messages"): (1, "stored order of thread messages"),
     ("backend/app/db/store.py", "set_run"): (2, "a run's started_at and finished_at, real time"),
     ("backend/app/db/jobs.py", "_RunRetry.get_retry_decision"): (1, "retry backoff"),
-    ("backend/app/api/routes.py", "file_content"): (1, "the signed-link expiry"),
+    ("backend/app/api/routes.py", "signed_link"): (1, "the signed-link expiry"),
     # Ingest dates what it brings by the grant clock (issue 157, done). This one is machine
     # time: Drive's settle check, against Drive's own real modified times.
     ("backend/app/ingest/checker.py", "check_drive"): (1, "Drive's settle check"),

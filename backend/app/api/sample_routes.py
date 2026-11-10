@@ -12,13 +12,14 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from app.contracts.api import (
+    FileLink,
     GrantSummary,
     SampleCreate,
     SampleOption,
     SampleRefusal,
     SampleRefusalReason,
 )
-from app.contracts.timeline import TimelineMove, TimelineView
+from app.contracts.timeline import TimelineMove, TimelineStartOver, TimelineView
 from app.contracts.workspaces import Grant, SampleChoice
 from app.db.platform import Platform
 from app.db.pool import transaction
@@ -26,7 +27,7 @@ from app.samples import player
 from app.samples.timeline import MoveRefused
 
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
-from .routes import PlainErrorsRoute
+from .routes import PlainErrorsRoute, signed_link
 from .views import load_snapshot, summary
 
 router = APIRouter(route_class=PlainErrorsRoute)
@@ -119,3 +120,43 @@ def move_timeline(
             )
         )
     return _view(platform, grant)
+
+
+@router.post("/grants/{grant_id}/timeline/start-over", responses=_REFUSAL)
+def start_over(grant: GrantDep, body: TimelineStartOver, platform: PlatformDep) -> TimelineView:
+    """Reset that one sample grant and start its timeline again at the first event. The
+    read-live limit never refuses it."""
+    _sample_grant(grant)
+    if not body.confirmed:
+        return _refused(  # pyright: ignore[reportReturnType]
+            SampleRefusal(
+                reason=SampleRefusalReason.NEEDS_CONFIRM,
+                message="Starting over removes everything on this sample grant, including "
+                "what you uploaded and decided. Confirm to start over.",
+            )
+        )
+    return _view(platform, player.start_over(platform, grant))
+
+
+@router.post("/grants/{grant_id}/timeline/deliveries/{event_id}")
+def deliver_for_me(grant: GrantDep, event_id: str, platform: PlatformDep) -> TimelineView:
+    """ "Deliver for me": the item comes in as the user's own upload would (ruling 44)."""
+    _sample_grant(grant)
+    try:
+        player.deliver_for_me(platform, grant, event_id)
+    except player.NoSuchItem as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
+    except player.SampleError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    return _view(platform, grant)
+
+
+@router.get("/grants/{grant_id}/timeline/deliveries/{event_id}/file")
+def get_the_file(grant: GrantDep, event_id: str, platform: PlatformDep) -> FileLink:
+    """ "Get the file": a short-lived link to the item's original, like an evidence file's."""
+    _sample_grant(grant)
+    try:
+        path, media_type = player.item_file(platform, grant, event_id)
+    except player.NoSuchItem as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
+    return signed_link(platform, path, media_type)

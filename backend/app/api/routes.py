@@ -32,6 +32,7 @@ from app.contracts.rules import RecordState
 from app.contracts.workspaces import Grant, Workspace
 from app.db import actions, store
 from app.db.clock import grant_now
+from app.db.platform import Platform
 from app.db.pool import transaction
 
 from .bodies import RunRow
@@ -213,7 +214,14 @@ def file_content(file_id: str, user: UserDep, platform: PlatformDep) -> FileLink
         now = grant_now(conn, f.grant_id) if f else None
     if f is None or now is None or f.arrived_at > now:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+    return signed_link(platform, f.storage_path)
+
+
+def signed_link(platform: Platform, path: str, media_type: str | None = None) -> FileLink:
+    """A short-lived link to an object in private storage."""
     expires_at = datetime.now(UTC) + timedelta(seconds=CONTENT_LINK_SECONDS)
     return FileLink(
-        url=platform.storage.signed_url(f.storage_path, CONTENT_LINK_SECONDS), expires_at=expires_at
+        url=platform.storage.signed_url(path, CONTENT_LINK_SECONDS),
+        media_type=media_type,
+        expires_at=expires_at,
     )

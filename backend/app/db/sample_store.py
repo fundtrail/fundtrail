@@ -44,6 +44,27 @@ def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     return SampleMove(row["moved_from"], row["moved_to"]) if row else None
 
 
+def drop_queued_jobs(conn: Conn, grant_id: str) -> None:
+    """Remove the grant's agent-run jobs still waiting to start. One already running
+    finishes, and its save finds its run gone."""
+    conn.execute(
+        "delete from procrastinate_jobs where lock = %s and status = 'todo'",
+        (grant_lock(grant_id),),
+    )
+
+
+def remake_grant(conn: Conn, grant: Grant) -> None:
+    """Remove the grant's row, and with it everything that hangs off it, and make it again
+    with the same ID, workspace, funder, address and Drive folder. What the agent read into
+    it (award number and title) goes; its clock and sample are set again by the caller."""
+    conn.execute("delete from public.grants where id = %s", (grant.id,))
+    conn.execute(
+        """insert into public.grants (id, workspace_id, funder, address_code, drive_folder_id)
+           values (%s, %s, %s, %s, %s)""",
+        (grant.id, grant.workspace_id, grant.funder, grant.address_code, grant.drive_folder_id),
+    )
+
+
 def lock_users_moves(conn: Conn, user_id: str) -> None:
     """Take this user's sample-move lock until the transaction ends: one move of the user's
     sample clocks at a time, so the read-live limit sees every earlier move's runs."""
