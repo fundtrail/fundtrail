@@ -117,8 +117,8 @@ def test_a_sample_refusal_names_why_and_the_grant_still_reading():
         now=at(0),
     )
     refusal = api.SampleRefusal(
-        reason=api.SampleRefusalReason.HISTORY_READING,
-        message="Another larger sample is still reading its history.",
+        reason=api.SampleRefusalReason.ANOTHER_SAMPLE_WORKING,
+        message="Another larger sample is still working through its last move.",
         grant=blocking,
     )
     assert api.SampleRefusal.model_validate_json(refusal.model_dump_json()) == refusal
@@ -128,6 +128,8 @@ def test_a_sample_refusal_names_why_and_the_grant_still_reading():
     assert confirm.grant is None
     with pytest.raises(ValidationError):
         api.SampleRefusal.model_validate({"reason": "too_many", "message": "x"})
+    with pytest.raises(ValidationError):  # renamed: the limit is on the clock move
+        api.SampleRefusal.model_validate({"reason": "history_reading", "message": "x"})
 
 
 def test_skipping_the_human_steps_and_the_run_through():

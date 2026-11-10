@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
 
+from app.checks import budget_figures, note_limit
 from app.checks.history import history_line
 from app.contracts.api import (
     AnswerView,
@@ -389,14 +390,19 @@ def term_views(snap: GrantSnapshot) -> list[TermView]:
 
 
 def budget(snap: GrantSnapshot) -> BudgetView:
-    """The budget figures as the checks work them out, so they agree with the grant notes:
-    one row per NSF category, its amount added up per notice, its spending counting its
-    sub-lines. Each row shows the category's latest budget_line term in force."""
-    figures = terms.budget_figures(snap.grant.id, snap.state, snap.charges, snap.files)
+    """The budget figures from the checks' public budget_figures (issue 106), the same ones
+    the grant notes come from: one row per NSF category, its amount added up per notice,
+    its spending counting its sub-lines. Each row shows the category's latest budget_line
+    term in force."""
+    figures = budget_figures(snap.grant.id, snap.records, snap.charges)
     return BudgetView(
         lines=tuple(
-            BudgetLineView(line=f.line, amount_cents=f.amount_cents, spent_cents=f.spent_cents)
-            for f in figures.lines
+            BudgetLineView(
+                line=snap.state.by_id[f.record_ids[-1]],
+                amount_cents=f.budget_cents,
+                spent_cents=f.spent_cents,
+            )
+            for f in figures.categories
         ),
         limit_cents=figures.limit_cents,
         spent_cents=figures.spent_cents,
@@ -452,21 +458,16 @@ def reusable_notes(snap: GrantSnapshot) -> list[ReusableNoteView]:
             and (st := snap.charge_status(c.id)) is not None
             and any(reason.accepted_by in under for reason in st.reasons)
         ]
-        # The same rule as app/checks/decisions.py's limit(); one public function in
-        # the checks replaces this when issue #105 lands.
-        accepted_amounts = [abs(written_on.amount_cents)] + [
-            abs(c.amount_cents)
-            for r in snap.state.current()
-            if isinstance(r.data, AcceptedReason)
-            and r.data.reuses_id == note.id
-            and r.data.reusable
-            and (c := snap.charges_by_id.get(r.data.charge_id or "")) is not None
-        ]
+        # The checks' own rule (issue 106): the note's charge, raised by acceptances of
+        # the offer as "this and similar charges".
+        limit = note_limit(note.id, snap.records, snap.charges, snap.now)
+        if limit is None:
+            continue
         out.append(
             ReusableNoteView(
                 note=note,
                 charge=written_on,
-                amount_limit_cents=max(accepted_amounts),
+                amount_limit_cents=limit,
                 covered=tuple(covered),
             )
         )

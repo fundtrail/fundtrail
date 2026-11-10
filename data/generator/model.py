@@ -177,6 +177,13 @@ class Grant:
         """The user brings in a file marked for them to deliver, by upload."""
         self.user_actions.append({"at": when, "action": "deliver_file", "file": file, "note": note})
 
+    def script(self, action: str, when: datetime, note: str, **refs: str) -> None:
+        """Any other step of the accountant script (ruling 47): decide_suggestion,
+        answer_flag or enter_share. `refs` are stable references (a ledger line
+        ID, a file name, a record kind) and the expected decision or values,
+        never record IDs."""
+        self.user_actions.append({"at": when, "action": action, **refs, "note": note})
+
     def record(self, kind: str, file: str, **fields: str) -> None:
         self.records.append({"kind": kind, "file": file, "fields": dict(fields)})
 
@@ -347,7 +354,10 @@ class Grant:
         return dump_list_obj(head, "events")
 
     def user_actions_json(self) -> str:
-        actions = sorted(self.user_actions, key=lambda a: (a["at"], a["file"]))
+        actions = sorted(
+            self.user_actions,
+            key=lambda a: (a["at"], a["action"], a.get("line_id", ""), a.get("file", "")),
+        )
         body = {"sample": self.slug, "actions": [{**a, "at": iso(a["at"])} for a in actions]}
         return dump_list_obj(body, "actions")
 
