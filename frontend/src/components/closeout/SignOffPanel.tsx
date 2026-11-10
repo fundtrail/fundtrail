@@ -58,6 +58,83 @@ function StateLine({ signOff }: { signOff: SignOffState }) {
 }
 
 /**
+ * Withdrawing the current sign-off: a retraction that replaces it (decision
+ * 0022, contracts.md section 1). Nothing is deleted; the signed report stays on
+ * file. The reason is optional, as the contract has it.
+ */
+function WithdrawSignOff({
+  grantId,
+  signOffId,
+  onWithdrawn,
+}: {
+  grantId: Id;
+  signOffId: Id;
+  onWithdrawn: (record: FtRecord) => unknown;
+}) {
+  const api = useApi();
+  const reasonId = useId();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [withdrawn, setWithdrawn] = useState<FtRecord | null>(null);
+
+  async function withdraw(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const text = reason.trim();
+    try {
+      const record = await api.writeRecord(grantId, {
+        data: { kind: "retraction", reason: text === "" ? null : text },
+        replaces_id: signOffId,
+      });
+      setWithdrawn(record);
+      setReason("");
+      await onWithdrawn(record);
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setError(
+          (e.problems ?? [typeof e.detail === "string" ? e.detail : `The sign-off wasn't withdrawn (status ${e.status}).`]).join(" "),
+        );
+      } else {
+        setError("The sign-off wasn't withdrawn.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (withdrawn) {
+    return (
+      <p role="status">
+        Sign-off withdrawn {date(withdrawn.written_at)}. The signed report stays on file.
+      </p>
+    );
+  }
+  return (
+    <form onSubmit={withdraw} aria-label="Withdraw the sign-off">
+      <p>
+        <label htmlFor={reasonId} className="ft-strong">
+          Reason for withdrawing
+        </label>{" "}
+        <span className="ft-caption">(optional)</span>
+        <br />
+        <input id={reasonId} type="text" size={50} value={reason} onChange={(e) => setReason(e.target.value)} />{" "}
+        <button type="submit" className={`ft-btn${busy ? " is-busy" : ""}`} disabled={busy}>
+          Withdraw the sign-off
+        </button>
+      </p>
+      {error && (
+        <p className="ft-error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/**
  * The accountant's sign-off on the evidence report (decision 0022). It sends
  * only the note; the server decides whether the sign-off stands. A note is
  * required whenever anything is still open, and a sign-off is refused while an
@@ -157,6 +234,9 @@ export function SignOffPanel({
 
       {signed && (
         <p role="status">Signed off {date(signed.written_at)}. The report now carries your sign-off.</p>
+      )}
+      {signOff.sign_off && !signed && (
+        <WithdrawSignOff grantId={grantId} signOffId={signOff.sign_off.id} onWithdrawn={onSigned} />
       )}
       <p className="ft-caption">
         Your supervisor approves the closeout in the university&apos;s own system. The report prints a blank
