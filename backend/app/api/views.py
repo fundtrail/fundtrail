@@ -6,12 +6,12 @@ The server works out everything nothing stores, through the contract functions
 
 from __future__ import annotations
 
-import importlib
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
 
+from app.checks.history import history_line
 from app.contracts.api import (
     AnswerView,
     BudgetLineView,
@@ -68,7 +68,6 @@ from app.contracts.records import (
     AcceptedReason,
     Author,
     BudgetAssignment,
-    BudgetLine,
     Confirmation,
     Decision,
     Duplicate,
@@ -92,27 +91,8 @@ from app.db.platform import Platform
 from app.db.pool import transaction, workspace_now
 from app.db.store import Conn, Status, StatusRow
 
-BUCKET_LABEL = {
-    Bucket.EVIDENCE_COMPLETE: "Evidence complete",
-    Bucket.POSSIBLE_CONFLICT: "Possible conflict",
-    Bucket.MISSING_EVIDENCE: "Missing evidence",
-    Bucket.NEEDS_HUMAN: "Needs a human",
-}
 # The buckets on the problem list, most serious first (answer 1).
 _LIST_ORDER = [b for b in SEVERITY if b != Bucket.EVIDENCE_COMPLETE]
-
-
-def _kind_words(kind: RecordKind) -> str:
-    return kind.value.replace("_", " ")
-
-
-def _money(cents: int) -> str:
-    sign = "-" if cents < 0 else ""
-    return f"{sign}${abs(cents) / 100:,.2f}"
-
-
-def _day(at: datetime) -> str:
-    return f"{at:%b} {at.day}, {at.year}"
 
 
 @dataclass
@@ -408,19 +388,17 @@ def term_views(snap: GrantSnapshot) -> list[TermView]:
 
 
 def budget(snap: GrantSnapshot) -> BudgetView:
-    spent = terms.spent_by_line(snap.state, snap.charges)
-    lines = []
-    for line in terms.budget_lines(snap.state):
-        assert isinstance(line.data, BudgetLine)
-        lines.append(
-            BudgetLineView(
-                line=line, amount_cents=line.data.amount.value, spent_cents=spent[line.id]
-            )
-        )
+    """The budget figures as the checks work them out, so they agree with the grant notes:
+    one row per NSF category, its amount added up per notice, its spending counting its
+    sub-lines. Each row shows the category's latest budget_line term in force."""
+    figures = terms.budget_figures(snap.grant.id, snap.state, snap.charges, snap.files)
     return BudgetView(
-        lines=tuple(lines),
-        limit_cents=terms.award_limit(snap.state),
-        spent_cents=sum(c.amount_cents for c in snap.charges),
+        lines=tuple(
+            BudgetLineView(line=f.line, amount_cents=f.amount_cents, spent_cents=f.spent_cents)
+            for f in figures.lines
+        ),
+        limit_cents=figures.limit_cents,
+        spent_cents=figures.spent_cents,
     )
 
 
@@ -506,59 +484,6 @@ def grant_detail(conn: Conn, snap: GrantSnapshot) -> GrantDetail:
 # History and threads.
 
 
-def describe_trigger(snap: GrantSnapshot, trigger: Trigger) -> str:
-    if trigger.kind == TriggerKind.CLOCK:
-        return "time passed"
-    if trigger.kind == TriggerKind.CHARGE:
-        c = snap.charges_by_id.get(trigger.id or "")
-        return f"ledger line {c.ledger_line_id} arrived" if c else "a ledger line arrived"
-    if trigger.kind == TriggerKind.FILE:
-        f = snap.files_by_id.get(trigger.id or "")
-        return f"{f.name} arrived" if f else "a file arrived"
-    if trigger.kind == TriggerKind.THREAD_MESSAGE:
-        return "a question in a thread"
-    record = snap.state.by_id.get(trigger.id or "")
-    if record is None:
-        return "a record changed"
-    return describe_record(snap, record)
-
-
-def describe_record(snap: GrantSnapshot, record: Record) -> str:
-    who = "the accountant" if record.author == Author.USER else "the agent"
-    data = record.data
-    if isinstance(data, Confirmation):
-        targets = [snap.state.by_id[t] for t in data.record_ids if t in snap.state.by_id]
-        verb = "confirmed" if data.decision == Decision.CONFIRMED else "rejected"
-        if any(t.kind == RecordKind.PERIOD_OF_PERFORMANCE for t in targets):
-            earlier = [
-                r
-                for r in snap.records
-                if r.kind == RecordKind.PERIOD_OF_PERFORMANCE
-                and r.id not in data.record_ids
-                and r.written_at <= record.written_at
-            ]
-            return f"new end date {verb}" if earlier else f"period of performance {verb}"
-        kinds = sorted({_kind_words(t.kind) for t in targets}) or ["records"]
-        return f"{', '.join(kinds)} {verb} by {who}"
-    if isinstance(data, Judgment):
-        question = data.question.value.replace("_", " ")
-        return f"answer on {question} by {who}: {data.answer.value}"
-    if isinstance(data, Retraction):
-        return f"retracted by {who}"
-    if record.replaces_id:
-        return f"{_kind_words(record.kind)} corrected by {who}"
-    return f"{_kind_words(record.kind)} added by {who}"
-
-
-def _shared_history_line() -> Callable[..., str] | None:
-    """The checks' `history_line(entry, previous, about, records)` (#24), once it's there."""
-    try:
-        module = importlib.import_module("app.checks.history")
-    except ImportError:
-        return None
-    return getattr(module, "history_line", None)
-
-
 def _trigger_item(
     snap: GrantSnapshot, trigger: Trigger
 ) -> Record | Charge | EvidenceFile | ThreadMessage | None:
@@ -572,41 +497,21 @@ def _trigger_item(
     }.get(trigger.kind, {}).get(trigger.id)
 
 
-def history_text(
-    snap: GrantSnapshot,
-    row: StatusRow,
-    previous: Bucket | None,
-    previous_row: StatusRow | None = None,
-) -> str:
-    """The wording of one status history line.
-
-    The seam for the one function that words status history for the API and the evidence
-    report alike, which the checks (#24) are writing in `app/checks/` (`history_line`).
-    Until it lands, this words it: "Apr 10, 2026 · new end date confirmed · Possible
-    conflict → Evidence complete".
-    """
-    shared = _shared_history_line()
-    if shared is not None:
-        entry = StatusEntry(changed_at=row.changed_at, trigger=row.trigger, status=row.status)
-        before = (
-            StatusEntry(
-                changed_at=previous_row.changed_at,
-                trigger=previous_row.trigger,
-                status=previous_row.status,
-            )
-            if previous_row is not None
-            else None
+def history_text(snap: GrantSnapshot, row: StatusRow, previous_row: StatusRow | None) -> str:
+    """One status history line, worded by the checks' `history_line`, the one function the
+    API and the evidence report share: "Apr 10, 2026 · new end date confirmed · Possible
+    conflict → Evidence complete"."""
+    entry = StatusEntry(changed_at=row.changed_at, trigger=row.trigger, status=row.status)
+    before = (
+        StatusEntry(
+            changed_at=previous_row.changed_at,
+            trigger=previous_row.trigger,
+            status=previous_row.status,
         )
-        return shared(entry, before, _trigger_item(snap, row.trigger), snap.records)
-    bucket = row.status.bucket if isinstance(row.status, ChargeStatus) else None
-    parts = [_day(row.changed_at), describe_trigger(snap, row.trigger)]
-    if bucket is not None:
-        parts.append(
-            f"{BUCKET_LABEL[previous]} → {BUCKET_LABEL[bucket]}"
-            if previous and previous != bucket
-            else BUCKET_LABEL[bucket]
-        )
-    return " · ".join(parts)
+        if previous_row is not None
+        else None
+    )
+    return history_line(entry, before, _trigger_item(snap, row.trigger), snap.records)
 
 
 def history_entries(snap: GrantSnapshot, rows: Sequence[StatusRow]) -> list[HistoryEntry]:
@@ -620,7 +525,7 @@ def history_entries(snap: GrantSnapshot, rows: Sequence[StatusRow]) -> list[Hist
                 entry=StatusEntry(
                     changed_at=row.changed_at, trigger=row.trigger, status=row.status
                 ),
-                text=history_text(snap, row, previous, previous_row),
+                text=history_text(snap, row, previous_row),
             )
         )
         previous = bucket or previous
