@@ -1106,11 +1106,32 @@ export interface LedgerUploadResult {
   rejected: RowError[];
 }
 
-/** GET /evidence/{file_id}/content: a short-lived link to the original. */
+/** A span of characters kept from the stored file, and where it sits in the reading text. */
+export interface TextSegment {
+  stored_start: number;
+  reading_start: number;
+  length: number;
+}
+
+/**
+ * The text the agent reads for an email on a grant with a stored clock
+ * (ruling 45). The segments are the spans kept from the stored file, in
+ * order; the gaps between them are headers replaced or dropped.
+ */
+export interface ReadingView {
+  text: string;
+  segments: TextSegment[];
+}
+
+/**
+ * GET /evidence/{file_id}/content: a short-lived link to the original. `url`
+ * is always the original; `reading`, when set, is what the viewer shows.
+ */
 export interface FileLink {
   url: string;
   media_type?: string | null;
   expires_at: IsoDatetime;
+  reading?: ReadingView | null;
 }
 
 // --- api.py: the records request (POST /grants/{grant_id}/records) ---

@@ -234,3 +234,49 @@ describe("Viewer: photos and scans", () => {
     expect(screen.getByTestId("side-quote")).toHaveTextContent("$86.40");
   });
 });
+
+
+describe("Viewer: an email as the agent reads it (ruling 45)", () => {
+  const STORED = "From: core@sequencing.example\nDate: Sat, 21 Feb 2026 09:12:00 -0800\nSubject: Statement\n\nTotal: $2,180.00\n";
+  const READING = "From: core@sequencing.example\nDate: Tuesday, February 24, 2026\nSubject: Statement\n\nTotal: $2,180.00\n";
+  const keptFrom = "From: core@sequencing.example\n".length;
+  const reading = {
+    text: READING,
+    segments: [
+      { stored_start: 0, reading_start: 0, length: keptFrom },
+      {
+        stored_start: STORED.indexOf("Subject:"),
+        reading_start: READING.indexOf("Subject:"),
+        length: STORED.length - STORED.indexOf("Subject:"),
+      },
+    ],
+  };
+  const file = { name: "statement.eml", media_type: "message/rfc822" };
+
+  it("shows the reading text with the highlight carried over, and links the original", async () => {
+    const c = charCitation("Total: $2,180.00", STORED, [[7, 16]]);
+    render(<Viewer file={file} url={textUrl(STORED)} citation={c} valueText="$2,180.00" reading={reading} />);
+    const text = await screen.findByTestId("viewer-text");
+    expect(text.textContent).toBe(READING);
+    expect([...text.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["$2,180.00"]);
+    expect(within(screen.getByTestId("reading-note")).getByRole("link", { name: "Download the original" })).toHaveAttribute(
+      "href",
+      textUrl(STORED),
+    );
+  });
+
+  it("highlights the replaced Date line for a value cited from the stored header", async () => {
+    const c = charCitation("Sat, 21 Feb 2026", STORED, null);
+    render(<Viewer file={file} url={textUrl(STORED)} citation={c} reading={reading} />);
+    const text = await screen.findByTestId("viewer-text");
+    expect([...text.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["Date: Tuesday, February 24, 2026"]);
+  });
+
+  it("shows the stored email as before when there's no reading text", async () => {
+    const c = charCitation("Total: $2,180.00", STORED, [[7, 16]]);
+    render(<Viewer file={file} url={textUrl(STORED)} citation={c} />);
+    const text = await screen.findByTestId("viewer-text");
+    expect(text.textContent).toBe(STORED);
+    expect(screen.queryByTestId("reading-note")).not.toBeInTheDocument();
+  });
+});
