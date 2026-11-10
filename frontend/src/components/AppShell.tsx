@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { useClock, useGrants, useWorkspaces, type Id } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date } from "@/lib/format";
+import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
 function NavLink({ href, children, count }: { href: string; children: ReactNode; count?: number }) {
@@ -41,11 +42,11 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
       </div>
       {workspaceId && (
         <div className="ft-nav">
-          <NavLink href={`/w/${encodeURIComponent(workspaceId)}`}>Grants</NavLink>
+          <NavLink href={routes.workspace(workspaceId)}>Grants</NavLink>
           <ul className="ft-nav__grants">
             {grants.data?.map((g) => (
               <li key={g.grant.id}>
-                <NavLink href={`/grants/${encodeURIComponent(g.grant.id)}`} count={g.on_problem_list}>
+                <NavLink href={routes.grant(g.grant.id)} count={g.on_problem_list}>
                   {g.grant.award_number ?? grantName(g)}
                 </NavLink>
               </li>

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { ChargeRow } from "@/lib/api";
+import { routes } from "@/lib/routes";
 import { CATEGORY_LABELS, date, money } from "@/lib/format";
 import { ChargeStatusBadge } from "./BucketBadge";
 
@@ -26,14 +28,18 @@ export function ChargesTable({ rows }: { rows: ChargeRow[] }) {
         </tr>
       </thead>
       <tbody>
-        {rows.map(({ charge, status, budget_line, account_categories }) => (
+        {rows.map(({ charge, status = null, budget_line, account_categories = [] }) => (
           <tr key={charge.id}>
             <td>
               <div className="ft-num">{date(charge.transaction_date)}</div>
               <div className="ft-id">{charge.ledger_line_id}</div>
             </td>
             <td>
-              <div>{charge.description}</div>
+              <div>
+                <Link className="ft-link" href={routes.charge(charge.grant_id, charge.id)}>
+                  {charge.description}
+                </Link>
+              </div>
               {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
             </td>
             <td>
