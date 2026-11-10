@@ -1,0 +1,114 @@
+<!-- @dsCard group="Problem list" height=1180 width=960 subtitle="Records with problems of their own, in the same list as charges, with Snooze and Accept with a note on every row (PR 6)" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProblemRecords preview</title>
+<style>
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
+  .pr { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+  .pr .ft-panel__head { gap: 12px; }
+  .pr-sub { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .pr-done { margin: 0 16px 12px; }
+  .pr .ft-trail__done { margin-top: 12px; }
+</style>
+</head>
+<body>
+<main class="pr">
+  <section class="ft-panel" aria-labelledby="pr-h1">
+    <div class="ft-panel__head"><div><h2 class="ft-heading" id="pr-h1">Problem list on Apr 10, 2026</h2><span class="pr-sub" id="pr-count"></span></div><span class="ft-caption">Example Bay, after the extension notice arrives</span></div>
+    <div id="pr-done1"></div>
+    <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Problem list">
+      <div class="ft-ledger__head" role="row"><span role="columnheader">Date</span><span role="columnheader">Problem</span><span role="columnheader" class="ft-row__amount">Amount</span><span role="columnheader">Bucket or kind</span></div>
+      <div id="pr-rows1" role="rowgroup"></div>
+    </div>
+  </section>
+  <section class="ft-panel" aria-labelledby="pr-h2">
+    <div class="ft-panel__head"><div><h2 class="ft-heading" id="pr-h2">Every other kind of record</h2><span class="pr-sub">Examples, not part of the demo grant. Code raises the first four; the agent raises flags, with its reasoning.</span></div></div>
+    <div id="pr-done2"></div>
+    <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Other kinds of record">
+      <div class="ft-ledger__head" role="row"><span role="columnheader">Date</span><span role="columnheader">Problem</span><span role="columnheader" class="ft-row__amount">Amount</span><span role="columnheader">Kind</span></div>
+      <div id="pr-rows2" role="rowgroup"></div>
+    </div>
+  </section>
+</main>
+<!-- @problems-script -->
+<script>
+(function () {
+  var P = window.FTProblems, $ = function (id) { return document.getElementById(id); };
+  var TODAY = '2026-04-10', WINDOW = '2026-11-02';
+  var NAMES = { conflict: 'Possible conflict', human: 'Needs a human', missing: 'Missing evidence' };
+  /* Records that change what the checks use (a term waiting) sort first; then charges, most serious first, then oldest. A proposal: the PR leaves the sort open. */
+  var list1 = [
+    { row: 'record', id: 'R-term-01', kind: 'term', title: 'Term waiting: new end date, Jan 31, 2027', why: 'Amendment 01, read from extension_notice.txt. Touches 1 charge now: L-1002.', listed: 'Apr 10, 2026', by: 'code' },
+    { row: 'charge', id: 'L-0981', date: 'Oct 3, 2025', name: 'Conference registration', reason: 'Approved by the principal investigator, not the program officer.', amount: '$650.00', bucket: 'conflict', account: 'Participant Support Costs', vendor: 'Example Ocean Sciences Meeting', problem: 'Approver’s role and channel: approved by the principal investigator by email, not the program officer through Research.gov.', problemShort: 'Approver’s role and channel' },
+    { row: 'charge', id: 'L-1002', date: 'Feb 20, 2026', name: 'Sediment DNA sequencing run 7', reason: 'Work done after the grant’s end date, Jan 31, 2026.', amount: '$2,180.00', bucket: 'conflict', account: 'Other Direct Costs', vendor: 'Example Sequencing Core', problem: 'Period of performance: work done Feb 20, 2026, after the end date in force, Jan 31, 2026.', problemShort: 'Period of performance' },
+    { row: 'charge', id: 'L-1010', date: 'Jan 9, 2026', name: 'Sequencing core, shared run 6', reason: 'Invoice SEQ-0311 covers two grants; nothing gives this grant’s part.', amount: '$5,833.33', bucket: 'human', account: 'Other Direct Costs', vendor: 'Example Sequencing Core', problem: 'Bills cover the amount: invoice SEQ-0311 is for $10,000.00 and nothing on file gives this grant’s part.', problemShort: 'Bills cover the amount' },
+    { row: 'charge', id: 'L-1019', date: 'Jan 21, 2026', name: 'Field microscope camera', reason: 'The agent is unsure the cost is for this project.', amount: '$1,325.00', bucket: 'human', account: 'Materials and Supplies', vendor: 'Example Optics Supply', problem: 'Is it for this project? The agent is unsure.', problemShort: 'For this project' },
+    { row: 'charge', id: 'L-1015', date: 'Jan 14, 2026', name: 'Field boat rental', reason: 'No bill on file. Missing for 60 days, since Jan 16.', amount: '$1,480.00', bucket: 'missing', account: 'Other Direct Costs', vendor: 'Example Marina', problem: 'Evidence checklist: a bill that adds up to $1,480.00 is missing.', problemShort: 'A bill that adds up to the charge' }
+  ];
+  var list2 = [
+    { row: 'record', id: 'R-2050', kind: 'unlinked', title: 'Invoice 2050: $5,000.00 never charged', why: 'Arrived Mar 30, 2026 and no charge links to it after 60 days.', listed: 'May 29, 2026', by: 'code', amount: '$5,000.00' },
+    { row: 'record', id: 'R-1044', kind: 'overlinked', title: 'Invoice INV-1044 linked for more than its total', why: 'Linked for $2,232.00 across L-1021 and L-1023; its total is $1,240.00.', listed: 'May 4, 2026', by: 'code', amount: '$1,240.00' },
+    { row: 'record', id: 'R-ends', kind: 'disagree', title: 'Two end dates in force', why: 'Amendment 01 says Jan 31, 2027; amendment 02 says Jun 30, 2027. Both are confirmed.', listed: 'Jun 12, 2026', by: 'code' },
+    { row: 'record', id: 'R-dup', kind: 'duplicate', title: 'boat_rental_receipt.jpg is on the grant twice', why: 'The same file arrived by Gmail on Apr 12 and by upload on Apr 14. The newer copy isn’t linked.', listed: 'Apr 14, 2026', by: 'code' },
+    { row: 'record', id: 'R-flag1', kind: 'flag', title: 'A photo and a PDF of the same invoice', why: 'seq0311_scan.jpg shows the same invoice number, date and total as invoice_SEQ-0311.pdf.', listed: 'May 2, 2026', by: 'agent' },
+    { row: 'record', id: 'R-flag2', kind: 'flag', title: 'Evidence for another grant', why: 'The receipt names award SYN-2300245, and no charge on this grant matches it.', listed: 'May 9, 2026', by: 'agent', amount: '$318.40' }
+  ];
+  var removed = { 1: [], 2: [] }, selected = 'R-term-01';
+  function chargeRow(c) {
+    return '<div class="ft-row' + (c.id === selected ? ' is-selected' : '') + '" role="row" tabindex="0" data-id="' + c.id + '" data-row="charge">' +
+      '<span class="ft-row__date">' + c.date + '<span class="ft-id">' + c.id + '</span></span>' +
+      '<span class="ft-row__desc"><span class="ft-row__name">' + c.name + '</span><span class="ft-row__reason">' + c.reason + '</span>' + P.rowActionsHtml(c.id, null, c.name) + '</span>' +
+      '<span class="ft-row__amount ft-amount">' + c.amount + '</span><span class="ft-row__bucket"><span class="ft-badge ft-badge--' + c.bucket + '">' + NAMES[c.bucket] + '</span></span></div>';
+  }
+  function rowHtml(r) { return r.row === 'charge' ? chargeRow(r) : P.recordRowHtml(Object.assign({}, r, { selected: r.id === selected })); }
+  function render() {
+    var a = list1.filter(function (r) { return removed[1].indexOf(r.id) < 0; }), b = list2.filter(function (r) { return removed[2].indexOf(r.id) < 0; });
+    $('pr-rows1').innerHTML = a.map(rowHtml).join('') || '<div class="ft-empty">Nothing on the list.</div>';
+    $('pr-rows2').innerHTML = b.map(rowHtml).join('') || '<div class="ft-empty">Nothing on the list.</div>';
+    var nc = a.filter(function (r) { return r.row === 'charge'; }).length, nr = a.length - nc;
+    $('pr-count').textContent = a.length + ' problems: ' + nc + ' charge' + (nc === 1 ? '' : 's') + ' and ' + nr + ' record' + (nr === 1 ? '' : 's');
+  }
+  function find(id) { var all = list1.concat(list2); for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i]; return null; }
+  function listOf(id) { return list1.some(function (r) { return r.id === id; }) ? 1 : 2; }
+  function target(r) { return r.row === 'charge' ? { id: r.id, title: r.name, amount: r.amount, problem: r.problem, problemShort: r.problemShort, account: r.account, vendor: r.vendor, kind: 'charge' } : { id: r.id, title: r.title, amount: r.amount, problem: r.why, kind: 'record' }; }
+  function done(id, text) {
+    var n = listOf(id), box = $('pr-done' + n);
+    removed[n].push(id); render();
+    box.innerHTML = '<div class="ft-trail__done pr-done" role="status" tabindex="-1"><span>' + text + '</span><button type="button" data-undo="' + id + '">Undo</button></div>';
+    box.firstChild.focus();
+  }
+  function say(id, text) { var n = listOf(id), box = $('pr-done' + n); box.innerHTML = '<div class="ft-trail__done pr-done" role="status" tabindex="-1"><span>' + text + '</span></div>'; box.firstChild.focus(); }
+  [$('pr-rows1'), $('pr-rows2')].forEach(function (c) {
+    P.bind(c, {
+      snooze: function (id, btn) { var r = find(id), t = target(r); P.snoozeDialog({ target: t, opener: btn, today: TODAY, windowOpens: WINDOW, reason: id === 'L-1010' ? 'Waiting on the other grant’s accountant' : '' }, function (res) { done(id, P.doneText('snooze', t, res)); }); },
+      accept: function (id, btn) { var r = find(id), t = target(r); P.acceptDialog({ target: t, opener: btn, alsoCovers: 0 }, function (res) { done(id, P.doneText('accept', t, res)); }); },
+      open: function (id) { say(id, 'Opens the record with its thread and its actions. On the grant page it’s the right side.'); },
+      'confirm-dup': function (id) { done(id, 'Confirmed as a duplicate. Both files are kept; the newer one stays unlinked.'); },
+      'not-dup': function (id) { done(id, 'Not a duplicate. The newer file goes back to matching.'); }
+    });
+    c.addEventListener('click', function (e) { if (e.target.closest('[data-pb-act]')) return; var row = e.target.closest('.ft-row'); if (!row) return; selected = row.getAttribute('data-id'); render(); var r2 = document.querySelector('.ft-row[data-id="' + selected + '"]'); if (r2) r2.focus(); });
+    c.addEventListener('keydown', function (e) {
+      var row = e.target.classList && e.target.classList.contains('ft-row') ? e.target : null; if (!row) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var s = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling; if (s && s.classList.contains('ft-row')) s.focus(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    });
+  });
+  document.addEventListener('click', function (e) {
+    var u = e.target.closest ? e.target.closest('[data-undo]') : null; if (!u) return;
+    var id = u.getAttribute('data-undo'), n = listOf(id);
+    removed[n] = removed[n].filter(function (x) { return x !== id; }); $('pr-done' + n).innerHTML = ''; render();
+    var r = document.querySelector('.ft-row[data-id="' + id + '"]'); if (r) r.focus();
+  });
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (h.t) document.documentElement.setAttribute('data-theme', h.t);
+  if (h.sel) selected = h.sel;
+  render();
+  if (h.open === 'snooze') P.snoozeDialog({ target: target(find('L-1010')), today: TODAY, windowOpens: WINDOW, reason: 'Waiting on the other grant’s accountant' }, function () {});
+  if (h.open === 'accept') P.acceptDialog({ target: target(find('L-0981')), alsoCovers: 0 }, function () {});
+})();
+</script>
+</body>
+</html>

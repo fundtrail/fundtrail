@@ -1,0 +1,26 @@
+<!-- @dsCard group="Status" height=210 subtitle="Filter tabs above a list; a strip on reports" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BucketSummary preview</title></head>
+<body>
+<div class="ft-stage">
+  <section class="ft-panel" style="width:100%" aria-label="Problem list">
+    <div class="ft-tabs" role="tablist" aria-label="Filter by bucket">
+      <button type="button" role="tab" class="ft-tab" aria-selected="true">All <span class="ft-count">5</span></button>
+      <button type="button" role="tab" class="ft-tab" aria-selected="false"><span class="ft-tab-mark ft-tab-mark--conflict" aria-hidden="true"></span>Possible conflict <span class="ft-count">2</span></button>
+      <button type="button" role="tab" class="ft-tab" aria-selected="false"><span class="ft-tab-mark ft-tab-mark--human" aria-hidden="true"></span>Needs a human <span class="ft-count">2</span></button>
+      <button type="button" role="tab" class="ft-tab" aria-selected="false"><span class="ft-tab-mark ft-tab-mark--missing" aria-hidden="true"></span>Missing evidence <span class="ft-count">1</span></button>
+    </div>
+  </section>
+  <div class="ft-summary" role="group" aria-label="Charges by bucket, SYN-2300117">
+    <div class="ft-summary__grid">
+      <div class="ft-summary__cell"><span class="ft-badge ft-badge--conflict">Possible conflict</span><span class="ft-summary__count">2</span></div>
+      <div class="ft-summary__cell"><span class="ft-badge ft-badge--human">Needs a human</span><span class="ft-summary__count">2</span></div>
+      <div class="ft-summary__cell"><span class="ft-badge ft-badge--missing">Missing evidence</span><span class="ft-summary__count">1</span></div>
+      <div class="ft-summary__cell"><span class="ft-badge ft-badge--complete">Evidence complete</span><span class="ft-summary__count">46</span></div>
+    </div>
+    <div class="ft-summary__foot"><span>51 charges <span class="ft-sep">&middot;</span> <span class="ft-id">SYN-2300117</span></span><span>Total charged <b class="ft-amount" style="color:var(--ink)">$184,320.55</b></span></div>
+  </div>
+</div>
+</body>
+</html>

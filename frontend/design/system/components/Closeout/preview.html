@@ -1,0 +1,733 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: closeout for one grant, Berkeley's steps, what's left, the evidence report and the sign-off" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closeout preview</title>
+<style>
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item" href="#">Problem list <span class="ft-count ft-count--alert" id="co-side-problems">3</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item" href="#">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms</a>
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <a class="ft-nav__item ft-nav__item--add" href="#">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Closeout</b></span></div>
+      <div></div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption" id="co-caption"></span>
+          <h1 class="ft-grant-head__title" id="co-title"></h1>
+        </div>
+        <div class="ft-ready" id="co-ready"></div>
+      </section>
+
+      <section class="ft-co-section" aria-labelledby="co-steps-h">
+        <div class="ft-co-section__head">
+          <h2 class="ft-heading" id="co-steps-h">Berkeley&rsquo;s closeout steps</h2>
+          <span class="ft-caption">From Contracts and Grants Accounting (CGA), for an end date of Jan 31, 2027</span>
+        </div>
+        <ol class="ft-co-steps">
+          <li class="ft-co-step is-today"><span class="ft-co-step__date">Apr 12, 2026</span><span class="ft-co-step__name">Today</span><span id="co-today-ready"></span></li>
+          <li class="ft-co-step"><span class="ft-co-step__date">Nov 2, 2026</span><span class="ft-co-step__name">Notice of Expiration</span><span>CGA sends it 90, 60 and 30 days before the end date</span></li>
+          <li class="ft-co-step"><span class="ft-co-step__date">Jan 31, 2027</span><span class="ft-co-step__name">End date</span><span>No new spending. Adjustments until the books close</span></li>
+          <li class="ft-co-step is-key"><span class="ft-tag">Your deadline</span><span class="ft-co-step__date">Mar 31, 2027</span><span class="ft-co-step__name">Award Closeout Certification due</span><span>You file it in BFS (Berkeley Financial System) with the ledger report</span></li>
+          <li class="ft-co-step"><span class="ft-co-step__date">May 1, 2027</span><span class="ft-co-step__name">Final financial report</span><span>Day 90. CGA enters the final amount in the Award Cash Management Service (ACM$) for NSF</span></li>
+          <li class="ft-co-step"><span class="ft-co-step__date">May 31, 2027</span><span class="ft-co-step__name">Day 120</span><span>Anything missed needs a Closeout Exception Request</span></li>
+        </ol>
+      </section>
+
+      <div class="ft-co-split">
+        <section class="ft-panel" aria-labelledby="co-open-h">
+          <div class="ft-panel__head"><h2 class="ft-heading" id="co-open-h">Before you sign off</h2><span class="ft-caption" id="co-open-count"></span></div>
+          <div class="ft-ledger ft-ledger--flush">
+            <div class="ft-ledger__head" aria-hidden="true"><span>Date</span><span>Charge</span><span class="ft-row__amount">Amount</span><span>Bucket</span></div>
+            <ul class="ft-co-open" id="co-open" aria-label="Charges that aren't Evidence complete"></ul>
+          </div>
+          <div class="ft-co-panel-foot"><span>Missing evidence: none on this grant.</span><a class="ft-link" href="#">Open the problem list</a></div>
+        </section>
+
+        <section class="ft-panel" aria-labelledby="co-report-h">
+          <div class="ft-panel__head"><h2 class="ft-heading" id="co-report-h">Evidence report</h2><span class="ft-co-status" id="co-status"></span></div>
+          <div class="ft-panel__body">
+            <div class="ft-co-report">
+              <p class="ft-meta" id="co-report-meta"></p>
+              <span class="ft-caption" id="co-report-note"></span>
+              <div class="ft-actions"><button type="button" class="ft-btn" data-act="preview-report">Preview</button><button type="button" class="ft-btn ft-btn--quiet" data-act="download">Download PDF</button></div>
+            </div>
+            <div id="co-sign"></div>
+          </div>
+        </section>
+      </div>
+
+      <p class="ft-co-foot">Attach the report to the Award Closeout Certification in BFS, next to the CalAnswers ledger report. FundTrail files nothing with the university or NSF.</p>
+    </div>
+  </div>
+</div>
+
+<!-- @report-scripts -->
+<script>
+window.FTReportData = {"grant": {"award": "SYN-2300117", "title": "Sediment Microbiome Survey of Example Bay", "funder": "National Science Foundation (NSF)", "recipient": "Example State University", "pi": "Dr. Robin Example", "period": "Feb 1, 2023 to Jan 31, 2027", "periodNote": "End date moved from Jan 31, 2026 by amendment 01, confirmed Apr 10, 2026", "awarded": "$120,000.00", "charged": "$96,412.18", "asOf": "Apr 12, 2026", "budget": [{"line": "Materials and Supplies", "budget": "$40,000.00", "charged": "$30,565.00"}, {"line": "Other Direct Costs", "budget": "$60,000.00", "charged": "$53,493.33"}, {"line": "Participant Support Costs", "budget": "$20,000.00", "charged": "$12,353.85"}]}, "counts": {"complete": 48, "conflict": 1, "human": 2, "missing": 0}, "charges": [{"date": "2023-03-28", "desc": "Sample shipping, frozen", "vendor": "Example Freight", "line": "Other Direct Costs", "cents": 284000, "bucket": "complete", "id": "L-0100", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0100.pdf", "amount": "$2,840.00", "dateText": "Mar 28, 2023"}, {"date": "2023-04-05", "desc": "Field sampling gloves", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 108300, "bucket": "complete", "id": "L-0119", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0119.pdf", "amount": "$1,083.00", "dateText": "Apr 5, 2023"}, {"date": "2023-06-13", "desc": "Sample shipping, frozen", "vendor": "Example Freight", "line": "Other Direct Costs", "cents": 130600, "bucket": "complete", "id": "L-0138", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0138.pdf", "amount": "$1,306.00", "dateText": "Jun 13, 2023"}, {"date": "2023-07-12", "desc": "Workshop registration, student", "vendor": "Example Coastal Science Workshop", "line": "Participant Support Costs", "cents": 167525, "bucket": "complete", "id": "L-0157", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0157.pdf", "amount": "$1,675.25", "dateText": "Jul 12, 2023"}, {"date": "2023-09-15", "desc": "Participant travel, field course", "vendor": "Example Regional Transit", "line": "Participant Support Costs", "cents": 107600, "bucket": "complete", "id": "L-0176", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0176.pdf", "amount": "$1,076.00", "dateText": "Sep 15, 2023"}, {"date": "2023-11-11", "desc": "Core sampler parts", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 156600, "bucket": "complete", "id": "L-0195", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0195.pdf", "amount": "$1,566.00", "dateText": "Nov 11, 2023"}, {"date": "2023-11-21", "desc": "Cooler and ice packs", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 79550, "bucket": "complete", "id": "L-0214", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0214.pdf", "amount": "$795.50", "dateText": "Nov 21, 2023"}, {"date": "2023-11-26", "desc": "Sediment DNA sequencing", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 183025, "bucket": "complete", "id": "L-0233", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0233.pdf", "amount": "$1,830.25", "dateText": "Nov 26, 2023"}, {"date": "2024-01-21", "desc": "Cooler and ice packs", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 98100, "bucket": "complete", "id": "L-0252", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0252.pdf", "amount": "$981.00", "dateText": "Jan 21, 2024"}, {"date": "2024-01-21", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 108300, "bucket": "complete", "id": "L-0271", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0271.pdf", "amount": "$1,083.00", "dateText": "Jan 21, 2024"}, {"date": "2024-01-22", "desc": "Field boat rental", "vendor": "Example Marina", "line": "Other Direct Costs", "cents": 180125, "bucket": "complete", "id": "L-0290", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0290.pdf", "amount": "$1,801.25", "dateText": "Jan 22, 2024"}, {"date": "2024-03-03", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 249050, "bucket": "complete", "id": "L-0309", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0309.pdf", "amount": "$2,490.50", "dateText": "Mar 3, 2024"}, {"date": "2024-03-07", "desc": "Ethanol, molecular grade", "vendor": "Example Chemical Supply", "line": "Materials and Supplies", "cents": 107125, "bucket": "complete", "id": "L-0328", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0328.pdf", "amount": "$1,071.25", "dateText": "Mar 7, 2024"}, {"date": "2024-03-10", "desc": "Pipette tips", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 187350, "bucket": "complete", "id": "L-0347", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0347.pdf", "amount": "$1,873.50", "dateText": "Mar 10, 2024"}, {"date": "2024-03-21", "desc": "Data storage, annual", "vendor": "Example Cloud Storage", "line": "Other Direct Costs", "cents": 334652, "bucket": "complete", "id": "L-0366", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0366.pdf", "amount": "$3,346.52", "dateText": "Mar 21, 2024"}, {"date": "2024-04-05", "desc": "Sample shipping, frozen", "vendor": "Example Freight", "line": "Other Direct Costs", "cents": 335325, "bucket": "complete", "id": "L-0385", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0385.pdf", "amount": "$3,353.25", "dateText": "Apr 5, 2024"}, {"date": "2024-04-05", "desc": "Participant lodging, field course", "vendor": "Example Bay Field Station", "line": "Participant Support Costs", "cents": 117510, "bucket": "complete", "id": "L-0404", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0404.pdf", "amount": "$1,175.10", "dateText": "Apr 5, 2024"}, {"date": "2024-07-19", "desc": "Field course stipend", "vendor": "Field course participant", "line": "Participant Support Costs", "cents": 93500, "bucket": "complete", "id": "L-0423", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0423.pdf", "amount": "$935.00", "dateText": "Jul 19, 2024"}, {"date": "2024-08-01", "desc": "Sample shipping, frozen", "vendor": "Example Freight", "line": "Other Direct Costs", "cents": 227000, "bucket": "complete", "id": "L-0442", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0442.pdf", "amount": "$2,270.00", "dateText": "Aug 1, 2024"}, {"date": "2024-08-01", "desc": "Sample shipping, frozen", "vendor": "Example Freight", "line": "Other Direct Costs", "cents": 244350, "bucket": "complete", "id": "L-0461", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0461.pdf", "amount": "$2,443.50", "dateText": "Aug 1, 2024"}, {"date": "2024-08-22", "desc": "Participant lodging, field course", "vendor": "Example Bay Field Station", "line": "Participant Support Costs", "cents": 89550, "bucket": "complete", "id": "L-0480", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0480.pdf", "amount": "$895.50", "dateText": "Aug 22, 2024"}, {"date": "2024-09-01", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 284800, "bucket": "complete", "id": "L-0499", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0499.pdf", "amount": "$2,848.00", "dateText": "Sep 1, 2024"}, {"date": "2024-09-12", "desc": "Workshop registration, student", "vendor": "Example Coastal Science Workshop", "line": "Participant Support Costs", "cents": 154150, "bucket": "complete", "id": "L-0518", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0518.pdf", "amount": "$1,541.50", "dateText": "Sep 12, 2024"}, {"date": "2024-09-22", "desc": "Sediment DNA sequencing", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 207850, "bucket": "complete", "id": "L-0537", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0537.pdf", "amount": "$2,078.50", "dateText": "Sep 22, 2024"}, {"date": "2024-10-09", "desc": "Data storage, annual", "vendor": "Example Cloud Storage", "line": "Other Direct Costs", "cents": 279899, "bucket": "complete", "id": "L-0556", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0556.pdf", "amount": "$2,798.99", "dateText": "Oct 9, 2024"}, {"date": "2024-10-17", "desc": "Core sampler parts", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 167100, "bucket": "complete", "id": "L-0575", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0575.pdf", "amount": "$1,671.00", "dateText": "Oct 17, 2024"}, {"date": "2024-10-17", "desc": "Field course stipend", "vendor": "Field course participant", "line": "Participant Support Costs", "cents": 66700, "bucket": "complete", "id": "L-0594", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0594.pdf", "amount": "$667.00", "dateText": "Oct 17, 2024"}, {"date": "2024-11-03", "desc": "Field boat rental", "vendor": "Example Marina", "line": "Other Direct Costs", "cents": 211000, "bucket": "complete", "id": "L-0613", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0613.pdf", "amount": "$2,110.00", "dateText": "Nov 3, 2024"}, {"date": "2024-11-17", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 124825, "bucket": "complete", "id": "L-0632", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0632.pdf", "amount": "$1,248.25", "dateText": "Nov 17, 2024"}, {"date": "2024-11-26", "desc": "Library preparation service", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 365400, "bucket": "complete", "id": "L-0651", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0651.pdf", "amount": "$3,654.00", "dateText": "Nov 26, 2024"}, {"date": "2024-12-03", "desc": "Data storage, annual", "vendor": "Example Cloud Storage", "line": "Other Direct Costs", "cents": 359399, "bucket": "complete", "id": "L-0670", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0670.pdf", "amount": "$3,593.99", "dateText": "Dec 3, 2024"}, {"date": "2024-12-19", "desc": "Cooler and ice packs", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 161125, "bucket": "complete", "id": "L-0689", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0689.pdf", "amount": "$1,611.25", "dateText": "Dec 19, 2024"}, {"date": "2025-01-09", "desc": "Library preparation service", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 227525, "bucket": "complete", "id": "L-0708", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0708.pdf", "amount": "$2,275.25", "dateText": "Jan 9, 2025"}, {"date": "2025-01-27", "desc": "Open access publication fee", "vendor": "Example Journal of Microbial Ecology", "line": "Other Direct Costs", "cents": 316400, "bucket": "complete", "id": "L-0727", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0727.pdf", "amount": "$3,164.00", "dateText": "Jan 27, 2025"}, {"date": "2025-02-07", "desc": "DNA extraction kits", "vendor": "Example Chemical Supply", "line": "Materials and Supplies", "cents": 148599, "bucket": "complete", "id": "L-0746", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0746.pdf", "amount": "$1,485.99", "dateText": "Feb 7, 2025"}, {"date": "2025-02-28", "desc": "Open access publication fee", "vendor": "Example Journal of Microbial Ecology", "line": "Other Direct Costs", "cents": 382525, "bucket": "complete", "id": "L-0765", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0765.pdf", "amount": "$3,825.25", "dateText": "Feb 28, 2025"}, {"date": "2025-03-17", "desc": "DNA extraction kits", "vendor": "Example Chemical Supply", "line": "Materials and Supplies", "cents": 224853, "bucket": "complete", "id": "L-0784", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0784.pdf", "amount": "$2,248.53", "dateText": "Mar 17, 2025"}, {"date": "2025-03-18", "desc": "Sediment DNA sequencing", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 130925, "bucket": "complete", "id": "L-0803", "reason": "Invoice covers it in full. Work in the period.", "source": "invoice_0803.pdf", "amount": "$1,309.25", "dateText": "Mar 18, 2025"}, {"date": "2025-03-20", "desc": "Workshop registration, student", "vendor": "Example Coastal Science Workshop", "line": "Participant Support Costs", "cents": 104900, "bucket": "complete", "id": "L-0822", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0822.pdf", "amount": "$1,049.00", "dateText": "Mar 20, 2025"}, {"date": "2025-04-03", "desc": "Participant lodging, field course", "vendor": "Example Bay Field Station", "line": "Participant Support Costs", "cents": 186100, "bucket": "complete", "id": "L-0841", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0841.pdf", "amount": "$1,861.00", "dateText": "Apr 3, 2025"}, {"date": "2025-07-07", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 164699, "bucket": "complete", "id": "L-0860", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0860.pdf", "amount": "$1,646.99", "dateText": "Jul 7, 2025"}, {"date": "2025-08-06", "desc": "Pipette tips", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 159699, "bucket": "complete", "id": "L-0879", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0879.pdf", "amount": "$1,596.99", "dateText": "Aug 6, 2025"}, {"date": "2025-09-15", "desc": "Field sampling gloves", "vendor": "Example Field Gear", "line": "Materials and Supplies", "cents": 195825, "bucket": "complete", "id": "L-0898", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0898.pdf", "amount": "$1,958.25", "dateText": "Sep 15, 2025"}, {"date": "2025-09-17", "desc": "Participant lodging, field course", "vendor": "Example Bay Field Station", "line": "Participant Support Costs", "cents": 82850, "bucket": "complete", "id": "L-0917", "reason": "Participant support in the budget. Receipt covers it in full.", "source": "psc_receipt_0917.pdf", "amount": "$828.50", "dateText": "Sep 17, 2025"}, {"date": "2025-09-19", "desc": "Ethanol, molecular grade", "vendor": "Example Chemical Supply", "line": "Materials and Supplies", "cents": 74100, "bucket": "complete", "id": "L-0936", "reason": "Receipt covers it in full. Work in the period.", "source": "receipt_0936.pdf", "amount": "$741.00", "dateText": "Sep 19, 2025"}, {"id": "L-0981", "date": "2025-10-03", "desc": "Conference registration", "vendor": "Example Ocean Sciences Meeting", "line": "Participant Support Costs", "cents": 65000, "bucket": "conflict", "reason": "Approved by the principal investigator, not the program officer.", "source": "approval_email.eml", "amount": "$650.00", "dateText": "Oct 3, 2025"}, {"id": "L-1001", "date": "2025-11-12", "desc": "Sediment core liners", "vendor": "Example Lab Supply Co.", "line": "Materials and Supplies", "cents": 124000, "bucket": "complete", "reason": "Invoice INV-1001 covers it in full. Work in the period.", "source": "invoice_1001.txt", "amount": "$1,240.00", "dateText": "Nov 12, 2025"}, {"id": "L-1010", "date": "2026-01-09", "desc": "Sequencing core, shared run 6", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 583333, "bucket": "human", "reason": "Invoice SEQ-0311 covers two grants; nothing gives this grant's part.", "source": "invoice_SEQ-0311.pdf", "amount": "$5,833.33", "dateText": "Jan 9, 2026"}, {"id": "L-1015", "date": "2026-01-14", "desc": "Field boat rental", "vendor": "Example Marina", "line": "Other Direct Costs", "cents": 148000, "bucket": "complete", "reason": "Receipt photo covers it in full. Work in the period.", "source": "boat_rental_receipt.jpg", "amount": "$1,480.00", "dateText": "Jan 14, 2026"}, {"id": "L-1019", "date": "2026-01-21", "desc": "Field microscope camera", "vendor": "Example Optics Supply", "line": "Materials and Supplies", "cents": 132500, "bucket": "human", "reason": "The agent is unsure the cost is for this project.", "source": "field_camera_receipt.jpg", "amount": "$1,325.00", "dateText": "Jan 21, 2026"}, {"id": "L-1002", "date": "2026-02-20", "desc": "Sediment DNA sequencing run 7", "vendor": "Example Sequencing Core", "line": "Other Direct Costs", "cents": 218000, "bucket": "complete", "reason": "In the period after amendment 01. Invoice SEQ-0207 covers it in full.", "source": "sequencing_invoice.eml", "amount": "$2,180.00", "dateText": "Feb 20, 2026"}]};
+window.FTReportPages = "<section class=\"ft-rpage\" id=\"rp-1\" aria-label=\"Page 1 of 9\">\n  <header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header>\n  <div class=\"ft-rpage__body ft-rs\">\n    <div class=\"ft-rs-title\">\n      <p class=\"ft-rs-kicker\">Evidence report<\/p>\n      <h1>Sediment Microbiome Survey of Example Bay<\/h1>\n      <p class=\"ft-rs-sub\"><span class=\"ft-id\">SYN-2300117<\/span> \u00b7 National Science Foundation (NSF) \u00b7 Example State University<\/p>\n    <\/div>\n    <div class=\"ft-rs-figures\">\n      <div class=\"ft-rs-figure ft-rs-figure--main\"><span class=\"ft-rs-figure__label\">Total of all charges<\/span><span class=\"ft-rs-figure__value\">$96,412.18<\/span><span class=\"ft-rs-figure__note\">Matches the ledger report. 51 charges.<\/span><\/div>\n      <div class=\"ft-rs-figure\"><span class=\"ft-rs-figure__label\">Ready for closeout<\/span><span class=\"ft-rs-figure__value\">48 <span class=\"ft-rs-of\">of 51<\/span><\/span><span class=\"ft-rs-figure__note\">Charges in Evidence complete<\/span><\/div>\n      <div class=\"ft-rs-figure\"><span class=\"ft-rs-figure__label\">Awarded<\/span><span class=\"ft-rs-figure__value\">$120,000.00<\/span><span class=\"ft-rs-figure__note\">Direct costs<\/span><\/div>\n    <\/div>\n    <section class=\"ft-rs-block\" aria-labelledby=\"rs-buckets\"><h2 id=\"rs-buckets\">Charges by bucket<\/h2><ul class=\"ft-rs-buckets\"><li class=\"ft-rs-bucket\"><span class=\"ft-rs-mark ft-rs-mark--complete\" aria-hidden=\"true\"><\/span><span class=\"ft-rs-bucket__n\">48<\/span><span class=\"ft-rs-bucket__name\">Evidence complete<\/span><\/li><li class=\"ft-rs-bucket\"><span class=\"ft-rs-mark ft-rs-mark--conflict\" aria-hidden=\"true\"><\/span><span class=\"ft-rs-bucket__n\">1<\/span><span class=\"ft-rs-bucket__name\">Possible conflict<\/span><\/li><li class=\"ft-rs-bucket\"><span class=\"ft-rs-mark ft-rs-mark--human\" aria-hidden=\"true\"><\/span><span class=\"ft-rs-bucket__n\">2<\/span><span class=\"ft-rs-bucket__name\">Needs a human<\/span><\/li><li class=\"ft-rs-bucket\"><span class=\"ft-rs-mark ft-rs-mark--missing\" aria-hidden=\"true\"><\/span><span class=\"ft-rs-bucket__n\">0<\/span><span class=\"ft-rs-bucket__name\">Missing evidence<\/span><\/li><\/ul>\n      <p class=\"ft-rs-note\">The 3 charges not in Evidence complete are listed on page 7, under Open at sign-off.<\/p><\/section>\n    <section class=\"ft-rs-block\" aria-labelledby=\"rs-award\"><h2 id=\"rs-award\">The award<\/h2>\n      <dl class=\"ft-rkv\">\n        <dt>Award number<\/dt><dd><span class=\"ft-id\">SYN-2300117<\/span><\/dd>\n        <dt>Funder<\/dt><dd>National Science Foundation (NSF)<\/dd>\n        <dt>Recipient<\/dt><dd>Example State University<\/dd>\n        <dt>Principal investigator<\/dt><dd>Dr. Robin Example<\/dd>\n        <dt>Period of performance<\/dt><dd>Feb 1, 2023 to Jan 31, 2027<span class=\"ft-rs-dd-note\">End date moved from Jan 31, 2026 by amendment 01, confirmed Apr 10, 2026.<\/span><\/dd>\n        <dt>Prepared for<\/dt><dd>Berkeley's Award Closeout Certification, due Mar 31, 2027. Attach it next to the CalAnswers ledger report.<\/dd>\n        <dt>Status<\/dt><dd class=\"ft-rs-status-draft\">Draft. Not signed off yet. It updates whenever a record changes.<\/dd><dd class=\"ft-rs-status-signed\">Signed off by Taylor Example, Apr 12, 2026. See page 7.<\/dd>\n      <\/dl><\/section>\n    <section class=\"ft-rs-block\" aria-labelledby=\"rs-budget\"><h2 id=\"rs-budget\">Budget by line<\/h2>\n      <table class=\"ft-rtable ft-rs-budget\"><thead><tr><th>Budget line<\/th><th class=\"num\">Budget<\/th><th class=\"num\">Charged<\/th><th class=\"num\">Remaining<\/th><\/tr><\/thead>\n      <tbody><tr><td>Materials and Supplies<\/td><td class=\"num\">$40,000.00<\/td><td class=\"num\">$30,565.00<\/td><td class=\"num\">$9,435.00<\/td><\/tr><tr><td>Other Direct Costs<\/td><td class=\"num\">$60,000.00<\/td><td class=\"num\">$53,493.33<\/td><td class=\"num\">$6,506.67<\/td><\/tr><tr><td>Participant Support Costs<\/td><td class=\"num\">$20,000.00<\/td><td class=\"num\">$12,353.85<\/td><td class=\"num\">$7,646.15<\/td><\/tr><\/tbody><tfoot><tr><td>Total<\/td><td class=\"num\">$120,000.00<\/td><td class=\"num\">$96,412.18<\/td><td class=\"num\">$23,587.82<\/td><\/tr><\/tfoot><\/table><\/section>\n    <section class=\"ft-rs-block ft-rs-howto\" aria-labelledby=\"rs-howto\"><h2 id=\"rs-howto\">How to read this report<\/h2>\n      <ul>\n        <li><b>Checks<\/b> are run by code on the records: dates against the period, each charge's evidence checklist and whether its bills add up, the approver's role and channel, and budget room.<\/li>\n        <li><b>Answers<\/b> to questions code can't settle are labeled with who wrote them, Agent or Accountant, with their reasoning. The accountant has the last word; their decisions show on the charge they changed, and conversations with the agent stay out.<\/li>\n        <li><b>Quotes<\/b> are checked against their file: the exact line, the passage on its PDF page, or on photos a box checked by a second look. A fact that couldn't be confirmed says so.<\/li>\n        <li><b>Pages 2 and 3<\/b> list every charge. <b>Pages 4 to 6<\/b> show the checks and evidence charge by charge. <b>Page 7<\/b> is the sign-off, and <b>pages 8 and 9<\/b> list every source file.<\/li>\n      <\/ul><\/section>\n  <\/div>\n  <footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 1 of 9<\/span><\/footer>\n<\/section>\n<section class=\"ft-rpage ft-rt-page\" id=\"rp-2\" aria-label=\"Page 2 of 9\"><header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header><div class=\"ft-rpage__body\"><div class=\"ft-rt-intro\"><h2>All charges<\/h2><p>51 charges in date order, $96,412.18 in all. The 3 that aren\u2019t Evidence complete are marked and shaded, and listed again on page 7.<\/p><\/div><table class=\"ft-rtable ft-rt\" aria-label=\"All charges, Mar 28, 2023 to Oct 17, 2024\"><colgroup><col class=\"ft-rt-c-date\"><col class=\"ft-rt-c-line\"><col class=\"ft-rt-c-desc\"><col class=\"ft-rt-c-budget\"><col class=\"ft-rt-c-amount\"><col class=\"ft-rt-c-bucket\"><col class=\"ft-rt-c-reason\"><\/colgroup><thead><tr><th scope=\"col\">Date<\/th><th scope=\"col\">Ledger line<\/th><th scope=\"col\">Description<\/th><th scope=\"col\">Budget line<\/th><th scope=\"col\" class=\"num\">Amount<\/th><th scope=\"col\">Bucket<\/th><th scope=\"col\">Reason<\/th><\/tr><\/thead><tbody><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 28, 2023<\/td><td><span class=\"ft-id\">L-0100<\/span><\/td><td class=\"ft-rt-desc\">Sample shipping, frozen<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,840.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Apr 5, 2023<\/td><td><span class=\"ft-id\">L-0119<\/span><\/td><td class=\"ft-rt-desc\">Field sampling gloves<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,083.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jun 13, 2023<\/td><td><span class=\"ft-id\">L-0138<\/span><\/td><td class=\"ft-rt-desc\">Sample shipping, frozen<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$1,306.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jul 12, 2023<\/td><td><span class=\"ft-id\">L-0157<\/span><\/td><td class=\"ft-rt-desc\">Workshop registration, student<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,675.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 15, 2023<\/td><td><span class=\"ft-id\">L-0176<\/span><\/td><td class=\"ft-rt-desc\">Participant travel, field course<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,076.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 11, 2023<\/td><td><span class=\"ft-id\">L-0195<\/span><\/td><td class=\"ft-rt-desc\">Core sampler parts<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,566.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 21, 2023<\/td><td><span class=\"ft-id\">L-0214<\/span><\/td><td class=\"ft-rt-desc\">Cooler and ice packs<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$795.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 26, 2023<\/td><td><span class=\"ft-id\">L-0233<\/span><\/td><td class=\"ft-rt-desc\">Sediment DNA sequencing<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$1,830.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 21, 2024<\/td><td><span class=\"ft-id\">L-0252<\/span><\/td><td class=\"ft-rt-desc\">Cooler and ice packs<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$981.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 21, 2024<\/td><td><span class=\"ft-id\">L-0271<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,083.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 22, 2024<\/td><td><span class=\"ft-id\">L-0290<\/span><\/td><td class=\"ft-rt-desc\">Field boat rental<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$1,801.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 3, 2024<\/td><td><span class=\"ft-id\">L-0309<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$2,490.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 7, 2024<\/td><td><span class=\"ft-id\">L-0328<\/span><\/td><td class=\"ft-rt-desc\">Ethanol, molecular grade<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,071.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 10, 2024<\/td><td><span class=\"ft-id\">L-0347<\/span><\/td><td class=\"ft-rt-desc\">Pipette tips<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,873.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 21, 2024<\/td><td><span class=\"ft-id\">L-0366<\/span><\/td><td class=\"ft-rt-desc\">Data storage, annual<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,346.52<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Apr 5, 2024<\/td><td><span class=\"ft-id\">L-0385<\/span><\/td><td class=\"ft-rt-desc\">Sample shipping, frozen<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,353.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Apr 5, 2024<\/td><td><span class=\"ft-id\">L-0404<\/span><\/td><td class=\"ft-rt-desc\">Participant lodging, field course<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,175.10<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jul 19, 2024<\/td><td><span class=\"ft-id\">L-0423<\/span><\/td><td class=\"ft-rt-desc\">Field course stipend<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$935.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Aug 1, 2024<\/td><td><span class=\"ft-id\">L-0442<\/span><\/td><td class=\"ft-rt-desc\">Sample shipping, frozen<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,270.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Aug 1, 2024<\/td><td><span class=\"ft-id\">L-0461<\/span><\/td><td class=\"ft-rt-desc\">Sample shipping, frozen<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,443.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Aug 22, 2024<\/td><td><span class=\"ft-id\">L-0480<\/span><\/td><td class=\"ft-rt-desc\">Participant lodging, field course<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$895.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 1, 2024<\/td><td><span class=\"ft-id\">L-0499<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$2,848.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 12, 2024<\/td><td><span class=\"ft-id\">L-0518<\/span><\/td><td class=\"ft-rt-desc\">Workshop registration, student<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,541.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 22, 2024<\/td><td><span class=\"ft-id\">L-0537<\/span><\/td><td class=\"ft-rt-desc\">Sediment DNA sequencing<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,078.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Oct 9, 2024<\/td><td><span class=\"ft-id\">L-0556<\/span><\/td><td class=\"ft-rt-desc\">Data storage, annual<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,798.99<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Oct 17, 2024<\/td><td><span class=\"ft-id\">L-0575<\/span><\/td><td class=\"ft-rt-desc\">Core sampler parts<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,671.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><\/tbody><\/table><\/div><footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 2 of 9<\/span><\/footer><\/section>\n<section class=\"ft-rpage ft-rt-page\" id=\"rp-3\" aria-label=\"Page 3 of 9\"><header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header><div class=\"ft-rpage__body\"><div class=\"ft-rt-intro\"><h2>All charges, continued<\/h2><\/div><table class=\"ft-rtable ft-rt\" aria-label=\"All charges, Oct 17, 2024 to Feb 20, 2026\"><colgroup><col class=\"ft-rt-c-date\"><col class=\"ft-rt-c-line\"><col class=\"ft-rt-c-desc\"><col class=\"ft-rt-c-budget\"><col class=\"ft-rt-c-amount\"><col class=\"ft-rt-c-bucket\"><col class=\"ft-rt-c-reason\"><\/colgroup><thead><tr><th scope=\"col\">Date<\/th><th scope=\"col\">Ledger line<\/th><th scope=\"col\">Description<\/th><th scope=\"col\">Budget line<\/th><th scope=\"col\" class=\"num\">Amount<\/th><th scope=\"col\">Bucket<\/th><th scope=\"col\">Reason<\/th><\/tr><\/thead><tbody><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Oct 17, 2024<\/td><td><span class=\"ft-id\">L-0594<\/span><\/td><td class=\"ft-rt-desc\">Field course stipend<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$667.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 3, 2024<\/td><td><span class=\"ft-id\">L-0613<\/span><\/td><td class=\"ft-rt-desc\">Field boat rental<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,110.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 17, 2024<\/td><td><span class=\"ft-id\">L-0632<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,248.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 26, 2024<\/td><td><span class=\"ft-id\">L-0651<\/span><\/td><td class=\"ft-rt-desc\">Library preparation service<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,654.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Dec 3, 2024<\/td><td><span class=\"ft-id\">L-0670<\/span><\/td><td class=\"ft-rt-desc\">Data storage, annual<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,593.99<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Dec 19, 2024<\/td><td><span class=\"ft-id\">L-0689<\/span><\/td><td class=\"ft-rt-desc\">Cooler and ice packs<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,611.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 9, 2025<\/td><td><span class=\"ft-id\">L-0708<\/span><\/td><td class=\"ft-rt-desc\">Library preparation service<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,275.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 27, 2025<\/td><td><span class=\"ft-id\">L-0727<\/span><\/td><td class=\"ft-rt-desc\">Open access publication fee<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,164.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Feb 7, 2025<\/td><td><span class=\"ft-id\">L-0746<\/span><\/td><td class=\"ft-rt-desc\">DNA extraction kits<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,485.99<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Feb 28, 2025<\/td><td><span class=\"ft-id\">L-0765<\/span><\/td><td class=\"ft-rt-desc\">Open access publication fee<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$3,825.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 17, 2025<\/td><td><span class=\"ft-id\">L-0784<\/span><\/td><td class=\"ft-rt-desc\">DNA extraction kits<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$2,248.53<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 18, 2025<\/td><td><span class=\"ft-id\">L-0803<\/span><\/td><td class=\"ft-rt-desc\">Sediment DNA sequencing<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$1,309.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Mar 20, 2025<\/td><td><span class=\"ft-id\">L-0822<\/span><\/td><td class=\"ft-rt-desc\">Workshop registration, student<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,049.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Apr 3, 2025<\/td><td><span class=\"ft-id\">L-0841<\/span><\/td><td class=\"ft-rt-desc\">Participant lodging, field course<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$1,861.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jul 7, 2025<\/td><td><span class=\"ft-id\">L-0860<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,646.99<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Aug 6, 2025<\/td><td><span class=\"ft-id\">L-0879<\/span><\/td><td class=\"ft-rt-desc\">Pipette tips<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,596.99<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 15, 2025<\/td><td><span class=\"ft-id\">L-0898<\/span><\/td><td class=\"ft-rt-desc\">Field sampling gloves<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,958.25<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 17, 2025<\/td><td><span class=\"ft-id\">L-0917<\/span><\/td><td class=\"ft-rt-desc\">Participant lodging, field course<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$828.50<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Participant support in the budget. Receipt covers it in full.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Sep 19, 2025<\/td><td><span class=\"ft-id\">L-0936<\/span><\/td><td class=\"ft-rt-desc\">Ethanol, molecular grade<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$741.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row is-open is-conflict\"><td class=\"ft-rt-date\">Oct 3, 2025<\/td><td><span class=\"ft-id\">L-0981<\/span><\/td><td class=\"ft-rt-desc\">Conference registration<\/td><td class=\"ft-rt-budget\">Participant Support Costs<\/td><td class=\"num\">$650.00<\/td><td class=\"ft-rt-bucket\"><span class=\"ft-rt-mark ft-rt-mark--conflict\" aria-hidden=\"true\"><\/span>Possible conflict<\/td><td class=\"ft-rt-reason\">Approved by the principal investigator, not the program officer.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Nov 12, 2025<\/td><td><span class=\"ft-id\">L-1001<\/span><\/td><td class=\"ft-rt-desc\">Sediment core liners<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,240.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Invoice INV-1001 covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row is-open is-human\"><td class=\"ft-rt-date\">Jan 9, 2026<\/td><td><span class=\"ft-id\">L-1010<\/span><\/td><td class=\"ft-rt-desc\">Sequencing core, shared run 6<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$5,833.33<\/td><td class=\"ft-rt-bucket\"><span class=\"ft-rt-mark ft-rt-mark--human\" aria-hidden=\"true\"><\/span>Needs a human<\/td><td class=\"ft-rt-reason\">Invoice SEQ-0311 covers two grants; nothing gives this grant&#x27;s part.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Jan 14, 2026<\/td><td><span class=\"ft-id\">L-1015<\/span><\/td><td class=\"ft-rt-desc\">Field boat rental<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$1,480.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">Receipt photo covers it in full. Work in the period.<\/td><\/tr><tr class=\"ft-rt-row is-open is-human\"><td class=\"ft-rt-date\">Jan 21, 2026<\/td><td><span class=\"ft-id\">L-1019<\/span><\/td><td class=\"ft-rt-desc\">Field microscope camera<\/td><td class=\"ft-rt-budget\">Materials and Supplies<\/td><td class=\"num\">$1,325.00<\/td><td class=\"ft-rt-bucket\"><span class=\"ft-rt-mark ft-rt-mark--human\" aria-hidden=\"true\"><\/span>Needs a human<\/td><td class=\"ft-rt-reason\">The agent is unsure the cost is for this project.<\/td><\/tr><tr class=\"ft-rt-row\"><td class=\"ft-rt-date\">Feb 20, 2026<\/td><td><span class=\"ft-id\">L-1002<\/span><\/td><td class=\"ft-rt-desc\">Sediment DNA sequencing run 7<\/td><td class=\"ft-rt-budget\">Other Direct Costs<\/td><td class=\"num\">$2,180.00<\/td><td class=\"ft-rt-bucket\">Evidence complete<\/td><td class=\"ft-rt-reason\">In the period after amendment 01. Invoice SEQ-0207 covers it in full.<\/td><\/tr><\/tbody><tfoot><tr><td colspan=\"4\">Total, 51 charges<\/td><td class=\"num\">$96,412.18<\/td><td colspan=\"2\" class=\"ft-rt-tnote\">Matches the ledger report<\/td><\/tr><\/tfoot><\/table><p class=\"ft-rt-legend\"><span><span class=\"ft-rt-mark ft-rt-mark--conflict\" aria-hidden=\"true\"><\/span>Possible conflict<\/span><span><span class=\"ft-rt-mark ft-rt-mark--human\" aria-hidden=\"true\"><\/span>Needs a human<\/span><span><span class=\"ft-rt-mark ft-rt-mark--missing\" aria-hidden=\"true\"><\/span>Missing evidence<\/span><span>Unmarked rows are Evidence complete.<\/span><\/p><\/div><footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 3 of 9<\/span><\/footer><\/section>\n<section class=\"ft-rpage\" id=\"rp-4\" aria-label=\"Page 4 of 9\">\n  <header class=\"ft-rpage__head\"><span>Evidence report &middot; <span class=\"ft-id\">SYN-2300117<\/span> &middot; Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header>\n  <div class=\"ft-rpage__body\"><p class=\"ft-rx__lead\"><span class=\"ft-rx__kicker\">Charges, one section each<\/span> The checks code ran, the quoted evidence, the answers with who gave them, the accountant\u2019s decisions, and each change of bucket.<\/p><article class=\"ft-rx\" aria-labelledby=\"rx-L-1002\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-1002<\/span> <span class=\"ft-sep\">&middot;<\/span> Feb 20, 2026 <span class=\"ft-sep\">&middot;<\/span> Other Direct Costs <span class=\"ft-sep\">&middot;<\/span> Example Sequencing Core<\/span><h2 id=\"rx-L-1002\">Sediment DNA sequencing run 7<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$2,180.00<\/span><span class=\"ft-badge ft-badge--complete\">Evidence complete<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Feb 20, 2026, before the new end date, Jan 31, 2027.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">1 of 1 filled<\/span><\/td><td>A bill that adds up (account default): invoice SEQ-0207, $2,180.00 of $2,180.00.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$53,493.33 of $60,000.00 charged to Other Direct Costs. Line assigned by the agent.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Necessary, reasonable and for this project<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Supports<\/span><\/td><td>Sequencing of Example Bay sediment samples, the project\u2019s own work.<\/td><td class=\"ft-rx__who\">Agent<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-quote\">&ldquo;changed from January 31, 2026 to January 31, 2027&rdquo;<\/span><\/span><span class=\"ft-rx__src\">extension_notice.txt, line 8 \u00b7 Google Drive, Apr 10, 2026<\/span><\/li><li><span><span class=\"ft-quote\">&ldquo;Total Due: $2,180.00&rdquo;<\/span><\/span><span class=\"ft-rx__src\">sequencing_invoice.eml, line 16 \u00b7 Gmail, Feb 21, 2026<\/span><\/li><li><span><span class=\"ft-quote\">&ldquo;February 1, 2023 through January 31, 2026&rdquo;<\/span> <span class=\"ft-rx__note\">Replaced by amendment 01<\/span><\/span><span class=\"ft-rx__src\">award_letter.txt, line 15 \u00b7 upload, Jan 12, 2023<\/span><\/li><\/ul><\/div>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Decisions<\/span><ul class=\"ft-rx__ev\"><li><span>Confirmed amendment 01, Apr 10, 2026, by the accountant.<\/span><span class=\"ft-rx__src\">Replaced the award letter\u2019s end date, Jan 31, 2026<\/span><\/li><\/ul><\/div>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Feb 24, 2026<\/span><span>Ledger line L-1002 arrived. Bucket set to Possible conflict: work done after the end date then in force.<\/span><\/li><li><span class=\"ft-rx__date\">Apr 10, 2026<\/span><span>New end date confirmed by the accountant. Possible conflict <span class=\"ft-arrow\" aria-label=\"changed to\">&rarr;<\/span> Evidence complete.<\/span><\/li><\/ol><\/div>\n<\/article><article class=\"ft-rx\" aria-labelledby=\"rx-L-0981\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-0981<\/span> <span class=\"ft-sep\">&middot;<\/span> Oct 3, 2025 <span class=\"ft-sep\">&middot;<\/span> Participant Support Costs <span class=\"ft-sep\">&middot;<\/span> Example Ocean Sciences Meeting<\/span><h2 id=\"rx-L-0981\">Conference registration<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$650.00<\/span><span class=\"ft-badge ft-badge--conflict\">Possible conflict<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Registered Oct 3, 2025, inside the period.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--missing\">1 of 2 filled<\/span><\/td><td>Bill (account default): registration receipt, $650.00 of $650.00. Program officer\u2019s written approval (added by code from the approval rule): not on file.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Approver\u2019s role and channel<\/td><td><span class=\"ft-rx__res ft-rx__res--fail\">Fails<\/span><\/td><td>Approved by the principal investigator by email. Participant support costs need the program officer\u2019s written approval, through Research.gov.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$12,353.85 of $20,000.00 charged to Participant Support Costs.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-quote\">&ldquo;Approved, go ahead and register.&rdquo;<\/span><\/span><span class=\"ft-rx__src\">approval_email.eml, line 9 \u00b7 Gmail, Oct 6, 2025<\/span><\/li><li><span><span class=\"ft-quote\">&ldquo;without prior written approval from the Program Officer, requested through Research.gov&rdquo;<\/span><\/span><span class=\"ft-rx__src\">award_letter.txt, line 19 \u00b7 upload, Jan 12, 2023<\/span><\/li><\/ul><\/div>\n  \n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Oct 6, 2025<\/span><span>Approval email arrived. Missing evidence <span class=\"ft-arrow\" aria-label=\"changed to\">&rarr;<\/span> Possible conflict.<\/span><\/li><\/ol><\/div>\n<\/article><\/div>\n  <footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 4 of 9<\/span><\/footer>\n<\/section>\n<section class=\"ft-rpage\" id=\"rp-5\" aria-label=\"Page 5 of 9\">\n  <header class=\"ft-rpage__head\"><span>Evidence report &middot; <span class=\"ft-id\">SYN-2300117<\/span> &middot; Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header>\n  <div class=\"ft-rpage__body\"><article class=\"ft-rx\" aria-labelledby=\"rx-L-1010\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-1010<\/span> <span class=\"ft-sep\">&middot;<\/span> Jan 9, 2026 <span class=\"ft-sep\">&middot;<\/span> Other Direct Costs <span class=\"ft-sep\">&middot;<\/span> Example Sequencing Core<\/span><h2 id=\"rx-L-1010\">Sequencing core, shared run 6<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$5,833.33<\/span><span class=\"ft-badge ft-badge--human\">Needs a human<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Run done Jan 9, 2026, inside the period.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--human\">Needs the split<\/span><\/td><td>A bill that adds up (account default): invoice SEQ-0311 is $10,000.00 for a run shared with another grant. Nothing on file gives this grant\u2019s part: an email or itemized invoice, or a split entered by the accountant.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$53,493.33 of $60,000.00 charged to Other Direct Costs.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-quote\">&ldquo;Run shared by awards SYN-2300117 and SYN-2300245.&rdquo;<\/span><\/span><span class=\"ft-rx__src\">invoice_SEQ-0311.pdf, page 1 \u00b7 Gmail, Jan 12, 2026<\/span><\/li><li><span><span class=\"ft-quote\">&ldquo;$10,000.00&rdquo;<\/span> <span class=\"ft-rx__note\">Total due<\/span><\/span><span class=\"ft-rx__src\">invoice_SEQ-0311.pdf, page 1 \u00b7 Gmail, Jan 12, 2026<\/span><\/li><\/ul><\/div>\n  \n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Jan 13, 2026<\/span><span>Ledger line L-1010 arrived. Bucket set to Needs a human.<\/span><\/li><\/ol><\/div>\n<\/article><article class=\"ft-rx\" aria-labelledby=\"rx-L-1019\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-1019<\/span> <span class=\"ft-sep\">&middot;<\/span> Jan 21, 2026 <span class=\"ft-sep\">&middot;<\/span> Materials and Supplies <span class=\"ft-sep\">&middot;<\/span> Example Optics Supply<\/span><h2 id=\"rx-L-1019\">Field microscope camera<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$1,325.00<\/span><span class=\"ft-badge ft-badge--human\">Needs a human<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Bought Jan 21, 2026, inside the period.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">1 of 1 filled<\/span><\/td><td>A bill that adds up (account default): receipt photo, Example Optics Supply, $1,325.00 of $1,325.00.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$30,565.00 of $40,000.00 charged to Materials and Supplies. Line assigned by the agent.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">For this project<\/td><td><span class=\"ft-rx__res ft-rx__res--human\">Unsure<\/span><\/td><td>The receipt names a field camera, but nothing on file ties it to the sediment survey.<\/td><td class=\"ft-rx__who\">Agent<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-rx__approx\">Box checked by a second look: Total, $1,325.00<\/span><\/span><span class=\"ft-rx__src\">field_camera_receipt.jpg \u00b7 upload, Jan 22, 2026<\/span><\/li><li><span><span class=\"ft-rx__approx\">Box checked by a second look: Field camera, microscope mount<\/span><\/span><span class=\"ft-rx__src\">field_camera_receipt.jpg \u00b7 upload, Jan 22, 2026<\/span><\/li><\/ul><\/div>\n  \n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Jan 23, 2026<\/span><span>Ledger line L-1019 arrived. Bucket set to Needs a human: the agent is unsure.<\/span><\/li><\/ol><\/div>\n<\/article><\/div>\n  <footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 5 of 9<\/span><\/footer>\n<\/section>\n<section class=\"ft-rpage\" id=\"rp-6\" aria-label=\"Page 6 of 9\">\n  <header class=\"ft-rpage__head\"><span>Evidence report &middot; <span class=\"ft-id\">SYN-2300117<\/span> &middot; Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header>\n  <div class=\"ft-rpage__body\"><article class=\"ft-rx\" aria-labelledby=\"rx-L-1015\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-1015<\/span> <span class=\"ft-sep\">&middot;<\/span> Jan 14, 2026 <span class=\"ft-sep\">&middot;<\/span> Other Direct Costs <span class=\"ft-sep\">&middot;<\/span> Example Marina<\/span><h2 id=\"rx-L-1015\">Field boat rental<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$1,480.00<\/span><span class=\"ft-badge ft-badge--complete\">Evidence complete<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Rented Jan 14, 2026, inside the period.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">1 of 1 filled<\/span><\/td><td>A bill that adds up (account default): receipt photo, Example Marina, $1,480.00 of $1,480.00, arrived Apr 12, 2026.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$53,493.33 of $60,000.00 charged to Other Direct Costs.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Necessary, reasonable and for this project<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Supports<\/span><\/td><td>A boat for sampling in Example Bay, the project site.<\/td><td class=\"ft-rx__who\">Agent<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-rx__approx\">Box checked by a second look: Total, $1,480.00<\/span><\/span><span class=\"ft-rx__src\">boat_rental_receipt.jpg \u00b7 Gmail, Apr 12, 2026<\/span><\/li><li><span><span class=\"ft-rx__approx\">Box checked by a second look: Example Marina, Jan 14, 2026<\/span><\/span><span class=\"ft-rx__src\">boat_rental_receipt.jpg \u00b7 Gmail, Apr 12, 2026<\/span><\/li><\/ul><\/div>\n  \n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Jan 16, 2026<\/span><span>Ledger line L-1015 arrived. Bucket set to Missing evidence: no bill yet.<\/span><\/li><li><span class=\"ft-rx__date\">Apr 12, 2026<\/span><span>Receipt photo arrived. Missing evidence <span class=\"ft-arrow\" aria-label=\"changed to\">&rarr;<\/span> Evidence complete.<\/span><\/li><\/ol><\/div>\n<\/article><article class=\"ft-rx\" aria-labelledby=\"rx-L-1001\">\n  <header class=\"ft-rx__head\">\n    <div><span class=\"ft-rx__meta\"><span class=\"ft-id\">L-1001<\/span> <span class=\"ft-sep\">&middot;<\/span> Nov 12, 2025 <span class=\"ft-sep\">&middot;<\/span> Materials and Supplies <span class=\"ft-sep\">&middot;<\/span> Example Lab Supply Co.<\/span><h2 id=\"rx-L-1001\">Sediment core liners<\/h2><\/div>\n    <div class=\"ft-rx__right\"><span class=\"ft-rx__amt\">$1,240.00<\/span><span class=\"ft-badge ft-badge--complete\">Evidence complete<\/span><\/div>\n  <\/header>\n  <table class=\"ft-rtable ft-rx__checks\"><thead><tr><th>Check<\/th><th>Result<\/th><th>Why<\/th><th>By<\/th><\/tr><\/thead><tbody><tr><td class=\"ft-rx__check\">Period of performance<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>Bought Nov 12, 2025, inside the period.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Evidence checklist<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">1 of 1 filled<\/span><\/td><td>A bill that adds up (account default): invoice INV-1001, $1,240.00 of $1,240.00. It arrived two days before the ledger line and waited, unlinked.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Budget room<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Passes<\/span><\/td><td>$30,565.00 of $40,000.00 charged to Materials and Supplies. Line assigned by the agent.<\/td><td class=\"ft-rx__who\">Code<\/td><\/tr><tr><td class=\"ft-rx__check\">Necessary, reasonable and for this project<\/td><td><span class=\"ft-rx__res ft-rx__res--pass\">Supports<\/span><\/td><td>Core liners for sampling sediment, the project\u2019s fieldwork.<\/td><td class=\"ft-rx__who\">Agent<\/td><\/tr><\/tbody><\/table>\n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Evidence<\/span><ul class=\"ft-rx__ev\"><li><span><span class=\"ft-quote\">&ldquo;Sediment core liners, 50 count: $1,240.00&rdquo;<\/span><\/span><span class=\"ft-rx__src\">invoice_1001.txt, line 9 \u00b7 upload, Nov 12, 2025<\/span><\/li><li><span><span class=\"ft-quote\">&ldquo;Total Due: $1,240.00&rdquo;<\/span><\/span><span class=\"ft-rx__src\">invoice_1001.txt, line 11 \u00b7 upload, Nov 12, 2025<\/span><\/li><\/ul><\/div>\n  \n  <div class=\"ft-rx__block\"><span class=\"ft-rx__label\">Status history<\/span><ol class=\"ft-rx__hist\"><li><span class=\"ft-rx__date\">Nov 14, 2025<\/span><span>Ledger line L-1001 arrived. Bucket set to Evidence complete.<\/span><\/li><\/ol><\/div>\n<\/article><p class=\"ft-rx__more\">Sections for the other 45 charges follow in the same layout.<\/p><\/div>\n  <footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 6 of 9<\/span><\/footer>\n<\/section>\n<section class=\"ft-rpage\" id=\"rp-7\" aria-label=\"Page 7 of 9\"><header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header><div class=\"ft-rpage__body\"><section class=\"ft-rso-section\" aria-labelledby=\"rso-open\"><h2 id=\"rso-open\">Open at sign-off<\/h2><p class=\"ft-rso-lede\">Three charges of 51 aren\u2019t Evidence complete. Each shows its bucket, the reason, and what would close it.<\/p><ol class=\"ft-rso-list\"><li class=\"ft-rso-item\"><div class=\"ft-rso-item__top\"><span class=\"ft-id\">L-0981<\/span><span class=\"ft-rso-item__name\">Conference registration<\/span><span class=\"ft-rso-item__amt\">$650.00<\/span><\/div><dl class=\"ft-rso-item__kv\"><dt>Charged<\/dt><dd>Oct 3, 2025 to Participant Support Costs<\/dd><dt>Bucket<\/dt><dd><span class=\"ft-rso-bucket\"><span class=\"ft-tab-mark ft-tab-mark--conflict\" aria-hidden=\"true\"><\/span>Possible conflict<\/span><\/dd><dt>Why<\/dt><dd>Approved by the principal investigator, not the program officer.<\/dd><dt>Would close it<\/dt><dd>The program officer&#x27;s written approval, requested through Research.gov, or moving the charge off the grant.<\/dd><\/dl><\/li><li class=\"ft-rso-item\"><div class=\"ft-rso-item__top\"><span class=\"ft-id\">L-1010<\/span><span class=\"ft-rso-item__name\">Sequencing core, shared run 6<\/span><span class=\"ft-rso-item__amt\">$5,833.33<\/span><\/div><dl class=\"ft-rso-item__kv\"><dt>Charged<\/dt><dd>Jan 9, 2026 to Other Direct Costs<\/dd><dt>Bucket<\/dt><dd><span class=\"ft-rso-bucket\"><span class=\"ft-tab-mark ft-tab-mark--human\" aria-hidden=\"true\"><\/span>Needs a human<\/span><\/dd><dt>Why<\/dt><dd>Invoice SEQ-0311 covers two grants; nothing gives this grant&#x27;s part.<\/dd><dt>Would close it<\/dt><dd>This grant&#x27;s part of invoice SEQ-0311: an email or itemized invoice that gives the split, or the split entered by the accountant.<\/dd><\/dl><\/li><li class=\"ft-rso-item\"><div class=\"ft-rso-item__top\"><span class=\"ft-id\">L-1019<\/span><span class=\"ft-rso-item__name\">Field microscope camera<\/span><span class=\"ft-rso-item__amt\">$1,325.00<\/span><\/div><dl class=\"ft-rso-item__kv\"><dt>Charged<\/dt><dd>Jan 21, 2026 to Materials and Supplies<\/dd><dt>Bucket<\/dt><dd><span class=\"ft-rso-bucket\"><span class=\"ft-tab-mark ft-tab-mark--human\" aria-hidden=\"true\"><\/span>Needs a human<\/span><\/dd><dt>Why<\/dt><dd>The agent is unsure the cost is for this project.<\/dd><dt>Would close it<\/dt><dd>The accountant&#x27;s answer to the agent&#x27;s question: is the field microscope camera for this project?<\/dd><\/dl><\/li><\/ol><\/section><section class=\"ft-rso-section\" aria-labelledby=\"rso-sign\"><h2 id=\"rso-sign\">Sign-off<\/h2><div class=\"ft-rso-sign\"><div class=\"ft-rso-party\"><h3>Prepared by<\/h3><p class=\"ft-rso-name\">Taylor Example<\/p><p class=\"ft-rso-muted\">Research Administrator, Department of Biology<\/p><p class=\"ft-rso-muted\">taylor.example@university.example<\/p><p class=\"ft-rso-state ft-rso-draftonly\">Not signed off yet. This draft updates whenever a record changes.<\/p><div class=\"ft-rso-signedonly\"><p class=\"ft-rso-state\">Signed off in FundTrail, Apr 12, 2026<\/p><p class=\"ft-rso-notelabel\">Note<\/p><p class=\"ft-rso-note\">Three charges are still open. Each is listed above with what would close it.<\/p><\/div><\/div><div class=\"ft-rso-party\"><h3>Reviewed by<\/h3><p class=\"ft-rso-name\">Quinn Example<\/p><p class=\"ft-rso-muted\">Research Administration Manager<\/p><p class=\"ft-rso-muted\">Approves the Award Closeout Certification in BFS (Berkeley Financial System).<\/p><div class=\"ft-rso-lines\"><div class=\"ft-rso-line\"><span class=\"ft-rso-rule\"><\/span><span class=\"ft-rso-cap\">Signature<\/span><\/div><div class=\"ft-rso-line ft-rso-line--date\"><span class=\"ft-rso-rule\"><\/span><span class=\"ft-rso-cap\">Date<\/span><\/div><\/div><\/div><\/div><\/section><p class=\"ft-rso-attach\">Attach this report to the Award Closeout Certification in BFS, next to the CalAnswers ledger report, which shows only what was spent. FundTrail files nothing with the university or the National Science Foundation (NSF).<\/p><\/div><footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 7 of 9<\/span><\/footer><\/section>\n<section class=\"ft-rpage\" id=\"rp-8\" aria-label=\"Page 8 of 9\"><header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header><div class=\"ft-rpage__body\"><h2>Sources<\/h2><p class=\"ft-rsrc-lede\">Every file this report cites. The award documents come first, because every charge is checked against them. The rest follow in ledger line order, matching the table of charges, so a file can be found from its charge.<\/p><h3 id=\"rsrc-terms\">Award documents<\/h3><table class=\"ft-rtable ft-rsrc-table\" aria-labelledby=\"rsrc-terms\"><colgroup><col class=\"ft-rsrc-c1\"><col class=\"ft-rsrc-c2\"><col class=\"ft-rsrc-c3\"><col class=\"ft-rsrc-c4\"><col class=\"ft-rsrc-c5\"><\/colgroup><thead><tr><th scope=\"col\">Cited for<\/th><th scope=\"col\">File<\/th><th scope=\"col\">Kind<\/th><th scope=\"col\">From<\/th><th scope=\"col\" class=\"num\">Arrived<\/th><\/tr><\/thead><tbody><tr><td>Grant terms for all 51 charges<\/td><td><span class=\"ft-rsrc-file\">award_letter.txt<\/span><\/td><td>Award letter<\/td><td>Upload<\/td><td class=\"num\">Jan 12, 2023<\/td><\/tr><tr><td>End date for all 51 charges<\/td><td><span class=\"ft-rsrc-file\">extension_notice.txt<\/span><\/td><td>Award amendment 01<\/td><td>Google Drive<\/td><td class=\"num\">Apr 10, 2026<\/td><\/tr><\/tbody><\/table><h3 id=\"rsrc-ev\">Evidence for each charge<\/h3><table class=\"ft-rtable ft-rsrc-table\" aria-labelledby=\"rsrc-ev\"><colgroup><col class=\"ft-rsrc-c1\"><col class=\"ft-rsrc-c2\"><col class=\"ft-rsrc-c3\"><col class=\"ft-rsrc-c4\"><col class=\"ft-rsrc-c5\"><\/colgroup><thead><tr><th scope=\"col\">Ledger line<\/th><th scope=\"col\">File<\/th><th scope=\"col\">Kind<\/th><th scope=\"col\">From<\/th><th scope=\"col\" class=\"num\">Arrived<\/th><\/tr><\/thead><tbody><tr><td><span class=\"ft-id\">L-0100<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0100.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Apr 1, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0119<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0119.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Apr 7, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0138<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0138.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Jun 20, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0157<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0157.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Jul 17, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0176<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0176.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 18, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0195<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0195.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Nov 19, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0214<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0214.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Nov 27, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0233<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0233.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Nov 30, 2023<\/td><\/tr><tr><td><span class=\"ft-id\">L-0252<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0252.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Jan 23, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0271<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0271.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Jan 28, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0290<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0290.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Jan 27, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0309<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0309.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Mar 6, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0328<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0328.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Mar 15, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0347<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0347.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Mar 16, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0366<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0366.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Mar 25, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0385<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0385.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Apr 7, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0404<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0404.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Apr 12, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0423<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0423.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Jul 24, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0442<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0442.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Aug 4, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0461<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0461.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Aug 9, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0480<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0480.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Aug 28, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0499<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0499.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 5, 2024<\/td><\/tr><\/tbody><\/table><p class=\"ft-rsrc-cont\">Continued on the next page.<\/p><\/div><footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 8 of 9<\/span><\/footer><\/section>\n<section class=\"ft-rpage\" id=\"rp-9\" aria-label=\"Page 9 of 9\"><header class=\"ft-rpage__head\"><span>Evidence report \u00b7 <span class=\"ft-id\">SYN-2300117<\/span> \u00b7 Sediment Microbiome Survey of Example Bay<\/span><span class=\"ft-rhead-status\"><span class=\"ft-rdraft\">Draft<\/span> <span class=\"ft-rasof\">As of Apr 12, 2026<\/span><span class=\"ft-rsigned\">Signed off Apr 12, 2026<\/span><\/span><\/header><div class=\"ft-rpage__body\"><h3 id=\"rsrc-ev2\">Evidence for each charge, continued<\/h3><table class=\"ft-rtable ft-rsrc-table\" aria-labelledby=\"rsrc-ev2\"><colgroup><col class=\"ft-rsrc-c1\"><col class=\"ft-rsrc-c2\"><col class=\"ft-rsrc-c3\"><col class=\"ft-rsrc-c4\"><col class=\"ft-rsrc-c5\"><\/colgroup><thead><tr><th scope=\"col\">Ledger line<\/th><th scope=\"col\">File<\/th><th scope=\"col\">Kind<\/th><th scope=\"col\">From<\/th><th scope=\"col\" class=\"num\">Arrived<\/th><\/tr><\/thead><tbody><tr><td><span class=\"ft-id\">L-0518<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0518.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 14, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0537<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0537.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Sep 29, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0556<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0556.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Oct 14, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0575<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0575.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Oct 20, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0594<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0594.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Oct 25, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0613<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0613.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Nov 9, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0632<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0632.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Nov 21, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0651<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0651.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Nov 28, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0670<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0670.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Dec 10, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0689<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0689.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Dec 24, 2024<\/td><\/tr><tr><td><span class=\"ft-id\">L-0708<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0708.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Jan 12, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0727<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0727.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Feb 4, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0746<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0746.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Feb 13, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0765<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0765.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Mar 4, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0784<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0784.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Mar 19, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0803<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_0803.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<\/td><td class=\"num\">Mar 25, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0822<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0822.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Mar 25, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0841<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0841.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Apr 6, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0860<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0860.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Jul 15, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0879<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0879.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Aug 12, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0898<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0898.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 19, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0917<\/span><\/td><td><span class=\"ft-rsrc-file\">psc_receipt_0917.pdf<\/span><\/td><td>Participant receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 19, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0936<\/span><\/td><td><span class=\"ft-rsrc-file\">receipt_0936.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Sep 26, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0981<\/span><\/td><td><span class=\"ft-rsrc-file\">approval_email.eml<\/span><\/td><td>Email<\/td><td>Gmail<\/td><td class=\"num\">Oct 6, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-0981<\/span><\/td><td><span class=\"ft-rsrc-file\">registration_receipt.pdf<\/span><\/td><td>Receipt<\/td><td>Upload<\/td><td class=\"num\">Oct 4, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-1001<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_1001.txt<\/span><\/td><td>Invoice<\/td><td>Upload<\/td><td class=\"num\">Nov 12, 2025<\/td><\/tr><tr><td><span class=\"ft-id\">L-1002<\/span><\/td><td><span class=\"ft-rsrc-file\">sequencing_invoice.eml<\/span><\/td><td>Email<\/td><td>Gmail<\/td><td class=\"num\">Feb 21, 2026<\/td><\/tr><tr><td><span class=\"ft-id\">L-1010<\/span><\/td><td><span class=\"ft-rsrc-file\">invoice_SEQ-0311.pdf<\/span><\/td><td>Invoice<\/td><td>Gmail<span class=\"ft-rsrc-sender\">billing@sequencing.example<\/span><\/td><td class=\"num\">Jan 12, 2026<\/td><\/tr><tr><td><span class=\"ft-id\">L-1015<\/span><\/td><td><span class=\"ft-rsrc-file\">boat_rental_receipt.jpg<\/span><\/td><td>Receipt photo<\/td><td>Gmail<span class=\"ft-rsrc-sender\">robin.example@university.example<\/span><\/td><td class=\"num\">Apr 12, 2026<\/td><\/tr><tr><td><span class=\"ft-id\">L-1019<\/span><\/td><td><span class=\"ft-rsrc-file\">field_camera_receipt.jpg<\/span><\/td><td>Receipt photo<\/td><td>Upload<\/td><td class=\"num\">Jan 22, 2026<\/td><\/tr><\/tbody><\/table><p class=\"ft-rsrc-note\">54 files in all. Each opens in FundTrail at the cited passage. Quotes in this report are checked against these files; boxes on photos are checked by a second look.<\/p><\/div><footer class=\"ft-rpage__foot\"><span>Prepared with FundTrail. All data in this demo is synthetic.<\/span><span>Page 9 of 9<\/span><\/footer><\/section>\n";
+/* FundTrail viewer frame: builds the sheet, moves between passages, zooms, and handles the keyboard.
+   Renderers (FTViewer.text, .email, .pdf, .photo) draw the document; this file draws everything around it.
+   FTViewer.mount(container, file, active)  inline, for design system cards
+   FTViewer.open(file, active, opener)      over the app, with a scrim; Esc closes and focus returns to the opener
+   Checked quotes (decision 0012): a fact with confirmed:false couldn't be placed in its file. The viewer opens its
+   page with no guessed highlight and shows the quote beside it, with two ways to settle it: confirm the value, or
+   type the right one. Either marks the fact confirmed by the accountant and still unplaced (placed:false). */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function where(file, f) { return file.type === 'pdf' || file.type === 'report' ? 'page ' + f.page : file.type === 'photo' ? '' : 'line ' + f.line; }
+  /* A fact is unplaced when its quote couldn't be found (unconfirmed), or when the accountant settled it by hand */
+  function unplaced(f) { return f.confirmed === false || f.placed === false; }
+  /* Draw the document without the active highlight or box, so nothing is guessed */
+  function unmark(html) {
+    return html.replace(/<mark class="ft-mark-hl is-active"[^>]*>([\s\S]*?)<\/mark>/g, '$1').replace(/<span class="ft-box ft-photo__box"[^>]*><\/span>/g, '')
+      .replace(/<div class="ft-photo__tools">[\s\S]*?<\/div>/, '');
+  }
+
+  function Viewer(host, file, active, inline) {
+    this.host = host; this.file = file; this.inline = inline;
+    this.r = V[file.type];
+    this.go(active == null ? (file.active || 0) : active, true);
+  }
+  Viewer.prototype.html = function () {
+    var file = this.file, f = file.facts[this.active], r = this.r, n = file.facts.length, i = this.active, z = this.view.zoom;
+    var head = '<header class="ft-sheet__head"><div class="ft-sheet__title"><h2 id="ftv-title">' + esc(file.title) + '</h2>' +
+      '<span class="ft-sheet__meta"><span class="ft-id">' + esc(file.name) + '</span> <span class="ft-sep">&middot;</span> ' + String(file.meta || '').split(/\s*·\s*/).map(esc).join(' <span class="ft-sep">&middot;</span> ') + '</span></div>' +
+      '<div class="ft-sheet__tools"><button type="button" class="ft-btn ft-btn--sm ft-btn--quiet" data-act="download">Download original</button>' +
+      (this.inline ? '' : '<span class="ft-vr" aria-hidden="true"></span><button type="button" class="ft-iconbtn ft-iconbtn--close" data-act="close" aria-label="Close viewer"></button>') + '</div></header>';
+    var cite;
+    if (f.confirmed === false) cite = '<b>' + esc(f.label) + '</b><span class="ft-vu-flag">Unconfirmed</span><span>' + (file.type === 'photo' ? 'The second look didn’t read the same value' : 'Couldn’t place this quote in the file') + '</span>';
+    else if (f.placed === false) cite = '<b>' + esc(f.label) + '</b><span>Confirmed by you <span class="ft-sep">&middot;</span> not placed in the file</span>';
+    else cite = r.cite ? r.cite(file, f) : file.type === 'photo'
+      ? '<b>' + esc(f.label) + '</b><span>Box checked by a second look</span>'
+      : '<b>' + esc(f.label) + '</b><span>Exact passage <span class="ft-sep">&middot;</span> ' + where(file, f) + '</span>';
+    var zoom = '';
+    if (r.zooms) {
+      var lo = z <= r.zooms[0] + 1e-6, hi = z >= r.zooms[r.zooms.length - 1] - 1e-6;
+      zoom = '<span class="ft-zoom" role="group" aria-label="Zoom"><button type="button" class="ft-iconbtn ft-iconbtn--minus" data-act="zoomout" aria-label="Zoom out"' + (lo ? ' aria-disabled="true"' : '') + '></button>' +
+        '<span class="ft-zoom__level" aria-live="polite">' + Math.round(z * 100) + '%</span><button type="button" class="ft-iconbtn ft-iconbtn--plus" data-act="zoomin" aria-label="Zoom in"' + (hi ? ' aria-disabled="true"' : '') + '></button></span><span class="ft-vr" aria-hidden="true"></span>';
+    }
+    var pager = '<span class="ft-pager" role="group" aria-label="Passage ' + (i + 1) + ' of ' + n + '"><button type="button" class="ft-iconbtn ft-iconbtn--up" data-act="prev" aria-label="Previous passage"' + (i === 0 ? ' aria-disabled="true"' : '') + '></button>' +
+      '<span class="ft-pager__text" aria-hidden="true">' + (i + 1) + ' of ' + n + '</span><button type="button" class="ft-iconbtn ft-iconbtn--down" data-act="next" aria-label="Next passage"' + (i === n - 1 ? ' aria-disabled="true"' : '') + '></button></span>';
+    var bar = '<div class="ft-sheet__bar"><div class="ft-sheet__cite" role="status">' + cite + '</div><div class="ft-sheet__controls">' + zoom + pager + '</div></div>';
+    var facts = file.facts.map(function (x, k) {
+      var loc = where(file, x), mark = '';
+      if (x.confirmed === false) mark = '<span class="ft-sidefact__loc ft-vu-side">Unconfirmed</span>';
+      else if (x.placed === false) mark = '<span class="ft-sidefact__loc">Confirmed by you</span>';
+      else if (loc) mark = '<span class="ft-sidefact__loc">' + loc + '</span>';
+      return '<li><button type="button" class="ft-sidefact" data-fact="' + k + '"' + (k === i ? ' aria-current="true"' : '') + '><span class="ft-sidefact__label">' + esc(x.label) + '</span>' +
+        '<span class="ft-sidefact__value">' + esc(x.value) + '</span>' + mark + '</button></li>';
+    }).join('');
+    var side = '<div class="ft-sheet__section"><span class="ft-sheet__label" id="ftv-facts">In this file</span><ul class="ft-sidefacts" aria-labelledby="ftv-facts">' + facts + '</ul></div>';
+    if (file.links && file.links.length) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Linked to</span><ul class="ft-sidelinks">' + file.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-caption">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul></div>';
+    else if (file.note) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Status</span><p class="ft-sheet__note" style="margin:0">' + esc(file.note) + '</p></div>';
+    var page = this.r.render(file, i, this.view);
+    if (unplaced(f)) page = unmark(page);
+    var doc = '<div class="ft-sheet__doc" tabindex="0" aria-label="' + esc(file.name) + '">' + this.settleHtml(f) + page + '</div>';
+    return head + bar + '<div class="ft-sheet__body">' + doc + '<aside class="ft-sheet__side" aria-label="Facts and links">' + side + '</aside></div>';
+  };
+  /* The panel beside an unconfirmed fact's page: the quote, why it matters, and the two ways to settle it */
+  Viewer.prototype.settleHtml = function (f) {
+    var file = this.file;
+    if (this.done) return '<div class="ft-vu-wrap"><div class="ft-trail__done ft-vu-done" role="status" tabindex="-1" id="ftv-done"><span>' + esc(this.done) + '</span><button type="button" data-act="vu-undo">Undo</button></div></div>';
+    if (f.confirmed !== false) return '';
+    var photo = file.type === 'photo', loc = where(file, f);
+    var quote = photo
+      ? '<p class="ft-vu__quote"><span class="ft-vu__said">The agent read</span> <span class="ft-quote">“' + esc(f.value) + '”</span></p>'
+      : '<p class="ft-vu__quote ft-quote">“' + esc(f.text || f.value) + '”' + (loc ? ' <span class="ft-loc">' + loc + ', not found there</span>' : '') + '</p>';
+    var form = this.typing
+      ? '<form class="ft-inline-edit ft-vu__form" data-vu-form><input class="ft-input" name="v" aria-label="The right value for ' + esc(f.label.toLowerCase()) + '" value="' + esc(f.value) + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="vu-cancel">Cancel</button></form>'
+      : '<div class="ft-vu__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-act="vu-confirm">Confirm ' + esc(f.value) + '</button><button type="button" class="ft-btn ft-btn--sm" data-act="vu-type">Type the right value</button></div>';
+    return '<div class="ft-vu-wrap"><section class="ft-vu" aria-labelledby="ftv-vu-h">' +
+      '<div class="ft-vu__head"><span class="ft-vu__mark" aria-hidden="true"></span><b id="ftv-vu-h">' + (photo ? 'The second look didn’t confirm this value' : 'Couldn’t place this quote in the file') + '</b></div>' +
+      quote +
+      '<p class="ft-vu__why">' + (photo ? 'No box is drawn, so nothing is guessed. ' : 'No highlight is drawn, so nothing is guessed. ') + 'Anything that rests on this fact is in Needs a human until you confirm the value or type the right one.</p>' +
+      form + '</section></div>';
+  };
+  /* Settle an unconfirmed fact by hand; Undo puts it back as it was */
+  Viewer.prototype.settle = function (value) {
+    var f = this.file.facts[this.active];
+    this.undo = { i: this.active, value: f.value, confirmed: f.confirmed, placed: f.placed, by: f.confirmedBy };
+    var typed = value != null && value !== f.value;
+    if (value != null) f.value = value;
+    f.confirmed = true; f.placed = false; f.confirmedBy = 'you'; this.typing = false;
+    this.done = (typed ? 'Set by you: ' + f.value + '.' : 'Confirmed by you: ' + f.value + '.') + ' Anything that rested on it rechecks.';
+    this.draw(true, '#ftv-done');
+  };
+  Viewer.prototype.unsettle = function () {
+    var u = this.undo; if (!u) return;
+    var f = this.file.facts[u.i];
+    f.value = u.value; f.confirmed = u.confirmed; f.placed = u.placed; f.confirmedBy = u.by;
+    this.undo = null; this.done = null;
+    this.draw(true, '[data-act="vu-confirm"]');
+  };
+  Viewer.prototype.draw = function (smooth, focusSel) {
+    var a = document.activeElement, key = null;
+    if (a && this.host.contains(a)) key = a.getAttribute('data-act') ? '[data-act="' + a.getAttribute('data-act') + '"]' : a.getAttribute('data-fact') ? '[data-fact="' + a.getAttribute('data-fact') + '"]' : a.classList.contains('ft-sheet__doc') ? '.ft-sheet__doc' : null;
+    var doc0 = this.host.querySelector('.ft-sheet__doc'), keepTop = doc0 ? doc0.scrollTop : 0, keepLeft = doc0 ? doc0.scrollLeft : 0;
+    this.host.innerHTML = this.html();
+    var doc = this.host.querySelector('.ft-sheet__doc');
+    if (smooth) doc.scrollTo({ top: keepTop, left: keepLeft, behavior: 'instant' });
+    /* Renderers that fit to the window (the whole photo) know their real zoom only once drawn */
+    var lv = this.host.querySelector('.ft-zoom__level'), zi = this.host.querySelector('[data-act="zoomin"]'), zo = this.host.querySelector('[data-act="zoomout"]');
+    if (lv && this.r.levelText) lv.textContent = this.r.levelText(this.view, doc);
+    if (zi && this.r.canStep) { zi.setAttribute('aria-disabled', String(!this.r.canStep(this.view, 1, doc))); zo.setAttribute('aria-disabled', String(!this.r.canStep(this.view, -1, doc))); }
+    var t = focusSel ? this.host.querySelector(focusSel) : key ? this.host.querySelector(key) : null;
+    if (t) t.focus({ preventScroll: true });
+    this.reveal(smooth);
+    var side = this.host.querySelector('.ft-sheet__side'), sf = side && side.querySelector('[aria-current="true"]');
+    if (sf) { var s = side.getBoundingClientRect(), r = sf.getBoundingClientRect(); if (r.top < s.top || r.bottom > s.bottom) side.scrollTop += r.top - s.top - (side.clientHeight - r.height) / 2; }
+  };
+  Viewer.prototype.reveal = function (smooth, settled) {
+    var doc = this.host.querySelector('.ft-sheet__doc'), f = this.file.facts[this.active], el;
+    if (doc && unplaced(f)) {
+      /* Nothing to point at: open the fact's page when it has one, else the top, with the panel in view */
+      var pages = doc.querySelectorAll('.ft-pdf__sheet, .ft-rpage');
+      el = f.page && pages[f.page - 1] && f.page > 1 ? pages[f.page - 1] : null;
+      if (!el) { doc.scrollTo({ top: 0, left: 0, behavior: 'instant' }); return; }
+    } else el = doc && this.r.target(doc, this.file, this.active);
+    if (!el) return;
+    if (settled) smooth = false;
+    var d = doc.getBoundingClientRect(), e = el.getBoundingClientRect();
+    var top = doc.scrollTop + (e.top - d.top) - (e.height > doc.clientHeight - 32 ? 16 : (doc.clientHeight - e.height) / 2);
+    var left = doc.scrollLeft + (e.left - d.left) - (doc.clientWidth - e.width) / 2;
+    doc.scrollTo({ top: Math.max(0, top), left: Math.max(0, left), behavior: smooth && !reduce ? 'smooth' : 'instant' });
+    if (!smooth && !settled && document.fonts && document.fonts.ready) { var self = this, i = this.active; document.fonts.ready.then(function () { if (self.active === i && self.host.isConnected) self.reveal(false, true); }); }
+  };
+  Viewer.prototype.go = function (i, first, focusSel) {
+    var n = this.file.facts.length; i = Math.max(0, Math.min(n - 1, i));
+    var keepZoom = this.view && this.file.type === 'pdf';
+    if (i !== this.active) { this.typing = false; this.done = null; this.undo = null; }
+    this.active = i;
+    if (!keepZoom) this.view = this.r.initialView ? this.r.initialView(this.file, i) : { zoom: 1, whole: false };
+    /* A photo fact that isn't placed has no box to zoom to: show the whole photo */
+    if (this.file.type === 'photo' && unplaced(this.file.facts[i])) this.view.whole = true;
+    this.draw(!first, focusSel);
+  };
+  Viewer.prototype.zoom = function (dir) {
+    var zs = this.r.zooms; if (!zs) return;
+    if (this.r.step) { this.view = this.r.step(this.view, dir, this.host.querySelector('.ft-sheet__doc')); this.draw(true, dir > 0 ? '[data-act="zoomin"]' : '[data-act="zoomout"]'); return; }
+    var z = this.view.zoom, k;
+    if (dir > 0) { for (k = 0; k < zs.length && zs[k] <= z + 1e-6; k++); this.view.zoom = zs[Math.min(k, zs.length - 1)]; }
+    else { for (k = zs.length - 1; k >= 0 && zs[k] >= z - 1e-6; k--); this.view.zoom = zs[Math.max(k, 0)]; }
+    this.view.whole = false;
+    this.draw(true);
+  };
+  Viewer.prototype.handle = function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act], [data-fact]') : null;
+    if (!t || !this.host.contains(t)) return;
+    if (t.getAttribute('aria-disabled') === 'true') return;
+    var act = t.getAttribute('data-act'), f = t.getAttribute('data-fact');
+    if (f != null) return this.go(parseInt(f, 10), false, '[data-fact="' + f + '"]');
+    if (act === 'prev') this.go(this.active - 1);
+    else if (act === 'next') this.go(this.active + 1);
+    else if (act === 'zoomin') this.zoom(1);
+    else if (act === 'zoomout') this.zoom(-1);
+    else if (act === 'whole') { this.view.whole = !this.view.whole; this.draw(true, '[data-act="whole"]'); }
+    else if (act === 'close') V.close();
+    else if (act === 'vu-confirm') this.settle(null);
+    else if (act === 'vu-type') { this.typing = true; this.draw(true, '[data-vu-form] input'); var inp = this.host.querySelector('[data-vu-form] input'); if (inp) inp.select(); }
+    else if (act === 'vu-cancel') { this.typing = false; this.draw(true, '[data-act="vu-type"]'); }
+    else if (act === 'vu-undo') this.unsettle();
+  };
+  Viewer.prototype.submit = function (e) {
+    var form = e.target; if (!form.hasAttribute || !form.hasAttribute('data-vu-form')) return;
+    e.preventDefault();
+    var v = form.elements.v.value.trim(); if (!v) { form.elements.v.focus(); return; }
+    this.settle(v);
+  };
+  Viewer.prototype.key = function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-fact');
+    if (f != null && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); var k = parseInt(f, 10) + (e.key === 'ArrowDown' ? 1 : -1); if (k >= 0 && k < this.file.facts.length) this.go(k, false, '[data-fact="' + k + '"]'); }
+  };
+  function wire(v) {
+    v.host.addEventListener('click', function (e) { v.handle(e); });
+    v.host.addEventListener('keydown', function (e) { v.key(e); });
+    v.host.addEventListener('submit', function (e) { v.submit(e); });
+  }
+
+  V.mount = function (container, file, active) {
+    container.classList.add('ft-sheet', 'ft-sheet--inline');
+    container.setAttribute('aria-labelledby', 'ftv-title');
+    var v = new Viewer(container, file, active, true); wire(v); return v;
+  };
+
+  var cur = null;
+  V.open = function (file, active, opener) {
+    if (cur) V.close(true);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var sheet = document.createElement('section');
+    sheet.className = 'ft-sheet' + (reduce ? '' : ' ft-sheet--in');
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'ftv-title'); sheet.tabIndex = -1;
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
+    var v = new Viewer(sheet, file, active, false); wire(v);
+    scrim.addEventListener('click', function () { V.close(); });
+    sheet.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); V.close(); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(sheet.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    cur = { v: v, scrim: scrim, sheet: sheet, opener: opener, app: app };
+    sheet.focus({ preventScroll: true });
+    v.reveal(false);
+    return v;
+  };
+  V.close = function (silent) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    if (c.app) c.app.removeAttribute('inert');
+    c.scrim.remove(); c.sheet.remove();
+    if (!silent && c.opener && c.opener.isConnected) c.opener.focus();
+    if (V.onclose) V.onclose();
+  };
+  V.isOpen = function () { return !!cur; };
+})();
+
+/* The evidence report in the viewer sheet: its pages in the document area, its parts in the side list.
+   FTReport.open(opener) needs window.FTReportPages (the pages' HTML), built into the card. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.report = {
+    zooms: [0.5, 0.65, 0.8, 1, 1.25],
+    initialView: function () { return { zoom: 0.8, whole: false }; },
+    cite: function (file, f) { return '<b>' + f.label + '</b><span>Page ' + f.page + ' of ' + file.pages + '</span>'; },
+    render: function (file, active, view) { return '<div class="ft-report ft-report--sheet" style="zoom:' + view.zoom + '">' + file.html + '</div>'; },
+    target: function (docEl, file, active) {
+      var f = file.facts[active], el = f.sel ? docEl.querySelector(f.sel) : null;
+      return el || docEl.querySelector('#rp-' + f.page);
+    }
+  };
+  window.FTReport = {
+    file: function () {
+      var signed = document.documentElement.classList.contains('is-signed');
+      var d = window.FTReportData || { counts: {}, grant: {} };
+      var open = (d.counts.conflict || 0) + (d.counts.human || 0) + (d.counts.missing || 0);
+      return {
+        id: 'R1', type: 'report', name: 'evidence_report_SYN-2300117.pdf', title: 'Evidence report', pages: 9,
+        meta: (signed ? 'Signed off by you · Apr 12, 2026' : 'Draft · As of Apr 12, 2026') + ' · 9 pages',
+        html: (function (h) {
+          if (!signed || !window.FTReportNote) return h;
+          var t = document.createElement('div'); t.innerHTML = h;
+          var n = t.querySelector('.ft-rso-note'); if (n) n.textContent = window.FTReportNote;
+          return t.innerHTML;
+        })(window.FTReportPages || ''),
+        facts: [
+          { label: 'Summary', value: 'The award, its total and its buckets', page: 1 },
+          { label: 'All charges', value: (d.charges ? d.charges.length : 51) + ' charges, ' + (d.grant.charged || ''), page: 2 },
+          { label: 'Charge sections', value: 'Checks, quotes and history', page: 4 },
+          { label: 'Open at sign-off', value: open + ' charges', page: 7 },
+          { label: 'Sign-off', value: signed ? 'Signed off Apr 12, 2026' : 'Not signed off yet', page: 7, sel: '#rp-7 .ft-rso-party' },
+          { label: 'Sources', value: 'Every file the report cites', page: 8 }
+        ],
+        links: [],
+        note: signed ? 'Signed off. Attach it to the Award Closeout Certification in BFS.' : 'Draft. It regenerates whenever a record changes, until you sign off.'
+      };
+    },
+    open: function (opener, part) { var f = this.file(); V.open(f, part || 0, opener); }
+  };
+})();
+
+</script>
+<!-- /report-scripts -->
+<script>
+(function () {
+  /* From components/_src/report-data.json (FTReportData): counts and the charges that aren't Evidence complete */
+  var DATA = {
+    grant: { award: 'SYN-2300117', title: 'Sediment Microbiome Survey of Example Bay', funder: 'National Science Foundation (NSF)', awarded: '$120,000.00', charged: '$96,412.18', asOf: 'Apr 12, 2026' },
+    counts: { complete: 48, conflict: 1, human: 2, missing: 0 },
+    open: [
+      { id: 'L-0981', dateText: 'Oct 3, 2025', desc: 'Conference registration', amount: '$650.00', bucket: 'conflict', reason: 'Approved by the principal investigator, not the program officer.' },
+      { id: 'L-1010', dateText: 'Jan 9, 2026', desc: 'Sequencing core, shared run 6', amount: '$5,833.33', bucket: 'human', reason: 'Invoice SEQ-0311 covers two grants; nothing gives this grant’s part.' },
+      { id: 'L-1019', dateText: 'Jan 21, 2026', desc: 'Field microscope camera', amount: '$1,325.00', bucket: 'human', reason: 'The agent is unsure the cost is for this project.' }
+    ]
+  };
+  var NAMES = { conflict: 'Possible conflict', human: 'Needs a human', missing: 'Missing evidence', complete: 'Evidence complete' };
+  var PAGES = 9, TODAY = 'Apr 12, 2026', PREPARER = 'Taylor Example';
+  var c = DATA.counts, total = c.complete + c.conflict + c.human + c.missing, nOpen = DATA.open.length;
+  var state = { signed: false, note: '', err: false, done: false };
+  var doneTimer = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var root = document.documentElement;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); }
+
+  function renderStatic() {
+    var g = DATA.grant;
+    $('co-caption').innerHTML = '<span class="ft-id">' + g.award + '</span> <span class="ft-sep">&middot;</span> ' + g.funder + ' <span class="ft-sep">&middot;</span> <span class="ft-amount">' + g.awarded + '</span> awarded <span class="ft-sep">&middot;</span> <span class="ft-amount">' + g.charged + '</span> charged';
+    $('co-title').textContent = g.title;
+    $('co-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">' + c.complete + '</span><span class="ft-ready__of">of ' + total + ' charges ready for closeout</span></div>' +
+      '<div class="ft-ready__bar" aria-hidden="true">' + (c.conflict ? '<span class="is-conflict" style="flex:' + c.conflict + '"></span>' : '') + (c.human ? '<span class="is-human" style="flex:' + c.human + '"></span>' : '') +
+      (c.missing ? '<span class="is-missing" style="flex:' + c.missing + '"></span>' : '') + '<span class="is-complete" style="flex:' + c.complete + '"></span></div>';
+    $('co-today-ready').textContent = c.complete + ' of ' + total + ' charges ready';
+    $('co-open-count').textContent = nOpen + ' charges';
+    $('co-open').innerHTML = DATA.open.map(function (x) {
+      return '<li><a class="ft-row" href="#" aria-label="' + esc(x.id + ', ' + x.desc + ', ' + NAMES[x.bucket] + '. Open in the problem list') + '">' +
+        '<span class="ft-row__date">' + x.dateText + '<span class="ft-id">' + x.id + '</span></span>' +
+        '<span class="ft-row__desc"><span class="ft-row__name">' + esc(x.desc) + '</span><span class="ft-row__reason">' + esc(x.reason) + '</span></span>' +
+        '<span class="ft-row__amount ft-amount">' + x.amount + '</span><span class="ft-row__bucket"><span class="ft-badge ft-badge--' + x.bucket + '">' + NAMES[x.bucket] + '</span></span></a></li>';
+    }).join('');
+  }
+
+  function renderReport() {
+    var s = $('co-status');
+    s.className = 'ft-co-status' + (state.signed ? ' is-signed' : '');
+    s.textContent = state.signed ? 'Signed off' : 'Draft';
+    $('co-report-meta').innerHTML = (state.signed ? 'Signed off ' + TODAY : 'As of ' + DATA.grant.asOf) + ' <span class="ft-sep">&middot;</span> ' + PAGES + ' pages <span class="ft-sep">&middot;</span> ' + total + ' charges';
+    $('co-report-note').textContent = state.signed ? 'Every page now shows your sign-off in place of Draft.' : 'It regenerates whenever a record changes. Every page says Draft until you sign off.';
+    root.classList.toggle('is-signed', state.signed);
+  }
+
+  var REVIEWER = '<p class="ft-caption" style="margin:0">Your supervisor approves the Award Closeout Certification in BFS. The report has a line for their signature.</p>';
+  function renderSign() {
+    var h;
+    if (state.signed) {
+      h = '<div class="ft-co-sign">' +
+        (state.done ? '<div class="ft-trail__done" role="status" tabindex="-1" id="co-done"><span>Signed off ' + TODAY + '. The report now shows your sign-off.</span><button type="button" data-act="undo">Undo</button></div>' : '') +
+        '<p class="ft-form__title">Sign-off</p>' +
+        '<p class="ft-co-by">Signed off by <b>' + PREPARER + '</b> <span>(you), ' + TODAY + '</span></p>' +
+        (state.note ? '<p class="ft-co-note">' + esc(state.note) + '</p>' : '') + REVIEWER +
+        (state.done ? '' : '<button type="button" class="ft-overrule" data-act="undo" style="margin:0">Withdraw sign-off</button>') + '</div>';
+    } else {
+      var need = nOpen > 0;
+      h = '<form class="ft-co-sign" id="co-sign-form" novalidate>' +
+        '<p class="ft-form__title">Sign-off</p>' +
+        '<p class="ft-co-by">Prepared by <b>' + PREPARER + '</b> <span>(you)</span></p>' +
+        '<div class="ft-field' + (state.err ? ' is-invalid' : '') + '" id="co-note-field"><label class="ft-field__label" for="co-note">Note' + (need ? '' : ' <span class="ft-caption">(optional)</span>') + '</label>' +
+        '<textarea class="ft-textarea" id="co-note" name="note" rows="3"' + (need ? ' aria-required="true"' : '') + ' aria-describedby="co-note-help"' + (state.err ? ' aria-invalid="true"' : '') + ' placeholder="For example: L-1010’s split is with the other grant’s accountant.">' + esc(state.note) + '</textarea>' +
+        (state.err ? '<span class="ft-field__error" id="co-note-help">Add a note. It goes into the report next to the ' + nOpen + ' open charges.</span>'
+                   : '<span class="ft-field__hint" id="co-note-help">' + (need ? nOpen + ' charges aren’t Evidence complete. Say why you’re signing off with them open.' : 'Goes into the report under your name.') + '</span>') + '</div>' +
+        '<div class="ft-form__actions"><button type="submit" class="ft-btn ft-btn--approve ft-btn--main">Sign off</button></div>' + REVIEWER + '</form>';
+    }
+    $('co-sign').innerHTML = h;
+  }
+  function render() { renderReport(); renderSign(); }
+
+  function signOff() {
+    if (nOpen > 0 && !state.note.trim()) { state.err = true; renderSign(); var t = $('co-note'); if (t) t.focus(); return; }
+    state.note = state.note.trim(); window.FTReportNote = state.note; state.signed = true; state.err = false; state.done = true; render();
+    var d = $('co-done'); if (d) d.focus();
+    clearTimeout(doneTimer); doneTimer = setTimeout(function () { var had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#co-done'); state.done = false; renderSign(); if (had) { var p = document.querySelector('[data-act="preview-report"]'); if (p) p.focus(); } }, 8000);
+  }
+  function undo() {
+    clearTimeout(doneTimer); state.signed = false; state.done = false; render();
+    var t = $('co-note'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, a') : null; if (!t) return;
+    if (t.tagName === 'A') { e.preventDefault(); return; }
+    var act = t.getAttribute('data-act');
+    if (act === 'preview-report') { if (window.FTReport && window.FTReport.open) window.FTReport.open(t); }
+    else if (act === 'undo') undo();
+  });
+  document.addEventListener('submit', function (e) { if (e.target.id === 'co-sign-form') { e.preventDefault(); signOff(); } });
+  document.addEventListener('input', function (e) {
+    if (e.target.id !== 'co-note') return;
+    state.note = e.target.value;
+    if (state.err && state.note.trim()) {
+      state.err = false;
+      $('co-note-field').classList.remove('is-invalid'); e.target.removeAttribute('aria-invalid');
+      var help = $('co-note-help'); help.className = 'ft-field__hint'; help.textContent = nOpen + ' charges aren’t Evidence complete. Say why you’re signing off with them open.';
+    }
+  });
+
+  var themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* a hash can jump to a state, for screenshots: #signed=1, #done=1 (with the done line), #err=1, #t=dark */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme(); renderStatic();
+  if (h.signed === '1') { state.signed = true; state.done = h.done === '1'; state.note = 'L-0981 moves off the grant in the adjustment period. L-1010’s split is with the other grant’s accountant. L-1019 is waiting on the PI’s answer.'; window.FTReportNote = state.note; }
+  if (h.err === '1') state.err = true;
+  render();
+})();
+</script>
+<!-- @menu-scripts -->
+<script>
+/* FundTrail workspace and account menus, with the New workspace and Reset dialogs.
+   Drop into any page that has the app shell: FTWorkspaceMenu.attach(options).
+   It turns the sidebar's .ft-workspace block and its Account button into menu buttons.
+   options: workspaces [{id, name, note, demo}], current (id), user {name, email},
+            onNavigate(kind, value): kind is 'workspace' (value: id), 'new' (value: name), 'reset' (value: id) or 'signout'.
+            Return false from onNavigate to skip the default (the default only updates the workspace button's label).
+   Also: FTWorkspaceMenu.open('workspace' | 'account'), .dialog('new' | 'reset'), .close(). Plain ES5, no dependencies. */
+(function () {
+  var M = window.FTWorkspaceMenu = window.FTWorkspaceMenu || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var opts = null, wsBtn = null, acBtn = null, menu = null, menuKind = null, dlg = null, scrim = null, seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function current() { for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === opts.current) return opts.workspaces[i]; return opts.workspaces[0]; }
+  function nav(kind, value) { var r = opts.onNavigate ? opts.onNavigate(kind, value) : undefined; if (r !== false) feedback(kind, value); return r !== false; }
+  /* Without a page handler, say what happened, so a choice never looks like it did nothing */
+  var toastEl = null, toastTimer = null;
+  function feedback(kind, value) {
+    var name = value;
+    if (kind === 'workspace' || kind === 'reset') for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === value) name = opts.workspaces[i].name;
+    var text = kind === 'workspace' ? 'Switched to ' + name + '.' : kind === 'new' ? 'Created ' + name + '. It has no grants yet.' :
+      kind === 'reset' ? name + ' is back to how it started.' : kind === 'signout' ? 'Signed out. The sign-in page opens next.' : '';
+    if (!text) return;
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'ft-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+    toastEl.textContent = text; toastEl.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 6000);
+  }
+  function syncLabel() { if (!wsBtn) return; var s = wsBtn.querySelector('span'); if (s) s.textContent = current().name; }
+
+  /* ---------- menus ---------- */
+  function items() { return menu ? Array.prototype.slice.call(menu.querySelectorAll('.ft-menu-item')) : []; }
+  function focusItem(i) { var all = items(); if (!all.length) return; i = (i + all.length) % all.length; all[i].focus(); }
+  function menuHtml(kind) {
+    if (kind === 'account') {
+      var u = opts.user;
+      return '<div class="ft-menu-who" aria-hidden="true"><b>' + esc(u.name) + '</b><span>' + esc(u.email) + '</span><span>Signed in with Google</span></div>' +
+        '<div class="ft-menu-sep" role="separator"></div>' +
+        '<button type="button" class="ft-menu-item ft-menu-item--plain" role="menuitem" tabindex="-1" data-ft-menu="signout"><span class="ft-menu-item__text">Sign out</span></button>';
+    }
+    var h = '<div class="ft-menu-label" aria-hidden="true">Workspaces</div><div role="group" aria-label="Workspaces">';
+    opts.workspaces.forEach(function (w) {
+      var on = w.id === opts.current;
+      h += '<button type="button" class="ft-menu-item" role="menuitemradio" aria-checked="' + on + '" tabindex="-1" data-ft-menu="workspace" data-ft-value="' + esc(w.id) + '">' +
+        '<span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text"><span>' + esc(w.name) + '</span>' + (w.note ? '<span class="ft-menu-item__sub">' + esc(w.note) + '</span>' : '') + '</span></button>';
+    });
+    h += '</div><div class="ft-menu-sep" role="separator"></div>' +
+      '<button type="button" class="ft-menu-item" role="menuitem" tabindex="-1" data-ft-menu="new"><span class="ft-menu-item__mark ft-menu-item__mark--plus" aria-hidden="true"></span><span class="ft-menu-item__text">New workspace</span></button>';
+    if (current().demo) h += '<button type="button" class="ft-menu-item ft-menu-item--danger" role="menuitem" tabindex="-1" data-ft-menu="reset"><span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text">Reset demo workspace</span></button>';
+    return h;
+  }
+  function open(kind, focusLast) {
+    var btn = kind === 'account' ? acBtn : wsBtn; if (!btn) return;
+    close(false);
+    menu = document.createElement('div');
+    menu.className = 'ft-menu' + (reduce ? '' : ' ft-menu--in');
+    menu.id = 'ft-menu-' + kind; menu.setAttribute('role', 'menu');
+    if (kind === 'account') menu.setAttribute('aria-label', 'Account: ' + opts.user.name + ', ' + opts.user.email + ', signed in with Google');
+    else menu.setAttribute('aria-labelledby', btn.id);
+    menu.innerHTML = menuHtml(kind);
+    document.body.appendChild(menu); menuKind = kind;
+    place();
+    btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', menu.id);
+    menu.addEventListener('keydown', menuKey);
+    menu.addEventListener('click', menuClick);
+    var all = items(), checked = menu.querySelector('[aria-checked="true"]');
+    if (focusLast) focusItem(all.length - 1); else if (checked) checked.focus(); else focusItem(0);
+  }
+  /* Keeps the menu next to its button: below the workspace block, above the Account button */
+  function place() {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn, r = btn.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    menu.style.minWidth = Math.max(r.width, 248) + 'px';
+    menu.style.left = Math.max(8, Math.min(r.left, vw - menu.offsetWidth - 8)) + 'px';
+    if (menuKind === 'account') { menu.style.top = ''; menu.style.bottom = Math.max(8, vh - r.top + 6) + 'px'; }
+    else { menu.style.bottom = ''; menu.style.top = Math.max(8, Math.min(r.bottom + 6, vh - menu.offsetHeight - 8)) + 'px'; }
+  }
+  function close(returnFocus) {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn;
+    menu.parentNode.removeChild(menu); menu = null; menuKind = null;
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-controls'); if (returnFocus) btn.focus(); }
+  }
+  function menuKey(e) {
+    var all = items(), i = all.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(i + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); focusItem(0); }
+    else if (e.key === 'End') { e.preventDefault(); focusItem(all.length - 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); close(true); }
+    else if (e.key.length === 1 && /\S/.test(e.key)) {
+      var k = e.key.toLowerCase();
+      for (var n = 1; n <= all.length; n++) { var it = all[(i + n) % all.length]; if (it.textContent.trim().toLowerCase().charAt(0) === k) { it.focus(); break; } }
+    }
+  }
+  function menuClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-menu]') : null; if (!t) return;
+    select(t.getAttribute('data-ft-menu'), t.getAttribute('data-ft-value'));
+  }
+  function select(kind, value) {
+    if (kind === 'workspace') {
+      close(true);
+      if (value !== opts.current && nav('workspace', value)) { opts.current = value; syncLabel(); }
+    } else if (kind === 'new' || kind === 'reset') { close(false); dialog(kind); }
+    else if (kind === 'signout') { close(true); nav('signout'); }
+  }
+
+  /* ---------- dialogs ---------- */
+  function dialogHtml(kind, id) {
+    if (kind === 'reset') {
+      return '<div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Reset the demo workspace?</h2></div>' +
+        '<div class="ft-dialog-body" id="' + id + '-d"><p>It goes back to how it started. This can’t be undone.</p>' +
+        '<ul class="ft-dialog-list"><li>Your answers, confirmations, splits and sign-offs are removed.</li><li>Files you uploaded or forwarded to its grants are removed.</li>' +
+        '<li>The clock goes back to where the demo starts.</li><li>Your other workspaces don’t change.</li></ul></div>' +
+        '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="button" class="ft-btn ft-btn--reject" data-ft-dialog="reset">Reset workspace</button></div>';
+    }
+    return '<form class="ft-dialog-form" novalidate><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">New workspace</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d">A workspace holds its own grants, ledgers and evidence. Only you can see it.</p>' +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-name">Name</label>' +
+      '<input class="ft-input" id="' + id + '-name" name="name" autocomplete="off" placeholder="For example: Biology department" aria-describedby="' + id + '-help">' +
+      '<span class="ft-field__hint" id="' + id + '-help">Add grants to it after you create it.</span></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main" data-ft-dialog="create">Create workspace</button></div></form>';
+  }
+  function dialog(kind) {
+    closeDialog(false); close(false);
+    var id = 'ft-dialog-' + (++seq);
+    scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    dlg = document.createElement('section');
+    dlg.className = 'ft-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', kind === 'reset' ? 'alertdialog' : 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.setAttribute('data-ft-kind', kind);
+    dlg.innerHTML = dialogHtml(kind, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    scrim.addEventListener('click', function () { closeDialog(true); });
+    dlg.addEventListener('keydown', dialogKey);
+    dlg.addEventListener('click', dialogClick);
+    var form = dlg.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function (e) { e.preventDefault(); e.stopPropagation(); create(id); });
+      form.elements.name.addEventListener('input', function () { if (form.elements.name.value.trim()) fieldError(id, null); });
+    }
+    var first = kind === 'reset' ? dlg.querySelector('[data-ft-dialog="cancel"]') : dlg.querySelector('input');
+    if (first) first.focus(); else dlg.focus();
+  }
+  function fieldError(id, msg) {
+    var f = document.getElementById(id + '-field'), help = document.getElementById(id + '-help'), inp = document.getElementById(id + '-name');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); help.className = 'ft-field__error'; help.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); help.className = 'ft-field__hint'; help.textContent = 'Add grants to it after you create it.'; }
+  }
+  function create(id) {
+    var inp = document.getElementById(id + '-name'), name = inp.value.replace(/\s+/g, ' ').trim();
+    if (!name) { fieldError(id, 'Add a name.'); inp.focus(); return; }
+    var taken = opts.workspaces.some(function (w) { return w.name.toLowerCase() === name.toLowerCase(); });
+    if (taken) { fieldError(id, 'You already have a workspace with that name.'); inp.focus(); return; }
+    if (nav('new', name)) {
+      var wid = 'ws-' + Date.now().toString(36);
+      opts.workspaces.push({ id: wid, name: name, note: 'No grants yet' }); opts.current = wid; syncLabel();
+    }
+    closeDialog(true);
+  }
+  function dialogClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-dialog]') : null; if (!t) return;
+    var a = t.getAttribute('data-ft-dialog');
+    if (a === 'cancel') closeDialog(true);
+    else if (a === 'reset') { var cur = opts.current; closeDialog(true); nav('reset', cur); }
+  }
+  function dialogKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(true); return; }
+    if (e.key !== 'Tab') return;
+    var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!els.length) return;
+    var first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  function closeDialog(returnFocus) {
+    if (!dlg) return;
+    dlg.parentNode.removeChild(dlg); scrim.parentNode.removeChild(scrim); dlg = null; scrim = null;
+    var app = document.querySelector('.ft-app'); if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && wsBtn) wsBtn.focus();
+  }
+
+  /* ---------- attach ---------- */
+  function wire(btn, kind) {
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', function (e) { e.preventDefault(); if (menu && menuKind === kind) close(true); else open(kind); });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(kind); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); open(kind, true); }
+    });
+  }
+  M.attach = function (o) {
+    o = o || {};
+    opts = {
+      workspaces: [{ id: 'demo', name: 'Demo workspace', note: 'Sample grants. All data is synthetic.', demo: true }, { id: 'bio', name: 'Biology department', note: 'No grants yet' }],
+      current: 'demo',
+      user: { name: 'Taylor Example', email: 'taylor.example@university.example' },
+      onNavigate: null
+    };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) opts[k] = o[k];
+    var ws = document.querySelector('.ft-sidebar .ft-workspace');
+    if (ws && ws.tagName !== 'BUTTON') {
+      var b = document.createElement('button'); b.type = 'button'; b.className = ws.className; b.innerHTML = ws.innerHTML;
+      ws.parentNode.replaceChild(b, ws); ws = b;
+    }
+    if (ws && !ws.classList.contains('ft-menu-trigger')) { ws.classList.add('ft-menu-trigger'); ws.id = ws.id || 'ft-menu-ws-btn'; wire(ws, 'workspace'); }
+    wsBtn = ws; syncLabel();
+    var ac = document.querySelector('.ft-sidebar .demo-footrow .ft-btn');
+    if (!ac) { var bs = document.querySelectorAll('.ft-sidebar button'); for (var i = 0; i < bs.length; i++) if (bs[i].textContent.trim() === 'Account') { ac = bs[i]; break; } }
+    if (ac && !ac.classList.contains('ft-menu-trigger')) { ac.classList.add('ft-menu-trigger'); ac.id = ac.id || 'ft-menu-ac-btn'; wire(ac, 'account'); }
+    acBtn = ac;
+    if (!M.attached) {
+      document.addEventListener('mousedown', function (e) {
+        if (!menu) return;
+        var btn = menuKind === 'account' ? acBtn : wsBtn;
+        if (!menu.contains(e.target) && !(btn && btn.contains(e.target))) close(false);
+      }, true);
+      window.addEventListener('resize', place);
+      window.addEventListener('scroll', place, true);
+    }
+    M.attached = true;
+    return M;
+  };
+  M.open = function (kind) { open(kind === 'account' ? 'account' : 'workspace'); };
+  M.dialog = function (kind) { dialog(kind === 'reset' ? 'reset' : 'new'); };
+  M.close = function () { close(false); closeDialog(false); };
+  M.options = function () { return opts; };
+})();
+
+window.FTWorkspaceMenu && window.FTWorkspaceMenu.attach();
+</script>
+<!-- /menu-scripts -->
+</body>
+</html>

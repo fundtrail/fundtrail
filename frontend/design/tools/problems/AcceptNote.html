@@ -1,0 +1,73 @@
+<!-- @dsCard group="Problem list" height=1000 width=960 subtitle="How a problem leaves the list without fixing itself: accept it with a note, or snooze it until a date. Standing notes cover charges like it (PR 6)" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AcceptNote preview</title>
+<style>
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
+  .an { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+  .an-try { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .an-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .an-static .ft-dialog { position: static; transform: none; width: auto; max-height: none; box-shadow: none; z-index: auto; }
+  .an-label { margin: 0 0 6px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink-muted); }
+  @media (max-width: 860px) { .an-pair { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main class="an">
+  <div class="an-try" role="group" aria-label="Open the dialogs"><span>Try them:</span>
+    <button type="button" class="ft-btn ft-btn--sm" data-try="accept">Accept with a note</button>
+    <button type="button" class="ft-btn ft-btn--sm" data-try="novendor">A charge with no vendor</button>
+    <button type="button" class="ft-btn ft-btn--sm" data-try="snooze">Snooze</button>
+    <span role="status" id="an-result"></span>
+  </div>
+  <div class="an-pair">
+    <div><p class="an-label">Accept with a note, on L-0981</p><div class="an-static" id="an-accept"></div></div>
+    <div><p class="an-label">Snooze, on L-1010</p><div class="an-static" id="an-snooze"></div></div>
+  </div>
+  <div id="an-notes"></div>
+</main>
+<!-- @problems-script -->
+<script>
+(function () {
+  var P = window.FTProblems, $ = function (id) { return document.getElementById(id); };
+  var TODAY = '2026-04-12', WINDOW = '2026-11-02';
+  var T = {
+    accept: { id: 'L-0981', title: 'Conference registration', amount: '$650.00', kind: 'charge', account: 'Participant Support Costs', vendor: 'Example Ocean Sciences Meeting',
+      problem: 'Approver’s role and channel: approved by the principal investigator by email, not the program officer through Research.gov.', problemShort: 'Approver’s role and channel' },
+    novendor: { id: 'L-0412', title: 'Field course stipend', amount: '$400.00', kind: 'charge', account: 'Participant Support Costs', vendor: '',
+      problem: 'Evidence checklist: a bill that adds up to $400.00 is missing.', problemShort: 'A bill that adds up to the charge' },
+    snooze: { id: 'L-1010', title: 'Sequencing core, shared run 6', amount: '$5,833.33', kind: 'charge',
+      problem: 'Bills cover the amount: invoice SEQ-0311 is for $10,000.00 and nothing on file gives this grant’s part.' }
+  };
+  function staticBox(html, label) { return '<section class="ft-dialog" aria-label="' + label + '">' + html + '</section>'; }
+  $('an-accept').innerHTML = staticBox(P.acceptDialogHtml({ target: T.accept, alsoCovers: 0, note: 'Moving it off the grant in the adjustment period. The meeting was for the PI, not a participant.' }, 'an-a'), 'Accept with a note, example');
+  $('an-snooze').innerHTML = staticBox(P.snoozeDialogHtml({ target: T.snooze, today: TODAY, windowOpens: WINDOW, until: '2026-04-30', reason: 'Waiting on the other grant’s accountant for the split' }, 'an-s'), 'Snooze, example');
+  /* The two pictures are illustrations: inert, so they take no focus and no clicks. The buttons above open the real dialogs. */
+  ['an-accept', 'an-snooze'].forEach(function (id) { $(id).setAttribute('inert', ''); $(id).setAttribute('aria-hidden', 'true'); });
+  var notes = [{ id: 'SN-1', note: 'Monthly dock fee. Example Bay Field Station bills once a year, and the agreement is in Evidence.', by: 'you', date: 'Feb 3, 2026',
+    problem: 'No bill on file', account: 'Other Direct Costs', vendor: 'Example Bay Field Station',
+    covers: [{ id: 'L-2201', name: 'Dock fee, January', amount: '$120.00' }, { id: 'L-2214', name: 'Dock fee, February', amount: '$120.00' }, { id: 'L-2230', name: 'Dock fee, March', amount: '$120.00' }] }];
+  function renderNotes() { $('an-notes').innerHTML = P.standingNotesHtml(notes) + '<p class="ft-caption" style="margin:6px 0 0">The standing note is an example, not part of the demo grant. A charge it covers says “Accepted under the accountant’s note”: ' + P.stateTagHtml({ state: 'standing' }) + '</p>'; }
+  renderNotes();
+  P.bind($('an-notes'), { withdraw: function () { var was = notes; notes = []; renderNotes(); $('an-result').innerHTML = 'Note withdrawn. Its 3 charges are back on the problem list. <button type="button" class="ft-pb-act" id="an-undo">Undo</button>'; window._anWas = was; $('an-undo').focus(); } });
+  function result(t) { $('an-result').textContent = t; }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-try], #an-undo') : null; if (!b) return;
+    if (b.id === 'an-undo') { notes = window._anWas || notes; renderNotes(); result('Note restored.'); return; }
+    var k = b.getAttribute('data-try');
+    if (k === 'snooze') P.snoozeDialog({ target: T.snooze, opener: b, today: TODAY, windowOpens: WINDOW }, function (r) { result(P.doneText('snooze', T.snooze, r)); });
+    else P.acceptDialog({ target: T[k], opener: b, alsoCovers: 0 }, function (r) { result(P.doneText('accept', T[k], r)); });
+  });
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = p[1] || ''; });
+  if (h.t) document.documentElement.setAttribute('data-theme', h.t);
+  if (h.open === 'accept') P.acceptDialog({ target: T.accept, alsoCovers: 0 }, function () {});
+  if (h.open === 'novendor') P.acceptDialog({ target: T.novendor, alsoCovers: 0 }, function () {});
+  if (h.open === 'snooze') P.snoozeDialog({ target: T.snooze, today: TODAY, windowOpens: WINDOW }, function () {});
+  if (h.open === 'error') { P.acceptDialog({ target: T.accept }, function () {}); var f = document.querySelector('.ft-pb-dialog form'); if (f) f.dispatchEvent(new Event('submit', { cancelable: true })); }
+})();
+</script>
+</body>
+</html>

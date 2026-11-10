@@ -1,0 +1,1835 @@
+<!-- @dsCard group="Demo" height=1080 width=1440 page subtitle="Clickable: every evidence file on the grant, the facts read from it, whether each is confirmed in the file, and what it pays for" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidence preview</title>
+<style>
+  .demo-footrow { display: flex; justify-content: space-between; align-items: center; }
+  .demo-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; height: 24px; box-sizing: border-box; }
+  .demo-seg button { font: inherit; font-size: 12px; font-weight: 600; border: 0; background: var(--paper-raised); color: var(--ink-muted); padding: 0 var(--space-2); cursor: pointer; }
+  .demo-seg button + button { border-left: 1px solid var(--rule); }
+  .demo-seg button[aria-pressed="true"] { background: var(--paper-sunken); color: var(--ink); }
+  .demo-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .demo-right { display: flex; gap: var(--space-2); align-items: center; }
+  .demo-col { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .demo-col .ft-banner { padding: 0 var(--space-1); }
+</style>
+</head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item" href="#">Problem list <span class="ft-count ft-count--alert">3</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms</a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+      <a class="ft-nav__item ft-nav__item--add" href="#">Add a grant</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 12, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next" disabled>Nothing else scheduled</button>
+      <div class="demo-footrow"><button class="ft-btn ft-btn--sm ft-btn--quiet" style="padding-left:0">Account</button><span class="demo-seg" role="group" aria-label="Theme"><button type="button" data-set-theme="light">Light</button><button type="button" data-set-theme="dark">Dark</button></span></div>
+    </div>
+  </aside>
+
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Evidence</b></span></div>
+      <div class="demo-right"><button class="ft-btn">Evidence report</button></div>
+    </header>
+
+    <div class="ft-content">
+      <section class="ft-grant-head" aria-label="Grant">
+        <div>
+          <span class="ft-caption">SYN-2300117 <span class="ft-sep">&middot;</span> National Science Foundation (NSF) <span class="ft-sep">&middot;</span> $120,000.00 awarded <span class="ft-sep">&middot;</span> $96,412.18 charged</span>
+          <h1 class="ft-grant-head__title">Sediment Microbiome Survey of Example Bay</h1>
+        </div>
+        <div class="ft-ready" id="ev-ready"></div>
+      </section>
+
+      <div class="ft-split">
+        <div class="demo-col">
+          <section class="ft-panel" aria-label="Evidence files">
+            <div class="ft-ev-bar">
+              <div class="ft-tabs" role="tablist" aria-label="Filter files" id="ev-tabs"></div>
+              <label class="ft-ev-kindsel">Kind <select id="ev-kind" aria-label="Filter by kind"></select></label>
+            </div>
+            <div class="ft-ledger ft-ledger--flush" role="table" aria-label="Evidence files, newest first">
+              <div class="ft-ledger__head ft-ev-row" role="row"><span role="columnheader">File</span><span role="columnheader">Pays for</span><span role="columnheader" class="ft-ev-date">Arrived</span></div>
+              <div class="ft-ev-scroll" id="ev-rows"></div>
+            </div>
+          </section>
+        </div>
+        <section class="ft-panel" id="ev-detail" aria-live="polite"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ft-toast" id="ev-toast" role="status" hidden><span id="ev-toast-text"></span><button type="button" id="ev-undo" hidden>Undo</button></div>
+
+<!-- @viewer-scripts -->
+<script>
+/* FundTrail viewer frame: builds the sheet, moves between passages, zooms, and handles the keyboard.
+   Renderers (FTViewer.text, .email, .pdf, .photo) draw the document; this file draws everything around it.
+   FTViewer.mount(container, file, active)  inline, for design system cards
+   FTViewer.open(file, active, opener)      over the app, with a scrim; Esc closes and focus returns to the opener
+   Checked quotes (decision 0012): a fact with confirmed:false couldn't be placed in its file. The viewer opens its
+   page with no guessed highlight and shows the quote beside it, with two ways to settle it: confirm the value, or
+   type the right one. Either marks the fact confirmed by the accountant and still unplaced (placed:false). */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function where(file, f) { return file.type === 'pdf' || file.type === 'report' ? 'page ' + f.page : file.type === 'photo' ? '' : 'line ' + f.line; }
+  /* A fact is unplaced when its quote couldn't be found (unconfirmed), or when the accountant settled it by hand */
+  function unplaced(f) { return f.confirmed === false || f.placed === false; }
+  /* Draw the document without the active highlight or box, so nothing is guessed */
+  function unmark(html) {
+    return html.replace(/<mark class="ft-mark-hl is-active"[^>]*>([\s\S]*?)<\/mark>/g, '$1').replace(/<span class="ft-box ft-photo__box"[^>]*><\/span>/g, '')
+      .replace(/<div class="ft-photo__tools">[\s\S]*?<\/div>/, '');
+  }
+
+  function Viewer(host, file, active, inline) {
+    this.host = host; this.file = file; this.inline = inline;
+    this.r = V[file.type];
+    this.go(active == null ? (file.active || 0) : active, true);
+  }
+  Viewer.prototype.html = function () {
+    var file = this.file, f = file.facts[this.active], r = this.r, n = file.facts.length, i = this.active, z = this.view.zoom;
+    var head = '<header class="ft-sheet__head"><div class="ft-sheet__title"><h2 id="ftv-title">' + esc(file.title) + '</h2>' +
+      '<span class="ft-sheet__meta"><span class="ft-id">' + esc(file.name) + '</span> <span class="ft-sep">&middot;</span> ' + String(file.meta || '').split(/\s*·\s*/).map(esc).join(' <span class="ft-sep">&middot;</span> ') + '</span></div>' +
+      '<div class="ft-sheet__tools"><button type="button" class="ft-btn ft-btn--sm ft-btn--quiet" data-act="download">Download original</button>' +
+      (this.inline ? '' : '<span class="ft-vr" aria-hidden="true"></span><button type="button" class="ft-iconbtn ft-iconbtn--close" data-act="close" aria-label="Close viewer"></button>') + '</div></header>';
+    var cite;
+    if (f.confirmed === false) cite = '<b>' + esc(f.label) + '</b><span class="ft-vu-flag">Unconfirmed</span><span>' + (file.type === 'photo' ? 'The second look didn’t read the same value' : 'Couldn’t place this quote in the file') + '</span>';
+    else if (f.placed === false) cite = '<b>' + esc(f.label) + '</b><span>Confirmed by you <span class="ft-sep">&middot;</span> not placed in the file</span>';
+    else cite = r.cite ? r.cite(file, f) : file.type === 'photo'
+      ? '<b>' + esc(f.label) + '</b><span>Box checked by a second look</span>'
+      : '<b>' + esc(f.label) + '</b><span>Exact passage <span class="ft-sep">&middot;</span> ' + where(file, f) + '</span>';
+    var zoom = '';
+    if (r.zooms) {
+      var lo = z <= r.zooms[0] + 1e-6, hi = z >= r.zooms[r.zooms.length - 1] - 1e-6;
+      zoom = '<span class="ft-zoom" role="group" aria-label="Zoom"><button type="button" class="ft-iconbtn ft-iconbtn--minus" data-act="zoomout" aria-label="Zoom out"' + (lo ? ' aria-disabled="true"' : '') + '></button>' +
+        '<span class="ft-zoom__level" aria-live="polite">' + Math.round(z * 100) + '%</span><button type="button" class="ft-iconbtn ft-iconbtn--plus" data-act="zoomin" aria-label="Zoom in"' + (hi ? ' aria-disabled="true"' : '') + '></button></span><span class="ft-vr" aria-hidden="true"></span>';
+    }
+    var pager = '<span class="ft-pager" role="group" aria-label="Passage ' + (i + 1) + ' of ' + n + '"><button type="button" class="ft-iconbtn ft-iconbtn--up" data-act="prev" aria-label="Previous passage"' + (i === 0 ? ' aria-disabled="true"' : '') + '></button>' +
+      '<span class="ft-pager__text" aria-hidden="true">' + (i + 1) + ' of ' + n + '</span><button type="button" class="ft-iconbtn ft-iconbtn--down" data-act="next" aria-label="Next passage"' + (i === n - 1 ? ' aria-disabled="true"' : '') + '></button></span>';
+    var bar = '<div class="ft-sheet__bar"><div class="ft-sheet__cite" role="status">' + cite + '</div><div class="ft-sheet__controls">' + zoom + pager + '</div></div>';
+    var facts = file.facts.map(function (x, k) {
+      var loc = where(file, x), mark = '';
+      if (x.confirmed === false) mark = '<span class="ft-sidefact__loc ft-vu-side">Unconfirmed</span>';
+      else if (x.placed === false) mark = '<span class="ft-sidefact__loc">Confirmed by you</span>';
+      else if (loc) mark = '<span class="ft-sidefact__loc">' + loc + '</span>';
+      return '<li><button type="button" class="ft-sidefact" data-fact="' + k + '"' + (k === i ? ' aria-current="true"' : '') + '><span class="ft-sidefact__label">' + esc(x.label) + '</span>' +
+        '<span class="ft-sidefact__value">' + esc(x.value) + '</span>' + mark + '</button></li>';
+    }).join('');
+    var side = '<div class="ft-sheet__section"><span class="ft-sheet__label" id="ftv-facts">In this file</span><ul class="ft-sidefacts" aria-labelledby="ftv-facts">' + facts + '</ul></div>';
+    if (file.links && file.links.length) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Linked to</span><ul class="ft-sidelinks">' + file.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-caption">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul></div>';
+    else if (file.note) side += '<div class="ft-sheet__section"><span class="ft-sheet__label">Status</span><p class="ft-sheet__note" style="margin:0">' + esc(file.note) + '</p></div>';
+    var page = this.r.render(file, i, this.view);
+    if (unplaced(f)) page = unmark(page);
+    var doc = '<div class="ft-sheet__doc" tabindex="0" aria-label="' + esc(file.name) + '">' + this.settleHtml(f) + page + '</div>';
+    return head + bar + '<div class="ft-sheet__body">' + doc + '<aside class="ft-sheet__side" aria-label="Facts and links">' + side + '</aside></div>';
+  };
+  /* The panel beside an unconfirmed fact's page: the quote, why it matters, and the two ways to settle it */
+  Viewer.prototype.settleHtml = function (f) {
+    var file = this.file;
+    if (this.done) return '<div class="ft-vu-wrap"><div class="ft-trail__done ft-vu-done" role="status" tabindex="-1" id="ftv-done"><span>' + esc(this.done) + '</span><button type="button" data-act="vu-undo">Undo</button></div></div>';
+    if (f.confirmed !== false) return '';
+    var photo = file.type === 'photo', loc = where(file, f);
+    var quote = photo
+      ? '<p class="ft-vu__quote"><span class="ft-vu__said">The agent read</span> <span class="ft-quote">“' + esc(f.value) + '”</span></p>'
+      : '<p class="ft-vu__quote ft-quote">“' + esc(f.text || f.value) + '”' + (loc ? ' <span class="ft-loc">' + loc + ', not found there</span>' : '') + '</p>';
+    var form = this.typing
+      ? '<form class="ft-inline-edit ft-vu__form" data-vu-form><input class="ft-input" name="v" aria-label="The right value for ' + esc(f.label.toLowerCase()) + '" value="' + esc(f.value) + '"><button class="ft-btn ft-btn--sm">Save</button><button type="button" class="ft-overrule" data-act="vu-cancel">Cancel</button></form>'
+      : '<div class="ft-vu__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-act="vu-confirm">Confirm ' + esc(f.value) + '</button><button type="button" class="ft-btn ft-btn--sm" data-act="vu-type">Type the right value</button></div>';
+    return '<div class="ft-vu-wrap"><section class="ft-vu" aria-labelledby="ftv-vu-h">' +
+      '<div class="ft-vu__head"><span class="ft-vu__mark" aria-hidden="true"></span><b id="ftv-vu-h">' + (photo ? 'The second look didn’t confirm this value' : 'Couldn’t place this quote in the file') + '</b></div>' +
+      quote +
+      '<p class="ft-vu__why">' + (photo ? 'No box is drawn, so nothing is guessed. ' : 'No highlight is drawn, so nothing is guessed. ') + 'Anything that rests on this fact is in Needs a human until you confirm the value or type the right one.</p>' +
+      form + '</section></div>';
+  };
+  /* Settle an unconfirmed fact by hand; Undo puts it back as it was */
+  Viewer.prototype.settle = function (value) {
+    var f = this.file.facts[this.active];
+    this.undo = { i: this.active, value: f.value, confirmed: f.confirmed, placed: f.placed, by: f.confirmedBy };
+    var typed = value != null && value !== f.value;
+    if (value != null) f.value = value;
+    f.confirmed = true; f.placed = false; f.confirmedBy = 'you'; this.typing = false;
+    this.done = (typed ? 'Set by you: ' + f.value + '.' : 'Confirmed by you: ' + f.value + '.') + ' Anything that rested on it rechecks.';
+    this.draw(true, '#ftv-done');
+  };
+  Viewer.prototype.unsettle = function () {
+    var u = this.undo; if (!u) return;
+    var f = this.file.facts[u.i];
+    f.value = u.value; f.confirmed = u.confirmed; f.placed = u.placed; f.confirmedBy = u.by;
+    this.undo = null; this.done = null;
+    this.draw(true, '[data-act="vu-confirm"]');
+  };
+  Viewer.prototype.draw = function (smooth, focusSel) {
+    var a = document.activeElement, key = null;
+    if (a && this.host.contains(a)) key = a.getAttribute('data-act') ? '[data-act="' + a.getAttribute('data-act') + '"]' : a.getAttribute('data-fact') ? '[data-fact="' + a.getAttribute('data-fact') + '"]' : a.classList.contains('ft-sheet__doc') ? '.ft-sheet__doc' : null;
+    var doc0 = this.host.querySelector('.ft-sheet__doc'), keepTop = doc0 ? doc0.scrollTop : 0, keepLeft = doc0 ? doc0.scrollLeft : 0;
+    this.host.innerHTML = this.html();
+    var doc = this.host.querySelector('.ft-sheet__doc');
+    if (smooth) doc.scrollTo({ top: keepTop, left: keepLeft, behavior: 'instant' });
+    /* Renderers that fit to the window (the whole photo) know their real zoom only once drawn */
+    var lv = this.host.querySelector('.ft-zoom__level'), zi = this.host.querySelector('[data-act="zoomin"]'), zo = this.host.querySelector('[data-act="zoomout"]');
+    if (lv && this.r.levelText) lv.textContent = this.r.levelText(this.view, doc);
+    if (zi && this.r.canStep) { zi.setAttribute('aria-disabled', String(!this.r.canStep(this.view, 1, doc))); zo.setAttribute('aria-disabled', String(!this.r.canStep(this.view, -1, doc))); }
+    var t = focusSel ? this.host.querySelector(focusSel) : key ? this.host.querySelector(key) : null;
+    if (t) t.focus({ preventScroll: true });
+    this.reveal(smooth);
+    var side = this.host.querySelector('.ft-sheet__side'), sf = side && side.querySelector('[aria-current="true"]');
+    if (sf) { var s = side.getBoundingClientRect(), r = sf.getBoundingClientRect(); if (r.top < s.top || r.bottom > s.bottom) side.scrollTop += r.top - s.top - (side.clientHeight - r.height) / 2; }
+  };
+  Viewer.prototype.reveal = function (smooth, settled) {
+    var doc = this.host.querySelector('.ft-sheet__doc'), f = this.file.facts[this.active], el;
+    if (doc && unplaced(f)) {
+      /* Nothing to point at: open the fact's page when it has one, else the top, with the panel in view */
+      var pages = doc.querySelectorAll('.ft-pdf__sheet, .ft-rpage');
+      el = f.page && pages[f.page - 1] && f.page > 1 ? pages[f.page - 1] : null;
+      if (!el) { doc.scrollTo({ top: 0, left: 0, behavior: 'instant' }); return; }
+    } else el = doc && this.r.target(doc, this.file, this.active);
+    if (!el) return;
+    if (settled) smooth = false;
+    var d = doc.getBoundingClientRect(), e = el.getBoundingClientRect();
+    var top = doc.scrollTop + (e.top - d.top) - (e.height > doc.clientHeight - 32 ? 16 : (doc.clientHeight - e.height) / 2);
+    var left = doc.scrollLeft + (e.left - d.left) - (doc.clientWidth - e.width) / 2;
+    doc.scrollTo({ top: Math.max(0, top), left: Math.max(0, left), behavior: smooth && !reduce ? 'smooth' : 'instant' });
+    if (!smooth && !settled && document.fonts && document.fonts.ready) { var self = this, i = this.active; document.fonts.ready.then(function () { if (self.active === i && self.host.isConnected) self.reveal(false, true); }); }
+  };
+  Viewer.prototype.go = function (i, first, focusSel) {
+    var n = this.file.facts.length; i = Math.max(0, Math.min(n - 1, i));
+    var keepZoom = this.view && this.file.type === 'pdf';
+    if (i !== this.active) { this.typing = false; this.done = null; this.undo = null; }
+    this.active = i;
+    if (!keepZoom) this.view = this.r.initialView ? this.r.initialView(this.file, i) : { zoom: 1, whole: false };
+    /* A photo fact that isn't placed has no box to zoom to: show the whole photo */
+    if (this.file.type === 'photo' && unplaced(this.file.facts[i])) this.view.whole = true;
+    this.draw(!first, focusSel);
+  };
+  Viewer.prototype.zoom = function (dir) {
+    var zs = this.r.zooms; if (!zs) return;
+    if (this.r.step) { this.view = this.r.step(this.view, dir, this.host.querySelector('.ft-sheet__doc')); this.draw(true, dir > 0 ? '[data-act="zoomin"]' : '[data-act="zoomout"]'); return; }
+    var z = this.view.zoom, k;
+    if (dir > 0) { for (k = 0; k < zs.length && zs[k] <= z + 1e-6; k++); this.view.zoom = zs[Math.min(k, zs.length - 1)]; }
+    else { for (k = zs.length - 1; k >= 0 && zs[k] >= z - 1e-6; k--); this.view.zoom = zs[Math.max(k, 0)]; }
+    this.view.whole = false;
+    this.draw(true);
+  };
+  Viewer.prototype.handle = function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act], [data-fact]') : null;
+    if (!t || !this.host.contains(t)) return;
+    if (t.getAttribute('aria-disabled') === 'true') return;
+    var act = t.getAttribute('data-act'), f = t.getAttribute('data-fact');
+    if (f != null) return this.go(parseInt(f, 10), false, '[data-fact="' + f + '"]');
+    if (act === 'prev') this.go(this.active - 1);
+    else if (act === 'next') this.go(this.active + 1);
+    else if (act === 'zoomin') this.zoom(1);
+    else if (act === 'zoomout') this.zoom(-1);
+    else if (act === 'whole') { this.view.whole = !this.view.whole; this.draw(true, '[data-act="whole"]'); }
+    else if (act === 'close') V.close();
+    else if (act === 'vu-confirm') this.settle(null);
+    else if (act === 'vu-type') { this.typing = true; this.draw(true, '[data-vu-form] input'); var inp = this.host.querySelector('[data-vu-form] input'); if (inp) inp.select(); }
+    else if (act === 'vu-cancel') { this.typing = false; this.draw(true, '[data-act="vu-type"]'); }
+    else if (act === 'vu-undo') this.unsettle();
+  };
+  Viewer.prototype.submit = function (e) {
+    var form = e.target; if (!form.hasAttribute || !form.hasAttribute('data-vu-form')) return;
+    e.preventDefault();
+    var v = form.elements.v.value.trim(); if (!v) { form.elements.v.focus(); return; }
+    this.settle(v);
+  };
+  Viewer.prototype.key = function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-fact');
+    if (f != null && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); var k = parseInt(f, 10) + (e.key === 'ArrowDown' ? 1 : -1); if (k >= 0 && k < this.file.facts.length) this.go(k, false, '[data-fact="' + k + '"]'); }
+  };
+  function wire(v) {
+    v.host.addEventListener('click', function (e) { v.handle(e); });
+    v.host.addEventListener('keydown', function (e) { v.key(e); });
+    v.host.addEventListener('submit', function (e) { v.submit(e); });
+  }
+
+  V.mount = function (container, file, active) {
+    container.classList.add('ft-sheet', 'ft-sheet--inline');
+    container.setAttribute('aria-labelledby', 'ftv-title');
+    var v = new Viewer(container, file, active, true); wire(v); return v;
+  };
+
+  var cur = null;
+  V.open = function (file, active, opener) {
+    if (cur) V.close(true);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var sheet = document.createElement('section');
+    sheet.className = 'ft-sheet' + (reduce ? '' : ' ft-sheet--in');
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'ftv-title'); sheet.tabIndex = -1;
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
+    var v = new Viewer(sheet, file, active, false); wire(v);
+    scrim.addEventListener('click', function () { V.close(); });
+    sheet.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); V.close(); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(sheet.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    cur = { v: v, scrim: scrim, sheet: sheet, opener: opener, app: app };
+    sheet.focus({ preventScroll: true });
+    v.reveal(false);
+    return v;
+  };
+  V.close = function (silent) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    if (c.app) c.app.removeAttribute('inert');
+    c.scrim.remove(); c.sheet.remove();
+    if (!silent && c.opener && c.opener.isConnected) c.opener.focus();
+    if (V.onclose) V.onclose();
+  };
+  V.isOpen = function () { return !!cur; };
+})();
+
+/* FundTrail viewer: plain text and email renderers, with files F1 to F4.
+   Plain ES5, no dependencies. See viewer-spec.md for the interface. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* Wrap the active fact's exact text in a mark, if this is its line. */
+  function markText(str, n, file, active) {
+    var f = file.facts[active];
+    if (!f || f.line !== n) return esc(str);
+    var i = str.indexOf(f.text);
+    if (i < 0) return '<mark class="ft-mark-hl is-active">' + esc(str) + '</mark>';
+    return esc(str.slice(0, i)) + '<mark class="ft-mark-hl is-active">' + esc(f.text) + '</mark>' + esc(str.slice(i + f.text.length));
+  }
+  function isCited(n, file, active) { var f = file.facts[active]; return !!f && f.line === n; }
+
+  function row(n, html, file, active, extra) {
+    return '<div class="ft-doc-text__row' + (isCited(n, file, active) ? ' is-cited' : '') + '" data-line="' + n + '">' +
+      '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span>' +
+      '<span class="ft-doc-text__t' + (extra || '') + '">' + (html || '&#8203;') + '</span></div>';
+  }
+
+  /* ---------- plain text: every line with its number ---------- */
+  V.text = {
+    render: function (file, active) {
+      var out = '<div class="ft-doc-text" role="document" aria-label="' + esc(file.name) + '">';
+      for (var i = 0; i < file.lines.length; i++) out += row(i + 1, markText(file.lines[i], i + 1, file, active), file, active);
+      return out + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- email: headers as key-value rows, then the body ---------- */
+  var SHOWN = { From: 1, To: 1, Subject: 1, Date: 1, Cc: 1 };
+  V.email = {
+    render: function (file, active) {
+      var lines = file.lines, head = '', body = '', i = 0;
+      for (; i < lines.length && lines[i] !== ''; i++) {
+        var m = /^([A-Za-z-]+):\s?(.*)$/.exec(lines[i]);
+        if (!m || !SHOWN[m[1]]) continue;
+        var n = i + 1, f = file.facts[active], val = m[2];
+        var v = f && f.line === n ? markText(val, n, file, active) : esc(val);
+        head += '<div class="ft-doc-email__hrow' + (isCited(n, file, active) ? ' is-cited' : '') + (m[1] === 'Subject' ? ' is-subject' : '') + '" data-line="' + n + '">' +
+          '<span class="ft-doc-text__n" aria-hidden="true">' + n + '</span><span class="ft-doc-email__k">' + esc(m[1]) + '</span><span class="ft-doc-email__v">' + v + '</span></div>';
+      }
+      for (i = i + 1; i < lines.length; i++) {
+        var ln = lines[i], reply = /^>/.test(ln);
+        body += row(i + 1, markText(reply ? ln.replace(/^>\s?/, '') : ln, i + 1, file, active), file, active, reply ? ' is-reply' : '');
+      }
+      return '<div class="ft-doc-text ft-doc-email" role="document" aria-label="' + esc(file.name) + '"><div class="ft-doc-email__head">' + head + '</div>' + body + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('mark.ft-mark-hl.is-active'); }
+  };
+
+  /* ---------- the files ---------- */
+  V.files.F1 = {
+    id: 'F1', type: 'text', name: 'award_letter.txt', title: 'Award letter', meta: 'Uploaded by you · Jan 12, 2023',
+    links: [], note: 'Grant terms. Confirmed by you, Jan 12, 2023.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD NOTICE',
+      'Award Number: SYN-2300117',
+      'Date: January 10, 2023',
+      'Recipient: Example State University',
+      'Project Title: Sediment Microbiome Survey of Example Bay',
+      '',
+      'Principal Investigator: Dr. Robin Example, robin.example@university.example',
+      '',
+      'Program Officer: Dr. Jesse Sample, jesse.sample@funder.example',
+      '',
+      'Grants Officer: Casey Placeholder, casey.placeholder@funder.example',
+      '',
+      'Period of Performance. The period of performance for this award is February 1, 2023 through January 31, 2026. Costs must be incurred within the period of performance to be charged to this award.',
+      '',
+      'Budget. Materials and Supplies: $40,000. Other Direct Costs: $60,000. Participant Support Costs: $20,000.',
+      '',
+      'Prior Approval. Funds budgeted for Participant Support Costs may not be used for other categories of expense without prior written approval from the Program Officer, requested through Research.gov.'
+    ],
+    facts: [
+      { label: 'Award', value: 'SYN-2300117', line: 4, text: 'SYN-2300117' },
+      { label: 'Dated', value: 'Jan 10, 2023', line: 5, text: 'January 10, 2023' },
+      { label: 'Principal investigator', value: 'Dr. Robin Example', line: 9, text: 'Dr. Robin Example, robin.example@university.example' },
+      { label: 'Program officer', value: 'Dr. Jesse Sample', line: 11, text: 'Dr. Jesse Sample, jesse.sample@funder.example' },
+      { label: 'Grants officer', value: 'Casey Placeholder', line: 13, text: 'Casey Placeholder, casey.placeholder@funder.example' },
+      { label: 'End date', value: 'Jan 31, 2026', line: 15, text: 'February 1, 2023 through January 31, 2026' },
+      { label: 'Materials and Supplies', value: '$40,000.00', line: 17, text: 'Materials and Supplies: $40,000' },
+      { label: 'Other Direct Costs', value: '$60,000.00', line: 17, text: 'Other Direct Costs: $60,000' },
+      { label: 'Participant Support Costs', value: '$20,000.00', line: 17, text: 'Participant Support Costs: $20,000' },
+      { label: 'Approval rule', value: 'Program officer, through Research.gov', line: 19, text: 'without prior written approval from the Program Officer, requested through Research.gov' }
+    ],
+    active: 5
+  };
+
+  V.files.F2 = {
+    id: 'F2', type: 'text', name: 'extension_notice.txt', title: 'Award amendment 01', meta: 'Google Drive · Apr 10, 2026',
+    links: [], note: 'Waiting for you: confirm or reject the new end date.',
+    lines: [
+      'SYNTHETIC DEMO DOCUMENT. Not issued by any agency. Created for the FundTrail golden fixture.',
+      '',
+      'AWARD AMENDMENT',
+      'Award Number: SYN-2300117',
+      'Amendment Number: 01',
+      'Date: January 15, 2026',
+      '',
+      'No-Cost Extension. The end date of the period of performance for this award is changed from January 31, 2026 to January 31, 2027. No additional funds are provided by this amendment.',
+      '',
+      'All other terms and conditions of the award remain unchanged.',
+      '',
+      'Casey Placeholder, Grants Officer'
+    ],
+    facts: [
+      { label: 'Amendment', value: '01', line: 5, text: 'Amendment Number: 01' },
+      { label: 'Dated', value: 'Jan 15, 2026', line: 6, text: 'January 15, 2026' },
+      { label: 'New end date', value: 'Jan 31, 2027', line: 8, text: 'changed from January 31, 2026 to January 31, 2027' },
+      { label: 'Signed by', value: 'Casey Placeholder, Grants Officer', line: 12, text: 'Casey Placeholder, Grants Officer' }
+    ],
+    active: 2
+  };
+
+  V.files.F3 = {
+    id: 'F3', type: 'email', name: 'sequencing_invoice.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Feb 21, 2026',
+    links: [{ id: 'L-1002', name: 'Sediment DNA sequencing run 7', amount: '$2,180.00 of $2,180.00' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: grant-inbox@fundtrail.example',
+      'Subject: Sequencing invoice for run 7',
+      'Date: Sat, 21 Feb 2026 09:30:00 -0800',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail golden fixture.',
+      '',
+      'Hi, the sequencing core invoice for the Example Bay samples is below.',
+      '',
+      'INVOICE SEQ-0207',
+      'Example Sequencing Core',
+      'Invoice Date: February 20, 2026',
+      'Service: Sediment DNA sequencing, run 7, 48 samples',
+      '',
+      'Total Due: $2,180.00'
+    ],
+    facts: [
+      { label: 'Sender', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Invoice', value: 'SEQ-0207', line: 11, text: 'INVOICE SEQ-0207' },
+      { label: 'Invoice date', value: 'Feb 20, 2026', line: 13, text: 'February 20, 2026' },
+      { label: 'Service', value: 'Sequencing run 7, 48 samples', line: 14, text: 'Sediment DNA sequencing, run 7, 48 samples' },
+      { label: 'Total', value: '$2,180.00', line: 16, text: '$2,180.00' }
+    ],
+    active: 4
+  };
+
+  V.files.F4 = {
+    id: 'F4', type: 'email', name: 'approval_email.eml', title: 'Email from Dr. Robin Example', meta: 'Gmail · Oct 6, 2025',
+    links: [{ id: 'L-0981', name: 'Conference registration', amount: 'Approval' }], note: '',
+    lines: [
+      'From: Dr. Robin Example <robin.example@university.example>',
+      'To: Sam Example <sam.example@university.example>',
+      'Subject: Re: Ocean Sciences Meeting registration',
+      'Date: Thu, 2 Oct 2025 16:12:00 -0700',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'SYNTHETIC DEMO DOCUMENT. Not sent by any real person. Created for the FundTrail demo.',
+      '',
+      'Approved, go ahead and register.',
+      '',
+      'Robin',
+      '',
+      '> Could I register for the Example Ocean Sciences Meeting? The fee is $650.'
+    ],
+    facts: [
+      { label: 'Approver', value: 'Dr. Robin Example, principal investigator', line: 1, text: 'robin.example@university.example' },
+      { label: 'Approval', value: 'Approved by email', line: 9, text: 'Approved, go ahead and register.' },
+      { label: 'What it approves', value: 'Meeting registration, $650.00', line: 13, text: 'The fee is $650.' }
+    ],
+    active: 1
+  };
+})();
+
+/* FundTrail viewer: PDF renderer (FTViewer.pdf) and the F5 demo file.
+   Pages are drawn in HTML at US Letter proportions: 612 x 792 at 100%, sized in em so
+   one CSS variable (--ft-pdf-z) scales the whole page. The active fact's exact text gets
+   mark.ft-mark-hl.is-active. Plain ES5, no dependencies. */
+(function () {
+  window.FTViewer = window.FTViewer || {};
+  FTViewer.files = FTViewer.files || {};
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+
+  /* Write a block's text, marking the active fact's passage when it lives in this block.
+     A fact names its page, its exact text and, when the text appears twice, its block. */
+  function writeText(blockId, pageIndex, text, fact) {
+    var hit = fact && fact.page === pageIndex + 1 && (!fact.block || fact.block === blockId) ? text.indexOf(fact.text) : -1;
+    if (hit < 0) return esc(text);
+    return esc(text.slice(0, hit)) +
+      '<mark class="ft-mark-hl is-active" data-ft-active="1">' + esc(fact.text) + '</mark>' +
+      esc(text.slice(hit + fact.text.length));
+  }
+
+  function block(b, p, fact) {
+    var t = function (id, text) { return writeText(id, p, text, fact); };
+    switch (b.kind) {
+      case 'notice': return '<p class="ft-pdf__notice">' + t(b.id, b.text) + '</p>';
+      case 'cols':
+        return '<div class="ft-pdf__cols">' + b.cols.map(function (col, i) {
+          return '<div class="ft-pdf__col' + (i ? ' ft-pdf__col--end' : '') + '">' + col.map(function (c) { return block(c, p, fact); }).join('') + '</div>';
+        }).join('') + '</div>';
+      case 'h1': return '<p class="ft-pdf__vendor">' + t(b.id, b.text) + '</p>';
+      case 'h2': return '<p class="ft-pdf__docno">' + t(b.id, b.text) + '</p>';
+      case 'table':
+        return '<table class="ft-pdf__table"><thead><tr>' + b.head.map(function (h, i) {
+          return '<th' + (i ? ' class="is-num"' : '') + '>' + esc(h) + '</th>';
+        }).join('') + '</tr></thead><tbody>' + b.rows.map(function (row, r) {
+          return '<tr>' + row.map(function (cell, c) {
+            return '<td' + (c ? ' class="is-num"' : '') + '>' + t(b.id + '.' + r + '.' + c, cell) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+      case 'total': return '<p class="ft-pdf__total">' + t(b.id, b.text) + '</p>';
+      case 'small': return '<p class="ft-pdf__small">' + t(b.id, b.text) + '</p>';
+      default: return '<p class="ft-pdf__p">' + t(b.id, b.text) + '</p>';
+    }
+  }
+
+  FTViewer.pdf = {
+    zooms: [0.75, 1, 1.25, 1.5, 2],
+    initialView: function () { return { zoom: 1, whole: false }; },
+    render: function (file, active, view) {
+      var fact = file.facts[active], z = (view && view.zoom) || 1, n = file.pages.length;
+      return '<div class="ft-pdf" style="--ft-pdf-z:' + z + '">' + file.pages.map(function (page, p) {
+        return '<figure class="ft-pdf__sheet" aria-label="Page ' + (p + 1) + ' of ' + n + '">' +
+          '<div class="ft-pdf__page"><div class="ft-pdf__text">' + page.blocks.map(function (b) { return block(b, p, fact); }).join('') + '</div></div>' +
+          '<figcaption class="ft-pdf__label">Page ' + (p + 1) + ' of ' + n + '</figcaption></figure>';
+      }).join('') + '</div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-ft-active]'); }
+  };
+
+  FTViewer.files.F5 = {
+    id: 'F5', type: 'pdf', name: 'invoice_SEQ-0311.pdf', title: 'Invoice SEQ-0311',
+    meta: 'Gmail attachment · from billing@sequencing.example · Jan 12, 2026',
+    links: [{ id: 'L-1010', name: 'Sequencing core, shared run 6', amount: '$5,833.33 charged. This grant’s part isn’t on file.' }],
+    note: '',
+    pages: [
+      { blocks: [
+        { kind: 'notice', id: 'notice', text: 'SYNTHETIC DEMO DOCUMENT. Not issued by any company. Created for the FundTrail demo.' },
+        { kind: 'cols', cols: [
+          [{ kind: 'h1', id: 'vendor', text: 'Example Sequencing Core' }, { kind: 'p', id: 'addr', text: '1 Example Way, Example City' }],
+          [{ kind: 'h2', id: 'docno', text: 'INVOICE SEQ-0311' }, { kind: 'p', id: 'date', text: 'Invoice Date: January 6, 2026' }]
+        ] },
+        { kind: 'p', id: 'bill', text: 'Bill To: Dr. Robin Example, Example State University' },
+        { kind: 'table', id: 'items', head: ['Description', 'Qty', 'Amount'], rows: [['Sediment DNA sequencing, shared run 6', '96 samples', '$10,000.00']] },
+        { kind: 'small', id: 'note', text: 'Note: Run shared by awards SYN-2300117 and SYN-2300245.' },
+        { kind: 'total', id: 'total', text: 'Total Due: $10,000.00' }
+      ] },
+      { blocks: [
+        { kind: 'p', id: 'terms', text: 'Payment terms. Net 30 days from the invoice date. Remit to Example Sequencing Core, 1 Example Way, Example City.' },
+        { kind: 'p', id: 'questions', text: 'Questions: billing@sequencing.example' }
+      ] }
+    ],
+    facts: [
+      { label: 'Invoice', value: 'SEQ-0311', page: 1, block: 'docno', text: 'INVOICE SEQ-0311' },
+      { label: 'Invoice date', value: 'Jan 6, 2026', page: 1, block: 'date', text: 'January 6, 2026' },
+      { label: 'Service', value: 'Shared run 6, 96 samples', page: 1, block: 'items.0.0', text: 'Sediment DNA sequencing, shared run 6' },
+      { label: 'Shared by', value: 'SYN-2300117 and SYN-2300245', page: 1, block: 'note', text: 'Run shared by awards SYN-2300117 and SYN-2300245.' },
+      { label: 'Total', value: '$10,000.00', page: 1, block: 'total', text: '$10,000.00' },
+      { label: 'Payment terms', value: 'Net 30 days', page: 2, block: 'terms', text: 'Net 30 days from the invoice date.' }
+    ],
+    active: 4
+  };
+})();
+
+/* FundTrail viewer: photos and scans (F6, F7).
+   A photo has no text layer and no OCR. The agent returns a box around each value, and a second look at the
+   boxed area has to read the same value (decision 0012), so the box is drawn as checked, not approximate.
+   A fact the second look couldn't confirm has confirmed:false; the frame then shows the whole photo with no box.
+   Plain ES5, no dependencies. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.files = V.files || {};
+
+  var W = 480, H = 640;          /* the photo's own pixel size; 100% zoom shows it at this size */
+  var PAD = 22, ANGLE = -2.5;    /* receipt margin and tilt, like a phone photo */
+  var ZOOMS = [0.5, 0.75, 1, 1.5, 2, 2.5, 3];
+  var DOC_W = 680;               /* the doc area's usual inner width in the sheet, used for the first view */
+  var MONO = "'Geist Mono', ui-monospace, Menlo, monospace";
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function r1(n) { return Math.round(n * 10) / 10; }
+
+  /* Lay the receipt's lines out in the paper's own coordinates. */
+  function layout(rc) {
+    var y = 34, out = [], pw = rc.paperW;
+    rc.lines.forEach(function (ln) {
+      if (ln.gap) { y += ln.gap; return; }
+      if (ln.rule) { out.push({ rule: true, y: y + 5 }); y += 12; return; }
+      var size = ln.size || 12.5, lh = Math.round(size * 1.6), cw = size * 0.6;
+      var x0, x1, tw = ln.text.length * cw;
+      if (ln.align === 'center') { x0 = (pw - tw) / 2; x1 = x0 + tw; }
+      else { x0 = PAD; x1 = ln.right ? pw - PAD : PAD + tw; }
+      out.push({ text: ln.text, right: ln.right, align: ln.align, size: size, weight: ln.weight || 400, muted: ln.muted, key: ln.key,
+        top: y, bottom: y + lh, base: y + Math.round(size * 1.15), x0: x0, x1: x1 });
+      y += lh;
+    });
+    return { lines: out, h: y + 30 };
+  }
+  function place(rc) {
+    var L = layout(rc), w = rc.paperW, h = L.h;
+    var x = (W - w) / 2, y = Math.max(28, (H - h) / 2 - 8);
+    return { L: L, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 };
+  }
+  function rotate(P, lx, ly) {
+    var a = ANGLE * Math.PI / 180, X = P.x + lx - P.cx, Y = P.y + ly - P.cy;
+    return [P.cx + X * Math.cos(a) - Y * Math.sin(a), P.cy + X * Math.sin(a) + Y * Math.cos(a)];
+  }
+  /* The agent's estimate: the lines for a fact, a little generous, as fractions of the photo. */
+  function boxFor(rc, key) {
+    var P = place(rc), ls = P.L.lines.filter(function (l) { return l.key === key; });
+    var x0 = Math.min.apply(null, ls.map(function (l) { return l.x0; })) - 7, x1 = Math.max.apply(null, ls.map(function (l) { return l.x1; })) + 7;
+    var y0 = Math.min.apply(null, ls.map(function (l) { return l.top; })) - 4, y1 = Math.max.apply(null, ls.map(function (l) { return l.bottom; })) + 3;
+    var pts = [rotate(P, x0, y0), rotate(P, x1, y0), rotate(P, x1, y1), rotate(P, x0, y1)];
+    var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+    var bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
+    var f = function (n) { return Math.round(n * 1000) / 1000; };
+    return [f(bx / W), f(by / H), f((Math.max.apply(null, xs) - bx) / W), f((Math.max.apply(null, ys) - by) / H)];
+  }
+  function paperPath(w, h) {
+    var t = 9, d = 3.5, s = 'M0 ' + d, x;
+    for (x = 0; x < w; x += t) s += ' L' + r1(Math.min(w, x + t / 2)) + ' 0 L' + r1(Math.min(w, x + t)) + ' ' + d;
+    s += ' L' + w + ' ' + (h - d);
+    for (x = w; x > 0; x -= t) s += ' L' + r1(Math.max(0, x - t / 2)) + ' ' + h + ' L' + r1(Math.max(0, x - t)) + ' ' + (h - d);
+    return s + ' Z';
+  }
+  function svg(file) {
+    var rc = file.receipt, P = place(rc), id = 'ph-' + file.id;
+    var s = '<svg class="ft-photo__img" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<defs>' +
+        '<linearGradient id="' + id + '-surf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#454a50"/><stop offset="1" stop-color="#2a2e33"/></linearGradient>' +
+        '<radialGradient id="' + id + '-vig" cx="0.5" cy="0.45" r="0.78"><stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.34"/></radialGradient>' +
+        '<linearGradient id="' + id + '-paper" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="#f8f6f0"/><stop offset="1" stop-color="#e9e5da"/></linearGradient>' +
+        '<filter id="' + id + '-sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#000" flood-opacity="0.38"/></filter>' +
+      '</defs>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-surf)"/>' +
+      '<g transform="rotate(' + ANGLE + ' ' + r1(P.cx) + ' ' + r1(P.cy) + ') translate(' + r1(P.x) + ' ' + r1(P.y) + ')">' +
+      '<path d="' + paperPath(P.w, P.h) + '" fill="url(#' + id + '-paper)" filter="url(#' + id + '-sh)"/>' +
+      '<g font-family="' + MONO + '" fill="#2b2c30" fill-opacity="0.86">';
+    P.L.lines.forEach(function (l) {
+      if (l.rule) { s += '<line x1="' + PAD + '" x2="' + (P.w - PAD) + '" y1="' + l.y + '" y2="' + l.y + '" stroke="#8b8a85" stroke-width="1" stroke-dasharray="3 3"/>'; return; }
+      var attrs = ' font-size="' + l.size + '" font-weight="' + l.weight + '"' + (l.muted ? ' fill-opacity="0.6"' : '');
+      if (l.align === 'center') s += '<text x="' + r1(P.w / 2) + '" y="' + l.base + '" text-anchor="middle"' + attrs + '>' + esc(l.text) + '</text>';
+      else {
+        s += '<text x="' + PAD + '" y="' + l.base + '"' + attrs + '>' + esc(l.text) + '</text>';
+        if (l.right) s += '<text x="' + (P.w - PAD) + '" y="' + l.base + '" text-anchor="end"' + attrs + '>' + esc(l.right) + '</text>';
+      }
+    });
+    return s + '</g></g><rect width="' + W + '" height="' + H + '" fill="url(#' + id + '-vig)"/></svg>';
+  }
+  function snap(z) {
+    var best = ZOOMS[0];
+    ZOOMS.forEach(function (s) { if (Math.abs(s - z) < Math.abs(best - z)) best = s; });
+    return best;
+  }
+  function padOf(el) { var cs = getComputedStyle(el); return { x: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), y: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) }; }
+
+  V.photo = {
+    zooms: ZOOMS,
+    /* Opens zoomed to the fact's box: the box takes about half the visible width. */
+    initialView: function (file, active) {
+      var b = file.facts[active].box;
+      return { zoom: snap(DOC_W * 0.5 / (b[2] * W)), whole: false };
+    },
+    render: function (file, active, view) {
+      view = view || V.photo.initialView(file, active);
+      var f = file.facts[active], b = f.box;
+      var size = view.whole ? '' : ' style="width:' + Math.round(W * view.zoom) + 'px;height:' + Math.round(H * view.zoom) + 'px"';
+      return '<div class="ft-photo' + (view.whole ? ' ft-photo--whole' : '') + '">' +
+        '<div class="ft-photo__tools"><button type="button" class="ft-btn ft-btn--sm ft-photo__toggle" data-act="whole" aria-pressed="' + !!view.whole + '">' + V.photo.toggleLabel(view) + '</button></div>' +
+        '<div class="ft-photo__stage"><div class="ft-photo__frame"' + size + ' role="img" aria-label="' + esc('Photo of a receipt from ' + file.receipt.vendor + '. The outlined box around ' + f.label.toLowerCase() + ' was checked by a second look.') + '">' +
+        svg(file) +
+        '<span class="ft-box ft-photo__box" data-photo-box style="left:' + r1(b[0] * 100) + '%;top:' + r1(b[1] * 100) + '%;width:' + r1(b[2] * 100) + '%;height:' + r1(b[3] * 100) + '%"></span>' +
+        '</div></div></div>';
+    },
+    target: function (docEl) { return docEl.querySelector('[data-photo-box]'); },
+    /* Optional helpers for the frame. */
+    center: function (docEl, smooth) {
+      var box = docEl.querySelector('[data-photo-box]'); if (!box) return;
+      var d = docEl.getBoundingClientRect(), b = box.getBoundingClientRect();
+      docEl.scrollTo({ top: Math.max(0, docEl.scrollTop + b.top - d.top + b.height / 2 - docEl.clientHeight / 2),
+        left: Math.max(0, docEl.scrollLeft + b.left - d.left + b.width / 2 - docEl.clientWidth / 2), behavior: smooth ? 'smooth' : 'instant' });
+    },
+    fitZoom: function (docEl) { var p = padOf(docEl); return Math.min((docEl.clientWidth - p.x) / W, (docEl.clientHeight - p.y) / H); },
+    levelText: function (view, docEl) { return Math.round((view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom) * 100) + '%'; },
+    toggleLabel: function (view) { return view.whole ? 'Zoom to the box' : 'Show whole photo'; },
+    /* Zoom one step in (dir 1) or out (dir -1). From the whole photo, it starts at the fitted size. */
+    step: function (view, dir, docEl) {
+      var z = view.whole && docEl ? V.photo.fitZoom(docEl) : view.zoom, next = null;
+      ZOOMS.forEach(function (s) { if (dir > 0 && s > z + 0.001 && next === null) next = s; if (dir < 0 && s < z - 0.001) next = s; });
+      return next === null ? view : { zoom: next, whole: false };
+    },
+    canStep: function (view, dir, docEl) { return V.photo.step(view, dir, docEl) !== view; }
+  };
+
+  function photoFile(f) {
+    f.facts.forEach(function (x) { x.box = boxFor(f.receipt, x.key); x.loc = ''; });
+    return f;
+  }
+  V.files.F6 = photoFile({
+    id: 'F6', type: 'photo', name: 'boat_rental_receipt.jpg', title: 'Receipt photo',
+    meta: 'Gmail · from robin.example@university.example · Apr 12, 2026',
+    receipt: { vendor: 'Example Marina', paperW: 286, lines: [
+      { text: 'EXAMPLE MARINA', align: 'center', size: 19, weight: 700, key: 'vendor' },
+      { text: 'Harbor Rd, Example Bay', align: 'center', size: 11, muted: true },
+      { gap: 6 }, { rule: true },
+      { text: 'Jan 14, 2026', size: 12.5, key: 'date' },
+      { rule: true },
+      { text: 'Boat rental, full day', right: '$1,400.00', size: 12 },
+      { text: 'Fuel', right: '$80.00', size: 12 },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,480.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 14 },
+      { text: 'Thank you.', align: 'center', size: 11.5 },
+      { gap: 10 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Marina', key: 'vendor' },
+      { label: 'Date', value: 'Jan 14, 2026', key: 'date' },
+      { label: 'Total', value: '$1,480.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1015', name: 'Field boat rental', amount: '$1,480.00 of $1,480.00' }], note: '',
+    active: 2
+  });
+  V.files.F7 = photoFile({
+    id: 'F7', type: 'photo', name: 'field_camera_receipt.jpg', title: 'Receipt photo',
+    meta: 'Uploaded by you · Jan 22, 2026',
+    receipt: { vendor: 'Example Optics Supply', paperW: 292, lines: [
+      { text: 'EXAMPLE OPTICS SUPPLY', align: 'center', size: 16.5, weight: 700, key: 'vendor' },
+      { gap: 6 }, { rule: true },
+      { text: 'Field camera,', size: 12, key: 'item' },
+      { text: 'microscope mount', right: '$1,325.00', size: 12, key: 'item' },
+      { rule: true },
+      { text: 'TOTAL', right: '$1,325.00', size: 14.5, weight: 700, key: 'total' },
+      { gap: 8 },
+      { text: 'Jan 21, 2026', size: 12.5, key: 'date' },
+      { gap: 14 },
+      { text: 'SYNTHETIC DEMO', align: 'center', size: 9, muted: true }
+    ] },
+    facts: [
+      { label: 'Vendor', value: 'Example Optics Supply', key: 'vendor' },
+      { label: 'Date', value: 'Jan 21, 2026', key: 'date' },
+      { label: 'Item', value: 'Field camera, microscope mount', key: 'item' },
+      { label: 'Total', value: '$1,325.00', key: 'total' }
+    ],
+    links: [{ id: 'L-1019', name: 'Field microscope camera', amount: '$1,325.00 of $1,325.00' }], note: '',
+    active: 3
+  });
+})();
+
+/* The evidence report in the viewer sheet: its pages in the document area, its parts in the side list.
+   FTReport.open(opener) needs window.FTReportPages (the pages' HTML), built into the card. */
+(function () {
+  var V = window.FTViewer = window.FTViewer || {};
+  V.report = {
+    zooms: [0.5, 0.65, 0.8, 1, 1.25],
+    initialView: function () { return { zoom: 0.8, whole: false }; },
+    cite: function (file, f) { return '<b>' + f.label + '</b><span>Page ' + f.page + ' of ' + file.pages + '</span>'; },
+    render: function (file, active, view) { return '<div class="ft-report ft-report--sheet" style="zoom:' + view.zoom + '">' + file.html + '</div>'; },
+    target: function (docEl, file, active) {
+      var f = file.facts[active], el = f.sel ? docEl.querySelector(f.sel) : null;
+      return el || docEl.querySelector('#rp-' + f.page);
+    }
+  };
+  window.FTReport = {
+    file: function () {
+      var signed = document.documentElement.classList.contains('is-signed');
+      var d = window.FTReportData || { counts: {}, grant: {} };
+      var open = (d.counts.conflict || 0) + (d.counts.human || 0) + (d.counts.missing || 0);
+      return {
+        id: 'R1', type: 'report', name: 'evidence_report_SYN-2300117.pdf', title: 'Evidence report', pages: 9,
+        meta: (signed ? 'Signed off by you · Apr 12, 2026' : 'Draft · As of Apr 12, 2026') + ' · 9 pages',
+        html: (function (h) {
+          if (!signed || !window.FTReportNote) return h;
+          var t = document.createElement('div'); t.innerHTML = h;
+          var n = t.querySelector('.ft-rso-note'); if (n) n.textContent = window.FTReportNote;
+          return t.innerHTML;
+        })(window.FTReportPages || ''),
+        facts: [
+          { label: 'Summary', value: 'The award, its total and its buckets', page: 1 },
+          { label: 'All charges', value: (d.charges ? d.charges.length : 51) + ' charges, ' + (d.grant.charged || ''), page: 2 },
+          { label: 'Charge sections', value: 'Checks, quotes and history', page: 4 },
+          { label: 'Open at sign-off', value: open + ' charges', page: 7 },
+          { label: 'Sign-off', value: signed ? 'Signed off Apr 12, 2026' : 'Not signed off yet', page: 7, sel: '#rp-7 .ft-rso-party' },
+          { label: 'Sources', value: 'Every file the report cites', page: 8 }
+        ],
+        links: [],
+        note: signed ? 'Signed off. Attach it to the Award Closeout Certification in BFS.' : 'Draft. It regenerates whenever a record changes, until you sign off.'
+      };
+    },
+    open: function (opener, part) { var f = this.file(); V.open(f, part || 0, opener); }
+  };
+})();
+
+</script>
+<!-- /viewer-scripts -->
+<!-- @pr6-scripts -->
+<script>
+/* FundTrail review thread: one charge's (or one record's) conversation. Code's reasons, the agent's comments,
+   suggestions and disputes, the accountant's replies and decisions, and a box to ask the agent.
+   FTThread.render(thread, opts)            returns HTML for a thread
+   FTThread.bind(container, thread, opts)   draws it into container and wires Accept, Reject, Undo and Ask
+   thread: { id, about: 'L-1019', entries: [entry] }
+   entry:  { who: 'code'|'agent'|'you', date, text, kind: 'reason'|'comment'|'suggestion'|'dispute'|'answer'|'decision',
+             result?: 'fails'|'passes'|'missing', answer?: 'supports'|'contradicts'|'unsure',
+             quote?: { text, loc }, change?: { now, suggested }, check?: 'the check a dispute names',
+             effect?: 'what accepting does', state?: 'waiting'|'accepted'|'rejected', decided?: date, pending?: true }
+   opts:   { heading: 'Thread', ask: true, today: 'Apr 12, 2026', undoMs: 8000,
+             onAccept(entry), onReject(entry), onUndo(entry, was), onAsk(question, reply(entry)) }
+   Plain ES5, no dependencies. */
+(function () {
+  var T = window.FTThread = window.FTThread || {};
+  var WHO = { code: 'Code', agent: 'Agent', you: 'You' };
+  var RESULT = { fails: 'Fails', passes: 'Passes', missing: 'Missing' };
+  var ANSWER = { supports: 'Supports', contradicts: 'Contradicts', unsure: 'Unsure' };
+  var seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function boxHtml(e, i, tid) {
+    var head = e.kind === 'dispute' ? 'Dispute' : 'Suggestion', st = e.state || 'waiting';
+    var h = '<div class="ft-th__box is-' + st + '" role="group" aria-labelledby="' + tid + '-bh' + i + '">' +
+      '<p class="ft-th__boxhead" id="' + tid + '-bh' + i + '"><span>' + head + '</span>' +
+      (st === 'waiting' ? '<span class="ft-th__boxstate">waiting for you</span>' : '') + '</p>';
+    if (e.kind === 'dispute' && e.check) h += '<p class="ft-th__check">Disputes the check: <b>' + esc(e.check) + '</b></p>';
+    if (e.change) h += '<dl class="ft-th__change"><dt>Now</dt><dd>' + esc(e.change.now) + '</dd><dt>Suggested</dt><dd>' + esc(e.change.suggested) + '</dd></dl>';
+    if (e.effect && st === 'waiting') h += '<p class="ft-th__effect">' + esc(e.effect) + '</p>';
+    if (st === 'waiting') {
+      h += '<div class="ft-th__actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve ft-btn--main" data-th-act="accept" data-th-i="' + i + '">Accept</button>' +
+        '<button type="button" class="ft-btn ft-btn--sm ft-btn--reject" data-th-act="reject" data-th-i="' + i + '">Reject</button></div>';
+    } else {
+      h += '<p class="ft-th__decided" tabindex="-1" id="' + tid + '-dec' + i + '">' + (st === 'accepted' ? 'Accepted' : 'Rejected') + ' by you' + (e.decided ? ', ' + esc(e.decided) : '') + '.' +
+        (st === 'rejected' ? ' The agent can raise it again only if new evidence arrives.' : '') + '</p>';
+    }
+    if (e.undo) h += '<div class="ft-trail__done ft-th__done" role="status"><span>' + esc(e.undo) + '</span><button type="button" data-th-act="undo" data-th-i="' + i + '">Undo</button></div>';
+    return h + '</div>';
+  }
+
+  function entryHtml(e, i, tid) {
+    if (e.pending) {
+      return '<li class="ft-th__entry ft-th__entry--agent is-pending"><span class="ft-th__mark ft-th__mark--agent" aria-hidden="true"></span>' +
+        '<div class="ft-th__meta"><span class="ft-th__who">Agent</span></div>' +
+        '<p class="ft-th__body"><span class="ft-working"><span class="ft-working-dot" aria-hidden="true"></span>Agent is reading this charge</span></p></li>';
+    }
+    var who = e.who || 'agent';
+    var lead = '';
+    if (e.result) lead = '<b class="ft-th__result ft-th__result--' + e.result + '">' + RESULT[e.result] + '.</b> ';
+    if (e.answer) lead = '<b class="ft-chip ft-chip--' + e.answer + '">' + ANSWER[e.answer] + '.</b> ';
+    var h = '<li class="ft-th__entry ft-th__entry--' + who + (e.kind === 'decision' ? ' is-decision' : '') + '">' +
+      '<span class="ft-th__mark ft-th__mark--' + who + '" aria-hidden="true"></span>' +
+      '<div class="ft-th__meta"><span class="ft-th__who">' + WHO[who] + '</span>' + (e.date ? '<span class="ft-th__date">' + esc(e.date) + '</span>' : '') + '</div>';
+    if (e.text) h += '<p class="ft-th__body">' + lead + esc(e.text) + '</p>';
+    if (e.quote) h += '<p class="ft-th__quote">&ldquo;' + esc(e.quote.text) + '&rdquo; <span class="ft-loc">' + esc(e.quote.loc) + '</span></p>';
+    if (e.kind === 'suggestion' || e.kind === 'dispute') h += boxHtml(e, i, tid);
+    return h + '</li>';
+  }
+
+  T.render = function (thread, opts) {
+    opts = opts || {};
+    var tid = thread.uid || (thread.uid = 'ft-th-' + (++seq));
+    var n = thread.entries.filter(function (e) { return !e.pending; }).length;
+    var waiting = thread.entries.filter(function (e) { return (e.kind === 'suggestion' || e.kind === 'dispute') && (e.state || 'waiting') === 'waiting'; }).length;
+    var h = '<section class="ft-th" aria-labelledby="' + tid + '-h">' +
+      '<div class="ft-th__head"><h3 class="ft-th__title" id="' + tid + '-h">' + esc(opts.heading || 'Thread') + '</h3>' +
+      '<span class="ft-th__count">' + n + ' ' + (n === 1 ? 'entry' : 'entries') + (waiting ? ' <span class="ft-sep">&middot;</span> <b class="ft-th__waiting">' + waiting + ' waiting for you</b>' : '') + '</span></div>' +
+      '<ol class="ft-th__list" aria-label="' + esc((opts.heading || 'Thread') + (thread.about ? ', ' + thread.about : '')) + '">' +
+      thread.entries.map(function (e, i) { return entryHtml(e, i, tid); }).join('') + '</ol>';
+    if (opts.ask !== false) {
+      var busy = thread.entries.some(function (e) { return e.pending; });
+      h += '<form class="ft-th__ask" data-th-ask novalidate><label class="ft-th__asklabel" for="' + tid + '-q">Ask the agent about ' + esc(thread.about || 'this charge') + '</label>' +
+        '<div class="ft-th__askrow"><textarea class="ft-textarea ft-th__q" id="' + tid + '-q" name="q" rows="1" aria-describedby="' + tid + '-qn"' + (busy ? ' disabled' : '') + ' placeholder="' + esc(opts.placeholder || 'For example: what would close this?') + '">' + esc(thread.draft || '') + '</textarea>' +
+        '<button type="submit" class="ft-btn ft-btn--sm"' + (busy ? ' disabled' : '') + '>Ask</button></div>' +
+        '<p class="ft-th__note" id="' + tid + '-qn">It answers about ' + esc(thread.about || 'this charge') + ' only. If it proposes a change, the change comes back here as a suggestion for you to accept.</p></form>';
+    }
+    h += '<div class="ft-sr-only" role="status" aria-live="polite" id="' + tid + '-live">' + esc(thread.live || '') + '</div>';
+    return h + '</section>';
+  };
+
+  T.bind = function (container, thread, opts) {
+    opts = opts || {};
+    var timers = {};
+    function draw(focusSel) {
+      var a = document.activeElement, q = container.querySelector('.ft-th__q');
+      if (q) thread.draft = q.value;
+      container.innerHTML = T.render(thread, opts);
+      if (focusSel) { var f = container.querySelector(focusSel); if (f) f.focus(); }
+      else if (a && !a.isConnected && container.contains(document.activeElement) === false && a.getAttribute && a.getAttribute('data-th-act')) {
+        var h = container.querySelector('.ft-th__title'); if (h) { h.tabIndex = -1; h.focus(); }
+      }
+    }
+    function decide(i, st) {
+      var e = thread.entries[i]; e.state = st; e.decided = opts.today || '';
+      e.undo = st === 'accepted' ? (e.kind === 'dispute' ? 'Dispute accepted. The check is set aside for this charge, with the agent’s reasoning as your note.' : 'Suggestion accepted. Code rechecks the charge.')
+        : 'Rejected. It stays as it was.';
+      draw('[data-th-act="undo"][data-th-i="' + i + '"]');
+      if (st === 'accepted' && opts.onAccept) opts.onAccept(e); if (st === 'rejected' && opts.onReject) opts.onReject(e);
+      clearTimeout(timers[i]);
+      timers[i] = setTimeout(function () {
+        var had = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-th-i') === String(i);
+        e.undo = null; draw(had ? '#' + thread.uid + '-dec' + i : null);
+      }, opts.undoMs == null ? 8000 : opts.undoMs);
+    }
+    container.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-th-act]') : null; if (!b || !container.contains(b)) return;
+      var i = parseInt(b.getAttribute('data-th-i'), 10), act = b.getAttribute('data-th-act');
+      if (act === 'accept') decide(i, 'accepted');
+      else if (act === 'reject') decide(i, 'rejected');
+      else if (act === 'undo') {
+        var e = thread.entries[i], was = e.state; clearTimeout(timers[i]);
+        e.state = 'waiting'; e.decided = null; e.undo = null;
+        draw('[data-th-act="' + (was === 'accepted' ? 'accept' : 'reject') + '"][data-th-i="' + i + '"]');
+        if (opts.onUndo) opts.onUndo(e, was);
+      }
+    });
+    container.addEventListener('submit', function (ev) {
+      if (!ev.target.hasAttribute || !ev.target.hasAttribute('data-th-ask')) return;
+      ev.preventDefault();
+      var q = container.querySelector('.ft-th__q'), text = q ? q.value.trim() : '';
+      if (!text) { if (q) q.focus(); return; }
+      thread.draft = ''; if (q) q.value = '';
+      thread.entries.push({ who: 'you', kind: 'comment', date: opts.today || '', text: text });
+      thread.entries.push({ pending: true });
+      thread.live = 'Question sent. The agent is reading.';
+      draw('#' + thread.uid + '-live');
+      var h = container.querySelector('.ft-th__title'); if (h) { h.tabIndex = -1; h.focus(); }
+      function reply(entry) {
+        for (var k = thread.entries.length - 1; k >= 0; k--) if (thread.entries[k].pending) { thread.entries.splice(k, 1); break; }
+        entry.who = entry.who || 'agent'; entry.date = entry.date || opts.today || ''; thread.entries.push(entry);
+        thread.live = 'The agent answered: ' + (entry.text || '');
+        var ae = document.activeElement, mine = !ae || ae === document.body || container.contains(ae);
+        draw(mine ? '.ft-th__q' : null);
+      }
+      if (opts.onAsk) opts.onAsk(text, reply);
+      else setTimeout(function () { reply({ kind: 'comment', text: 'Noted. I have nothing on file that answers that yet.' }); }, 1200);
+    });
+    container.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey) && ev.target.classList && ev.target.classList.contains('ft-th__q')) {
+        ev.preventDefault(); var f = ev.target.form; if (f) { if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+      }
+    });
+    draw();
+    return { redraw: draw, thread: thread };
+  };
+})();
+
+/* FundTrail evidence checklist (PR 6, decision 0011): what a charge should have, filled or missing, who added each item,
+   and any removal the agent suggests, waiting for the accountant.
+   FTChecklist.render(items, opts)          pure: returns HTML
+   FTChecklist.summary(items)               {filled, missing, partial, waiting, total}
+   FTChecklist.mount(container, items, opts) stateful: Accept, Reject, Undo and Add item, with an inline done line
+     opts: {account, total:'$2,300.00', sum:{parts:['$1,800.00','$500.00'], total:'$2,300.00'}, title, onChange(items, action)}
+   Item: {need, by:'default'|'code'|'agent'|'you', state:'filled'|'missing'|'partial', filledBy:{name, amount, of, note},
+          period, expected, due:'late'|'not-due', rule:{kind:'adds-up'|'rate', math}, removal:{by:'agent', reason, state:'waiting'|'accepted'|'rejected'},
+          removed:{by, note}} */
+(function () {
+  var C = window.FTChecklist = {};
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var BY = { 'default': 'Account default', code: 'Added by code', agent: 'Added by the agent', you: 'Added by you' };
+  var STATE = { filled: 'Filled', missing: 'Missing', partial: 'Not complete' };
+
+  C.summary = function (items) {
+    var s = { filled: 0, missing: 0, partial: 0, waiting: 0, total: 0 };
+    items.forEach(function (it) {
+      if (it.removed) return;
+      s.total++; s[it.state] = (s[it.state] || 0) + 1;
+      if (it.removal && it.removal.state === 'waiting') s.waiting++;
+    });
+    return s;
+  };
+
+  function itemHtml(it, i) {
+    var removed = !!it.removed;
+    var st = removed ? 'removed' : it.state;
+    var stateText = removed ? 'Removed' : (it.state === 'missing' && it.due === 'not-due') ? 'Not due yet' : STATE[it.state];
+    var detail = '';
+    if (removed) detail = '<span class="ft-cl-detail">' + esc(it.removed.note) + '</span>';
+    else if (it.filledBy) {
+      detail = '<span class="ft-cl-detail"><span class="ft-cl-file">' + esc(it.filledBy.name) + '</span>' +
+        (it.filledBy.amount ? ' <span class="ft-sep">&middot;</span> <span class="ft-amount">' + esc(it.filledBy.amount) + '</span>' + (it.filledBy.of ? ' of <span class="ft-amount">' + esc(it.filledBy.of) + '</span>' : '') : '') +
+        (it.filledBy.note ? ' <span class="ft-sep">&middot;</span> ' + esc(it.filledBy.note) : '') + '</span>';
+    } else if (it.state === 'missing') {
+      detail = '<span class="ft-cl-detail">' + (it.expected ? (it.due === 'not-due' ? 'Expected ' : 'Expected since ') + esc(it.expected) : 'Nothing on file yet') + '</span>';
+    } else if (it.note) detail = '<span class="ft-cl-detail">' + esc(it.note) + '</span>';
+    var math = it.rule && it.rule.kind === 'rate' && it.rule.math && !removed ? '<span class="ft-cl-math">' + esc(it.rule.math) + ' <span class="ft-cl-checked">checked by code</span></span>' : '';
+    var waiting = it.removal && it.removal.state === 'waiting' && !removed;
+    var removal = waiting ? '<div class="ft-cl-removal" role="group" aria-label="The agent suggests removing ' + esc(it.need) + '">' +
+      '<p class="ft-cl-removal__text"><span class="ft-cl-removal__who">Agent suggests removing this item.</span> ' + esc(it.removal.reason) + '</p>' +
+      '<div class="ft-actions"><button type="button" class="ft-btn ft-btn--sm ft-btn--approve" data-cl-act="accept" data-cl-i="' + i + '">Accept</button>' +
+      '<button type="button" class="ft-btn ft-btn--sm ft-btn--reject" data-cl-act="reject" data-cl-i="' + i + '">Reject</button></div></div>' : '';
+    return '<li class="ft-cl-item is-' + st + (waiting ? ' has-removal' : '') + '" data-cl-i="' + i + '">' +
+      '<span class="ft-cl-mark" aria-hidden="true"></span>' +
+      '<div class="ft-cl-main"><span class="ft-cl-need">' + esc(it.need) + (it.period ? ' <span class="ft-cl-period">' + esc(it.period) + '</span>' : '') + '</span>' + detail + math + '</div>' +
+      '<span class="ft-cl-meta"><span class="ft-cl-state">' + stateText + '</span><span class="ft-cl-by">' + (removed ? '' : BY[it.by]) + '</span></span>' +
+      removal + '</li>';
+  }
+
+  C.render = function (items, opts) {
+    opts = opts || {};
+    var s = C.summary(items);
+    var head = '<div class="ft-cl-head"><span class="ft-cl-title">' + esc(opts.title || 'Evidence needed') + '</span>' +
+      '<span class="ft-cl-count">' + s.filled + ' of ' + s.total + ' filled' + (s.waiting ? ' <span class="ft-sep">&middot;</span> ' + s.waiting + ' waiting for you' : '') + '</span>' +
+      (opts.account ? '<span class="ft-cl-account">Ledger account: ' + esc(opts.account) + '</span>' : '') + '</div>';
+    var list = '<ul class="ft-cl-list">' + items.map(itemHtml).join('') + '</ul>';
+    var sum = opts.sum ? '<p class="ft-cl-sum">' + opts.sum.parts.map(esc).join(' + ') + ' = <span class="ft-amount">' + esc(opts.sum.total) + '</span> <span class="ft-sep">&middot;</span> adds up to the charge <span class="ft-cl-checked">checked by code</span></p>' : '';
+    var add = opts.adding ? '<form class="ft-cl-add" data-cl-form="add"><label class="ft-sr-only" for="' + opts.uid + '-add">New item</label>' +
+      '<input class="ft-input" id="' + opts.uid + '-add" name="need" placeholder="For example: Signed honorarium letter" autocomplete="off" value="' + esc(opts.draft || '') + '">' +
+      '<button class="ft-btn ft-btn--sm" type="submit">Add</button><button class="ft-overrule" type="button" data-cl-act="cancel">Cancel</button></form>'
+      : '<button type="button" class="ft-overrule ft-cl-addbtn" data-cl-act="add">Add item</button>';
+    var done = opts.done ? '<div class="ft-trail__done ft-cl-done" role="status" tabindex="-1"><span>' + esc(opts.done) + '</span><button type="button" data-cl-act="undo">Undo</button></div>' : '';
+    return '<section class="ft-cl" aria-label="' + esc(opts.title || 'Evidence needed') + '">' + head + list + sum + done + '<div class="ft-cl-foot">' + add + '</div></section>';
+  };
+
+  var uidN = 0;
+  C.mount = function (container, items, opts) {
+    opts = opts || {};
+    var st = { items: items, done: null, undo: null, adding: false, draft: '' };
+    var uid = 'ftcl' + (++uidN);
+    function clone(x) { return JSON.parse(JSON.stringify(x)); }
+    function draw(focusSel) {
+      container.innerHTML = C.render(st.items, { account: opts.account, sum: opts.sum, title: opts.title, done: st.done, adding: st.adding, draft: st.draft, uid: uid });
+      var t = focusSel && container.querySelector(focusSel);
+      if (t) t.focus();
+    }
+    function act(text, before, focusSel) { st.undo = before; st.done = text; draw(focusSel || '.ft-cl-done'); if (opts.onChange) opts.onChange(st.items); }
+    container.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-cl-act]') : null; if (!b || !container.contains(b)) return;
+      var a = b.getAttribute('data-cl-act'), i = parseInt(b.getAttribute('data-cl-i'), 10), before = clone(st.items);
+      if (a === 'accept') {
+        var it = st.items[i]; it.removal.state = 'accepted'; it.removed = { by: 'you', note: 'Removed by you, accepting the agent’s suggestion: ' + it.removal.reason };
+        act('Removed “' + it.need + '”. Code rechecks the charge without it.', before);
+      } else if (a === 'reject') {
+        var r = st.items[i]; r.removal.state = 'rejected';
+        act('Kept “' + r.need + '”. The agent can’t suggest this again unless new evidence arrives.', before);
+      } else if (a === 'undo') {
+        var back = st.undo; st.items = back; st.undo = null; st.done = null; draw('[data-cl-act="accept"], [data-cl-act="add"]');
+        if (opts.onChange) opts.onChange(st.items);
+      } else if (a === 'add') { st.adding = true; st.draft = ''; draw('#' + uid + '-add'); }
+      else if (a === 'cancel') { st.adding = false; draw('[data-cl-act="add"]'); }
+    });
+    container.addEventListener('input', function (e) { if (e.target.name === 'need' && container.contains(e.target)) st.draft = e.target.value; });
+    container.addEventListener('submit', function (e) {
+      if (!container.contains(e.target)) return; e.preventDefault();
+      var v = st.draft.trim(); if (!v) { var inp = container.querySelector('#' + uid + '-add'); if (inp) inp.focus(); return; }
+      var before = clone(st.items); st.items.push({ need: v, by: 'you', state: 'missing', expected: opts.today || null });
+      st.adding = false; st.draft = '';
+      act('Added “' + v + '”. It takes effect right away.', before);
+    });
+    draw();
+    return { state: st, draw: draw };
+  };
+})();
+
+/* FundTrail problem list: records with problems of their own, the row actions (Snooze, Accept with a note),
+   the two dialogs, and the standing notes list. Follows PR 6 (decision 0010), not merged yet.
+
+   FTProblems.recordRowHtml(rec, opts)   a record row that sits in the same .ft-ledger list as charge rows
+     rec: { id, kind: 'term'|'unlinked'|'overlinked'|'disagree'|'duplicate'|'flag', title, why, listed (date text),
+            by: 'code'|'agent', amount? (text), actions? (array of act ids; default per kind), selected? }
+   FTProblems.rowActionsHtml(id, acts)   the quiet row actions for a charge row: put it inside .ft-row__desc
+     acts default ['snooze', 'accept']; other ids: 'confirm-dup', 'not-dup', 'open'
+   FTProblems.bind(container, handlers)  delegated clicks on [data-pb-act]: handlers[act](id, button); stops the row's own click
+   FTProblems.acceptDialog(opts, onDone) opts: { target: {id, title, problem, account?, vendor?, amount?, kind: 'charge'|'record'},
+                                                 opener, alsoCovers? (number of other charges a standing note would cover today) }
+                                          onDone({ note, standing }) ; returns nothing. Esc, Cancel and the scrim close it.
+   FTProblems.snoozeDialog(opts, onDone) opts: { target, opener, today: 'YYYY-MM-DD', windowOpens: 'YYYY-MM-DD' }
+                                          onDone({ until: 'YYYY-MM-DD', untilText, reason })
+   FTProblems.acceptDialogHtml / snoozeDialogHtml(opts)   the same markup, for static cards
+   FTProblems.doneText(kind, target, result)   the sentence for the inline done line (ft-trail__done) after an action
+   FTProblems.stateTagHtml(state)        { state: 'snoozed'|'accepted'|'standing', until? } for a charge that left the list
+   FTProblems.standingNotesHtml(notes, opts)  notes: [{ id, note, by, date, problem, account, vendor, covers: [{id, name, amount}] }]
+   FTProblems.fmtDate('YYYY-MM-DD') -> 'Apr 30, 2026' */
+(function () {
+  var P = window.FTProblems = window.FTProblems || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function parse(iso) { var p = String(iso).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function iso(d) { function z(n) { return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+  P.fmtDate = function (s) { var d = parse(s); return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
+
+  /* What each kind of record is called, and what you can do about it on the row */
+  var KINDS = {
+    term: { tag: 'Term to confirm', acts: ['open', 'snooze'] },
+    unlinked: { tag: 'Bill not charged', acts: ['snooze', 'accept'] },
+    overlinked: { tag: 'Bill over-linked', acts: ['open', 'snooze'] },
+    disagree: { tag: 'Terms disagree', acts: ['open', 'snooze'] },
+    duplicate: { tag: 'Duplicate file', acts: ['confirm-dup', 'not-dup'] },
+    flag: { tag: 'Agent flag', acts: ['snooze', 'accept'] }
+  };
+  var ACT_LABEL = { snooze: 'Snooze', accept: 'Accept with a note', open: 'Review', 'confirm-dup': 'Confirm duplicate', 'not-dup': 'Not a duplicate' };
+  P.KINDS = KINDS;
+
+  P.rowActionsHtml = function (id, acts, name) {
+    acts = acts || ['snooze', 'accept'];
+    return '<span class="ft-pb-actions" role="group" aria-label="Actions for ' + esc(name || id) + '">' + acts.map(function (a) {
+      return '<button type="button" class="ft-pb-act" data-pb-act="' + a + '" data-pb-id="' + esc(id) + '">' + ACT_LABEL[a] + '</button>';
+    }).join('') + '</span>';
+  };
+
+  P.recordRowHtml = function (rec, opts) {
+    opts = opts || {};
+    var k = KINDS[rec.kind] || KINDS.flag;
+    var by = rec.by === 'agent' ? 'Flagged by the agent' : 'Raised by code';
+    return '<div class="ft-row ft-pb-row ft-pb-row--' + rec.kind + (rec.selected ? ' is-selected' : '') + '" role="row" tabindex="0" data-id="' + esc(rec.id) + '" data-row="record">' +
+      '<span class="ft-row__date">' + esc(rec.listed) + '<span class="ft-id ft-pb-rec">Record</span></span>' +
+      '<span class="ft-row__desc"><span class="ft-row__name">' + esc(rec.title) + '</span>' +
+        '<span class="ft-row__reason">' + esc(rec.why) + ' <span class="ft-pb-by">' + by + '.</span></span>' +
+        (opts.actions === false ? '' : P.rowActionsHtml(rec.id, rec.actions || k.acts, rec.title)) + '</span>' +
+      '<span class="ft-row__amount ft-amount">' + esc(rec.amount || '') + '</span>' +
+      '<span class="ft-row__bucket"><span class="ft-pb-kind">' + k.tag + '</span></span></div>';
+  };
+
+  P.bind = function (container, handlers) {
+    container.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-pb-act]') : null;
+      if (!b || !container.contains(b)) return;
+      /* stopImmediatePropagation: a row-select listener on the same list would redraw it and drop the button the dialog returns focus to */
+      e.stopImmediatePropagation(); e.stopPropagation(); e.preventDefault();
+      var f = handlers && handlers[b.getAttribute('data-pb-act')];
+      if (f) f(b.getAttribute('data-pb-id'), b);
+    });
+    container.addEventListener('keydown', function (e) {
+      if (e.target.closest && e.target.closest('[data-pb-act]') && (e.key === 'Enter' || e.key === ' ')) e.stopPropagation();
+    });
+  };
+
+  P.stateTagHtml = function (s) {
+    var t = s.state === 'snoozed' ? 'Snoozed until ' + P.fmtDate(s.until) : s.state === 'standing' ? 'Accepted under the accountant’s note' : 'Accepted with your note';
+    return '<span class="ft-pb-state ft-pb-state--' + s.state + '">' + esc(t) + '</span>';
+  };
+
+  P.doneText = function (kind, target, r) {
+    var who = target.id && target.kind !== 'record' ? target.id : target.title;
+    if (kind === 'snooze') return who + ' snoozed until ' + r.untilText + '. It comes back then if it isn’t fixed.';
+    if (r.standing) return who + ' accepted with a standing note. It also covers every charge with the same problem, account and vendor.';
+    return who + ' accepted with your note. It leaves the problem list, and comes back if the facts change.';
+  };
+
+  /* ---------- the dialogs ---------- */
+  var seq = 0;
+  function summary(t) {
+    return '<div class="ft-pb-target"><span class="ft-pb-target__name">' + (t.kind === 'record' ? '' : '<span class="ft-id">' + esc(t.id) + '</span> ') + esc(t.title) +
+      (t.amount ? ' <span class="ft-sep">&middot;</span> <span class="ft-amount">' + esc(t.amount) + '</span>' : '') + '</span>' +
+      '<span class="ft-pb-target__problem">' + esc(t.problem) + '</span></div>';
+  }
+  P.acceptDialogHtml = function (o, id) {
+    id = id || 'ft-pb-' + (++seq);
+    var t = o.target, charge = t.kind !== 'record', canStand = charge && !!t.vendor;
+    var stand = '';
+    if (charge) {
+      stand = '<div class="ft-pb-standing' + (canStand ? '' : ' is-off') + '">' +
+        '<label class="ft-pb-check"><input type="checkbox" name="standing"' + (canStand ? '' : ' disabled') + (o.standing && canStand ? ' checked' : '') + ' aria-describedby="' + id + '-st"> Make it a standing note</label>' +
+        '<p id="' + id + '-st">' + (canStand
+          ? 'It also covers every charge on this grant, past and future, with this same problem, ledger account and vendor. Every other check still runs.'
+          : 'This charge has no vendor, so the note can only cover this charge.') + '</p>' +
+        (canStand ? '<dl class="ft-pb-covers"><dt>Problem</dt><dd>' + esc(t.problemShort || t.problem) + '</dd><dt>Account</dt><dd>' + esc(t.account) + '</dd><dt>Vendor</dt><dd>' + esc(t.vendor) + '</dd>' +
+          '<dt>Today</dt><dd>This charge' + (o.alsoCovers ? ' and ' + o.alsoCovers + ' other' + (o.alsoCovers > 1 ? 's' : '') : ' only. Later charges that match are covered as they arrive.') + '</dd></dl>' : '') +
+        '</div>';
+    }
+    return '<form class="ft-dialog-form" novalidate data-pb-form="accept"><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Accept with a note</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d" class="ft-pb-lede">It will never fix itself, and you’re fine with it. It leaves the problem list, and comes back if the facts change.</p>' + summary(t) +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-note">Note</label>' +
+      '<textarea class="ft-textarea" id="' + id + '-note" name="note" rows="3" aria-required="true" aria-describedby="' + id + '-help" placeholder="For example: moving it off the grant in the adjustment period.">' + esc(o.note || '') + '</textarea>' +
+      '<span class="ft-field__hint" id="' + id + '-help">Goes into the evidence report under your name.</span></div>' + stand + '</div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-pb-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main">Accept with a note</button></div></form>';
+  };
+  P.snoozeDialogHtml = function (o, id) {
+    id = id || 'ft-pb-' + (++seq);
+    var t = o.target, today = o.today || iso(new Date()), win = o.windowOpens;
+    var min = iso(new Date(parse(today).getTime() + 86400000));
+    var def = o.until || iso(new Date(parse(today).getTime() + 14 * 86400000));
+    if (win && def > win) def = win;
+    return '<form class="ft-dialog-form" novalidate data-pb-form="snooze"><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Snooze until a date</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d" class="ft-pb-lede">You expect it to fix itself. It comes back on that date if it isn’t fixed, or sooner if a new problem shows up.</p>' + summary(t) +
+      '<div class="ft-pb-grid"><div class="ft-field" id="' + id + '-dfield"><label class="ft-field__label" for="' + id + '-date">Bring it back on</label>' +
+      '<input class="ft-input" type="date" id="' + id + '-date" name="until" value="' + def + '" min="' + min + '"' + (win ? ' max="' + win + '"' : '') + ' aria-describedby="' + id + '-dhelp">' +
+      '<span class="ft-field__hint" id="' + id + '-dhelp">' + (win ? 'Every snooze ends ' + P.fmtDate(win) + ', when the 90-day closeout window opens.' : 'Every snooze ends when the 90-day closeout window opens.') + '</span></div>' +
+      '<div class="ft-field" id="' + id + '-rfield"><label class="ft-field__label" for="' + id + '-reason">Why</label>' +
+      '<input class="ft-input" id="' + id + '-reason" name="reason" autocomplete="off" aria-required="true" aria-describedby="' + id + '-rhelp" placeholder="For example: refund coming, check Mar 1" value="' + esc(o.reason || '') + '">' +
+      '<span class="ft-field__hint" id="' + id + '-rhelp">Shows on the charge while it’s snoozed.</span></div></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-pb-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main">Snooze</button></div></form>';
+  };
+
+  var cur = null;
+  function close(returnFocus) {
+    if (!cur) return;
+    var c = cur; cur = null;
+    c.dlg.parentNode.removeChild(c.dlg); c.scrim.parentNode.removeChild(c.scrim);
+    var app = document.querySelector('.ft-app');
+    if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && c.opener && c.opener.isConnected) c.opener.focus();
+  }
+  P.close = function () { close(true); };
+  function setError(dlg, fieldId, helpId, msg, hint) {
+    var f = dlg.querySelector('#' + fieldId), h = dlg.querySelector('#' + helpId), inp = f && f.querySelector('input, textarea');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); h.className = 'ft-field__error'; h.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); h.className = 'ft-field__hint'; h.textContent = hint; }
+  }
+  function open(kind, o, onDone) {
+    close(false);
+    var id = 'ft-pb-' + (++seq);
+    var scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    var dlg = document.createElement('section');
+    dlg.className = 'ft-dialog ft-pb-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.innerHTML = kind === 'accept' ? P.acceptDialogHtml(o, id) : P.snoozeDialogHtml(o, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    cur = { dlg: dlg, scrim: scrim, opener: o.opener || document.activeElement };
+    scrim.addEventListener('click', function () { close(true); });
+    dlg.addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('[data-pb-dialog="cancel"]') : null; if (b) close(true); });
+    dlg.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); return; }
+      if (e.key !== 'Tab') return;
+      var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea'), function (x) { return x.offsetParent !== null; });
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    var form = dlg.querySelector('form');
+    if (kind === 'accept') {
+      var note = form.elements.note, noteHint = 'Goes into the evidence report under your name.';
+      note.addEventListener('input', function () { if (note.value.trim()) setError(dlg, id + '-field', id + '-help', null, noteHint); });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var v = note.value.replace(/\s+/g, ' ').trim();
+        if (!v) { setError(dlg, id + '-field', id + '-help', 'Add a note. It goes into the evidence report.', noteHint); note.focus(); return; }
+        var st = form.elements.standing ? form.elements.standing.checked : false;
+        close(true); if (onDone) onDone({ note: v, standing: st });
+      });
+      note.focus();
+    } else {
+      var d = form.elements.until, r = form.elements.reason, win = o.windowOpens, today = o.today || iso(new Date());
+      var dHint = win ? 'Every snooze ends ' + P.fmtDate(win) + ', when the 90-day closeout window opens.' : 'Every snooze ends when the 90-day closeout window opens.';
+      var rHint = 'Shows on the charge while it’s snoozed.';
+      d.addEventListener('input', function () { setError(dlg, id + '-dfield', id + '-dhelp', null, dHint); });
+      r.addEventListener('input', function () { if (r.value.trim()) setError(dlg, id + '-rfield', id + '-rhelp', null, rHint); });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var until = d.value, why = r.value.replace(/\s+/g, ' ').trim(), bad = false;
+        if (!until || until <= today) { setError(dlg, id + '-dfield', id + '-dhelp', 'Pick a date after ' + P.fmtDate(today) + '.', dHint); bad = d; }
+        else if (win && until > win) { setError(dlg, id + '-dfield', id + '-dhelp', 'Pick a date by ' + P.fmtDate(win) + '. The closeout window ends every snooze.', dHint); bad = d; }
+        if (!why) { setError(dlg, id + '-rfield', id + '-rhelp', 'Say why you expect it to fix itself.', rHint); bad = bad || r; }
+        if (bad) { bad.focus(); return; }
+        close(true); if (onDone) onDone({ until: until, untilText: P.fmtDate(until), reason: why });
+      });
+      r.focus();
+    }
+  }
+  P.acceptDialog = function (o, onDone) { open('accept', o, onDone); };
+  P.snoozeDialog = function (o, onDone) { open('snooze', o, onDone); };
+  P.isOpen = function () { return !!cur; };
+
+  /* ---------- standing notes ---------- */
+  P.standingNotesHtml = function (notes, opts) {
+    opts = opts || {};
+    var head = '<div class="ft-pb-notes__head"><h3 class="ft-heading" id="ft-pb-notes-h">Standing notes</h3>' +
+      '<span class="ft-caption">Each covers every charge with the same problem, account and vendor. Every other check still runs.</span></div>';
+    if (!notes || !notes.length) return '<section class="ft-pb-notes" aria-labelledby="ft-pb-notes-h">' + head +
+      '<p class="ft-pb-notes__empty">No standing notes. When you accept a problem with a note, you can make it cover every charge like it.</p></section>';
+    return '<section class="ft-pb-notes" aria-labelledby="ft-pb-notes-h">' + head + '<ul class="ft-pb-notes__list">' + notes.map(function (n) {
+      return '<li class="ft-pb-note"><div class="ft-pb-note__main"><p class="ft-pb-note__text">“' + esc(n.note) + '”</p>' +
+        '<dl class="ft-pb-covers"><dt>Problem</dt><dd>' + esc(n.problem) + '</dd><dt>Account</dt><dd>' + esc(n.account) + '</dd><dt>Vendor</dt><dd>' + esc(n.vendor) + '</dd></dl>' +
+        '<span class="ft-caption">Written by ' + esc(n.by) + ', ' + esc(n.date) + '</span></div>' +
+        '<div class="ft-pb-note__covers"><span class="ft-pb-note__label">Covers ' + n.covers.length + ' charge' + (n.covers.length === 1 ? '' : 's') + '</span><ul>' +
+        n.covers.map(function (c) { return '<li><span class="ft-id">' + esc(c.id) + '</span><span>' + esc(c.name) + '</span><span class="ft-amount">' + esc(c.amount) + '</span></li>'; }).join('') + '</ul>' +
+        '<button type="button" class="ft-pb-act ft-pb-act--withdraw" data-pb-act="withdraw" data-pb-id="' + esc(n.id) + '">Withdraw note</button>' +
+        '<span class="ft-caption">Withdrawing brings these charges back to the problem list.</span></div></li>';
+    }).join('') + '</ul></section>';
+  };
+})();
+
+</script>
+<!-- /pr6-scripts -->
+<script>
+window.FTEvidence = {"files": [{"name": "boat_rental_receipt.jpg", "kind": "Receipt photo", "group": "photos", "channel": "Gmail", "sender": "robin.example@university.example", "arrived": "Apr 12, 2026", "iso": "2026-04-12", "links": [{"id": "L-1015", "name": "Field boat rental", "amount": "$1,480.00 of $1,480.00"}], "viewer": "F6", "title": "Receipt photo", "facts": [], "note": "", "unlinked": false}, {"name": "extension_notice.txt", "kind": "Award amendment 01", "group": "award", "channel": "Google Drive", "sender": "", "arrived": "Apr 10, 2026", "iso": "2026-04-10", "links": [], "viewer": "F2", "title": "Award amendment 01", "facts": [], "note": "Grant terms: the end date for all 51 charges. Confirmed by you, Apr 10, 2026.", "unlinked": false}, {"name": "invoice_2050.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Mar 30, 2026", "iso": "2026-03-30", "links": [], "viewer": null, "title": "Invoice 2050, Example Field Station", "facts": [{"label": "Vendor", "value": "Example Field Station"}, {"label": "Total", "value": "$5,000.00"}], "note": "$5,000.00 that no charge on this grant uses. Paid another way, or charged to another grant?", "unlinked": true, "listing": "Goes on the problem list May 29, 2026, if it's still not linked.", "problem": "Bill not charged: $5,000.00, linked to no charge"}, {"name": "sequencing_invoice.eml", "kind": "Email", "group": "emails", "channel": "Gmail", "sender": "", "arrived": "Feb 21, 2026", "iso": "2026-02-21", "links": [{"id": "L-1002", "name": "Sediment DNA sequencing run 7", "amount": "$2,180.00 of $2,180.00"}], "viewer": "F3", "title": "Email from Dr. Robin Example", "facts": [], "note": "", "unlinked": false}, {"name": "field_camera_receipt.jpg", "kind": "Receipt photo", "group": "photos", "channel": "Upload", "sender": "", "arrived": "Jan 22, 2026", "iso": "2026-01-22", "links": [{"id": "L-1019", "name": "Field microscope camera", "amount": "$1,325.00 of $1,325.00"}], "viewer": "F7", "title": "Receipt photo", "facts": [], "note": "", "unlinked": false}, {"name": "invoice_SEQ-0311.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "billing@sequencing.example", "arrived": "Jan 12, 2026", "iso": "2026-01-12", "links": [{"id": "L-1010", "name": "Sequencing core, shared run 6", "amount": "$5,833.33 charged. This grant\u2019s part isn\u2019t on file."}], "viewer": "F5", "title": "Invoice SEQ-0311", "facts": [], "note": "", "unlinked": false}, {"name": "invoice_1001.txt", "kind": "Invoice", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Nov 12, 2025", "iso": "2025-11-12", "links": [{"id": "L-1001", "name": "Sediment core liners", "amount": "$1,240.00 of $1,240.00"}], "viewer": "F8", "title": "Invoice INV-1001", "facts": [], "note": "", "unlinked": false}, {"name": "approval_email.eml", "kind": "Email", "group": "emails", "channel": "Gmail", "sender": "", "arrived": "Oct 6, 2025", "iso": "2025-10-06", "links": [{"id": "L-0981", "name": "Conference registration", "amount": "Approval"}], "viewer": "F4", "title": "Email from Dr. Robin Example", "facts": [], "note": "", "unlinked": false}, {"name": "registration_receipt.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Oct 4, 2025", "iso": "2025-10-04", "links": [{"id": "L-0981", "name": "Conference registration", "amount": "$650.00 of $650.00"}], "viewer": null, "title": "Receipt, Example Ocean Sciences Meeting", "facts": [{"label": "Vendor", "value": "Example Ocean Sciences Meeting"}, {"label": "Item", "value": "Meeting registration"}, {"label": "Total", "value": "$650.00"}], "note": "", "unlinked": false}, {"name": "receipt_0936.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 26, 2025", "iso": "2025-09-26", "links": [{"id": "L-0936", "name": "Ethanol, molecular grade", "amount": "$741.00 of $741.00"}], "viewer": null, "title": "Receipt, Example Chemical Supply", "facts": [{"label": "Vendor", "value": "Example Chemical Supply"}, {"label": "Date", "value": "Sep 19, 2025"}, {"label": "Item", "value": "Ethanol, molecular grade"}, {"label": "Total", "value": "$741.00"}], "note": "", "unlinked": false}, {"name": "receipt_0898.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 19, 2025", "iso": "2025-09-19", "links": [{"id": "L-0898", "name": "Field sampling gloves", "amount": "$1,958.25 of $1,958.25"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Sep 15, 2025"}, {"label": "Item", "value": "Field sampling gloves"}, {"label": "Total", "value": "$1,958.25"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0917.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 19, 2025", "iso": "2025-09-19", "links": [{"id": "L-0917", "name": "Participant lodging, field course", "amount": "$828.50 of $828.50"}], "viewer": null, "title": "Participant receipt, Example Bay Field Station", "facts": [{"label": "Vendor", "value": "Example Bay Field Station"}, {"label": "Date", "value": "Sep 17, 2025"}, {"label": "Item", "value": "Participant lodging, field course"}, {"label": "Total", "value": "$828.50"}], "note": "", "unlinked": false}, {"name": "receipt_0879.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Aug 12, 2025", "iso": "2025-08-12", "links": [{"id": "L-0879", "name": "Pipette tips", "amount": "$1,596.99 of $1,596.99"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Aug 6, 2025"}, {"label": "Item", "value": "Pipette tips"}, {"label": "Total", "value": "$1,596.99"}], "note": "", "unlinked": false}, {"name": "receipt_0860.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Jul 15, 2025", "iso": "2025-07-15", "links": [{"id": "L-0860", "name": "Sediment core liners", "amount": "$1,646.99 of $1,646.99"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Jul 7, 2025"}, {"label": "Item", "value": "Sediment core liners"}, {"label": "Total", "value": "$1,646.99"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0841.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Apr 6, 2025", "iso": "2025-04-06", "links": [{"id": "L-0841", "name": "Participant lodging, field course", "amount": "$1,861.00 of $1,861.00"}], "viewer": null, "title": "Participant receipt, Example Bay Field Station", "facts": [{"label": "Vendor", "value": "Example Bay Field Station"}, {"label": "Date", "value": "Apr 3, 2025"}, {"label": "Item", "value": "Participant lodging, field course"}, {"label": "Total", "value": "$1,861.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0822.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Mar 25, 2025", "iso": "2025-03-25", "links": [{"id": "L-0822", "name": "Workshop registration, student", "amount": "$1,049.00 of $1,049.00"}], "viewer": null, "title": "Participant receipt, Example Coastal Science Workshop", "facts": [{"label": "Vendor", "value": "Example Coastal Science Workshop"}, {"label": "Date", "value": "Mar 20, 2025"}, {"label": "Item", "value": "Workshop registration, student"}, {"label": "Total", "value": "$1,049.00"}], "note": "", "unlinked": false}, {"name": "invoice_0803.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Mar 25, 2025", "iso": "2025-03-25", "links": [{"id": "L-0803", "name": "Sediment DNA sequencing", "amount": "$1,309.25 of $1,309.25"}], "viewer": null, "title": "Invoice, Example Sequencing Core", "facts": [{"label": "Vendor", "value": "Example Sequencing Core"}, {"label": "Date", "value": "Mar 18, 2025"}, {"label": "Item", "value": "Sediment DNA sequencing"}, {"label": "Total", "value": "$1,309.25"}], "note": "", "unlinked": false}, {"name": "receipt_0784.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Mar 19, 2025", "iso": "2025-03-19", "links": [{"id": "L-0784", "name": "DNA extraction kits", "amount": "$2,248.53 of $2,248.53"}], "viewer": null, "title": "Receipt, Example Chemical Supply", "facts": [{"label": "Vendor", "value": "Example Chemical Supply"}, {"label": "Date", "value": "Mar 17, 2025"}, {"label": "Item", "value": "DNA extraction kits"}, {"label": "Total", "value": "$2,248.53"}], "note": "", "unlinked": false}, {"name": "invoice_0765.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Mar 4, 2025", "iso": "2025-03-04", "links": [{"id": "L-0765", "name": "Open access publication fee", "amount": "$3,825.25 of $3,825.25"}], "viewer": null, "title": "Invoice, Example Journal of Microbial Ecology", "facts": [{"label": "Vendor", "value": "Example Journal of Microbial Ecology"}, {"label": "Date", "value": "Feb 28, 2025"}, {"label": "Item", "value": "Open access publication fee"}, {"label": "Total", "value": "$3,825.25"}], "note": "", "unlinked": false}, {"name": "receipt_0746.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Feb 13, 2025", "iso": "2025-02-13", "links": [{"id": "L-0746", "name": "DNA extraction kits", "amount": "$1,485.99 of $1,485.99"}], "viewer": null, "title": "Receipt, Example Chemical Supply", "facts": [{"label": "Vendor", "value": "Example Chemical Supply"}, {"label": "Date", "value": "Feb 7, 2025"}, {"label": "Item", "value": "DNA extraction kits"}, {"label": "Total", "value": "$1,485.99"}], "note": "", "unlinked": false}, {"name": "invoice_0727.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Feb 4, 2025", "iso": "2025-02-04", "links": [{"id": "L-0727", "name": "Open access publication fee", "amount": "$3,164.00 of $3,164.00"}], "viewer": null, "title": "Invoice, Example Journal of Microbial Ecology", "facts": [{"label": "Vendor", "value": "Example Journal of Microbial Ecology"}, {"label": "Date", "value": "Jan 27, 2025"}, {"label": "Item", "value": "Open access publication fee"}, {"label": "Total", "value": "$3,164.00"}], "note": "", "unlinked": false}, {"name": "invoice_0708.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Jan 12, 2025", "iso": "2025-01-12", "links": [{"id": "L-0708", "name": "Library preparation service", "amount": "$2,275.25 of $2,275.25"}], "viewer": null, "title": "Invoice, Example Sequencing Core", "facts": [{"label": "Vendor", "value": "Example Sequencing Core"}, {"label": "Date", "value": "Jan 9, 2025"}, {"label": "Item", "value": "Library preparation service"}, {"label": "Total", "value": "$2,275.25"}], "note": "", "unlinked": false}, {"name": "receipt_0689.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Dec 24, 2024", "iso": "2024-12-24", "links": [{"id": "L-0689", "name": "Cooler and ice packs", "amount": "$1,611.25 of $1,611.25"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Dec 19, 2024"}, {"label": "Item", "value": "Cooler and ice packs"}, {"label": "Total", "value": "$1,611.25"}], "note": "", "unlinked": false}, {"name": "invoice_0670.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Dec 10, 2024", "iso": "2024-12-10", "links": [{"id": "L-0670", "name": "Data storage, annual", "amount": "$3,593.99 of $3,593.99"}], "viewer": null, "title": "Invoice, Example Cloud Storage", "facts": [{"label": "Vendor", "value": "Example Cloud Storage"}, {"label": "Date", "value": "Dec 3, 2024"}, {"label": "Item", "value": "Data storage, annual"}, {"label": "Total", "value": "$3,593.99"}], "note": "", "unlinked": false}, {"name": "invoice_0651.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Nov 28, 2024", "iso": "2024-11-28", "links": [{"id": "L-0651", "name": "Library preparation service", "amount": "$3,654.00 of $3,654.00"}], "viewer": null, "title": "Invoice, Example Sequencing Core", "facts": [{"label": "Vendor", "value": "Example Sequencing Core"}, {"label": "Date", "value": "Nov 26, 2024"}, {"label": "Item", "value": "Library preparation service"}, {"label": "Total", "value": "$3,654.00"}], "note": "", "unlinked": false}, {"name": "receipt_0632.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Nov 21, 2024", "iso": "2024-11-21", "links": [{"id": "L-0632", "name": "Sediment core liners", "amount": "$1,248.25 of $1,248.25"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Nov 17, 2024"}, {"label": "Item", "value": "Sediment core liners"}, {"label": "Total", "value": "$1,248.25"}], "note": "", "unlinked": false}, {"name": "invoice_0613.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Nov 9, 2024", "iso": "2024-11-09", "links": [{"id": "L-0613", "name": "Field boat rental", "amount": "$2,110.00 of $2,110.00"}], "viewer": null, "title": "Invoice, Example Marina", "facts": [{"label": "Vendor", "value": "Example Marina"}, {"label": "Date", "value": "Nov 3, 2024"}, {"label": "Item", "value": "Field boat rental"}, {"label": "Total", "value": "$2,110.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0594.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Oct 25, 2024", "iso": "2024-10-25", "links": [{"id": "L-0594", "name": "Field course stipend", "amount": "$667.00 of $667.00"}], "viewer": null, "title": "Participant receipt, Field course participant", "facts": [{"label": "Vendor", "value": "Field course participant"}, {"label": "Date", "value": "Oct 17, 2024"}, {"label": "Item", "value": "Field course stipend"}, {"label": "Total", "value": "$667.00"}], "note": "", "unlinked": false}, {"name": "receipt_0575.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Oct 20, 2024", "iso": "2024-10-20", "links": [{"id": "L-0575", "name": "Core sampler parts", "amount": "$1,671.00 of $1,671.00"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Oct 17, 2024"}, {"label": "Item", "value": "Core sampler parts"}, {"label": "Total", "value": "$1,671.00"}], "note": "", "unlinked": false}, {"name": "invoice_0556.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Oct 14, 2024", "iso": "2024-10-14", "links": [{"id": "L-0556", "name": "Data storage, annual", "amount": "$2,798.99 of $2,798.99"}], "viewer": null, "title": "Invoice, Example Cloud Storage", "facts": [{"label": "Vendor", "value": "Example Cloud Storage"}, {"label": "Date", "value": "Oct 9, 2024"}, {"label": "Item", "value": "Data storage, annual"}, {"label": "Total", "value": "$2,798.99"}], "note": "", "unlinked": false}, {"name": "invoice_0537.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Sep 29, 2024", "iso": "2024-09-29", "links": [{"id": "L-0537", "name": "Sediment DNA sequencing", "amount": "$2,078.50 of $2,078.50"}], "viewer": null, "title": "Invoice, Example Sequencing Core", "facts": [{"label": "Vendor", "value": "Example Sequencing Core"}, {"label": "Date", "value": "Sep 22, 2024"}, {"label": "Item", "value": "Sediment DNA sequencing"}, {"label": "Total", "value": "$2,078.50"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0518.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 14, 2024", "iso": "2024-09-14", "links": [{"id": "L-0518", "name": "Workshop registration, student", "amount": "$1,541.50 of $1,541.50"}], "viewer": null, "title": "Participant receipt, Example Coastal Science Workshop", "facts": [{"label": "Vendor", "value": "Example Coastal Science Workshop"}, {"label": "Date", "value": "Sep 12, 2024"}, {"label": "Item", "value": "Workshop registration, student"}, {"label": "Total", "value": "$1,541.50"}], "note": "", "unlinked": false}, {"name": "receipt_0499.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 5, 2024", "iso": "2024-09-05", "links": [{"id": "L-0499", "name": "Sediment core liners", "amount": "$2,848.00 of $2,848.00"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Sep 1, 2024"}, {"label": "Item", "value": "Sediment core liners"}, {"label": "Total", "value": "$2,848.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0480.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Aug 28, 2024", "iso": "2024-08-28", "links": [{"id": "L-0480", "name": "Participant lodging, field course", "amount": "$895.50 of $895.50"}], "viewer": null, "title": "Participant receipt, Example Bay Field Station", "facts": [{"label": "Vendor", "value": "Example Bay Field Station"}, {"label": "Date", "value": "Aug 22, 2024"}, {"label": "Item", "value": "Participant lodging, field course"}, {"label": "Total", "value": "$895.50"}], "note": "", "unlinked": false}, {"name": "invoice_0461.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Aug 9, 2024", "iso": "2024-08-09", "links": [{"id": "L-0461", "name": "Sample shipping, frozen", "amount": "$2,443.50 of $2,443.50"}], "viewer": null, "title": "Invoice, Example Freight", "facts": [{"label": "Vendor", "value": "Example Freight"}, {"label": "Date", "value": "Aug 1, 2024"}, {"label": "Item", "value": "Sample shipping, frozen"}, {"label": "Total", "value": "$2,443.50"}], "note": "", "unlinked": false}, {"name": "invoice_0442.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Aug 4, 2024", "iso": "2024-08-04", "links": [{"id": "L-0442", "name": "Sample shipping, frozen", "amount": "$2,270.00 of $2,270.00"}], "viewer": null, "title": "Invoice, Example Freight", "facts": [{"label": "Vendor", "value": "Example Freight"}, {"label": "Date", "value": "Aug 1, 2024"}, {"label": "Item", "value": "Sample shipping, frozen"}, {"label": "Total", "value": "$2,270.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0423.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Jul 24, 2024", "iso": "2024-07-24", "links": [{"id": "L-0423", "name": "Field course stipend", "amount": "$935.00 of $935.00"}], "viewer": null, "title": "Participant receipt, Field course participant", "facts": [{"label": "Vendor", "value": "Field course participant"}, {"label": "Date", "value": "Jul 19, 2024"}, {"label": "Item", "value": "Field course stipend"}, {"label": "Total", "value": "$935.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0404.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Apr 12, 2024", "iso": "2024-04-12", "links": [{"id": "L-0404", "name": "Participant lodging, field course", "amount": "$1,175.10 of $1,175.10"}], "viewer": null, "title": "Participant receipt, Example Bay Field Station", "facts": [{"label": "Vendor", "value": "Example Bay Field Station"}, {"label": "Date", "value": "Apr 5, 2024"}, {"label": "Item", "value": "Participant lodging, field course"}, {"label": "Total", "value": "$1,175.10"}], "note": "", "unlinked": false}, {"name": "invoice_0385.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Apr 7, 2024", "iso": "2024-04-07", "links": [{"id": "L-0385", "name": "Sample shipping, frozen", "amount": "$3,353.25 of $3,353.25"}], "viewer": null, "title": "Invoice, Example Freight", "facts": [{"label": "Vendor", "value": "Example Freight"}, {"label": "Date", "value": "Apr 5, 2024"}, {"label": "Item", "value": "Sample shipping, frozen"}, {"label": "Total", "value": "$3,353.25"}], "note": "", "unlinked": false}, {"name": "invoice_0366.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Mar 25, 2024", "iso": "2024-03-25", "links": [{"id": "L-0366", "name": "Data storage, annual", "amount": "$3,346.52 of $3,346.52"}], "viewer": null, "title": "Invoice, Example Cloud Storage", "facts": [{"label": "Vendor", "value": "Example Cloud Storage"}, {"label": "Date", "value": "Mar 21, 2024"}, {"label": "Item", "value": "Data storage, annual"}, {"label": "Total", "value": "$3,346.52"}], "note": "", "unlinked": false}, {"name": "receipt_0347.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Mar 16, 2024", "iso": "2024-03-16", "links": [{"id": "L-0347", "name": "Pipette tips", "amount": "$1,873.50 of $1,873.50"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Mar 10, 2024"}, {"label": "Item", "value": "Pipette tips"}, {"label": "Total", "value": "$1,873.50"}], "note": "", "unlinked": false}, {"name": "receipt_0328.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Mar 15, 2024", "iso": "2024-03-15", "links": [{"id": "L-0328", "name": "Ethanol, molecular grade", "amount": "$1,071.25 of $1,071.25"}], "viewer": null, "title": "Receipt, Example Chemical Supply", "facts": [{"label": "Vendor", "value": "Example Chemical Supply"}, {"label": "Date", "value": "Mar 7, 2024"}, {"label": "Item", "value": "Ethanol, molecular grade"}, {"label": "Total", "value": "$1,071.25"}], "note": "", "unlinked": false}, {"name": "receipt_0309.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Mar 6, 2024", "iso": "2024-03-06", "links": [{"id": "L-0309", "name": "Sediment core liners", "amount": "$2,490.50 of $2,490.50"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Mar 3, 2024"}, {"label": "Item", "value": "Sediment core liners"}, {"label": "Total", "value": "$2,490.50"}], "note": "", "unlinked": false}, {"name": "receipt_0271.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Jan 28, 2024", "iso": "2024-01-28", "links": [{"id": "L-0271", "name": "Sediment core liners", "amount": "$1,083.00 of $1,083.00"}], "viewer": null, "title": "Receipt, Example Lab Supply Co.", "facts": [{"label": "Vendor", "value": "Example Lab Supply Co."}, {"label": "Date", "value": "Jan 21, 2024"}, {"label": "Item", "value": "Sediment core liners"}, {"label": "Total", "value": "$1,083.00"}], "note": "", "unlinked": false}, {"name": "invoice_0290.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Jan 27, 2024", "iso": "2024-01-27", "links": [{"id": "L-0290", "name": "Field boat rental", "amount": "$1,801.25 of $1,801.25"}], "viewer": null, "title": "Invoice, Example Marina", "facts": [{"label": "Vendor", "value": "Example Marina"}, {"label": "Date", "value": "Jan 22, 2024"}, {"label": "Item", "value": "Field boat rental"}, {"label": "Total", "value": "$1,801.25"}], "note": "", "unlinked": false}, {"name": "receipt_0252.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Jan 23, 2024", "iso": "2024-01-23", "links": [{"id": "L-0252", "name": "Cooler and ice packs", "amount": "$981.00 of $981.00"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Jan 21, 2024"}, {"label": "Item", "value": "Cooler and ice packs"}, {"label": "Total", "value": "$981.00"}], "note": "", "unlinked": false}, {"name": "invoice_0233.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Nov 30, 2023", "iso": "2023-11-30", "links": [{"id": "L-0233", "name": "Sediment DNA sequencing", "amount": "$1,830.25 of $1,830.25"}], "viewer": null, "title": "Invoice, Example Sequencing Core", "facts": [{"label": "Vendor", "value": "Example Sequencing Core"}, {"label": "Date", "value": "Nov 26, 2023"}, {"label": "Item", "value": "Sediment DNA sequencing"}, {"label": "Total", "value": "$1,830.25"}], "note": "", "unlinked": false}, {"name": "receipt_0214.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Nov 27, 2023", "iso": "2023-11-27", "links": [{"id": "L-0214", "name": "Cooler and ice packs", "amount": "$795.50 of $795.50"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Nov 21, 2023"}, {"label": "Item", "value": "Cooler and ice packs"}, {"label": "Total", "value": "$795.50"}], "note": "", "unlinked": false}, {"name": "receipt_0195.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Nov 19, 2023", "iso": "2023-11-19", "links": [{"id": "L-0195", "name": "Core sampler parts", "amount": "$1,566.00 of $1,566.00"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Nov 11, 2023"}, {"label": "Item", "value": "Core sampler parts"}, {"label": "Total", "value": "$1,566.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0176.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Sep 18, 2023", "iso": "2023-09-18", "links": [{"id": "L-0176", "name": "Participant travel, field course", "amount": "$1,076.00 of $1,076.00"}], "viewer": null, "title": "Participant receipt, Example Regional Transit", "facts": [{"label": "Vendor", "value": "Example Regional Transit"}, {"label": "Date", "value": "Sep 15, 2023"}, {"label": "Item", "value": "Participant travel, field course"}, {"label": "Total", "value": "$1,076.00"}], "note": "", "unlinked": false}, {"name": "psc_receipt_0157.pdf", "kind": "Participant receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Jul 17, 2023", "iso": "2023-07-17", "links": [{"id": "L-0157", "name": "Workshop registration, student", "amount": "$1,675.25 of $1,675.25"}], "viewer": null, "title": "Participant receipt, Example Coastal Science Workshop", "facts": [{"label": "Vendor", "value": "Example Coastal Science Workshop"}, {"label": "Date", "value": "Jul 12, 2023"}, {"label": "Item", "value": "Workshop registration, student"}, {"label": "Total", "value": "$1,675.25"}], "note": "", "unlinked": false}, {"name": "invoice_0138.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Jun 20, 2023", "iso": "2023-06-20", "links": [{"id": "L-0138", "name": "Sample shipping, frozen", "amount": "$1,306.00 of $1,306.00"}], "viewer": null, "title": "Invoice, Example Freight", "facts": [{"label": "Vendor", "value": "Example Freight"}, {"label": "Date", "value": "Jun 13, 2023"}, {"label": "Item", "value": "Sample shipping, frozen"}, {"label": "Total", "value": "$1,306.00"}], "note": "", "unlinked": false}, {"name": "receipt_0119.pdf", "kind": "Receipt", "group": "receipts", "channel": "Upload", "sender": "", "arrived": "Apr 7, 2023", "iso": "2023-04-07", "links": [{"id": "L-0119", "name": "Field sampling gloves", "amount": "$1,083.00 of $1,083.00"}], "viewer": null, "title": "Receipt, Example Field Gear", "facts": [{"label": "Vendor", "value": "Example Field Gear"}, {"label": "Date", "value": "Apr 5, 2023"}, {"label": "Item", "value": "Field sampling gloves"}, {"label": "Total", "value": "$1,083.00"}], "note": "", "unlinked": false}, {"name": "invoice_0100.pdf", "kind": "Invoice", "group": "receipts", "channel": "Gmail", "sender": "", "arrived": "Apr 1, 2023", "iso": "2023-04-01", "links": [{"id": "L-0100", "name": "Sample shipping, frozen", "amount": "$2,840.00 of $2,840.00"}], "viewer": null, "title": "Invoice, Example Freight", "facts": [{"label": "Vendor", "value": "Example Freight"}, {"label": "Date", "value": "Mar 28, 2023"}, {"label": "Item", "value": "Sample shipping, frozen"}, {"label": "Total", "value": "$2,840.00"}], "note": "", "unlinked": false}, {"name": "award_letter.txt", "kind": "Award letter", "group": "award", "channel": "Upload", "sender": "", "arrived": "Jan 12, 2023", "iso": "2023-01-12", "links": [], "viewer": "F1", "title": "Award letter", "facts": [], "note": "Grant terms for all 51 charges. Its end date was replaced by amendment 01, confirmed Apr 10, 2026.", "unlinked": false}], "F8": {"id": "F8", "type": "text", "name": "invoice_1001.txt", "title": "Invoice INV-1001", "meta": "Uploaded by you \u00b7 Nov 12, 2025", "links": [{"id": "L-1001", "name": "Sediment core liners", "amount": "$1,240.00 of $1,240.00"}], "note": "", "lines": ["SYNTHETIC DEMO DOCUMENT. Not issued by any company. Created for the FundTrail golden fixture.", "", "INVOICE INV-1001", "Example Lab Supply Co.", "Invoice Date: November 12, 2025", "Bill To: Dr. Robin Example, Example State University", "Award: SYN-2300117", "", "Sediment core liners, 50 count: $1,240.00", "", "Total Due: $1,240.00", ""], "facts": [{"label": "Invoice", "value": "INV-1001", "line": 3, "text": "INVOICE INV-1001"}, {"label": "Vendor", "value": "Example Lab Supply Co.", "line": 4, "text": "Example Lab Supply Co."}, {"label": "Invoice date", "value": "Nov 12, 2025", "line": 5, "text": "November 12, 2025"}, {"label": "Item", "value": "Sediment core liners, 50 count", "line": 9, "text": "Sediment core liners, 50 count"}, {"label": "Total", "value": "$1,240.00", "line": 11, "text": "$1,240.00"}], "active": 4}, "counts": {"all": 55, "unlinked": 1, "award": 2, "receipts": 49, "emails": 2, "photos": 2}};
+(function () {
+  var E = window.FTEvidence, V = window.FTViewer || { files: {} };
+  /* invoice_1001.txt is a real golden document, so it opens in the viewer too; F1 and F2 read as they stand on Apr 12, 2026 */
+  V.files.F8 = E.F8;
+  if (V.files.F1) V.files.F1.note = 'Grant terms. Its end date was replaced by amendment 01, confirmed Apr 10, 2026.';
+  if (V.files.F2) V.files.F2.note = 'New end date confirmed by you, Apr 10, 2026.';
+  /* The viewer can settle an unconfirmed fact, so redraw the card when it closes, keeping focus on the fact that opened it */
+  V.onclose = function () {
+    var a = document.activeElement, f = a && a.getAttribute && a.getAttribute('data-file'), k = a && a.getAttribute && a.getAttribute('data-fact');
+    renderRows(); renderDetail();
+    var back = f ? document.querySelector('#ev-detail [data-file="' + f + '"]' + (k != null ? '[data-fact="' + k + '"]' : '[data-act="open"]')) : null;
+    if (back) back.focus();
+  };
+
+  var KINDS = [['all', 'All kinds'], ['award', 'Award documents'], ['receipts', 'Bills'], ['emails', 'Emails'], ['photos', 'Photos']];
+  var state = { filter: 'all', kind: 'all', sel: 'sequencing_invoice.eml', rec: null, done: null };
+  var P = window.FTProblems || null, TODAY = '2026-04-12', WINDOW_OPENS = '2026-11-02';
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function file(name) { for (var i = 0; i < E.files.length; i++) if (E.files[i].name === name) return E.files[i]; return null; }
+  function visible() {
+    return E.files.filter(function (f) { return (state.filter === 'all' || f.unlinked) && (state.kind === 'all' || f.group === state.kind); });
+  }
+
+  /* ---------- the grant's readiness, as on the problem list ---------- */
+  $('ev-ready').innerHTML = '<div class="ft-ready__head"><span class="ft-ready__num">48</span><span class="ft-ready__of">of 51 charges ready for closeout</span></div>' +
+    '<div class="ft-ready__bar" aria-hidden="true"><span class="is-conflict" style="flex:1"></span><span class="is-human" style="flex:2"></span><span class="is-complete" style="flex:48"></span></div>';
+
+  /* ---------- the list ---------- */
+  function renderBar() {
+    var tabs = [['all', 'All', E.counts.all], ['unlinked', 'Not linked', E.counts.unlinked]];
+    $('ev-tabs').innerHTML = tabs.map(function (t) {
+      return '<button type="button" role="tab" class="ft-tab" data-filter="' + t[0] + '" aria-selected="' + (state.filter === t[0]) + '">' +
+        (t[0] === 'unlinked' ? '<span class="ft-ev-unmark" aria-hidden="true"></span>' : '') + t[1] + ' <span class="ft-count">' + t[2] + '</span></button>';
+    }).join('');
+    $('ev-kind').innerHTML = KINDS.map(function (k) {
+      return '<option value="' + k[0] + '"' + (state.kind === k[0] ? ' selected' : '') + '>' + k[1] + (k[0] === 'all' ? '' : ' (' + E.counts[k[0]] + ')') + '</option>';
+    }).join('');
+  }
+  function pays(f) {
+    if (f.unlinked) return '<span class="ft-ev-unlinked">' + (state.rec ? (state.rec.state === 'snoozed' ? 'Snoozed' : 'Accepted') : 'Not linked') + '</span>';
+    if (f.group === 'award') return 'Terms';
+    return f.links.map(function (l) { return '<span class="ft-id">' + esc(l.id) + '</span>'; }).join(' ');
+  }
+  function rowHtml(f) {
+    var on = f.name === state.sel;
+    return '<div class="ft-row ft-ev-row' + (on ? ' is-selected' : '') + '" role="row" tabindex="0" data-name="' + esc(f.name) + '"' + (on ? ' aria-current="true"' : '') + '>' +
+      '<span class="ft-ev-file" role="cell"><span class="ft-ev-name">' + esc(f.name) + '</span><span class="ft-ev-kind">' + esc(f.kind) + ' <span class="ft-sep">&middot;</span> ' + esc(f.channel) + '</span></span>' +
+      '<span class="ft-ev-pays" role="cell">' + pays(f) + '</span><span class="ft-ev-date" role="cell">' + esc(f.arrived) + '</span></div>';
+  }
+  function renderRows() {
+    var v = visible();
+    $('ev-rows').innerHTML = v.length ? v.map(rowHtml).join('') : '<div class="ft-empty">No files of this kind.</div>';
+  }
+
+  /* ---------- the selected file: its evidence card ---------- */
+  var ABBR = /(?:^|[\s(])(Dr|Mr|Ms|Mrs|No)$/;
+  function sentence(s, t) {
+    var i = s.indexOf(t); if (i < 0) return { before: '', after: '' };
+    var start = 0, p = i;
+    while (p > 0) { var j = s.lastIndexOf('. ', p - 1); if (j < 0) break; if (ABBR.test(s.slice(0, j))) { p = j; continue; } start = j + 2; break; }
+    var end = s.length, q = i + t.length;
+    while (true) { var k = s.indexOf('. ', q); if (k < 0) break; if (ABBR.test(s.slice(0, k))) { q = k + 2; continue; } end = k + 1; break; }
+    return { before: s.slice(start, i), after: s.slice(i + t.length, end) };
+  }
+  function findBlock(blocks, id) {
+    var parts = id.split('.');
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.cols) for (var c = 0; c < b.cols.length; c++) { var r = findBlock(b.cols[c], id); if (r) return r; }
+      if (b.id === parts[0]) return parts.length === 3 && b.rows ? b.rows[+parts[1]][+parts[2]] : b.text;
+    }
+    return null;
+  }
+  function sourceText(vf, x) {
+    if (vf.lines) return vf.lines[x.line - 1] || x.text;
+    if (vf.pages && x.block) return findBlock(vf.pages[x.page - 1].blocks, x.block) || x.text;
+    return x.text;
+  }
+  /* Decision 0012: every quote is checked against its file, so each fact says whether it's confirmed there */
+  function unconfirmed(x) { return x.confirmed === false; }
+  function confHtml(x) {
+    if (unconfirmed(x)) return '<span class="ft-ev-conf is-unconf">Unconfirmed</span>';
+    if (x.placed === false) return '<span class="ft-ev-conf">Confirmed by you</span>';
+    return '<span class="ft-ev-conf">Confirmed</span>';
+  }
+  function factHtml(f, vf, x, k) {
+    var cls = 'ft-fact' + (unconfirmed(x) ? ' ft-ev-fact--unconf' : '');
+    var head = '<li class="' + cls + '"><span class="ft-fact__label">' + esc(x.label) + '</span><span class="ft-fact__value">' + esc(x.value) + '</span>';
+    var note = unconfirmed(x) ? '<p class="ft-ev-unconfnote">' + (vf && vf.type === 'photo' ? 'The second look didn’t read the same value.' : 'Couldn’t place this quote in the file.') +
+      ' Anything that rests on it is in Needs a human until you confirm the value or type the right one in the viewer.</p>' : '';
+    if (!vf) return head + '<span class="ft-ev-factconf">' + confHtml(x) + '</span></li>';
+    if (vf.type === 'photo') {
+      return head + '<button type="button" class="ft-fact__quote ft-ev-area" data-file="' + vf.id + '" data-fact="' + k + '" aria-label="Open ' + esc(vf.name) + ' at the ' + esc(x.label.toLowerCase()) + '">' +
+        '<span>' + (unconfirmed(x) ? 'No box: shows the whole photo' : 'Box checked by a second look') + '</span><span class="ft-loc">' + (unconfirmed(x) ? 'Open the photo' : 'Open at the box') + '</span>' + confHtml(x) + '</button>' + note + '</li>';
+    }
+    var s = sentence(sourceText(vf, x), x.text), loc = vf.type === 'pdf' ? 'page ' + x.page : 'line ' + x.line;
+    /* Plain quote style, as in the trail: no yellow on the card. The highlight is the viewer's, when the fact opens. */
+    var q = esc(s.before) + esc(x.text) + esc(s.after);
+    return head + '<button type="button" class="ft-fact__quote ft-ev-quote" data-file="' + vf.id + '" data-fact="' + k + '" aria-label="Open ' + esc(vf.name) + ' at ' + loc + '">' +
+      '<span class="ft-quote">&ldquo;' + q + '&rdquo;</span><span class="ft-loc">' + loc + '</span>' + confHtml(x) + '</button>' + note + '</li>';
+  }
+  function confSummary(facts) {
+    var n = facts.length, u = facts.filter(unconfirmed).length, you = facts.filter(function (x) { return !unconfirmed(x) && x.placed === false; }).length;
+    if (!n) return '';
+    var t = u ? u + ' of ' + n + ' unconfirmed' : you ? (n - you) + ' confirmed in the file, ' + you + ' by you' : (n === 1 ? 'Confirmed in the file' : 'All ' + n + ' confirmed in the file');
+    return '<span class="ft-ev-confsum' + (u ? ' is-unconf' : '') + '">' + t + '</span>';
+  }
+  function doneHtml() {
+    return state.done ? '<div class="ft-trail__done" role="status" tabindex="-1" id="ev-done"><span>' + esc(state.done) + '</span><button type="button" data-act="undo">Undo</button></div>' : '';
+  }
+  function paysHtml(f) {
+    if (f.unlinked) {
+      var r = state.rec, h = '<div class="ft-ev-unlinkedbox ft-ev-record">';
+      h += '<div class="ft-ev-rechead"><span class="ft-ev-unlinked">' + (r ? (r.state === 'snoozed' ? 'Snoozed' : 'Accepted') : 'Not linked to a charge') + '</span><span class="ft-ev-reckind">Record <span class="ft-sep">&middot;</span> raised by code</span></div>';
+      if (!r) {
+        h += '<p class="ft-ev-note">' + esc(f.note) + '</p><p class="ft-ev-muted2">' + esc(f.listing) + '</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-btn ft-btn--sm" data-act="link">Link to a charge</button></div>';
+      } else if (r.state === 'snoozed') {
+        h += '<p class="ft-ev-note">' + (P ? P.stateTagHtml({ state: 'snoozed', until: r.until }) : 'Snoozed until ' + esc(r.untilText)) + ' <span class="ft-ev-why">' + esc(r.reason) + '</span></p>' +
+          '<p class="ft-ev-muted2">It stays off the problem list until ' + esc(r.untilText) + ', then goes on it if it’s still linked to no charge. A new problem on it ends the snooze early.</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-overrule" data-act="unsnooze" style="margin:0">End the snooze</button></div>';
+      } else {
+        h += '<p class="ft-ev-note">' + (P ? P.stateTagHtml({ state: 'accepted' }) : 'Accepted with your note') + '</p><p class="ft-ev-quotenote">' + esc(r.note) + '</p>' +
+          '<p class="ft-ev-muted2">It stays off the problem list. If the facts change, it comes back.</p>' +
+          '<div class="ft-actions"><button type="button" class="ft-overrule" data-act="unaccept" style="margin:0">Withdraw the note</button></div>';
+      }
+      return h + '</div>' + doneHtml();
+    }
+    if (f.group === 'award') return '<p class="ft-ev-note">' + esc(f.note) + '</p>';
+    return '<ul class="ft-ev-paylist">' + f.links.map(function (l) {
+      return '<li><span class="ft-id">' + esc(l.id) + '</span><span>' + esc(l.name) + '</span><span class="ft-ev-amt">' + esc(l.amount) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  function renderDetail() {
+    var f = file(state.sel); if (!f) { $('ev-detail').innerHTML = '<div class="ft-empty">Select a file.</div>'; return; }
+    var vf = f.viewer ? V.files[f.viewer] : null;
+    var meta = esc(f.kind) + ' <span class="ft-sep">&middot;</span> ' + esc(f.channel) + (f.sender ? ' from ' + esc(f.sender) : '') + ' <span class="ft-sep">&middot;</span> arrived ' + esc(f.arrived);
+    var h = '<div class="ft-panel__section"><div class="ft-charge-meta"><span class="ft-meta">' + meta + '</span>' +
+      (vf ? '<button type="button" class="ft-btn ft-btn--sm" data-act="open" data-file="' + vf.id + '">Open original</button>' : '') + '</div>' +
+      '<div class="ft-charge-titlerow"><h2 class="ft-charge-title">' + esc(f.title) + '</h2></div><span class="ft-ev-filename">' + esc(f.name) + '</span></div>';
+    var list = vf ? vf.facts : f.facts;
+    var facts = vf ? vf.facts.map(function (x, k) { return factHtml(f, vf, x, k); }).join('') : f.facts.map(function (x) { return factHtml(f, null, x); }).join('');
+    h += '<div class="ft-panel__section"><div class="ft-ev-sechead"><span class="ft-trail-label">Read from this file</span><span class="ft-tag ft-tag--agent">Agent</span>' + confSummary(list) + '</div>' +
+      '<ul class="ft-facts">' + facts + '</ul>' +
+      (vf ? '' : '<p class="ft-ev-muted">This demo has no original for this file, so its quotes and the viewer are left out.</p>') + '</div>';
+    h += '<div class="ft-panel__section"><span class="ft-trail-label">' + (f.group === 'award' ? 'Used for' : 'Pays for') + '</span>' + paysHtml(f) + '</div>';
+    $('ev-detail').innerHTML = h;
+    $('ev-detail').setAttribute('aria-label', 'File ' + f.name);
+  }
+  function renderAll() {
+    renderBar(); renderRows(); renderDetail();
+  }
+  function select(name, focus) {
+    state.sel = name; renderRows(); renderDetail();
+    var r = document.querySelector('.ft-ev-row[data-name="' + name + '"]');
+    if (r) { r.scrollIntoView({ block: 'nearest' }); if (focus) r.focus(); }
+  }
+  function refilter() {
+    var v = visible(); if (v.length && !v.some(function (f) { return f.name === state.sel; })) state.sel = v[0].name;
+    renderAll();
+  }
+
+  /* ---------- the toast, for what the demo doesn't build ---------- */
+  var toastTimer = null, undoFn = null;
+  function toast(text, undo) {
+    $('ev-toast-text').textContent = text; undoFn = undo || null; $('ev-undo').hidden = !undo; $('ev-toast').hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { $('ev-toast').hidden = true; }, 6000);
+  }
+
+  /* ---------- the unlinked bill: Snooze or Accept with a note (decision 0010), with the problem list's own dialogs ---------- */
+  var doneTimer = null;
+  function setRecord(rec, done) {
+    state.rec = rec; state.done = done; clearTimeout(doneTimer);
+    renderRows(); renderDetail();
+    if (done) { var d = $('ev-done'); if (d) d.focus(); doneTimer = setTimeout(function () { var had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#ev-done'); state.done = null; renderDetail(); if (had) { var b = document.querySelector('.ft-ev-record .ft-overrule'); if (b) b.focus(); } }, 8000); }
+  }
+  function recordAction(act, opener) {
+    var f = file(state.sel); if (!f) return;
+    var target = { id: f.name, title: f.title, problem: f.problem, amount: f.facts[f.facts.length - 1].value, vendor: f.facts[0].value, kind: 'record' };
+    if (!P) return toast(act === 'snooze' ? 'Snoozing needs the problem list’s dialogs, which aren’t on this page.' : 'Accepting needs the problem list’s dialogs, which aren’t on this page.');
+    if (act === 'snooze') {
+      P.snoozeDialog({ target: target, opener: opener, today: TODAY, windowOpens: WINDOW_OPENS, until: '2026-06-30' }, function (r) {
+        setRecord({ state: 'snoozed', until: r.until, untilText: r.untilText, reason: r.reason }, P.doneText('snooze', target, r));
+      });
+    } else {
+      P.acceptDialog({ target: target, opener: opener }, function (r) {
+        setRecord({ state: 'accepted', note: r.note }, P.doneText('accept', target, r));
+      });
+    }
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button, .ft-ev-row, a') : null; if (!t) return;
+    if (t.closest('.ft-sheet, .ft-menu, .ft-dialog')) return;
+    if (t.tagName === 'A') { e.preventDefault(); return; }
+    var act = t.getAttribute('data-act');
+    if (t.classList.contains('ft-ev-row')) return select(t.getAttribute('data-name'), true);
+    if (t.classList.contains('ft-tab')) { state.filter = t.getAttribute('data-filter'); refilter(); var tb = document.querySelector('.ft-tab[data-filter="' + state.filter + '"]'); if (tb) tb.focus(); return; }
+    if (t.hasAttribute('data-fact') && V.open) return V.open(V.files[t.getAttribute('data-file')], parseInt(t.getAttribute('data-fact'), 10), t);
+    if (act === 'open' && V.open) { var vf = V.files[t.getAttribute('data-file')]; return V.open(vf, vf.active || 0, t); }
+    if (act === 'link') return toast('Linking a file by hand isn’t in this demo yet.');
+    if (act === 'snooze' || act === 'accept') return recordAction(act, t);
+    if (act === 'undo' || act === 'unsnooze' || act === 'unaccept') { setRecord(null, null); var a = document.querySelector('[data-act="link"]'); if (a) a.focus(); return; }
+    if (t.id === 'ev-undo' && undoFn) { var u = undoFn; undoFn = null; $('ev-toast').hidden = true; u(); }
+  });
+  $('ev-kind').addEventListener('change', function (e) { state.kind = e.target.value; refilter(); $('ev-kind').focus(); });
+  document.addEventListener('keydown', function (e) {
+    var row = e.target.closest ? e.target.closest('.ft-ev-row') : null; if (!row) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); var sib = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+      if (sib && sib.classList.contains('ft-ev-row')) select(sib.getAttribute('data-name'), true);
+    }
+    if (e.key === 'Home' || e.key === 'End') {
+      var rows = Array.prototype.filter.call(row.parentNode.querySelectorAll('.ft-ev-row'), function (r) { return r.offsetParent !== null; });
+      if (!rows.length) return;
+      e.preventDefault(); var to = e.key === 'Home' ? rows[0] : rows[rows.length - 1];
+      select(to.getAttribute('data-name'), true);
+    }
+  });
+
+  var root = document.documentElement, themes = document.querySelectorAll('[data-set-theme]');
+  function markTheme() { var th = root.getAttribute('data-theme') || 'light'; themes.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-theme') === th)); }); }
+  themes.forEach(function (b) { b.addEventListener('click', function () { root.setAttribute('data-theme', b.getAttribute('data-set-theme')); markTheme(); }); });
+
+  /* ---------- a hash can jump to a state, for screenshots: #sel=F3 or a file name, #f=unlinked, #kind=photos, #state=unconfirmed, #t=dark ---------- */
+  var h = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) h[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (h.t) root.setAttribute('data-theme', h.t);
+  markTheme();
+  if (h.f === 'unlinked') state.filter = 'unlinked';
+  if (h.kind) state.kind = h.kind;
+  if (h.state === 'unconfirmed' && V.files.F5) {
+    V.files.F5.facts.forEach(function (x) { if (x.label === 'Shared by') x.confirmed = false; });
+    if (!h.sel) h.sel = 'F5';
+  }
+  if (h.sel) { var m = E.files.filter(function (f) { return f.viewer === h.sel || f.name === h.sel; })[0]; if (m) state.sel = m.name; }
+  refilter();
+  var cur = document.querySelector('.ft-ev-row.is-selected'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+})();
+</script>
+<!-- @menu-scripts -->
+<script>
+/* FundTrail workspace and account menus, with the New workspace and Reset dialogs.
+   Drop into any page that has the app shell: FTWorkspaceMenu.attach(options).
+   It turns the sidebar's .ft-workspace block and its Account button into menu buttons.
+   options: workspaces [{id, name, note, demo}], current (id), user {name, email},
+            onNavigate(kind, value): kind is 'workspace' (value: id), 'new' (value: name), 'reset' (value: id) or 'signout'.
+            Return false from onNavigate to skip the default (the default only updates the workspace button's label).
+   Also: FTWorkspaceMenu.open('workspace' | 'account'), .dialog('new' | 'reset'), .close(). Plain ES5, no dependencies. */
+(function () {
+  var M = window.FTWorkspaceMenu = window.FTWorkspaceMenu || {};
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var opts = null, wsBtn = null, acBtn = null, menu = null, menuKind = null, dlg = null, scrim = null, seq = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function current() { for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === opts.current) return opts.workspaces[i]; return opts.workspaces[0]; }
+  function nav(kind, value) { var r = opts.onNavigate ? opts.onNavigate(kind, value) : undefined; if (r !== false) feedback(kind, value); return r !== false; }
+  /* Without a page handler, say what happened, so a choice never looks like it did nothing */
+  var toastEl = null, toastTimer = null;
+  function feedback(kind, value) {
+    var name = value;
+    if (kind === 'workspace' || kind === 'reset') for (var i = 0; i < opts.workspaces.length; i++) if (opts.workspaces[i].id === value) name = opts.workspaces[i].name;
+    var text = kind === 'workspace' ? 'Switched to ' + name + '.' : kind === 'new' ? 'Created ' + name + '. It has no grants yet.' :
+      kind === 'reset' ? name + ' is back to how it started.' : kind === 'signout' ? 'Signed out. The sign-in page opens next.' : '';
+    if (!text) return;
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'ft-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+    toastEl.textContent = text; toastEl.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 6000);
+  }
+  function syncLabel() { if (!wsBtn) return; var s = wsBtn.querySelector('span'); if (s) s.textContent = current().name; }
+
+  /* ---------- menus ---------- */
+  function items() { return menu ? Array.prototype.slice.call(menu.querySelectorAll('.ft-menu-item')) : []; }
+  function focusItem(i) { var all = items(); if (!all.length) return; i = (i + all.length) % all.length; all[i].focus(); }
+  function menuHtml(kind) {
+    if (kind === 'account') {
+      var u = opts.user;
+      return '<div class="ft-menu-who" aria-hidden="true"><b>' + esc(u.name) + '</b><span>' + esc(u.email) + '</span><span>Signed in with Google</span></div>' +
+        '<div class="ft-menu-sep" role="separator"></div>' +
+        '<button type="button" class="ft-menu-item ft-menu-item--plain" role="menuitem" tabindex="-1" data-ft-menu="signout"><span class="ft-menu-item__text">Sign out</span></button>';
+    }
+    var h = '<div class="ft-menu-label" aria-hidden="true">Workspaces</div><div role="group" aria-label="Workspaces">';
+    opts.workspaces.forEach(function (w) {
+      var on = w.id === opts.current;
+      h += '<button type="button" class="ft-menu-item" role="menuitemradio" aria-checked="' + on + '" tabindex="-1" data-ft-menu="workspace" data-ft-value="' + esc(w.id) + '">' +
+        '<span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text"><span>' + esc(w.name) + '</span>' + (w.note ? '<span class="ft-menu-item__sub">' + esc(w.note) + '</span>' : '') + '</span></button>';
+    });
+    h += '</div><div class="ft-menu-sep" role="separator"></div>' +
+      '<button type="button" class="ft-menu-item" role="menuitem" tabindex="-1" data-ft-menu="new"><span class="ft-menu-item__mark ft-menu-item__mark--plus" aria-hidden="true"></span><span class="ft-menu-item__text">New workspace</span></button>';
+    if (current().demo) h += '<button type="button" class="ft-menu-item ft-menu-item--danger" role="menuitem" tabindex="-1" data-ft-menu="reset"><span class="ft-menu-item__mark" aria-hidden="true"></span><span class="ft-menu-item__text">Reset demo workspace</span></button>';
+    return h;
+  }
+  function open(kind, focusLast) {
+    var btn = kind === 'account' ? acBtn : wsBtn; if (!btn) return;
+    close(false);
+    menu = document.createElement('div');
+    menu.className = 'ft-menu' + (reduce ? '' : ' ft-menu--in');
+    menu.id = 'ft-menu-' + kind; menu.setAttribute('role', 'menu');
+    if (kind === 'account') menu.setAttribute('aria-label', 'Account: ' + opts.user.name + ', ' + opts.user.email + ', signed in with Google');
+    else menu.setAttribute('aria-labelledby', btn.id);
+    menu.innerHTML = menuHtml(kind);
+    document.body.appendChild(menu); menuKind = kind;
+    place();
+    btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', menu.id);
+    menu.addEventListener('keydown', menuKey);
+    menu.addEventListener('click', menuClick);
+    var all = items(), checked = menu.querySelector('[aria-checked="true"]');
+    if (focusLast) focusItem(all.length - 1); else if (checked) checked.focus(); else focusItem(0);
+  }
+  /* Keeps the menu next to its button: below the workspace block, above the Account button */
+  function place() {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn, r = btn.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    menu.style.minWidth = Math.max(r.width, 248) + 'px';
+    menu.style.left = Math.max(8, Math.min(r.left, vw - menu.offsetWidth - 8)) + 'px';
+    if (menuKind === 'account') { menu.style.top = ''; menu.style.bottom = Math.max(8, vh - r.top + 6) + 'px'; }
+    else { menu.style.bottom = ''; menu.style.top = Math.max(8, Math.min(r.bottom + 6, vh - menu.offsetHeight - 8)) + 'px'; }
+  }
+  function close(returnFocus) {
+    if (!menu) return;
+    var btn = menuKind === 'account' ? acBtn : wsBtn;
+    menu.parentNode.removeChild(menu); menu = null; menuKind = null;
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-controls'); if (returnFocus) btn.focus(); }
+  }
+  function menuKey(e) {
+    var all = items(), i = all.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(i + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); focusItem(0); }
+    else if (e.key === 'End') { e.preventDefault(); focusItem(all.length - 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); close(true); }
+    else if (e.key.length === 1 && /\S/.test(e.key)) {
+      var k = e.key.toLowerCase();
+      for (var n = 1; n <= all.length; n++) { var it = all[(i + n) % all.length]; if (it.textContent.trim().toLowerCase().charAt(0) === k) { it.focus(); break; } }
+    }
+  }
+  function menuClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-menu]') : null; if (!t) return;
+    select(t.getAttribute('data-ft-menu'), t.getAttribute('data-ft-value'));
+  }
+  function select(kind, value) {
+    if (kind === 'workspace') {
+      close(true);
+      if (value !== opts.current && nav('workspace', value)) { opts.current = value; syncLabel(); }
+    } else if (kind === 'new' || kind === 'reset') { close(false); dialog(kind); }
+    else if (kind === 'signout') { close(true); nav('signout'); }
+  }
+
+  /* ---------- dialogs ---------- */
+  function dialogHtml(kind, id) {
+    if (kind === 'reset') {
+      return '<div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">Reset the demo workspace?</h2></div>' +
+        '<div class="ft-dialog-body" id="' + id + '-d"><p>It goes back to how it started. This can’t be undone.</p>' +
+        '<ul class="ft-dialog-list"><li>Your answers, confirmations, splits and sign-offs are removed.</li><li>Files you uploaded or forwarded to its grants are removed.</li>' +
+        '<li>The clock goes back to where the demo starts.</li><li>Your other workspaces don’t change.</li></ul></div>' +
+        '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="button" class="ft-btn ft-btn--reject" data-ft-dialog="reset">Reset workspace</button></div>';
+    }
+    return '<form class="ft-dialog-form" novalidate><div class="ft-dialog-head"><h2 class="ft-dialog-title" id="' + id + '-t">New workspace</h2></div>' +
+      '<div class="ft-dialog-body"><p id="' + id + '-d">A workspace holds its own grants, ledgers and evidence. Only you can see it.</p>' +
+      '<div class="ft-field" id="' + id + '-field"><label class="ft-field__label" for="' + id + '-name">Name</label>' +
+      '<input class="ft-input" id="' + id + '-name" name="name" autocomplete="off" placeholder="For example: Biology department" aria-describedby="' + id + '-help">' +
+      '<span class="ft-field__hint" id="' + id + '-help">Add grants to it after you create it.</span></div></div>' +
+      '<div class="ft-dialog-foot"><button type="button" class="ft-btn" data-ft-dialog="cancel">Cancel</button><button type="submit" class="ft-btn ft-btn--main" data-ft-dialog="create">Create workspace</button></div></form>';
+  }
+  function dialog(kind) {
+    closeDialog(false); close(false);
+    var id = 'ft-dialog-' + (++seq);
+    scrim = document.createElement('div'); scrim.className = 'ft-scrim' + (reduce ? '' : ' ft-scrim--in');
+    dlg = document.createElement('section');
+    dlg.className = 'ft-dialog' + (reduce ? '' : ' ft-dialog--in');
+    dlg.setAttribute('role', kind === 'reset' ? 'alertdialog' : 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', id + '-t'); dlg.setAttribute('aria-describedby', id + '-d'); dlg.tabIndex = -1;
+    dlg.setAttribute('data-ft-kind', kind);
+    dlg.innerHTML = dialogHtml(kind, id);
+    var app = document.querySelector('.ft-app'); if (app) app.setAttribute('inert', '');
+    document.body.appendChild(scrim); document.body.appendChild(dlg);
+    scrim.addEventListener('click', function () { closeDialog(true); });
+    dlg.addEventListener('keydown', dialogKey);
+    dlg.addEventListener('click', dialogClick);
+    var form = dlg.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function (e) { e.preventDefault(); e.stopPropagation(); create(id); });
+      form.elements.name.addEventListener('input', function () { if (form.elements.name.value.trim()) fieldError(id, null); });
+    }
+    var first = kind === 'reset' ? dlg.querySelector('[data-ft-dialog="cancel"]') : dlg.querySelector('input');
+    if (first) first.focus(); else dlg.focus();
+  }
+  function fieldError(id, msg) {
+    var f = document.getElementById(id + '-field'), help = document.getElementById(id + '-help'), inp = document.getElementById(id + '-name');
+    if (!f) return;
+    f.classList.toggle('is-invalid', !!msg);
+    if (msg) { inp.setAttribute('aria-invalid', 'true'); help.className = 'ft-field__error'; help.textContent = msg; }
+    else { inp.removeAttribute('aria-invalid'); help.className = 'ft-field__hint'; help.textContent = 'Add grants to it after you create it.'; }
+  }
+  function create(id) {
+    var inp = document.getElementById(id + '-name'), name = inp.value.replace(/\s+/g, ' ').trim();
+    if (!name) { fieldError(id, 'Add a name.'); inp.focus(); return; }
+    var taken = opts.workspaces.some(function (w) { return w.name.toLowerCase() === name.toLowerCase(); });
+    if (taken) { fieldError(id, 'You already have a workspace with that name.'); inp.focus(); return; }
+    if (nav('new', name)) {
+      var wid = 'ws-' + Date.now().toString(36);
+      opts.workspaces.push({ id: wid, name: name, note: 'No grants yet' }); opts.current = wid; syncLabel();
+    }
+    closeDialog(true);
+  }
+  function dialogClick(e) {
+    var t = e.target.closest ? e.target.closest('[data-ft-dialog]') : null; if (!t) return;
+    var a = t.getAttribute('data-ft-dialog');
+    if (a === 'cancel') closeDialog(true);
+    else if (a === 'reset') { var cur = opts.current; closeDialog(true); nav('reset', cur); }
+  }
+  function dialogKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(true); return; }
+    if (e.key !== 'Tab') return;
+    var els = Array.prototype.filter.call(dlg.querySelectorAll('button:not([disabled]), input, [tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!els.length) return;
+    var first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dlg)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  function closeDialog(returnFocus) {
+    if (!dlg) return;
+    dlg.parentNode.removeChild(dlg); scrim.parentNode.removeChild(scrim); dlg = null; scrim = null;
+    var app = document.querySelector('.ft-app'); if (app && !(window.FTViewer && window.FTViewer.isOpen && window.FTViewer.isOpen())) app.removeAttribute('inert');
+    if (returnFocus && wsBtn) wsBtn.focus();
+  }
+
+  /* ---------- attach ---------- */
+  function wire(btn, kind) {
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', function (e) { e.preventDefault(); if (menu && menuKind === kind) close(true); else open(kind); });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(kind); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); open(kind, true); }
+    });
+  }
+  M.attach = function (o) {
+    o = o || {};
+    opts = {
+      workspaces: [{ id: 'demo', name: 'Demo workspace', note: 'Sample grants. All data is synthetic.', demo: true }, { id: 'bio', name: 'Biology department', note: 'No grants yet' }],
+      current: 'demo',
+      user: { name: 'Taylor Example', email: 'taylor.example@university.example' },
+      onNavigate: null
+    };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) opts[k] = o[k];
+    var ws = document.querySelector('.ft-sidebar .ft-workspace');
+    if (ws && ws.tagName !== 'BUTTON') {
+      var b = document.createElement('button'); b.type = 'button'; b.className = ws.className; b.innerHTML = ws.innerHTML;
+      ws.parentNode.replaceChild(b, ws); ws = b;
+    }
+    if (ws && !ws.classList.contains('ft-menu-trigger')) { ws.classList.add('ft-menu-trigger'); ws.id = ws.id || 'ft-menu-ws-btn'; wire(ws, 'workspace'); }
+    wsBtn = ws; syncLabel();
+    var ac = document.querySelector('.ft-sidebar .demo-footrow .ft-btn');
+    if (!ac) { var bs = document.querySelectorAll('.ft-sidebar button'); for (var i = 0; i < bs.length; i++) if (bs[i].textContent.trim() === 'Account') { ac = bs[i]; break; } }
+    if (ac && !ac.classList.contains('ft-menu-trigger')) { ac.classList.add('ft-menu-trigger'); ac.id = ac.id || 'ft-menu-ac-btn'; wire(ac, 'account'); }
+    acBtn = ac;
+    if (!M.attached) {
+      document.addEventListener('mousedown', function (e) {
+        if (!menu) return;
+        var btn = menuKind === 'account' ? acBtn : wsBtn;
+        if (!menu.contains(e.target) && !(btn && btn.contains(e.target))) close(false);
+      }, true);
+      window.addEventListener('resize', place);
+      window.addEventListener('scroll', place, true);
+    }
+    M.attached = true;
+    return M;
+  };
+  M.open = function (kind) { open(kind === 'account' ? 'account' : 'workspace'); };
+  M.dialog = function (kind) { dialog(kind === 'reset' ? 'reset' : 'new'); };
+  M.close = function () { close(false); closeDialog(false); };
+  M.options = function () { return opts; };
+})();
+
+window.FTWorkspaceMenu && window.FTWorkspaceMenu.attach();
+</script>
+<!-- /menu-scripts -->
+<!-- @layout-scripts -->
+<script>
+/* The standard layout without a thread dock, for pages whose items have no review thread (Evidence, Grant terms).
+   The grant header stays put; under it the list and the selected item fill the rest of the screen and scroll on
+   their own, with the same proportions and the same quiet transition as the grant page and Charges (chat-c.js).
+   Below 1024px wide the page falls back to one normal scroll. */
+(function () {
+  var css = '' +
+    '.ft-app { min-height: 0 !important; height: 100vh; }' +
+    '.ft-sidebar { position: sticky !important; top: 0; height: 100vh !important; overflow-y: auto; }' +
+    '.ft-main { height: 100vh; min-height: 0; overflow: hidden; }' +
+    '.ft-content { flex: 1; min-height: 0; overflow: hidden; }' +
+    '.ft-content > .ft-split { flex: 1; min-height: 0; align-items: stretch; }' +
+    '.ft-content > .ft-split > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }' +
+    '.ft-content > .ft-split > .demo-col { padding-bottom: var(--space-4); }' +
+    '.ft-ev-scroll { max-height: none !important; overflow: visible !important; }' +
+    '.ft-toast { left: calc(var(--sidebar-width) + 24px) !important; transform: none !important; }' +
+    '@media (prefers-reduced-motion: no-preference) { .ft-ss-in { animation: ft-ss-in 160ms ease both; } }' +
+    '@keyframes ft-ss-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }' +
+    '@media (max-width: 1023px) { .ft-app, .ft-main, .ft-content { height: auto; overflow: visible; } .ft-content > .ft-split > * { overflow: visible; } .ft-ev-scroll { max-height: max(360px, calc(100vh - 330px)) !important; overflow-y: auto !important; } }';
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  /* The selected item's panel: when a different item opens, it starts at its top and slides in quietly;
+     a redraw of the same item (Confirm, Undo, an inline form) keeps its scroll position. */
+  var PANELS = ['ev-detail', 'gt-detail'];
+  function key(p) { var t = p.querySelector('h2, .ft-charge-title, .ft-gt-detail__title'); return t ? t.textContent : ''; }
+  function watch(p) {
+    var last = key(p), pos = 0;
+    p.addEventListener('scroll', function () { pos = p.scrollTop; }, { passive: true });
+    new MutationObserver(function () {
+      var k = key(p);
+      if (k === last) { if (p.scrollTop !== pos) p.scrollTop = pos; return; }
+      last = k; p.scrollTop = 0; pos = 0;
+      p.classList.remove('ft-ss-in'); void p.offsetWidth; p.classList.add('ft-ss-in');
+    }).observe(p, { childList: true });
+  }
+
+  /* Keep the selected row in view inside its own scrolling column when the keyboard moves the selection */
+  document.addEventListener('keydown', function (e) {
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(e.key) < 0) return;
+    setTimeout(function () { var r = document.activeElement; if (r && r.closest && r.closest('.ft-split') && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' }); }, 0);
+  });
+
+  function start() { PANELS.forEach(function (id) { var p = document.getElementById(id); if (p) watch(p); }); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+</script>
+<!-- /layout-scripts -->
+</body>
+</html>

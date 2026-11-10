@@ -1,0 +1,50 @@
+<!-- @dsCard group="Layout" height=420 width=1100 subtitle="Left sidebar, top bar, main area" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AppShell preview</title>
+<style>.ft-app { min-height: 420px; } .ft-sidebar { position: relative; height: auto; }</style></head>
+<body>
+<div class="ft-app">
+  <aside class="ft-sidebar" aria-label="Navigation">
+    <span class="ft-wordmark">FundTrail</span>
+    <div class="ft-workspace"><span>Demo workspace</span><span class="ft-caption">Switch</span></div>
+    <nav class="ft-nav" aria-label="Workspace and grants">
+      <a class="ft-nav__item" href="#">Workspace</a>
+      <span class="ft-nav__label">Grants</span>
+      <a class="ft-nav__item ft-nav__item--grant" href="#">Example Bay</a>
+      <div class="ft-nav__children">
+        <a class="ft-nav__item is-active" href="#" aria-current="page">Problem list <span class="ft-count ft-count--alert">5</span></a>
+        <a class="ft-nav__item" href="#">Charges</a>
+        <a class="ft-nav__item" href="#">Evidence</a>
+        <a class="ft-nav__item" href="#">Grant terms <span class="ft-count">1 waiting</span></a>
+        <a class="ft-nav__item" href="#">Closeout</a>
+      </div>
+      <a class="ft-nav__item" href="#">Kelp Forest Survey <span class="ft-count ft-count--alert">2</span></a>
+      <a class="ft-nav__item" href="#">Tidal Marsh Carbon</a>
+    </nav>
+    <div class="ft-sidebar__foot">
+      <span class="ft-caption">Clock</span>
+      <b class="ft-amount">Apr 10, 2026</b>
+      <button type="button" class="ft-btn ft-btn--sm ft-sidebar__next">Next: receipt photo, Apr 12</button>
+      <button class="ft-btn ft-btn--sm ft-btn--quiet" style="align-self:flex-start;padding-left:0">Account</button>
+    </div>
+  </aside>
+  <div class="ft-main">
+    <header class="ft-topbar">
+      <div class="ft-topbar__title"><span class="ft-crumbs">Example Bay / <b>Problem list</b></span><span class="ft-caption">Ends Jan 31, 2026</span></div>
+      <button class="ft-btn">Evidence report</button>
+    </header>
+    <div class="ft-content">
+      <div class="ft-summary" role="group" aria-label="Charges by bucket">
+        <div class="ft-summary__grid">
+          <div class="ft-summary__cell"><span class="ft-badge ft-badge--conflict">Possible conflict</span><span class="ft-summary__count">2</span></div>
+          <div class="ft-summary__cell"><span class="ft-badge ft-badge--human">Needs a human</span><span class="ft-summary__count">2</span></div>
+          <div class="ft-summary__cell"><span class="ft-badge ft-badge--missing">Missing evidence</span><span class="ft-summary__count">1</span></div>
+          <div class="ft-summary__cell"><span class="ft-badge ft-badge--complete">Evidence complete</span><span class="ft-summary__count">46</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

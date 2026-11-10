@@ -1,0 +1,54 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FundTrail</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 480px; height: 288px; }
+  .ledger { fill: var(--ledger); }
+  .deep { fill: var(--ink); }
+  .hl { fill: var(--highlight); }
+  .signal { fill: var(--conflict); }
+  .card { rx: var(--radius-md); }
+  .mark { rx: var(--radius-sm); }
+  .hair { stroke: var(--rule); stroke-width: 1; shape-rendering: crispEdges; }
+  .col { stroke: var(--rule-strong); stroke-width: 1; shape-rendering: crispEdges; }
+  .words { position: absolute; left: var(--space-6); bottom: var(--space-6); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-sans); font-size: 72px; line-height: .92; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+  .tag { margin: var(--space-3) 0 0 2px; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks       ledger 160x200 slab bled off the top (the brand, largest) · highlight 288x48 stroke laid across the slab's foot (citations, the color people remember) · ink 160x120 bled off the right edge · conflict 16x16 once (a state, kept small) · about a quarter of 960x288
+  arrangement  one tall ledger slab, a highlighter stroke across it, an ink block off the right edge; edges land on the rules
+  pattern      hairline rules, from "hairline rule lines like a columnar pad" in the README: four rule hairlines at a space-7 pitch and one rule-strong double column rule, the ledger pad itself
+  scales       pitch space-7 (48); slab inset space-6 (32) from the column; double-rule gap space-1 (4); corners radius-md (6) on slab and ink, radius-sm (4) on the stroke and chip
+-->
+<rect class="ledger card" x="48" y="-8" width="160" height="200" rx="6"/>
+<rect class="deep card" x="336" y="24" width="160" height="120" rx="6"/>
+<line class="hair" x1="0" y1="96.5" x2="480" y2="96.5"/>
+<line class="hair" x1="0" y1="144.5" x2="480" y2="144.5"/>
+<line class="hair" x1="0" y1="192.5" x2="480" y2="192.5"/>
+<line class="hair" x1="0" y1="240.5" x2="480" y2="240.5"/>
+<line class="col" x1="16.5" y1="0" x2="16.5" y2="288"/>
+<line class="col" x1="20.5" y1="0" x2="20.5" y2="288"/>
+<rect class="hl mark" x="112" y="168" width="288" height="48" rx="4"/>
+<rect class="signal mark" x="432" y="224" width="16" height="16" rx="4"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">FundTrail</h1>
+<p class="tag">A running evidence file for every research grant.</p>
+</div>
+</div>
+</body>
+</html>

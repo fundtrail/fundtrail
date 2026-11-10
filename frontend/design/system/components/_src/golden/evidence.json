@@ -1,0 +1,56 @@
+{
+ "note": "The evidence list from the golden fixture (backend/app/contracts/fixtures/golden/fixture.json before it was removed in PR 9). The report and Evidence generators read it for arrival dates and channels.",
+ "evidence": [
+  {
+   "id": "file-award-letter",
+   "workspace_id": "ws-golden",
+   "grant_id": "grant-golden",
+   "source": "upload",
+   "name": "award_letter.txt",
+   "media_type": "text/plain",
+   "storage_path": "ws-golden/grant-golden/file-award-letter/award_letter.txt",
+   "sha256": "effb0ca45df6e13547f9e92d868ff63c74ffaab9132944398f4060e20cb32432",
+   "document_date": null,
+   "arrived_at": "2023-01-12T15:00:00Z"
+  },
+  {
+   "id": "file-invoice-1001",
+   "workspace_id": "ws-golden",
+   "grant_id": "grant-golden",
+   "source": "upload",
+   "name": "invoice_1001.txt",
+   "media_type": "text/plain",
+   "storage_path": "ws-golden/grant-golden/file-invoice-1001/invoice_1001.txt",
+   "sha256": "d306f9ff0ea05dd8d33199a08e483791e7e865e537272ff3cd03f95cefbdf56d",
+   "document_date": null,
+   "arrived_at": "2025-11-12T18:00:00Z"
+  },
+  {
+   "id": "file-sequencing-email",
+   "workspace_id": "ws-golden",
+   "grant_id": "grant-golden",
+   "source": "gmail",
+   "name": "sequencing_invoice.eml",
+   "media_type": "message/rfc822",
+   "storage_path": "ws-golden/grant-golden/file-sequencing-email/sequencing_invoice.eml",
+   "sha256": "daa1cdd4018c642f06eed4ae342ac3aa05d22855f1c44b988f71abef4ee725c5",
+   "document_date": "2026-02-21",
+   "arrived_at": "2026-02-21T17:30:00Z",
+   "sender": "robin.example@university.example",
+   "source_ref": "gmail-synthetic-0001"
+  },
+  {
+   "id": "file-extension-notice",
+   "workspace_id": "ws-golden",
+   "grant_id": "grant-golden",
+   "source": "drive",
+   "name": "extension_notice.txt",
+   "media_type": "text/plain",
+   "storage_path": "ws-golden/grant-golden/file-extension-notice/extension_notice.txt",
+   "sha256": "f4380c43dfa6804313f47bc949cdc80f51b27bc51c1dc0ec5b094be2c6368971",
+   "document_date": null,
+   "arrived_at": "2026-04-09T16:00:00Z",
+   "source_ref": "drive-synthetic-0001"
+  }
+ ]
+}
