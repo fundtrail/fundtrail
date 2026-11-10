@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LinkView } from "@/lib/api";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { citedValue, field } from "./labels";
@@ -45,9 +46,9 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
             <p className={styles.line}>
               <span className="ft-tag">{recordKindLabel(view.record.data.kind)}</span>
               {href ? (
-                <a className="ft-link" href={href}>
+                <Link className="ft-link" href={href}>
                   {name}
-                </a>
+                </Link>
               ) : (
                 <span>{name}</span>
               )}

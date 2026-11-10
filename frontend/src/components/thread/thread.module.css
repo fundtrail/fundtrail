@@ -135,6 +135,10 @@
   resize: vertical;
 }
 
+.padded {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
 .busy {
   color: var(--ink-muted);
 }

@@ -3,7 +3,7 @@
 // the bucket and the reasons stay the server's.
 
 import type { ChecklistEntry, EvidenceFile, FtRecord, Id } from "@/lib/api";
-import { money, recordKindLabel } from "@/lib/format";
+import { date, money, recordKindLabel } from "@/lib/format";
 import { ANSWER_LABELS, citedValue, field, recordName } from "../charge/labels";
 
 export interface Change {
@@ -38,6 +38,12 @@ function summary(record: FtRecord, ctx: DescribeContext): string {
     case "budget_assignment": {
       const line = ctx.records[field<string>(record, "record_id") ?? ""];
       return citedValue<string>(line, "name") ?? "a budget line";
+    }
+    case "period_of_performance": {
+      const start = citedValue<string>(record, "start");
+      const end = citedValue<string>(record, "end");
+      const from = start ? `${date(start)} to ` : "Ends ";
+      return end ? `${from}${date(end)}` : recordName(record, ctx.files);
     }
     case "checklist_item":
       return field<string>(record, "needed") ?? "a checklist item";

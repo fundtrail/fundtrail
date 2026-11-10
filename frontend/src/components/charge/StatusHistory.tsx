@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Bucket, Charge, EvidenceFile, FtRecord, HistoryEntry, Id } from "@/lib/api";
 import { date, recordKindLabel } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
@@ -57,9 +58,9 @@ export function StatusHistory({
               <span>· {entry.text}</span>
               {name &&
                 (href ? (
-                  <a className="ft-link" href={href}>
+                  <Link className="ft-link" href={href}>
                     {name}
-                  </a>
+                  </Link>
                 ) : (
                   <span className="ft-caption">{name}</span>
                 ))}

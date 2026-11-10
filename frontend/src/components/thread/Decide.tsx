@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { field } from "../charge/labels";
@@ -74,9 +75,9 @@ export function Quote({ citation, files, href }: { citation: Citation; files: Re
       {citation.passage ? <blockquote>{citation.passage}</blockquote> : <p className="ft-caption">A marked area, with no text to quote.</p>}
       <figcaption className="ft-caption">
         {href ? (
-          <a className="ft-link" href={href}>
+          <Link className="ft-link" href={href}>
             {name}
-          </a>
+          </Link>
         ) : (
           name
         )}
