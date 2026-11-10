@@ -20,6 +20,7 @@ from app.contracts.records import (
     FACT_KINDS,
     TERM_KINDS,
     Answer,
+    ApprovalScope,
     Author,
     Bill,
     BudgetAssignment,
@@ -42,6 +43,7 @@ from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
 __all__ = [
+    "ApprovalScope",
     "Bill",
     "BudgetAssignment",
     "Link",
@@ -112,8 +114,14 @@ def build_record(
     written_at: Any,
     data: dict[str, Any],
     replaces_id: str | None = None,
+    trigger: Trigger | None = None,
 ) -> tuple[Record | None, list[str]]:
-    """The agent's record, or the reasons the contract models refuse it, as plain sentences."""
+    """The agent's record, or the reasons the contract models refuse it, as plain sentences.
+
+    In a run a thread message started, the record names that message, so it waits for the
+    accountant whatever its kind (the contract reads it from there).
+    """
+    thread = trigger is not None and trigger.kind == TriggerKind.THREAD_MESSAGE
     try:
         record = Record.model_validate(
             {
@@ -123,6 +131,7 @@ def build_record(
                 "author": Author.AGENT,
                 "written_at": written_at,
                 "replaces_id": replaces_id,
+                "thread_message_id": trigger.id if thread and trigger is not None else None,
                 "data": data,
             }
         )
@@ -137,9 +146,12 @@ def check_write(
     charges: Sequence[Charge],
     files: Sequence[EvidenceFile],
     default_items: DefaultItems,
+    trigger: Trigger,
 ) -> list[str]:
-    """The contract's write check, run on every write the agent stages."""
-    return check_new_record(new, records, charges, files, default_items=default_items)
+    """The contract's write check, run on every write the agent stages, with the run's trigger."""
+    return check_new_record(
+        new, records, charges, files, default_items=default_items, trigger=trigger
+    )
 
 
 def citation_of(record: Record, field: str) -> Citation | None:
@@ -178,6 +190,7 @@ TRIGGER_CHARGE = TriggerKind.CHARGE
 TRIGGER_RECORD = TriggerKind.RECORD
 TRIGGER_THREAD = TriggerKind.THREAD_MESSAGE
 TRIGGER_CLOCK = TriggerKind.CLOCK
+TRIGGER_OPEN_QUESTION = TriggerKind.OPEN_QUESTION
 
 
 def _stand_in_likely_duplicates(new: Record, records: Sequence[Record]) -> list[Record]:
@@ -212,13 +225,13 @@ likely_duplicates = _stand_in_likely_duplicates
 
 
 def record_waits(state: RecordState, record_id: str, trigger: Trigger) -> bool:
-    """Whether the agent's new record waits for the accountant.
+    """Whether the agent's new record waits for the accountant, as the contract decides it.
 
-    The main coordinator's ruling: every record a run started by a thread message writes waits,
-    whatever its kind. The contract enforces it from the run's trigger once #39 lands; until
-    then this tells the model the same thing, and the saved record follows the contract.
+    Every record a run started by a thread message writes waits, whatever its kind: the record
+    names the message (`thread_message_id`), and the contract reads it from there.
     """
-    return trigger.kind == TriggerKind.THREAD_MESSAGE or state.waits(record_id)
+    del trigger  # the record carries it
+    return state.waits(record_id)
 
 
 def char_citation(
@@ -231,10 +244,9 @@ def char_citation(
 ) -> dict[str, Any]:
     """A plain-text citation, highlighted on the lines where its value stands on its own.
 
-    `start`, `end` and `passage` are the API's one cited range; `lines` are the character ranges
-    to highlight inside it. #39 adds several ranges to a text citation's highlight. Until it
-    lands, a citation holds one range, so it runs from the first such line to the last, and
-    the passage is that range's text.
+    The passage and its location stay exactly what the API returned; `lines` become the
+    highlight, one character range per line inside the passage (#39). With no such line, the
+    citation has no highlight and the viewer shows the whole passage.
     """
     location = {"type": "char_location", "start_char_index": start, "end_char_index": end}
     citation: dict[str, Any] = {
@@ -244,10 +256,7 @@ def char_citation(
         "match": match,
     }
     if lines:
-        first, last = lines[0][0], lines[-1][1]
-        offset = first - start
-        citation["passage"] = passage[offset : offset + (last - first)]
-        location["start_char_index"], location["end_char_index"] = first, last
+        citation["highlight"] = [{"start_char_index": s, "end_char_index": e} for s, e in lines]
     return citation
 
 

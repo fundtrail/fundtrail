@@ -370,7 +370,7 @@ def recheck(ctx: RunContext) -> list[str]:
     written = list(i.records)
     problems: list[str] = []
     for staged in ctx.staged:
-        found = check_write(staged.record, written, i.charges, i.files, i.default_items)
+        found = check_write(staged.record, written, i.charges, i.files, i.default_items, i.trigger)
         problems += [f"{staged.record.id}: {p}" for p in found]
         written.append(staged.record)
     return problems
@@ -385,7 +385,9 @@ def recheck_before_save(result: RunSaved, inputs: RunInputs) -> list[str]:
     written = list(inputs.records)
     problems: list[str] = []
     for record in result.records:
-        found = check_write(record, written, inputs.charges, inputs.files, inputs.default_items)
+        found = check_write(
+            record, written, inputs.charges, inputs.files, inputs.default_items, inputs.trigger
+        )
         problems += [f"{record.id}: {p}" for p in found]
         written.append(record)
     return problems

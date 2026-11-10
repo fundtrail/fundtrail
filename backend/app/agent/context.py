@@ -82,11 +82,16 @@ class RunContext:
         """Run the write check on a new agent record and stage it, or return its problems."""
         i = self.inputs
         record, problems = build_record(
-            id=i.new_id(), grant=i.grant, written_at=i.now, data=data, replaces_id=replaces_id
+            id=i.new_id(),
+            grant=i.grant,
+            written_at=i.now,
+            data=data,
+            replaces_id=replaces_id,
+            trigger=i.trigger,
         )
         if record is None:
             return None, problems
-        problems = check_write(record, self.records, i.charges, i.files, i.default_items)
+        problems = check_write(record, self.records, i.charges, i.files, i.default_items, i.trigger)
         if problems:
             return None, problems
         state = RecordState([*self.records, record], i.files)
