@@ -1106,7 +1106,7 @@ def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], w
             (b for b in key["buckets"] if b["line_id"] == a["line_id"] and b["at"] > a["at"]),
             key=lambda b: b["at"],
         )
-        cleared = CLEARS_TO[(a["action"], a.get("answer"))]
+        cleared = CLEARS_TO.get((a["action"], a.get("answer")), set())
         if not after or after[0]["bucket"] not in cleared:
             problems.append(
                 f"{where}: the key's next bucket on this line isn't one it clears to "
@@ -1354,6 +1354,8 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
                 "basis": "x",
             },
             {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
+            # An answer that isn't supports, contradicts or unsure.
+            {"at": later, "action": "answer_flag", "line_id": s3a, "answer": "maybe"},
             # S3c's key stays Needs a human, so a typed share clears it to nothing.
             {
                 "at": later,
@@ -1378,6 +1380,7 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
         "must be numbers",
         "isn't in the ledger",
         "isn't one it clears to",
+        "answer must be one of",
     ):
         assert expected in text, (expected, problems)
 
