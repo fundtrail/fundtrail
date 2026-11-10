@@ -2,7 +2,8 @@
 
 The folder layout is the seed builder's (W3), `data/samples/<sample>/`:
 
-- `timeline.json`: `sample`, `starts_at`, `opens_at` and `events`, scheduled events only.
+- `timeline.json`: `sample`, `starts_at` and `events`, scheduled events only. A sample, in
+  every choice, opens at the start of its timeline: its first event.
 - `user_actions.json`: what the do-everything play does, and when (optional).
 - `sample.json`: the sample's own facts, such as its award number, and the option text
   (optional; kept as read until its shape is settled).
@@ -12,9 +13,9 @@ The folder layout is the seed builder's (W3), `data/samples/<sample>/`:
 An event is one of:
 
 - `file`: one document arriving, with `source` (`upload`, `gmail` or `drive`) and, for
-  Gmail, `sender`. `"deliver": "user"` marks a file the user is expected to bring in;
-  its `at` is the clock's fallback. `available_at` (optional) is when the user can first
-  deliver it; without it, the sample's opening.
+  Gmail, `sender`. `"deliver": "user"` marks a file the user is expected to bring in
+  (ruling 44): from its `at`, its date, it waits for the user until they deliver it. The
+  clock never delivers it.
 - `ledger`: the whole ledger file arriving. Each line arrives at the later of 00:00 UTC on
   its posting date and the event's time (decision 0023).
 - `ledger_line`: one ledger line arriving at the event's time.
@@ -33,6 +34,8 @@ import io
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
+from email import policy
+from email.parser import BytesParser
 from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
@@ -77,8 +80,7 @@ class ScheduledEvent:
     name: str  # the file name, or the ledger line ID
     note: str | None = None
     sender: str | None = None  # for Gmail
-    deliver_by_user: bool = False  # the user is expected to bring it in; `at` is the fallback
-    available_at: datetime | None = None  # for a user delivery: when the user can first bring it
+    deliver_by_user: bool = False  # the user is expected to bring it in, from `at` on
 
 
 @dataclass(frozen=True)
@@ -97,7 +99,6 @@ class SamplePack:
     folder: Path  # where timeline.json (or arrivals.json) and the keys are
     files_folder: Path  # where the documents and the ledger are
     starts_at: datetime  # the clock's first "now": the first scheduled event
-    opens_at: datetime  # the simulated opening date
     events: tuple[ScheduledEvent, ...]  # in time order; ties keep the file's order
     actions: tuple[UserAction, ...] = ()
     meta: dict[str, Any] = field(default_factory=dict[str, Any])  # sample.json, as read
@@ -107,6 +108,16 @@ class SamplePack:
 
     def file_bytes(self, name: str) -> bytes:
         return _inside(self.files_folder, name).read_bytes()
+
+    def message_id(self, name: str) -> str | None:
+        """An email file's Message-ID header, without its angle brackets, if it has one."""
+        if not name.lower().endswith(".eml"):
+            return None
+        headers = BytesParser(policy=policy.default).parsebytes(
+            self.file_bytes(name), headersonly=True
+        )
+        value = str(headers.get("Message-ID") or "").strip().strip("<>").strip()
+        return value or None
 
     def sha256(self, name: str) -> str:
         return self._hashes[name] if name in self._hashes else _sha256(self.file_bytes(name))
@@ -185,9 +196,6 @@ def _event(raw: dict[str, Any], event_id: str, where: str) -> ScheduledEvent:
             deliver = raw.get("deliver")
             if deliver not in (None, "user"):
                 raise PackError(f'{where}: deliver is "user" or left out.')
-            available = raw.get("available_at")
-            if available is not None and deliver != "user":
-                raise PackError(f"{where}: available_at is only for a file the user delivers.")
             return ScheduledEvent(
                 id=event_id,
                 at=at,
@@ -197,7 +205,6 @@ def _event(raw: dict[str, Any], event_id: str, where: str) -> ScheduledEvent:
                 note=note,
                 sender=raw.get("sender"),
                 deliver_by_user=deliver == "user",
-                available_at=_time(available, where) if available is not None else None,
             )
         case "ledger":
             name = str(raw.get("file") or LEDGER_FILE)
@@ -235,7 +242,6 @@ def _build(
     files_folder: Path,
     raw_events: list[dict[str, Any]],
     starts_at: datetime | None,
-    opens_at: datetime | None,
     actions: tuple[UserAction, ...],
     meta: dict[str, Any],
     where: str,
@@ -248,14 +254,14 @@ def _build(
     # A stable sort: events at the same time keep the file's order, and each keeps the ID
     # its place in the file gave it.
     events = tuple(sorted(numbered, key=lambda e: e.at))
-    starts = starts_at or events[0].at
-    opens = opens_at or starts
+    starts = events[0].at
+    if starts_at is not None and starts_at != starts:
+        raise PackError(f"{where}: starts_at isn't the first event's time.")
     pack = SamplePack(
         sample=sample,
         folder=folder,
         files_folder=files_folder,
         starts_at=starts,
-        opens_at=opens,
         events=events,
         actions=actions,
         meta=meta,
@@ -265,10 +271,6 @@ def _build(
 
 
 def _check(pack: SamplePack, where: str) -> None:
-    if pack.opens_at < pack.starts_at:
-        raise PackError(f"{where}: it opens before it starts.")
-    if pack.events[0].at < pack.starts_at:
-        raise PackError(f"{where}: an event comes before the sample starts.")
     lines = set(pack.ledger_line_ids())
     seen_lines: set[str] = set()
     for e in pack.events:
@@ -280,14 +282,16 @@ def _check(pack: SamplePack, where: str) -> None:
             seen_lines.add(e.name)
         elif not _inside(pack.files_folder, e.name).is_file():
             raise PackError(f"{where}: {e.name} isn't in {pack.files_folder}.")
-        if e.available_at is not None and e.available_at > e.at:
-            raise PackError(f"{where}: {e.name} is available only after the clock delivers it.")
     if seen_lines and any(e.kind is EventKind.LEDGER for e in pack.events):
         raise PackError(f"{where}: a timeline has a ledger event or ledger_line events, not both.")
-    delivered = {e.name for e in pack.events if e.deliver_by_user}
+    delivered = {e.name: e.at for e in pack.events if e.deliver_by_user}
     for a in pack.actions:
-        if a.action == "deliver_file" and a.file not in delivered:
+        if a.action != "deliver_file":
+            continue
+        if a.file not in delivered:
             raise PackError(f"{where}: {a.file} is delivered by the user but not marked so.")
+        if a.at < delivered[a.file]:
+            raise PackError(f"{where}: {a.file} is delivered before its date.")
 
 
 def load_folder(folder: Path) -> SamplePack:
@@ -310,38 +314,32 @@ def load_folder(folder: Path) -> SamplePack:
         files_folder=folder,
         raw_events=raw_events,
         starts_at=_time(timeline["starts_at"], where) if "starts_at" in timeline else None,
-        opens_at=_time(timeline["opens_at"], where) if "opens_at" in timeline else None,
         actions=actions,
         meta=meta,
         where=where,
     )
 
 
-# Today's layout, until data/samples/ lands: the folder, where its files are, and where its
-# opening date comes from (the demo seed's opening, or its first event).
+# Today's layout, until data/samples/ lands: the folder, and where its files are.
 _LEGACY = {
-    LARGER_SAMPLE: ("demo/salt-marsh-carbon", "", "demo/seed.json"),
-    SMALL_SAMPLE: ("from-scratch", "pack", None),
+    LARGER_SAMPLE: ("demo/salt-marsh-carbon", ""),
+    SMALL_SAMPLE: ("from-scratch", "pack"),
 }
 
 
 def _load_legacy(data_dir: Path, sample: str) -> SamplePack:
-    folder_name, files_name, opening_file = _LEGACY[sample]
+    folder_name, files_name = _LEGACY[sample]
     folder = data_dir / folder_name
     where = str(folder / "arrivals.json")
     raw = _read_json(folder / "arrivals.json").get("events", [])
     scheduled = [e for e in raw if e.get("kind") != "accountant"]
     actions = _actions([e for e in raw if e.get("kind") == "accountant"], where)
-    opens_at = None
-    if opening_file is not None:
-        opens_at = _time(_read_json(data_dir / opening_file).get("opening_at"), opening_file)
     return _build(
         sample=sample,
         folder=folder,
         files_folder=folder / files_name if files_name else folder,
         raw_events=scheduled,
         starts_at=None,
-        opens_at=opens_at,
         actions=actions,
         meta={},
         where=where,

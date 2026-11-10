@@ -4,28 +4,29 @@ A sample grant's timeline is its pack's scheduled events, plus the dates the che
 out (a snooze ending, the closeout window opening), which the caller passes in.
 
 - **Played up to now.** After any move to T, every scheduled event at or before T has been
-  played (or skipped, for a file the user already brought in). So what a move plays is
-  exactly the events after the old "now" and at or before the new one, in time order, and
-  no list of played events has to be kept.
+  played. So what a move plays is exactly the events after the old "now" and at or before
+  the new one, in time order, and no list of played events has to be kept.
 - **Forward only.** A move to a time before "now" is refused. "Next" moves to the first item
   after "now"; with nothing left, it's refused.
 - **A ledger file's later lines.** A `ledger` event stores the whole file when it plays; a
   line whose posting date is still ahead arrives at 00:00 UTC on it (decision 0023). The
   clock releases those lines, so they're items on the timeline (in Coming up, and stops for
   "next") but not events a move plays.
-- **Items the user brings in.** A file marked `deliver: "user"` waits for the user from
-  its `available_at` (or the sample's opening) until its fallback time, when the clock
-  delivers it unless the same file (the same sha256) is already on the grant.
-- **One at a time (first version, the product owner's ruling).** A larger sample read live
-  blocks opening or starting over another one while it's still reading its history: its
-  clock is before its opening date, or agent runs for events dated before the opening are
-  still queued or running. Once its history is read, it blocks nothing.
+- **Items the user brings in (ruling 44).** A file marked `deliver: "user"` has a date, its
+  `at`. The clock stops on it once, like any event, but never delivers it: from its date it
+  waits for the user, whatever moves come after, until it's delivered. It counts as
+  delivered once a file with the same sha256 arrives by any channel (an upload, Drive, or an
+  email's attachment), or, for an email file, once an email with the same Message-ID does.
+- **The read-live limit (ruling 46, first version).** While one of the user's larger
+  samples read live still has agent runs queued or running from a move of its clock,
+  opening or starting over another one is refused, naming it. `still_reading` is the one
+  place that says when.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
@@ -175,7 +176,8 @@ def _move(items: Sequence[TimelineItem], after: datetime | None, until: datetime
     return Move(
         after=after,
         until=until,
-        play=tuple(i.event for i in passed if i.event is not None),
+        # A user's item is a stop, but the clock never delivers it.
+        play=tuple(i.event for i in passed if i.event is not None and not i.event.deliver_by_user),
         passed=passed,
         stopped_on=next((i for i in passed if i.at == until), None),
     )
@@ -199,67 +201,66 @@ def plan_move(items: Sequence[TimelineItem], now: datetime, to: datetime | None)
     return _move(items, now, to)
 
 
-def skip_delivery(pack: SamplePack, event: ScheduledEvent, shas_on_grant: Iterable[str]) -> bool:
-    """Whether the clock leaves out a file the user was to bring in: the same file (the same
-    sha256) is already on the grant, so nothing is delivered twice."""
-    return event.deliver_by_user and pack.sha256(event.name) in set(shas_on_grant)
-
-
-def available_from(pack: SamplePack, event: ScheduledEvent) -> datetime:
-    """When the user can first bring in an item: its `available_at`, else the opening."""
-    return event.available_at or min(pack.opens_at, event.at)
-
-
 @dataclass(frozen=True)
-class Delivery:
-    item: TimelineItem
-    delivered_at: datetime | None  # when the same file reached the grant, if it has
+class OnGrant:
+    """What has arrived on the grant, to tell when a user's item counts as delivered."""
+
+    # For each sha256 on the grant, when a file with it first arrived. An email's
+    # attachments are files of their own, so they're here too.
+    by_sha: Mapping[str, datetime] = field(default_factory=dict[str, datetime])
+    # For each arrived email's Message-ID (without its angle brackets), when it first arrived.
+    by_message_id: Mapping[str, datetime] = field(default_factory=dict[str, datetime])
+
+
+def delivered_at(pack: SamplePack, event: ScheduledEvent, on_grant: OnGrant) -> datetime | None:
+    """When the user's item was delivered, if it has been: the first arrival of a file with
+    the same sha256, or, for an email file, of an email with the same Message-ID."""
+    found = [on_grant.by_sha.get(pack.sha256(event.name))]
+    message_id = pack.message_id(event.name)
+    if message_id is not None:
+        found.append(on_grant.by_message_id.get(message_id))
+    return min((t for t in found if t is not None), default=None)
 
 
 def deliveries(
-    pack: SamplePack,
-    items: Sequence[TimelineItem],
-    now: datetime,
-    arrived_by_sha: Mapping[str, datetime],
-) -> list[Delivery]:
-    """The items waiting for the user at `now`: available, and not yet past the clock's
-    fallback (at the fallback the clock delivers them). `arrived_by_sha` gives, for each
-    sha256 on the grant, when that file first arrived."""
-    out: list[Delivery] = []
-    for i in items:
-        e = i.event
-        if i.kind is not ItemKind.USER_DELIVERY or e is None:
-            continue
-        if available_from(pack, e) <= now < e.at:
-            out.append(Delivery(i, arrived_by_sha.get(pack.sha256(e.name))))
-    return out
+    pack: SamplePack, items: Sequence[TimelineItem], now: datetime, on_grant: OnGrant
+) -> list[TimelineItem]:
+    """The items waiting for the user at `now`: their date has come, and they haven't been
+    delivered. They stay until they are."""
+    return [
+        i
+        for i in items
+        if i.kind is ItemKind.USER_DELIVERY
+        and i.event is not None
+        and i.at <= now
+        and delivered_at(pack, i.event, on_grant) is None
+    ]
 
 
 def coming_up(
-    pack: SamplePack,
-    items: Sequence[TimelineItem],
-    now: datetime,
-    shas_on_grant: Iterable[str],
+    pack: SamplePack, items: Sequence[TimelineItem], now: datetime, on_grant: OnGrant
 ) -> tuple[TimelineItem, ...]:
-    """Every item after `now`, in date order, except a user delivery already brought in."""
-    on_grant = set(shas_on_grant)
+    """Every item after `now`, in date order, except a user's item already delivered."""
     return tuple(
         i
         for i in items
-        if i.at > now and not (i.event is not None and skip_delivery(pack, i.event, on_grant))
+        if i.at > now
+        and not (
+            i.kind is ItemKind.USER_DELIVERY
+            and i.event is not None
+            and delivered_at(pack, i.event, on_grant) is not None
+        )
     )
 
 
 def finished(items: Sequence[TimelineItem], now: datetime) -> bool:
-    """Nothing is left to arrive. Dates the checks work out don't count."""
+    """Nothing is left for the clock: no arrival and no user's item still to come. Dates the
+    checks work out don't count, and neither does an item still waiting for the user."""
     return not any(i.at > now and i.kind is not ItemKind.CHECKS_DATE for i in items)
 
 
-def reading_history(
-    now: datetime, opens_at: datetime, pending_run_times: Iterable[datetime]
-) -> bool:
-    """Whether a larger sample read live is still reading its history (first version of the
-    product owner's ruling): its clock is before its opening date, or an agent run for an
-    event dated before the opening is still queued or running. `pending_run_times` are the
-    clock times of the grant's queued and running runs."""
-    return now < opens_at or any(t < opens_at for t in pending_run_times)
+def still_reading(catch_up_runs_pending: int) -> bool:
+    """The read-live limit (ruling 46, first version): a larger sample read live blocks
+    opening or starting over another one while agent runs from a move of its clock (its
+    catch-up runs) are still queued or running."""
+    return catch_up_runs_pending > 0

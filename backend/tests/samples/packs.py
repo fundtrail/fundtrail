@@ -25,6 +25,15 @@ FILES = {
     "invoice_INV-1.txt": b"Invoice INV-1, $120.00",
     "invoice_INV-2.txt": b"Invoice INV-2, $80.50",
     "receipt_R-3.txt": b"Receipt R-3, $45.00",
+    "email_INV-4.eml": (
+        b"From: pi@university.example\r\n"
+        b"To: grant@fundtrail.example\r\n"
+        b"Subject: Fwd: Invoice INV-4\r\n"
+        b"Date: Thu, 19 Nov 2026 09:00:00 -0800\r\n"
+        b"Message-ID: <fwd-inv-4@university.example>\r\n"
+        b"\r\n"
+        b"Invoice INV-4, $12.00\r\n"
+    ),
 }
 
 EVENTS: list[dict[str, Any]] = [
@@ -45,6 +54,14 @@ EVENTS: list[dict[str, Any]] = [
         "source": "upload",
         "deliver": "user",
     },
+    {
+        "at": "2026-11-19T17:00:00Z",
+        "kind": "file",
+        "file": "email_INV-4.eml",
+        "source": "gmail",
+        "sender": "pi@university.example",
+        "deliver": "user",
+    },
 ]
 
 ACTIONS = [
@@ -58,7 +75,7 @@ def write_pack(
     *,
     events: list[dict[str, Any]] | None = None,
     actions: list[dict[str, Any]] | None = None,
-    opens_at: str = "2026-11-16T17:30:00Z",
+    starts_at: str = "2026-11-16T17:30:00Z",
 ) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "ledger.csv").write_text(LEDGER)
@@ -66,8 +83,7 @@ def write_pack(
         (folder / name).write_bytes(data)
     timeline = {
         "sample": "test-sample",
-        "starts_at": "2026-11-16T17:30:00Z",
-        "opens_at": opens_at,
+        "starts_at": starts_at,
         "events": EVENTS if events is None else events,
     }
     (folder / "timeline.json").write_text(json.dumps(timeline))

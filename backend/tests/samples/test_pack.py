@@ -1,6 +1,7 @@
 """Reading a sample's folder (issue 165)."""
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,11 +27,12 @@ def at(text: str) -> datetime:
 def test_reads_the_seed_builders_layout(tmp_path: Path) -> None:
     pack = load_folder(write_pack(tmp_path / "test-sample"))
     assert pack.sample == "test-sample"
-    assert pack.starts_at == pack.opens_at == at("2026-11-16T17:30:00Z")
-    assert [e.id for e in pack.events] == ["e001", "e002", "e003", "e004", "e005"]
+    assert pack.starts_at == at("2026-11-16T17:30:00Z")
+    assert [e.id for e in pack.events] == ["e001", "e002", "e003", "e004", "e005", "e006"]
     assert [e.kind for e in pack.events] == [
         EventKind.FILE,
         EventKind.LEDGER,
+        EventKind.FILE,
         EventKind.FILE,
         EventKind.FILE,
         EventKind.FILE,
@@ -38,7 +40,7 @@ def test_reads_the_seed_builders_layout(tmp_path: Path) -> None:
     gmail = pack.events[3]
     assert gmail.source is ArrivalSource.GMAIL and gmail.sender == "pi@university.example"
     assert pack.events[1].source is ArrivalSource.LEDGER
-    assert [e.deliver_by_user for e in pack.events] == [False, False, False, False, True]
+    assert [e.deliver_by_user for e in pack.events] == [False, False, False, False, True, True]
     assert [(a.action, a.file) for a in pack.actions] == [(a["action"], a["file"]) for a in ACTIONS]
     assert pack.meta == {"award_number": "SYN-9009001"}
     assert pack.sha256("receipt_R-3.txt") == hashlib.sha256(FILES["receipt_R-3.txt"]).hexdigest()
@@ -108,17 +110,7 @@ def test_ledger_row_is_the_header_and_that_line(tmp_path: Path) -> None:
                 "file": "receipt_R-3.txt",
                 "source": "upload",
             },
-            "before",
-        ),
-        (
-            {
-                "at": "2026-11-16T18:00:00Z",
-                "kind": "file",
-                "file": "receipt_R-3.txt",
-                "source": "upload",
-                "available_at": "2026-11-16T17:30:00Z",
-            },
-            "available_at",
+            "first event",
         ),
     ],
 )
@@ -139,9 +131,27 @@ def test_refuses_a_delivery_of_a_file_not_marked_for_the_user(tmp_path: Path) ->
         load_folder(write_pack(tmp_path / "s", actions=[action]))
 
 
-def test_refuses_opening_before_the_start(tmp_path: Path) -> None:
-    with pytest.raises(PackError, match="opens before"):
-        load_folder(write_pack(tmp_path / "s", opens_at="2026-11-01T00:00:00Z"))
+def test_refuses_a_delivery_before_its_date(tmp_path: Path) -> None:
+    action = {"at": "2026-11-17T00:00:00Z", "action": "deliver_file", "file": "receipt_R-3.txt"}
+    with pytest.raises(PackError, match="before its date"):
+        load_folder(write_pack(tmp_path / "s", actions=[action]))
+
+
+def test_starts_at_is_the_first_event(tmp_path: Path) -> None:
+    with pytest.raises(PackError, match="first event"):
+        load_folder(write_pack(tmp_path / "s", starts_at="2026-11-01T00:00:00Z"))
+    # Without one, the sample starts at its first event.
+    folder = write_pack(tmp_path / "t")
+    timeline = json.loads((folder / "timeline.json").read_text())
+    del timeline["starts_at"]
+    (folder / "timeline.json").write_text(json.dumps(timeline))
+    assert load_folder(folder).starts_at == at("2026-11-16T17:30:00Z")
+
+
+def test_an_email_files_message_id(tmp_path: Path) -> None:
+    pack = load_folder(write_pack(tmp_path / "s"))
+    assert pack.message_id("email_INV-4.eml") == "fwd-inv-4@university.example"
+    assert pack.message_id("receipt_R-3.txt") is None
 
 
 def test_an_unknown_sample_is_refused(tmp_path: Path) -> None:
@@ -160,7 +170,6 @@ def test_data_samples_wins_over_todays_layout(tmp_path: Path) -> None:
 def test_the_larger_sample() -> None:
     pack = load_pack(LARGER_SAMPLE)
     assert pack.starts_at == at("2024-01-18T17:00:00Z")
-    assert pack.opens_at == at("2026-11-16T17:00:00Z")
     assert not any(e.deliver_by_user for e in pack.events)
     assert [(a.action, a.file) for a in pack.actions] == [("confirm_terms", "award_letter.txt")]
     lines = [e.name for e in pack.events if e.kind is EventKind.LEDGER_LINE]
@@ -174,7 +183,7 @@ def test_the_larger_sample() -> None:
 
 def test_the_small_sample() -> None:
     pack = load_pack(SMALL_SAMPLE)
-    assert pack.starts_at == pack.opens_at == at("2026-11-16T17:30:00Z")
+    assert pack.starts_at == at("2026-11-16T17:30:00Z")
     assert pack.events[0].name == "award_letter.pdf"
     assert [(a.action, a.file) for a in pack.actions] == [("confirm_terms", "award_letter.pdf")]
     assert sorted(e.name for e in pack.events if e.kind is EventKind.LEDGER_LINE) == sorted(
