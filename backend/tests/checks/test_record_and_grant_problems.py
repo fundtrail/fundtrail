@@ -58,10 +58,55 @@ def test_terms_waiting_for_the_accountant_are_problems_until_confirmed() -> None
     out = g.run(at(2023, 1, 13))
     assert set(record_problems(out)) == set(t.values())
     assert all(r.flagged for r in out.records)
-    assert grant_problems(out) == {"no_dates", "no_budget"}
+    assert grant_problems(out) == set()  # the waiting terms are their own rows
     g.confirm(*t.values(), when=at(2023, 1, 13, 13))
     out = g.run(at(2023, 1, 14))
     assert out.records == () and out.grants == ()
+
+
+def test_a_grant_with_no_dates_or_budget_at_all_is_a_problem_on_the_grant() -> None:
+    g = Grant()  # only the award letter's file, no terms read yet
+    out = g.run(at(2023, 1, 13))
+    assert grant_problems(out) == {"no_dates", "no_budget"}
+    assert out.grants[0].flagged
+
+
+def test_a_charge_whose_only_problem_is_a_waiting_term_isnt_its_own_row() -> None:
+    g = Grant()
+    t = g.standard_terms(confirm=False)
+    g.supplies_charge("c1", date(2023, 5, 1), 10000, at(2023, 5, 1), line=t["ms"])
+    status = g.status("c1", at(2023, 5, 2))
+    assert status.bucket == Bucket.NEEDS_HUMAN
+    assert {r.problem for r in status.reasons if r.bucket != Bucket.EVIDENCE_COMPLETE} == {
+        "not_confirmed",
+        "line_not_confirmed",
+    }
+    assert not status.flagged  # the waiting terms' rows stand for it
+
+
+def test_a_rule_code_cant_place_is_a_problem_on_its_record_too() -> None:
+    g = Grant()
+    t = g.standard_terms(with_rule=False)
+    rule = g.approval_rule("Field safety gear", "Grants Officer", None, at(2023, 1, 12, 15))
+    g.confirm(rule, when=at(2023, 1, 12, 17))
+    g.supplies_charge("c1", date(2024, 5, 1), 10000, at(2024, 5, 1), line=t["ms"])
+    out = g.run(at(2024, 5, 2))
+    assert record_problems(out) == {rule: {"rule_unmatched"}}
+    status = out.charges[0]
+    assert status.bucket == Bucket.NEEDS_HUMAN
+    assert not status.flagged  # the rule's row stands for it
+
+
+def test_failed_runs_go_where_their_trigger_points() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.failed_runs = [
+        _failed(Trigger(kind=TriggerKind.RECORD, id=t["confirm"])),
+        _failed(Trigger(kind=TriggerKind.CLOCK)).model_copy(update={"id": "run-2"}),
+    ]
+    out = g.run(at(2024, 3, 2))
+    assert record_problems(out) == {t["confirm"]: {"failed:run-1"}}
+    assert grant_problems(out) == {"failed:run-2"}
 
 
 def test_the_exact_same_file_twice_is_a_problem_on_the_later_copy() -> None:

@@ -21,6 +21,7 @@ RECHARGE = "59009 Recharge-Other Expenses"
 STIPENDS = "56712 Participant Support-Stipends"
 TRAVEL = "57211 In-State Travel - Air Fare"
 SALARY = "51200 Staff Salaries & Wages"
+BENEFITS = "53100 OASDI"
 NO_GROUP = "99999 Not In Any Group"
 
 PO_EMAIL = "po@funder.example"
@@ -373,6 +374,12 @@ class Grant:
             {"kind": "checklist_item", "charge_id": charge_id, "needed": needed, **fields},
             when,
         )
+
+    def confirmed_line(self, name: str, category: str, when: datetime) -> str:
+        """A budget line the agent read and the accountant confirmed."""
+        line = self.budget_line(name, 1_000_000, category, when)
+        self.confirm(line, when=when)
+        return line
 
     def supplies_charge(
         self, id: str, cost_date: date, amount: int, when: datetime, **kw: Any

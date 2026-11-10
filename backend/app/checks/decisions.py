@@ -176,6 +176,8 @@ class Decisions:
 
     def due(self, finding: Finding, posting_date: date | None = None) -> bool:
         """Whether a finding goes on the problem list now, before acceptances and snoozes."""
+        if finding.shown_on_term:
+            return False  # the term's own row, or the grant's, stands for it
         if finding.bucket in (Bucket.POSSIBLE_CONFLICT, Bucket.NEEDS_HUMAN):
             return True
         if finding.bucket != Bucket.MISSING_EVIDENCE:

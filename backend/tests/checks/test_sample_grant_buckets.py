@@ -1,11 +1,12 @@
 """The sample grant gives the buckets contracts.md section 15 expects, at the times it lists."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
 from app.checks.checklist import default_items
 from app.checks.run import run_checks
+from app.checks.view import period_in_force
 from app.contracts.checks import Bucket, ChecksInput, ChecksOutput
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.rules import check_new_record
@@ -113,3 +114,20 @@ def test_default_items_match_the_samples_stand_in() -> None:
         assert tuple(default_items(charge, s.records)) == tuple(
             s.default_items[charge.ledger_line_id]
         )
+
+
+def test_the_period_in_force_moves_only_once_the_extension_is_confirmed() -> None:
+    s = load_sample_grant()
+
+    def at(now: datetime):  # type: ignore[no-untyped-def]
+        return period_in_force("grant-sample", [r for r in s.records if r.written_at <= now])
+
+    assert period_in_force("grant-sample", []) is None
+    before = at(APR_9)
+    assert before is not None
+    assert (before.start, before.end) == (date(2023, 2, 1), date(2026, 1, 31))
+    after = at(APR_10)
+    assert after is not None
+    assert (after.start, after.end) == (date(2023, 2, 1), date(2027, 1, 31))
+    assert after.record_ids == ["rec-period", "rec-period-extension"]
+    assert after.disagree == []

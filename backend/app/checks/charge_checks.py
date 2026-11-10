@@ -20,7 +20,7 @@ from app.checks.findings import (
     Finding,
     passed,
 )
-from app.checks.ledger_accounts import category_name, lookup
+from app.checks.ledger_accounts import categories, category_name
 from app.checks.rules_match import rules_for
 from app.checks.text import day, norm
 from app.checks.view import GrantView, LinkInForce
@@ -101,7 +101,10 @@ def _date_check(charge: Charge, view: GrantView, covers: list[AnswerState]) -> F
             if waiting
             else "The grant has no dates on file yet."
         )
-        return Finding(PERIOD, "not_confirmed", Bucket.NEEDS_HUMAN, text, waiting)
+        # The waiting terms' own rows, or the grant's "no dates" row, stand for it.
+        return Finding(
+            PERIOD, "not_confirmed", Bucket.NEEDS_HUMAN, text, waiting, shown_on_term=True
+        )
     if p.disagree:
         return Finding(
             PERIOD,
@@ -110,6 +113,7 @@ def _date_check(charge: Charge, view: GrantView, covers: list[AnswerState]) -> F
             "The grant's confirmed terms give different dates, so code can't tell the period "
             "in force.",
             p.disagree,
+            shown_on_term=True,
         )
     if p.start is None:
         return Finding(
@@ -160,6 +164,16 @@ def _date_check(charge: Charge, view: GrantView, covers: list[AnswerState]) -> F
     )
 
 
+# The NSF officials an award notice names (domain.md, "What an NSF award notice
+# contains"). An NSF standing-list approval has to come from one of them.
+_NSF_OFFICIALS = ("program officer", "grants officer", "grants official", "awarding official")
+
+
+def _nsf_official(role: str) -> bool:
+    words = norm(role)
+    return any(title in words for title in _NSF_OFFICIALS)
+
+
 def _approval_findings(
     charge: Charge, view: GrantView, approval: Record, item: checklist_check.ItemSpec
 ) -> list[Finding]:
@@ -192,6 +206,17 @@ def _approval_findings(
                 Bucket.POSSIBLE_CONFLICT,
                 f"Approved by {person.name.value} ({person.role.value}), "
                 f"but the rule needs the {rule.approver.value}.",
+                ids,
+            )
+        )
+    elif item.kind == "nsf" and not _nsf_official(person.role.value):
+        out.append(
+            Finding(
+                APPROVAL,
+                "wrong_approver",
+                Bucket.POSSIBLE_CONFLICT,
+                f"Approved by {person.name.value} ({person.role.value}), "
+                "who isn't one of the NSF officials on the award notice.",
                 ids,
             )
         )
@@ -283,6 +308,7 @@ def _approval_check(
                 f"Code can't tell whether the approval rule for '{rule.data.applies_to.value}' "
                 "applies to this charge.",
                 [rule.id],
+                shown_on_term=True,
             )
         )
     for rule in rules.waiting:
@@ -295,6 +321,7 @@ def _approval_check(
                 f"An approval rule for '{rule.data.applies_to.value}' may apply to this charge, "
                 "and it isn't confirmed yet.",
                 [rule.id],
+                shown_on_term=True,
             )
         )
     checked = [i for i in result.items if i.spec.kind in ("rule", "nsf") and i.filled]
@@ -380,6 +407,7 @@ def _values_check(
                     f"An answer rests on a {record.kind.value.replace('_', ' ')} "
                     "that isn't confirmed yet.",
                     [record.id],
+                    shown_on_term=True,
                 )
             )
             continue
@@ -406,7 +434,16 @@ def _budget_line_check(charge: Charge, view: GrantView) -> list[Finding]:
     """
     assigned = view.assigned_line(charge.id)
     if assigned is None:
-        return []
+        # The agent assigns a line, or flags the charge, on every run that covers it.
+        # While a run is queued or running, the app shows the charge as rechecking.
+        return [
+            Finding(
+                BUDGET_LINE,
+                "not_assigned",
+                Bucket.NEEDS_HUMAN,
+                "No budget line is assigned to this charge yet.",
+            )
+        ]
     assignment, line = assigned
     if line is None:
         waiting = view.unconfirmed_line(charge.id)
@@ -420,6 +457,7 @@ def _budget_line_check(charge: Charge, view: GrantView) -> list[Finding]:
                     f"The budget line this charge is assigned to, {waiting.data.name.value}, "
                     "isn't confirmed yet.",
                     [assignment.id, waiting.id],
+                    shown_on_term=True,
                 )
             ]
         return [
@@ -431,14 +469,14 @@ def _budget_line_check(charge: Charge, view: GrantView) -> list[Finding]:
                 [assignment.id],
             )
         ]
-    account = lookup(charge.account)
-    if account is None or not account.categories:
+    account_categories = categories(charge.account)
+    if not account_categories:
         return []
     data = line.data
     assert isinstance(data, BudgetLine)
-    names = " or ".join(category_name(c) for c in account.categories)
+    names = " or ".join(category_name(c) for c in account_categories)
     ids = [assignment.id, line.id]
-    if any(categories_match(c, data.category) for c in account.categories):
+    if any(categories_match(c, data.category) for c in account_categories):
         return [
             passed(
                 BUDGET_LINE,
@@ -548,7 +586,9 @@ def evaluate_charge(
         and charge.transaction_date < p.start - timedelta(days=checklist_check.PRE_AWARD_DAYS)
     )
     rules_apply = bool(rules_for(view, charge).applying)
-    answers = _questions(charge, view, approvals, rules_apply or early)
+    # An NSF standing-list item is an approval like any other, so Covers is asked for it too.
+    standing_list = any(i.spec.kind == "nsf" for i in result.items)
+    answers = _questions(charge, view, approvals, rules_apply or early or standing_list)
     covers = [s for s in answers if s.question == Question.COVERS]
 
     findings: list[Finding] = [_date_check(charge, view, covers)]

@@ -17,7 +17,7 @@ yet"). Provisional rule:
 import re
 from dataclasses import dataclass
 
-from app.checks.ledger_accounts import CATEGORY_NAMES, lookup
+from app.checks.ledger_accounts import CATEGORY_NAMES, categories
 from app.checks.text import norm
 from app.checks.view import GrantView
 from app.contracts.charges import Charge
@@ -67,8 +67,7 @@ def rule_applies(view: GrantView, charge: Charge, category: BudgetCategory) -> b
         assert isinstance(line, BudgetLine)
         if _within(line.category, category):
             return True
-    account = lookup(charge.account)
-    return account is not None and any(_within(c, category) for c in account.categories)
+    return any(_within(c, category) for c in categories(charge.account))
 
 
 @dataclass(frozen=True)

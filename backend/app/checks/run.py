@@ -127,7 +127,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
                     snoozed=snoozed,
                 )
             )
-        found = grant_problems(view)
+        found = grant_problems(view, ci.failed_runs)
         if found:
             key = SubjectKey()
             marked = dec.mark_other(key, found)

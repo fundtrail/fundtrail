@@ -1,6 +1,7 @@
 """Check 4, the budget, and the other problems on the grant itself (contracts.md section 8).
 
-Problems on the grant: no confirmed dates or no budget, spending over the award's
+Problems on the grant: no dates or no budget at all (confirmed or waiting), a
+closeout review run that failed for good, spending over the award's
 limit, a funding notice whose totals don't add up, and a skipped amendment number.
 An overspent budget line is a grant note, not a problem.
 
@@ -11,8 +12,9 @@ line's category and, for a sub-line, on the category it sits inside.
 """
 
 from collections import defaultdict
+from collections.abc import Sequence
 
-from app.checks.findings import BUDGET, GRANT_TERMS, NOTICE, Finding
+from app.checks.findings import AGENT_RUN, BUDGET, GRANT_TERMS, NOTICE, Finding
 from app.checks.text import money
 from app.checks.view import GrantView, notice_number
 from app.contracts.checks import Bucket, GrantNote
@@ -24,6 +26,7 @@ from app.contracts.records import (
     Record,
     RecordKind,
 )
+from app.contracts.runs import AgentRun, TriggerKind
 
 
 def _label(n: int) -> str:
@@ -97,20 +100,35 @@ def _limit(view: GrantView) -> tuple[int, Record] | None:
     return (best[1], best[2]) if best else None
 
 
-def grant_problems(view: GrantView) -> list[Finding]:
+def _has_term(view: GrantView, kind: RecordKind) -> bool:
+    """Whether the grant has a term of this kind at all, confirmed or waiting."""
+    return bool(view.terms[kind]) or any(r.kind == kind for r in view.waiting_terms)
+
+
+def grant_problems(view: GrantView, failed_runs: Sequence[AgentRun] = ()) -> list[Finding]:
     out: list[Finding] = []
-    if not view.terms[RecordKind.PERIOD_OF_PERFORMANCE]:
+    # Only when no such term exists at all: a waiting one is its own row on the list.
+    if not _has_term(view, RecordKind.PERIOD_OF_PERFORMANCE):
+        out.append(
+            Finding(GRANT_TERMS, "no_dates", Bucket.NEEDS_HUMAN, "The grant has no dates on file.")
+        )
+    if not _has_term(view, RecordKind.BUDGET_LINE):
         out.append(
             Finding(
-                GRANT_TERMS, "no_dates", Bucket.NEEDS_HUMAN, "The grant has no confirmed dates."
+                GRANT_TERMS, "no_budget", Bucket.NEEDS_HUMAN, "The grant has no budget on file."
             )
         )
-    if not view.budget_lines():
-        out.append(
-            Finding(
-                GRANT_TERMS, "no_budget", Bucket.NEEDS_HUMAN, "The grant has no confirmed budget."
+    for run in failed_runs:
+        # The closeout review, which the clock starts, fails on the grant.
+        if run.trigger.kind == TriggerKind.CLOCK and run.grant_id == view.grant_id:
+            out.append(
+                Finding(
+                    AGENT_RUN,
+                    f"failed:{run.id}",
+                    Bucket.NEEDS_HUMAN,
+                    "The agent couldn't finish its review of the grant.",
+                )
             )
-        )
     limit = _limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:

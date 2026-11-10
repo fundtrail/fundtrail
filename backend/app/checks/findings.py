@@ -15,6 +15,10 @@ class Finding:
     record_ids: list[str] = field(default_factory=list[str])
     expected_by: date | None = None  # for a missing item: when it's expected
     flag_now: bool = False  # a missing approval goes on the problem list right away
+    # The reason rests only on a term whose own problem (waiting, disagreeing, or a
+    # rule code can't place) stands for it on the problem list, so it doesn't put
+    # the charge there as its own row.
+    shown_on_term: bool = False
 
     @property
     def failing(self) -> bool:

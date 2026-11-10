@@ -12,10 +12,14 @@ period in force. Added items and removals are records.
   applies, keyed by the rule's first record so the key survives a correction.
 - A cost dated up to 90 days before the start date gets the university's own
   pre-award approval as a default item.
-- A reversal or cost transfer (a line with original_line_id) gets two default
-  items, the line it corrects and a written justification, in place of its
-  account group's default. Provisional decision 0020 decides how these show in
-  buckets and at closeout beyond that; it plugs in at _reversal_items().
+- Correcting lines follow decision 0020's change to 0016 (provisional). A line
+  that takes money off the grant (a negative amount) gets only the two
+  correction items: the line it corrects, and a written justification. A line
+  that adds money and names a line it corrects (original_line_id) gets its
+  account group's default plus the two. The rest of 0020 (netting a charge
+  against its corrections, a Reversed charge, the corrected-line item filled
+  from the ledger) waits for its contract shapes and plugs in at
+  _correction_items() and items_in_force().
 """
 
 from collections.abc import Sequence
@@ -24,7 +28,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.checks.findings import APPROVAL, CHECKLIST, Finding, passed
-from app.checks.ledger_accounts import lookup
+from app.checks.ledger_accounts import group_items
 from app.checks.rules_match import rules_for
 from app.checks.text import money, slug
 from app.checks.view import GrantView, LinkInForce
@@ -92,12 +96,6 @@ class ChecklistResult:
     findings: list[Finding]
 
 
-def _month(d: date) -> Period:
-    start = d.replace(day=1)
-    next_month = (start + timedelta(days=32)).replace(day=1)
-    return Period(start=start, end=next_month - timedelta(days=1))
-
-
 def _effort_expected(period: Period) -> date:
     """Berkeley certifies effort for January to June and July to December, within 120 days."""
     half_end = (
@@ -106,14 +104,13 @@ def _effort_expected(period: Period) -> date:
     return half_end + timedelta(days=EFFORT_CERTIFY_DAYS)
 
 
-def _reversal_items(charge: Charge) -> list[ItemSpec]:
-    # Decision 0020 (provisional, not merged) plugs in here.
+def _correction_items(charge: Charge) -> list[ItemSpec]:
+    """The two items of a line that corrects another. The rest of decision 0020 plugs in here."""
+    corrects = "The line it corrects"
+    if charge.original_line_id:
+        corrects += f", ledger line {charge.original_line_id}"
     return [
-        ItemSpec(
-            f"The line it corrects, ledger line {charge.original_line_id}",
-            "reversal",
-            "corrected_line",
-        ),
+        ItemSpec(corrects, "reversal", "corrected_line"),
         ItemSpec("A written justification", "reversal", "justification"),
     ]
 
@@ -128,21 +125,19 @@ def _approval_needed(rule: ApprovalRule) -> str:
 def default_specs(charge: Charge, view: GrantView) -> list[ItemSpec]:
     """The charge's default items, before amounts are worked out and removals applied."""
     specs: list[ItemSpec] = []
-    if charge.original_line_id:
-        specs += _reversal_items(charge)
-    else:
-        account = lookup(charge.account)
-        for item in account.items if account else ():
-            period = _month(charge.transaction_date) if item.covers_month else None
-            specs.append(
-                ItemSpec(
-                    item.needed,
-                    "bill_like" if item.bill_like else "plain",
-                    item.key,
-                    period=period,
-                    expected_by=_effort_expected(period) if period else None,
-                )
+    # The account group's items; the table gives none to a line that takes money off.
+    for item in group_items(charge):
+        specs.append(
+            ItemSpec(
+                item.needed,
+                "bill_like" if item.bill_like else "plain",
+                item.key,
+                period=item.period,
+                expected_by=_effort_expected(item.period) if item.period else None,
             )
+        )
+    if charge.amount_cents < 0 or charge.original_line_id:
+        specs += _correction_items(charge)
     for rule in rules_for(view, charge).applying:
         assert isinstance(rule.data, ApprovalRule)
         specs.append(

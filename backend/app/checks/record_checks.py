@@ -7,8 +7,10 @@
 - a term waiting for the accountant to confirm it
 - confirmed terms that disagree (see _disagreeing_terms for the provisional rule)
 - the exact same file on the grant twice
+- a confirmed approval rule that code can't place (each charge also gets a
+  Needs a human reason pointing at it)
 - the agent's flag on a record or a file, until the accountant settles it
-- an agent run that failed for good, on the file that triggered it
+- an agent run that failed for good, on the file or record that triggered it
 """
 
 from collections import defaultdict
@@ -17,12 +19,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from app.checks.answers import ANSWER_BUCKET
-from app.checks.findings import AGENT_RUN, BILL, SAME_FILE, TERMS, Finding
+from app.checks.findings import AGENT_RUN, APPROVAL, BILL, SAME_FILE, TERMS, Finding
+from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
 from app.checks.view import GrantView, notice_number
 from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket
 from app.contracts.records import (
     Answer,
+    ApprovalRule,
     Author,
     Bill,
     BudgetLine,
@@ -192,6 +196,23 @@ def record_problems(
         )
     out += _disagreeing_terms(view)
 
+    for rule in view.approval_rules():
+        if rule_category(view, rule) is None:
+            assert isinstance(rule.data, ApprovalRule)
+            out.append(
+                SubjectFinding(
+                    Subject(record_id=rule.id),
+                    Finding(
+                        APPROVAL,
+                        "rule_unmatched",
+                        Bucket.NEEDS_HUMAN,
+                        "Code can't tell which charges this approval rule, for "
+                        f"'{rule.data.applies_to.value}', applies to.",
+                        [rule.id],
+                    ),
+                )
+            )
+
     by_hash: dict[str, list[str]] = defaultdict(list)
     for f in sorted(view.files.values(), key=lambda f: (f.arrived_at, f.id)):
         by_hash[f.sha256].append(f.id)
@@ -240,10 +261,19 @@ def record_problems(
         )
 
     for run in failed_runs:
+        # A charge's run is on the charge, and the clock's on the grant. A thread
+        # message's run would go on the charge or record its thread is about, which
+        # ChecksInput doesn't carry, so it isn't raised yet.
+        subject: Subject | None = None
         if run.trigger.kind == TriggerKind.FILE and run.trigger.id in view.files:
+            subject = Subject(file_id=run.trigger.id)
+        elif run.trigger.kind == TriggerKind.RECORD and run.trigger.id in view.state.by_id:
+            if view.state.by_id[run.trigger.id].grant_id == view.grant_id:
+                subject = Subject(record_id=run.trigger.id)
+        if subject is not None:
             out.append(
                 SubjectFinding(
-                    Subject(file_id=run.trigger.id),
+                    subject,
                     Finding(
                         AGENT_RUN,
                         f"failed:{run.id}",

@@ -6,6 +6,7 @@ from decimal import Decimal
 from app.contracts.checks import Bucket, most_serious
 
 from .grant_builder import (
+    BENEFITS,
     NO_GROUP,
     PI_EMAIL,
     SALARY,
@@ -178,6 +179,7 @@ def _trip(g: Grant, t: dict[str, str], per_diem_amount: int = 50000, airfare: in
     """A $2,300 trip: airfare receipt $1,800 and per diem, 5 days at $100 a day."""
     g.charge("trip", date(2024, 4, 1), 230000, account=g_travel())
     when = at(2024, 4, 2)
+    g.assign("trip", g.confirmed_line("Travel", "travel", when), when)
     f = g.file("f-trip", when)
     air = g.item("trip", "Airfare receipt", when, amount_cents=airfare)
     g.item(
@@ -258,8 +260,22 @@ def test_an_empty_checklist_is_needs_a_human() -> None:
     g.charge("c1", date(2024, 3, 1), 10000, account=NO_GROUP)
     status = g.status("c1", at(2024, 3, 2))
     assert status.checklist == ()
-    assert problems(status) == {("checklist", "empty")}
+    assert problems(status) == {("checklist", "empty"), ("budget_line", "not_assigned")}
     assert status.bucket == Bucket.NEEDS_HUMAN
+
+
+def test_a_charge_with_no_budget_line_assigned_is_needs_a_human() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
+    g.charge("c2", date(2024, 3, 1), 10000)
+    f = g.file("f-c2", at(2024, 3, 1))
+    b = g.bill(10000, f, at(2024, 3, 1))
+    g.link(b, "c2", at(2024, 3, 1), amount=10000, default="bill")
+    g.answer("c2", "supports", at(2024, 3, 1), rests_on=[b])
+    status = g.status("c2", at(2024, 3, 2))
+    assert problems(status) == {("budget_line", "not_assigned")}
+    assert status.bucket == Bucket.NEEDS_HUMAN and status.flagged
 
 
 def test_the_agents_removal_waits_and_the_accountants_takes_effect() -> None:
@@ -280,16 +296,32 @@ def test_the_agents_removal_waits_and_the_accountants_takes_effect() -> None:
     assert g.status("c1", at(2024, 3, 5)).checklist == ()
 
 
-def test_a_reversal_gets_its_two_default_items_in_place_of_the_groups() -> None:
+def test_a_line_that_takes_money_off_gets_only_the_two_correction_items() -> None:
+    """Decision 0020's change to 0016, with or without the line it corrects named."""
+    for original in ("L-orig", None):
+        g = Grant()
+        t = g.standard_terms()
+        g.charge("rev", date(2024, 3, 1), -40000, original_line_id=original)
+        g.assign("rev", t["ms"], at(2024, 3, 1))
+        status = g.status("rev", at(2024, 3, 2))
+        assert [e.default_item for e in status.checklist] == ["corrected_line", "justification"]
+        # No amounts to add up: the two items are filled or they aren't.
+        assert problems(status) == {
+            ("checklist", "missing:corrected_line"),
+            ("checklist", "missing:justification"),
+        }
+
+
+def test_a_correcting_line_that_adds_money_keeps_its_groups_default_plus_the_two() -> None:
     g = Grant()
     g.standard_terms()
-    g.charge("rev", date(2024, 3, 1), -40000, original_line_id="L-orig")
-    status = g.status("rev", at(2024, 3, 2))
-    assert [e.default_item for e in status.checklist] == ["corrected_line", "justification"]
-    assert problems(status) == {
-        ("checklist", "missing:corrected_line"),
-        ("checklist", "missing:justification"),
-    }
+    g.charge("in", date(2024, 3, 1), 40000, original_line_id="L-elsewhere")
+    status = g.status("in", at(2024, 3, 2))
+    assert [(e.default_item, e.amount_cents) for e in status.checklist] == [
+        ("bill", 40000),
+        ("corrected_line", None),
+        ("justification", None),
+    ]
 
 
 # Required approvals (check 3).
@@ -384,6 +416,43 @@ def test_the_rule_applies_when_the_ledger_account_says_so_even_if_the_line_doesn
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
+def _standing_list(g: Grant, **approval) -> tuple[str, str]:  # type: ignore[no-untyped-def]
+    """A stipend charge with an NSF approval item, and an approval linked to fill it."""
+    t = g.standard_terms(with_rule=False)
+    _stipend(g, t)
+    when = at(2024, 6, 3)
+    item = g.item("stip", "NSF approval", when, nsf_standing_list="extra participant items")
+    source = approval.pop("source", "upload")
+    media = "message/rfc822" if source == "gmail" else "text/plain"
+    f = g.file("f-nsf", when, source=source, media_type=media)
+    a = g.approval(f, when, **approval)
+    g.link(a, "stip", when, item=item)
+    g.answer("stip", "supports", when)
+    return item, a
+
+
+def test_an_nsf_standing_list_approval_asks_covers_and_passes_from_an_nsf_official() -> None:
+    g = Grant()
+    _, a = _standing_list(g)
+    out = g.run(at(2024, 6, 4))
+    assert [(q.question, q.record_id) for q in out.questions] == [("covers", a)]
+    g.answer("stip", "supports", at(2024, 6, 5), question="covers", record_id=a, rests_on=[a])
+    status = g.status("stip", at(2024, 6, 6))
+    assert failing(status) == []
+
+
+def test_an_nsf_standing_list_approval_from_someone_not_an_nsf_official_is_a_conflict() -> None:
+    g = Grant()
+    _standing_list(g, email=PI_EMAIL)
+    assert ("approval", "wrong_approver") in problems(g.status("stip", at(2024, 6, 4)))
+
+
+def test_an_emailed_nsf_standing_list_approval_stays_with_a_human() -> None:
+    g = Grant()
+    _standing_list(g, channel=None, source="gmail")
+    assert ("approval", "email_approval") in problems(g.status("stip", at(2024, 6, 4)))
+
+
 def test_guest_speaker_ends_in_needs_a_human() -> None:
     """Ruling: a flag, a ledger and budget line disagreement, and a missing NSF approval item."""
     g = Grant()
@@ -476,3 +545,27 @@ def test_a_charge_with_a_conflict_a_human_question_and_missing_evidence_is_possi
         Bucket.MISSING_EVIDENCE,
     }
     assert status.bucket == Bucket.POSSIBLE_CONFLICT
+
+
+def test_a_benefit_charge_keeps_its_benefit_rate_item_unfilled() -> None:
+    """How the benefit rate item gets filled isn't designed. A confirmed rate term on the
+    grant doesn't fill it, and code has no other path, so it stays missing."""
+    g = Grant()
+    g.standard_terms()
+    when = at(2024, 1, 31)
+    rate = g.agent(
+        {
+            "kind": "rate",
+            "dated": cited(date(2023, 1, 10)),
+            "name": cited("Fringe benefit rate"),
+            "rate": cited(Decimal("0.366"), "36.6%"),
+        },
+        when,
+    )
+    g.confirm(rate, when=when)
+    g.charge("ben", date(2024, 1, 31), 219600, account=BENEFITS, vendor=None)
+    g.assign("ben", g.confirmed_line("Fringe Benefits", "fringe_benefits", when), when)
+    status = g.status("ben", at(2024, 2, 1))
+    assert [(e.default_item, e.filled) for e in status.checklist] == [("benefit_rate", False)]
+    assert problems(status) == {("checklist", "missing:benefit_rate")}
+    assert status.bucket == Bucket.MISSING_EVIDENCE

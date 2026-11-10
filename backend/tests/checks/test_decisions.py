@@ -89,7 +89,14 @@ FEE = "missing:usage_statement"
 def _fee(
     g: Grant, id: str, posted: date, amount: int = 40000, vendor: str | None = "Example Facility"
 ) -> str:
-    return g.charge(id, posted, amount, account=RECHARGE, vendor=vendor)
+    g.charge(id, posted, amount, account=RECHARGE, vendor=vendor)
+    other = next(r.id for r in g.records if r.kind == "budget_line" and "Other" == _name(r))
+    g.assign(id, other, at(posted.year, posted.month, posted.day))
+    return id
+
+
+def _name(r: Any) -> str:
+    return r.data.name.value
 
 
 def _with_note(reusable: bool = True) -> tuple[Grant, str]:
@@ -234,6 +241,8 @@ def test_an_item_that_says_when_its_expected_isnt_late_before_then() -> None:
     g = Grant()
     g.standard_terms()
     g.charge("sal", date(2024, 1, 31), 600000, account=SALARY, vendor=None)
+    line = g.confirmed_line("Other Personnel", "other_personnel", at(2024, 1, 31))
+    g.assign("sal", line, at(2024, 1, 31))
     f = g.file("f-letter-2", at(2024, 1, 31))
     g.link(g.note(f, at(2024, 1, 31)), "sal", at(2024, 1, 31), default="appointment_letter")
     g.answer("sal", "supports", at(2024, 1, 31))

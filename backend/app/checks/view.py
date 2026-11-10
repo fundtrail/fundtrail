@@ -229,6 +229,25 @@ class GrantView:
         return False
 
 
+def period_in_force(grant_id: str, records: Sequence[Record]) -> PeriodInForce | None:
+    """A grant's period in force, the same one the checks use. None when no dates are confirmed.
+
+    `records` are the workspace's records visible at the clock's "now", in the order
+    they were written. The latest-dated confirmed term gives the end, and the
+    latest-dated one that states a start gives the start. When confirmed terms of
+    the same date disagree, `disagree` names them and the dates can't be relied on.
+    """
+    state = RecordState(records)
+    terms = [
+        r
+        for r in records
+        if r.grant_id == grant_id
+        and r.kind == RecordKind.PERIOD_OF_PERFORMANCE
+        and state.is_current(r.id)
+    ]
+    return _period_in_force(terms)
+
+
 def _period_in_force(terms: list[Record]) -> PeriodInForce | None:
     periods = [(r, r.data) for r in terms if isinstance(r.data, PeriodOfPerformance)]
     if not periods:
