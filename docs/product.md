@@ -114,7 +114,7 @@ When a bill arrives, code looks for likely matches among the bills already on th
 2. The same ledger account and the same vendor.
 3. An amount no larger than the largest the accountant has accepted under that note.
 
-A charge that's similar but outside the limits goes on the list as usual, with the note offered: "Looks like your March note. Accept the same way?" That takes one click. The accountant chooses again whether it's just this charge, which leaves the amount limit alone and is the default, or this and similar charges, which raises it. A charge with no vendor, such as a salary line, only ever gets the offer.
+A charge that's similar but outside the limits goes on the list as usual, with the note offered: "Looks like your March note. Accept the same way?" That takes one click. A charge gets the offer when it has the same problem and the same ledger account but fails the vendor limit or the amount limit. The accountant chooses again whether it's just this charge, which leaves the amount limit alone, or this and similar charges, which raises it. Just this charge is the suggested default. A charge with no vendor, such as a salary line, only ever gets the offer.
 
 | A note on a $400 monthly facility fee with no invoice | What happens |
 |---|---|
@@ -132,12 +132,12 @@ Every charge can have a thread, and so can a record with a problem. It reads top
 - **Suggestions.** Each suggestion from the agent names the change and waits for Accept or Reject.
 - **Disputes.** When the agent thinks one of code's checks is wrong for a charge, it disputes it with its reasoning and a quote. While the dispute waits, the disputed reason counts as Needs a human, so the charge moves from Possible conflict to Needs a human. Accepting the dispute works like accept with a note, with the agent's reasoning as the note. Example: a January charge fails the start-date check, and the agent quotes the amendment that allows costs from January 1.
 - **Asking the agent.** The accountant can ask a question in the thread. The agent answers for that charge, and a question goes ahead of the agent's queued work. If the accountant tells the agent to change something, the change comes back as a suggestion to accept, so every change is seen before it happens.
-- **No nagging.** After the accountant rejects a suggestion or a dispute, the agent can't raise it again unless new evidence arrives: something that arrived, or a grant term that was confirmed, after the agent's last answer, or a change to a record its answer rested on. Linking something that was already on file doesn't count.
+- **No nagging.** After the accountant rejects a suggestion or a dispute, the agent can't raise it again unless new evidence arrives: something that arrived, or a grant term that was confirmed, after the agent's last answer. Linking something that was already on file doesn't count.
 - **What's kept.** Messages are kept with the charge but stay out of the evidence report. The report shows the decisions.
 
 ## What the user sees
 
-- **Evidence cards.** Each piece of evidence gets a card listing the facts pulled from it. Every fact shows its quoted passage and page number, and whether it's confirmed or unconfirmed.
+- **Evidence cards.** Each piece of evidence gets a card listing the facts pulled from it. Every fact shows its quoted passage and page number, and whether it's confirmed or unconfirmed. A value the accountant confirmed shows "confirmed by the accountant" with the date, instead of "confirmed on the page".
 - **Viewer.** Clicking a fact opens the full original in a viewer, scrolled and zoomed to the right spot.
   - **PDFs with real text, email, .docx:** the exact line is highlighted.
   - **Photos and scans:** a box is outlined around the value. There's no OCR (optical character recognition).

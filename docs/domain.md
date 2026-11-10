@@ -28,7 +28,7 @@ What the checks need to know about NSF (National Science Foundation) grants. **V
 
 Verify this section against Berkeley's own documentation requirements before writing the default checklists. It comes from UC Davis's list (see [What the university keeps](#what-the-university-keeps)) and general practice.
 
-- **Bills.** An invoice asks to be paid, and a receipt shows it was paid. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. FundTrail treats invoices, receipts and card slips as one kind of evidence, a bill.
+- **Bills.** An invoice asks to be paid, and a receipt shows it was paid. For a university purchase the invoice is usually enough, because the ledger line itself shows the payment. FundTrail treats invoices, receipts and card slips as one kind of evidence. "Bill" is the working name.
 - **Many charges never have a bill:**
 
 | Kind of charge | Usual evidence |
@@ -116,7 +116,7 @@ The supporting documents for every charge, kept for the retention period and han
 | Evidence report | FundTrail's PDF per grant: the proof behind every charge, attached to the university's closeout step |
 | General ledger | The accounting system's record of every charge to every grant |
 | Ledger account | The expense category the university's accounting system gives each ledger line, such as Materials and Supplies. Names differ between universities. |
-| Bill | FundTrail's word for any document that bills for a cost: an invoice, a receipt or a card slip |
+| Bill | FundTrail's working name for any document that bills for a cost: an invoice, a receipt or a card slip |
 | Effort report | A signed statement of how a person's time was split across projects. It backs salary charges. |
 | Per diem | A daily allowance for meals and lodging at a set rate, paid instead of itemized receipts |
 | Fringe benefits | Benefit costs such as health insurance and retirement, usually charged as a rate on salary |

@@ -48,7 +48,7 @@ Suggested, not yet agreed:
 - a charge that fails a date check, where an amendment gives the agent grounds to dispute it
 - a quote that can't be found in its file, and a photo where the box has to show the value
 
-A charge the accountant accepted is scored as Accepted. It's never Evidence complete, so it can't be a false clear, and it isn't a pass either.
+A charge the accountant accepted is never Evidence complete.
 
 ## When it runs
 
@@ -66,4 +66,5 @@ A charge the accountant accepted is scored as Accepted. It's never Evidence comp
 | The blind test's process and size | product |
 | The scoring script and its output | builder (W3) |
 | How the answer key expresses checklist items, suggestions, disputes and unconfirmed facts | contract |
+| How a charge the accountant accepted is scored | product |
 | How the eval measures boxes on photos and scans, and what result would switch them to OCR (optical character recognition) | product |

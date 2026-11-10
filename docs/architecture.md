@@ -71,7 +71,6 @@ the agent (our code, in backend/app/agent/)
   - Don't guess between charges that look alike. Flag it instead.
   - Write part of a bill as an amount when a document states that part, or when the numbers leave only one answer.
   - Link an approval that was offered for a charge even when it doesn't fit. The Covers answer then says so, and the accountant learns the wrong approval was sent.
-  - Use the reference list of typical evidence for each kind of charge when adding to a checklist.
 
   Code enforces only the hard limits below.
 
@@ -103,12 +102,12 @@ The rule: what goes with the flow takes effect, and what goes against it waits, 
 | A first answer to a question code asks, a refreshed answer that says the same thing, or a change toward a concern | Disputing one of code's checks |
 | A new answer after its own unsure, once new evidence arrives | The same change with no new evidence |
 
-- **New evidence** means something that arrived after the agent's last answer, a grant term confirmed after it, or a change to a record the answer rested on. Something the agent links later from what was already on file doesn't count. Code checks it, so the agent can't claim it.
+- **New evidence** means something that arrived after the agent's last answer, or a grant term confirmed after it. Something the agent links later from what was already on file doesn't count. Code checks it, so the agent can't claim it.
 - **A dispute** names the check, the agent's reasoning and a quote. While it waits, the disputed reason counts as Needs a human, so the charge moves from Possible conflict to Needs a human unless another reason keeps it there. Accepting it works like accept with a note, with the agent's reasoning as the note. Rejecting it puts the charge back.
 - **No repeats.** After the accountant rejects a suggestion or a dispute, or keeps their own answer, the agent can't raise the same one again without new evidence.
 - **An instruction is still a suggestion.** When the accountant tells the agent in a thread to change something, the change comes back as a suggestion with one click, so every change is seen before it happens and leaves the same record.
 - **Accepting a reason** covers the problem as it stood. If the facts under it change, the charge comes back, and the accountant can reopen it. An accepted charge shows as Accepted and keeps the bucket the checks gave it. It's never counted as Evidence complete. A snoozed charge keeps its bucket too and is only hidden from the list.
-- **Reusing a note.** A note is one-off or reusable. A reusable note applies on its own only inside its limits: the same check failing for the same reason, the same ledger account and vendor, and an amount no larger than the largest the accountant has accepted under it. A similar charge outside the limits is flagged as usual, with the note offered for one click. Code does the matching, not the agent, and every other check still runs.
+- **Reusing a note.** A note is one-off or reusable. A reusable note applies on its own only inside its limits: the same check failing for the same reason, the same ledger account and vendor, and an amount no larger than the largest the accountant has accepted under it. A charge with the same problem and ledger account that fails the vendor or amount limit is flagged as usual, with the note offered for one click. Code does the matching, not the agent, and every other check still runs.
 - **Where it's kept.** Thread messages are kept in their own table, outside the evidence file. Suggestions and decisions are records, so they're never edited and the evidence report can show them. The agent's own working steps are kept per run, for debugging.
 
 ## Quotes and highlights
@@ -175,7 +174,7 @@ The layout and its owners are in [CLAUDE.md](../CLAUDE.md#repo-map). Workstreams
 | The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1) |
 | Whether citations work on a file the agent opens again in the middle of a run. The citation test in `spikes/` can check it. | builder (W1) |
-| How loose the PDF passage match can be. A draft: clean up both texts the same way (straight quotes, single spaces, words rejoined across line breaks), and let a close match place the highlight only when the value itself appears exactly. | builder (W1 with W6), discussed with Alex before building |
+| How loose the PDF passage match can be. A draft: clean up both texts the same way (straight quotes, single spaces, words rejoined across line breaks), and let a close match place the highlight. The fact is confirmed only when the value itself appears exactly in the matched text. | builder (W1 with W6), discussed with Alex before building |
 | Quotes that cross a page break | builder (W1 with W6), discussed with Alex before building |
 | The cost of the second look on photos: one call per fact, or one per photo with all its crops | builder (W1), discussed with Alex before building |
 | What eval result would switch photos and scans to OCR | product |

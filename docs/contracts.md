@@ -304,14 +304,14 @@ Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract P
 - **More of the agent's writes wait.** Today only its terms and its replacements wait, and a judgment replacing its own counts right away. After: a new judgment over its own waits when it would clear a problem, such as contradicts turning into supports, or unsure turning into supports with no new evidence. A refreshed answer that says the same thing, and any change toward a concern, still count right away. Removing a checklist item and disputing a check wait too.
 - **The agent can suggest a new answer to the accountant's.** Today it can't replace their judgments at all, but a second judgment written beside theirs counts. After: its suggestion waits, and theirs stays in force.
 - **One link in force for a bill and a charge.** A second link between the same two waits like a fix.
-- **No repeats.** After a rejection, the same suggestion or dispute is refused unless new evidence has arrived: something that arrived after the agent's last answer, a grant term confirmed after it, or a change to a record the answer rested on. Something the agent links later from what was already on file doesn't count.
-- **New records for the accountant's decisions:** accepting a reason with a note (the charge or record, the check and its reason, the note, whether it's one-off or reusable, and for a reusable note the largest amount accepted under it), reopening an accepted reason, and snoozing until a date.
+- **No repeats.** After a rejection, the same suggestion or dispute is refused unless new evidence has arrived: something that arrived after the agent's last answer, or a grant term confirmed after it. Something the agent links later from what was already on file doesn't count.
+- **New records for the accountant's decisions:** accepting a reason with a note (the charge or record, the check and its reason, the note, and whether it's one-off or reusable), and snoozing until a date. Reopening an accepted reason uses the existing retraction. A reusable note's amount limit isn't stored: it's worked out from the acceptances the accountant clicked.
 - **A dispute record** from the agent: the charge, the check, its reasoning and quotes. While it waits, the disputed reason counts as Needs a human.
 - **A flag on a record.** Today a judgment needs a charge. A flag has to be able to point at a record alone.
 - **A thread messages table,** outside the records: what the thread is about (a charge or a record), who wrote it, the text, the time, and the agent run that wrote it. Never edited.
 - **The problem list.** Missing evidence is flagged 60 days past the date an item was expected, or from the closeout window, whichever comes first. Inside the window every missing item is flagged, even one that isn't due yet, and each reason carries the expected date. A missing approval is flagged right away. Records can be flagged too, which replaces most grant notes.
 - **Accepted and snoozed.** Today a Possible conflict or Needs a human charge is always flagged. After: a charge's status also says whether it's accepted or snoozed. Either one takes it off the list while it keeps its bucket. An accepted charge is counted on its own, never as Evidence complete.
-- **Reusable notes.** Code applies a reusable note to a later charge inside its limits, and offers it on a similar charge outside them.
+- **Reusable notes.** Code applies a reusable note to a later charge inside its limits. It offers the note on a charge with the same problem and ledger account that fails the vendor or amount limit.
 - **Agent runs.** A message in a thread starts a run, and it goes ahead of queued runs.
 - **The budget line.** Code asks for an approval when either the ledger's account or the agent's assignment says a rule applies. A disagreement between them is Needs a human.
 
@@ -379,6 +379,7 @@ Decisions 0010 to 0012 are agreed as ideas. Each change below needs a contract P
 | Whether a copy can still be linked while its duplicate mark waits | contract |
 | Whether a thread can be about a file that has no record | contract |
 | How reasons name "the same problem", so a reusable note can be matched to a later charge | contract |
+| Whether a correction to a record the agent's answer rested on also counts as new evidence. An earlier version of the rule said so, and the agreed wording leaves it out. | product |
 | What each screen gets from the server: a charge page, the grant page, an evidence card and a thread. It depends on the UI flow. | product, then contract |
 | How ledger account names map to default checklists and to budget lines | builder (W2), discussed with Alex before building |
 | A charge's bucket between an amendment's arrival and the accountant's confirmation of its terms | product |
