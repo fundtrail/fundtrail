@@ -53,7 +53,14 @@ function utc(iso: IsoDatetime): IsoDatetime {
   return iso.endsWith("+00:00") ? `${iso.slice(0, -6)}Z` : iso;
 }
 
-/** The contract's sample grant as timeline events, in date order. */
+/** Placeholder highlight labels for a few of the sample's events (ruling 58). */
+const HIGHLIGHTS: Record<string, string> = {
+  "event-file-sequencing-statement": "A bill by email",
+  "event-chg-l-1002": "Work after the end date",
+  "event-file-extension-notice": "An extension notice",
+};
+
+/** The contract's sample grant as timeline events, in date order, with placeholder highlights. */
 export function sampleEvents(): TimelineEvent[] {
   const files: TimelineEvent[] = sample.files.map((f) => ({
     id: `event-${f.id}`,
@@ -75,7 +82,9 @@ export function sampleEvents(): TimelineEvent[] {
     charge_id: c.id,
     file_id: null,
   }));
-  return [...files, ...lines].sort((a, b) => time(a.at) - time(b.at));
+  return [...files, ...lines]
+    .map((e) => ({ ...e, highlight: HIGHLIGHTS[e.id] ?? null }))
+    .sort((a, b) => time(a.at) - time(b.at));
 }
 
 const time = (iso: IsoDatetime) => new Date(iso).getTime();
