@@ -17,11 +17,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import procrastinate
 from psycopg.types.json import Jsonb
 
+from app.contracts.charges import Charge
 from app.contracts.checks import OpenQuestion
 from app.contracts.records import Author
 from app.contracts.rules import check_new_record
@@ -42,6 +44,38 @@ QUEUE = "agent"
 TASK_NAME = "run_agent"
 NORMAL_PRIORITY = 0
 THREAD_PRIORITY = 10  # a question in a thread goes ahead of queued runs
+
+
+# A run triggered by a charge covers every charge on its grant that arrived at the same
+# moment, in batches of at most this many, each batch its own run.
+CHARGE_BATCH = 25
+
+
+def charge_batches(charges: Sequence[Charge]) -> list[list[Charge]]:
+    """Charges grouped by arrival moment, each group in ledger line ID order and cut into
+    batches of CHARGE_BATCH. A batch's run is triggered by its first charge."""
+    groups: dict[datetime, list[Charge]] = {}
+    for c in charges:
+        groups.setdefault(c.arrived_at, []).append(c)
+    batches: list[list[Charge]] = []
+    for at in sorted(groups):
+        group = sorted(groups[at], key=lambda c: c.ledger_line_id)
+        batches += [group[i : i + CHARGE_BATCH] for i in range(0, len(group), CHARGE_BATCH)]
+    return batches
+
+
+def batch_for(trigger_charge_id: str, charges: Sequence[Charge]) -> list[Charge]:
+    """The batch a charge-triggered run covers: the trigger's batch among the grant's
+    charges that arrived at the same moment."""
+    by_id = {c.id: c for c in charges}
+    trigger = by_id.get(trigger_charge_id)
+    if trigger is None:
+        return []
+    same = [c for c in charges if c.arrived_at == trigger.arrived_at]
+    for batch in charge_batches(same):
+        if any(c.id == trigger_charge_id for c in batch):
+            return batch
+    return [trigger]
 
 
 def grant_lock(grant_id: str) -> str:
@@ -107,10 +141,17 @@ def _load_input(p: Platform, conn: Conn, run: AgentRun) -> AgentInput:
             thread = store.list_thread(
                 conn, charge_id=message.charge_id, record_id=message.record_id
             )
+    charges = store.list_charges(conn, grant.id, run.clock_now)
+    covers = (
+        [c.id for c in batch_for(run.trigger.id, charges)]
+        if run.trigger.kind == TriggerKind.CHARGE and run.trigger.id
+        else []
+    )
     return AgentInput(
         run=run,
         grant=grant,
-        charges=store.list_charges(conn, grant.id, run.clock_now),
+        charge_ids=covers,
+        charges=charges,
         files=store.list_files(conn, grant.id, run.clock_now),
         records=store.list_records(conn, grant.id, run.clock_now),
         thread=thread,

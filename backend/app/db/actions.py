@@ -23,7 +23,7 @@ from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.workspaces import Grant
 
 from . import store
-from .jobs import agent_questions_open, queue_run
+from .jobs import agent_questions_open, charge_batches, queue_run
 from .pings import ping_changed, ping_run
 from .platform import Platform
 from .pool import transaction, workspace_now
@@ -102,10 +102,18 @@ def add_evidence(p: Platform, grant: Grant, upload: Upload) -> EvidenceFile:
     return f
 
 
+def _arrival(charge: Charge, now: datetime) -> Charge:
+    """Decision 0023: a ledger line arrives at 00:00 UTC on its posting date if that's still
+    ahead of "now", and otherwise now."""
+    if charge.arrived_at > now:
+        return charge
+    return charge.model_copy(update={"arrived_at": now})
+
+
 def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
     """Read a ledger file into charges. Lines already on file are skipped, and rows that
-    can't be read are reported. A charge that has arrived by the clock's "now" gets an
-    agent run; the rest wait for the clock."""
+    can't be read are reported. Charges that have arrived by the clock's "now" get agent
+    runs, one per batch of charges that arrived at the same moment; the rest wait for the clock."""
     from app.ingest.ledger import LedgerFileError, read_ledger_file
 
     runs: list[AgentRun] = []
@@ -121,7 +129,9 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
             )
         except LedgerFileError as error:
             raise WriteRejected([str(error)]) from error
-        charges = [Charge.model_validate(c, from_attributes=True) for c in read.charges]
+        charges = [
+            _arrival(Charge.model_validate(c, from_attributes=True), now) for c in read.charges
+        ]
         store.insert_charges(conn, charges)
         arrived = [c for c in charges if c.arrived_at <= now]
         if arrived:
@@ -129,7 +139,10 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
             recheck_grant(
                 conn, p.checks, grant, now, triggers[arrived[-1].id], charge_triggers=triggers
             )
-            runs = [queue_run(conn, grant, triggers[c.id], now) for c in arrived]
+            runs = [
+                queue_run(conn, grant, triggers[batch[0].id], batch[0].arrived_at)
+                for batch in charge_batches(arrived)
+            ]
     for run in runs:
         ping_run(p.pinger, run)
     if charges:

@@ -71,6 +71,9 @@ class AgentInput:
     charges: list[Charge]
     files: list[EvidenceFile]
     records: list[Record]
+    # For a run triggered by a charge: the charges it covers, the trigger's batch of the
+    # charges that arrived at the same moment. Empty otherwise.
+    charge_ids: list[str]
     # For a run started by a thread message: that thread, oldest first. Empty otherwise.
     thread: list[ThreadMessage]
     # The original bytes of a file, from private storage.
