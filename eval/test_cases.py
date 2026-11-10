@@ -130,7 +130,8 @@ def sign_marked(text: str, start: int, end: int) -> str:
 
     - "negative": a hyphen or en dash attached to the amount, after a space, a
       bracket or the start ("-$450.00", "$-450.00"); a true minus, attached or
-      spaced; a trailing minus or CR ("$450.00-", "$450.00 CR").
+      spaced; a trailing minus or CR ("$450.00-", "$450.00 CR"). A dash between
+      two amounts is a range, not a trailing minus ("$400-$500").
     - "either": a hyphen or en dash with a space before the amount ("- $450.00",
       "Year 2 - $50,000", "$400 - $500"), or brackets ("($450.00)"), which this
       check can't tell apart from brackets in a sentence.
@@ -138,7 +139,8 @@ def sign_marked(text: str, start: int, end: int) -> str:
       ("$400-$500", "Year 2-$50,000").
     """
     after = text[end:]
-    if after.startswith("-") or after.startswith(" cr") and not after[3:4].isalpha():
+    trailing_minus = after.startswith("-") and not (after[1:2] == "$" or after[1:2].isdigit())
+    if trailing_minus or after.startswith(" cr") and not after[3:4].isalpha():
         return "negative"
     i = start - 1
     if i >= 0 and text[i] in HYPHEN_OR_EN_DASH + MINUS:  # "$-450.00"
@@ -492,6 +494,24 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
                 file_at = arrivals.get(f"file:{name}")
                 if file_at is None or at <= file_at:
                     problems.append(f"{where}: evidence_complete must come after {name} arrives")
+            # The bills on file then, added with their signs, can't come to more
+            # than the charge. Once a credit is on file they must come to exactly
+            # the charge: a credit leaves the charge short unless something else
+            # makes up the difference. Without a credit they may come to less,
+            # because an item from a rate, such as a trip's per diem, carries an
+            # amount the key can't express.
+            arrived = [
+                link for link in key["links"]
+                if link["line_id"] == item["line_id"] and isinstance(link.get("amount_cents"), int)
+                and arrivals.get(f"file:{link['file']}", at) < at
+            ]
+            if arrived:
+                signed = sum(link["amount_cents"] for link in arrived)
+                credit_on_file = any(link["file"] in credits for link in arrived)
+                if abs(signed) > abs(charge) or signed * charge < 0 or (
+                        credit_on_file and signed != charge):
+                    problems.append(f"{where}: evidence_complete, but the bills on file add up "
+                                    f"to {signed} cents against the charge's {charge}")
 
 
 def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[str]) -> dict[str, datetime]:
@@ -639,6 +659,8 @@ def test_sign_marks() -> None:
         ("$-450.00", -45000, True), ("$-450.00", 45000, False),
         ("\N{MINUS SIGN}$450.00", -45000, True), ("\N{MINUS SIGN} $450.00", 45000, False),
         ("$450.00-", -45000, True), ("$450.00-", 45000, False),
+        ("$400-$500", 40000, True), ("$400-$500", -40000, False),
+        ("$450.00-$500.00", 45000, True), ("$450.00-$500.00", -45000, False),
         ("$450.00 cr", -45000, True), ("$450.00 cr", 45000, False),
         ("fee ($450.00) paid", -45000, True), ("fee ($450.00) paid", 45000, True),
         ("total $450.00", 45000, True), ("total $450.00", -45000, False),
@@ -648,14 +670,43 @@ def test_sign_marks() -> None:
     assert not wrong, wrong
 
 
-def test_link_sign_must_match_its_bill() -> None:
-    """Linking the credit memo to L-8102 for +45000, the false clear the case
-    exists for, fails the check."""
+def credit_memo_case() -> tuple[Path, dict, dict, dict]:
     case = CASES_DIR / "credit-memo-spaced-dash"
     problems: list[str] = []
     lines = check_ledger(case, problems)
     arrivals = check_arrivals(case, lines, problems)
     key = json.loads((case / "answer_key.json").read_text(encoding="utf-8"))
+    return case, lines, arrivals, key
+
+
+def test_credit_memo_case_reads_the_memo_as_negative() -> None:
+    """The memo's spaced dash reads as either sign, so its text can't hold the key
+    to the call 38 ruling. A key that encoded the whole trap, reading the memo as
+    +45000 and linking it to L-8102, would otherwise pass."""
+    _, _, _, key = credit_memo_case()
+    memo = [r for r in key["records"] if r["file"] == "credit_memo_20417.eml"]
+    assert [r["fields"]["total"] for r in memo] == ["-45000"], memo
+    links = [lk for lk in key["links"] if lk["file"] == "credit_memo_20417.eml"]
+    assert links == [{"file": "credit_memo_20417.eml", "line_id": "L-8101", "amount_cents": -45000}]
+
+
+def test_credit_on_file_keeps_its_charge_from_complete() -> None:
+    """L-8101 marked Evidence complete after the memo arrives fails: its bills
+    then come to $750.00 of $1,200.00."""
+    case, lines, arrivals, key = credit_memo_case()
+    for b in key["buckets"]:
+        if b["line_id"] == "L-8101" and b["at"] == "2026-03-24T12:00:00Z":
+            b["bucket"] = "evidence_complete"
+    problems: list[str] = []
+    check_key(case, lines, arrivals, problems, key)
+    assert any("bills on file add up to 75000" in p for p in problems), problems
+
+
+def test_link_sign_must_match_its_bill() -> None:
+    """Linking the credit memo to L-8102 for +45000, the false clear the case
+    exists for, fails the check."""
+    case, lines, arrivals, key = credit_memo_case()
+    problems: list[str] = []
     key["links"].append({"file": "credit_memo_20417.eml", "line_id": "L-8102", "amount_cents": 45000})
     check_key(case, lines, arrivals, problems, key)
     assert any("credit_memo_20417.eml" in p for p in problems), problems
