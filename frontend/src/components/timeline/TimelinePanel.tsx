@@ -15,6 +15,7 @@ import {
   useTimeline,
   type ArrivalSource,
   type GrantSummary,
+  type FtRecord,
   type Id,
   type PlayedEvent,
   type TimelineEvent,
@@ -64,6 +65,16 @@ function agentSummary(played: PlayedEvent): string {
   return `The agent wrote: ${parts.join(", ")}.`;
 }
 
+/** A decision the sample accountant made, in a few words. */
+function decisionWords(record: FtRecord): string {
+  const { data } = record;
+  if (data.kind === "confirmation") {
+    const n = data.record_ids.length;
+    return `${data.decision === "rejected" ? "rejected" : "confirmed"} ${n} ${n === 1 ? "record" : "records"}`;
+  }
+  return recordKindLabel(data.kind).toLowerCase();
+}
+
 function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] }) {
   return (
     <section className="ft-tl__part" aria-labelledby="tl-just">
@@ -77,7 +88,18 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
           {played.map((p) => (
             <li key={p.event.id} className="ft-tl__item">
               <EventLine event={p.event} />
+              {/* A result loaded from the prerun is marked, so it never passes for live work. */}
+              {p.loaded && <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>}
               <span>{agentSummary(p)}</span>
+              {(p.scripted_decisions ?? []).length > 0 && (
+                <ul className="ft-tl__decisions" aria-label="The sample accountant's decisions">
+                  {(p.scripted_decisions ?? []).map((d) => (
+                    <li key={d.id} className="ft-caption">
+                      The sample accountant: {decisionWords(d)}, {date(d.written_at)}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {(p.charge_ids ?? []).map((chargeId, i, all) => (
                 <Link
                   key={chargeId}
@@ -275,6 +297,9 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const timeline = useTimeline(grantId);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<{ text: string; grant: GrantSummary | null } | null>(null);
+  // Ruling 47: Next event and Go to a date can let the sample accountant do the human steps.
+  const [skip, setSkip] = useState(false);
+  const skipId = useId();
 
   async function act(run: () => Promise<unknown>): Promise<void> {
     await attempt(run);
@@ -321,12 +346,23 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               type="button"
               className="ft-btn ft-btn--main ft-btn--sm"
               disabled={busy || (view.coming_up ?? []).length === 0}
-              onClick={() => void act(() => api.moveTimeline(grantId, {}))}
+              onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
             >
               Next event
             </button>
-            <GoToDate now={view.now.now} busy={busy} onGo={(to) => void act(() => api.moveTimeline(grantId, { to }))} />
+            <GoToDate
+              now={view.now.now}
+              busy={busy}
+              onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
+            />
+            <span className="ft-tl__skip">
+              <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+              <label htmlFor={skipId}>Skip the human steps</label>
+            </span>
           </div>
+          {view.on_run_through === false && (
+            <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>
+          )}
           {problem && (
             <p className="ft-error" role="alert">
               {problem.text}

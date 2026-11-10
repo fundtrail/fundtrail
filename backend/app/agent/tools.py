@@ -56,7 +56,7 @@ from .desk import (
     search_lines,
 )
 from .fields import FACT_FIELDS, TERM_FIELDS
-from .files import CantOpen, open_file
+from .files import CantOpen, open_file, reading_now
 
 
 class _In(BaseModel):
@@ -842,7 +842,7 @@ def t_open_file(ctx: RunContext, a: FileRef) -> tuple[list[dict[str, Any]] | str
     if f is None:
         return f"File {a.file_id} doesn't exist.", True
     try:
-        opened = open_file(f, ctx.inputs.read_file(f))
+        opened = open_file(f, ctx.inputs.read_file(f), reading_now(ctx.inputs, f))
     except CantOpen as error:
         return str(error), True
     if opened.document is not None:

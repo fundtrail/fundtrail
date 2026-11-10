@@ -28,6 +28,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from app.agent.adapter import char_citation
+from app.ingest.channel_times import ReadingText
 from app.quotes import UnreadablePdfError, find_pdf_quote
 from app.quotes.text_match import NEGATIVE as NEGATIVE_SIGN
 from app.quotes.text_match import POSITIVE as POSITIVE_SIGN
@@ -93,8 +94,11 @@ class SentDocument:
 
     file_id: str
     kind: str  # "text" or "pdf"
-    text: str | None = None  # the exact text sent, for "text"
+    text: str | None = None  # the stored file's text, for "text"
     pdf: bytes | None = None  # the bytes sent, for "pdf"
+    # A sample grant's live email (issue 165, point 4): what was sent instead of `text`, with
+    # its Date header replaced by the grant's now. Cited positions map back to `text`.
+    reading: ReadingText | None = None
 
 
 @dataclass(frozen=True)
@@ -157,18 +161,36 @@ def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[i
 
 def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.text is not None
+    sent = doc.reading.text if doc.reading is not None else doc.text
     passage = _get(raw, "cited_text") or ""
     start, end = int(_get(raw, "start_char_index")), int(_get(raw, "end_char_index"))
     match = "exact"
-    if doc.text[start:end] != passage:
-        # Look for the passage once in the file; a passage found nowhere is not found.
-        found = doc.text.find(passage) if passage else -1
-        if found >= 0 and doc.text.find(passage, found + 1) < 0:
+    if sent[start:end] != passage:
+        # Look for the passage once in the text sent; a passage found nowhere is not found.
+        found = sent.find(passage) if passage else -1
+        if found >= 0 and sent.find(passage, found + 1) < 0:
             start, end = found, found + len(passage)
         else:
             match = "not_found"
-    lines = value_lines(doc.text, start, end, value_text) if match == "exact" else []
+    lines = value_lines(sent, start, end, value_text) if match == "exact" else []
+    if doc.reading is not None:
+        # A sample grant's live email (ruling 50): the passage stays the text the agent read,
+        # so a value is checked against what it saw and no passage carries a dropped header's
+        # real time. The location and the highlight are on the stored file.
+        lines = [_stored_span(doc.reading, doc.text, s, e) for s, e in lines]
+        start, end = _stored_span(doc.reading, doc.text, start, end)
     return char_citation(doc.file_id, passage, start, end, match, lines)
+
+
+def _stored_span(reading: ReadingText, stored: str, start: int, end: int) -> tuple[int, int]:
+    """The stored range a reading range stands for. A range that stops before a line ending
+    stops before the stored line's ending too, which matters for the replaced Date header:
+    stored_range maps an end inside it to the end of the whole stored header."""
+    stored_start, stored_end = reading.stored_range(start, end)
+    if not reading.text[start:end].endswith(("\n", "\r")):
+        cut = stored[stored_start:stored_end]
+        stored_end -= len(cut) - len(cut.rstrip("\r\n"))
+    return stored_start, stored_end
 
 
 def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
