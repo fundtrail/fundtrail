@@ -96,9 +96,9 @@ class TimelineMove(Model):
 
     The read-live limit (ruling 48, a first version): while one of the user's larger
     read-live samples has agent runs queued or running from a move of its clock,
-    moving the clock of another is refused with a 409 whose `detail` is an
-    api.SampleRefusal with reason `another_sample_working`, naming the one still
-    working.
+    moving the clock of another of the user's larger read-live samples is refused
+    with a 409 whose `detail` is an api.SampleRefusal with reason
+    `another_sample_working`, naming the one still working.
     """
 
     to: UtcDatetime | None = None

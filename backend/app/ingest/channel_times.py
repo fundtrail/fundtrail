@@ -46,12 +46,11 @@ _KEPT_HEADERS = {
     "content-type",
     "content-transfer-encoding",
 }
-# The blank line that ends the headers: the header block runs to the end of its first
-# line ending, so each header field includes its own line ending.
-# Mail is external, so a bare CR (carriage return) ends a line too.
-_HEADER_END = re.compile(r"\r?\n(?=\r?\n)|\r(?=\r(?!\n))")
-# One line, with its line ending if it has one: CRLF, LF or a bare CR.
+# One line, with its line ending if it has one: CRLF, LF or a bare CR (carriage
+# return), since mail is external. The headers end at the first line that is only a
+# line ending, whatever mix of endings surrounds it.
 _LINE = re.compile(r"[^\r\n]*(?:\r\n|\n|\r|$)")
+_BLANK_LINES = ("\r\n", "\n", "\r")
 
 
 def sample_sent_date(grant_now: datetime) -> date:
@@ -127,13 +126,12 @@ def reading_text(stored: str, grant_now: datetime | None) -> ReadingText:
 
 
 def _reading_text(stored: str, grant_now: datetime) -> ReadingText:
-    end = _HEADER_END.search(stored)
-    header_end = end.end() if end else len(stored)
+    fields, header_end = _fields(stored)
     date_value = format_datetime(_utc(grant_now))
     parts: list[str] = []
     replaced: list[tuple[int, int, int, int]] = []
     out_length = 0
-    for start, stop, name, line_end in _fields(stored, header_end):
+    for start, stop, name, line_end in fields:
         if name in _KEPT_HEADERS:
             parts.append(stored[start:stop])
             out_length += stop - start
@@ -146,21 +144,26 @@ def _reading_text(stored: str, grant_now: datetime) -> ReadingText:
     return ReadingText("".join(parts), tuple(replaced))
 
 
-def _fields(stored: str, header_end: int) -> list[tuple[int, int, str | None, str]]:
-    """Each top-level header field: (start, end, lower-case name or None, line ending).
+def _fields(stored: str) -> tuple[list[tuple[int, int, str | None, str]], int]:
+    """Each top-level header field, and where the headers end.
 
-    A field runs from its first line through its folded continuation lines, and includes
-    its last line ending. A line that isn't a header (no colon) is a field named None.
+    A field is (start, end, lower-case name or None, line ending). It runs from its first
+    line through its folded continuation lines, and includes its last line ending. A line
+    that isn't a header (no colon) is a field named None. The headers end at the first
+    line that is only a line ending; that blank line starts the rest of the message. With
+    no blank line, the whole message is headers.
     """
     fields: list[tuple[int, int, str | None, str]] = []
     position = 0
-    while position < header_end:
-        line = _LINE.match(stored, position, header_end)
+    while position < len(stored):
+        line = _LINE.match(stored, position)
         if line is None:
-            raise _Unreadable
+            raise _Unreadable  # _LINE matches every position; kept as a guard
         if line.end() == position:
             break
         text = line.group()
+        if text in _BLANK_LINES:
+            return fields, position
         if text[:1] in (" ", "\t") and fields:
             first, _, name, _ = fields[-1]
             fields[-1] = (first, line.end(), name, _line_ending(text))
@@ -169,7 +172,7 @@ def _fields(stored: str, header_end: int) -> list[tuple[int, int, str | None, st
             name = head.strip().lower() if colon and head.strip() else None
             fields.append((position, line.end(), name, _line_ending(text)))
         position = line.end()
-    return fields
+    return fields, len(stored)
 
 
 def _line_ending(line: str) -> str:

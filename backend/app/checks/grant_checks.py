@@ -23,7 +23,7 @@ category, named as NSF prints the category.
 
 import hashlib
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from app.checks.findings import (
@@ -116,10 +116,18 @@ def _notice_findings(view: GrantView) -> list[Finding]:
     return out
 
 
-def _limit(view: GrantView) -> tuple[int, Record] | None:
-    """The Total Amount Obligated to Date on the latest confirmed notice that prints one."""
+def award_limit(
+    view: GrantView, standing: Callable[[str], bool] | None = None
+) -> tuple[int, Record] | None:
+    """The Total Amount Obligated to Date on the latest confirmed notice that prints one.
+
+    `standing`, when given, leaves out notices it says no longer stand (call 42: a limit
+    raised by a notice later retracted or rejected never really held).
+    """
     best: tuple[tuple[object, ...], int, Record] | None = None
     for r in view.notices():
+        if standing is not None and not standing(r.id):
+            continue
         d = r.data
         assert isinstance(d, Notice)
         if d.obligated_to_date is None:
@@ -128,6 +136,11 @@ def _limit(view: GrantView) -> tuple[int, Record] | None:
         if best is None or key > best[0]:
             best = (key, d.obligated_to_date.value, r)
     return (best[1], best[2]) if best else None
+
+
+# The platform's app/db/terms.py still imports the old private name; it goes once the
+# platform reads BudgetFigures.limit_cents instead (#106's follow-up there).
+_limit = award_limit
 
 
 def _has_term(view: GrantView, kind: RecordKind) -> bool:
@@ -179,7 +192,7 @@ def grant_problems(
                 + ".",
             )
         )
-    limit = _limit(view)
+    limit = award_limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:
         d = limit[1].data
@@ -382,7 +395,7 @@ def _figures(view: GrantView) -> BudgetFigures:
         )
         for category, amount in budget.items()
     )
-    limit = _limit(view)
+    limit = award_limit(view)
     return BudgetFigures(
         lines=tuple(line_figures),
         categories=category_figures,
