@@ -263,26 +263,78 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
 
-_SPACED_DASH = re.compile(r"[-\u2013]\s+$")
-_LEADING_SPACED_DASH = re.compile(r"^\s*[-\u2013]\s+")
+_DOUBT_DASHES = "-\u2013"  # a hyphen or an en dash; the true minus U+2212 is always a minus
+_CURRENCY_SIGNS = "$\u20ac\u00a3\u00a5"
+_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])[A-Z]{3}$")
+
+
+def _amount_starts(passage: str, value_text: str) -> list[int]:
+    """Where the amount's digits start in the passage, for each place the value's text is."""
+    first = next((i for i, ch in enumerate(value_text) if ch.isdigit()), None)
+    if first is None:
+        return []
+    starts: list[int] = []
+    at = passage.find(value_text)
+    while at >= 0:
+        starts.append(at + first)
+        at = passage.find(value_text, at + 1)
+    return starts
+
+
+def _amount_end(passage: str, digit: int) -> int:
+    j = digit
+    while j < len(passage) and (
+        passage[j].isdigit()
+        or (passage[j] in ",." and j + 1 < len(passage) and passage[j + 1].isdigit())
+    ):
+        j += 1
+    return j
+
+
+def _doubtful_at(passage: str, digit: int) -> bool:
+    """Whether the amount whose digits start at `digit` has a sign that reads either way.
+
+    Steps left from the digits over spaces, tabs, a currency sign and a currency code. Doubtful
+    when it lands on a hyphen or en dash that has a space or tab between it and the amount and
+    itself follows a space or the start of a line ("Hotel - $612.40", "- USD 612.40"), or when
+    the amount sits in brackets inside prose ("the fee ($450.00) was paid").
+    """
+    k = digit
+    spaced = False
+    while k > 0:
+        ch = passage[k - 1]
+        if ch in " \t":
+            spaced = True
+            k -= 1
+        elif ch in _CURRENCY_SIGNS:
+            k -= 1
+        elif _CURRENCY_CODE.search(passage, 0, k):
+            k -= 3
+        else:
+            break
+    if k > 0 and passage[k - 1] in _DOUBT_DASHES and spaced:
+        before = passage[k - 2] if k > 1 else "\n"
+        if before in " \t\n":
+            return True
+    if k > 0 and passage[k - 1] == "(":
+        end = _amount_end(passage, digit)
+        if end < len(passage) and passage[end] == ")":
+            left = passage[: k - 1].rstrip(" \t")
+            right = passage[end + 1 :].lstrip(" \t")
+            in_prose = (left[-1:].isalpha()) or (right[:1].isalpha())
+            if in_prose:
+                return True
+    return False
 
 
 def sign_is_doubtful(passage: str, value_text: str) -> bool:
-    """Whether the sign beside an amount can be read either way (provisional call 31).
+    """Whether the sign beside an amount can be read either way (provisional calls 31 and 38).
 
-    That's a hyphen or en dash with a space between it and the amount, as in "Hotel - $612.40":
-    a minus, or only a separator. The agent's sign stands there, so its reason has to say what
-    it read the sign from (call 38). The value's own text may carry the dash ("- $612.40").
+    Judged from where the amount sits in the cited passage, not from how the value's text was
+    written, so citing "248.00" out of "Credit amount - $248.00" is still doubtful. The agent's
+    sign stands there, so its reason has to say what it read the sign from.
     """
-    if _LEADING_SPACED_DASH.match(value_text):
-        return True
-    at = passage.find(value_text)
-    while at >= 0:
-        before = passage[max(0, at - 4) : at]
-        if _SPACED_DASH.search(before):
-            return True
-        at = passage.find(value_text, at + 1)
-    return False
+    return any(_doubtful_at(passage, digit) for digit in _amount_starts(passage, value_text))
 
 
 # A minus sign as documents write it: a hyphen, an en dash, or the minus sign itself.
