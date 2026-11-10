@@ -79,19 +79,24 @@ class RecordState:
 
     def __init__(self, records: Iterable[Record], files: Iterable[EvidenceFile] = ()):
         self.records: list[Record] = list(records)
-        # The record being checked: the last one, when it isn't stored yet. It comes
-        # after everything stored. Every other record is either stored with its order,
-        # or (in test data) none is; a mix would let a missing order clear a problem.
-        self._checking_id: str | None = None
-        if self.records and self.records[-1].stored_seq is None:
-            self._checking_id = self.records[-1].id
-        head = self.records[:-1] if self._checking_id is not None else self.records
-        with_order = [r for r in head if r.stored_seq is not None]
-        if with_order and len(with_order) != len(head):
-            raise ValueError("stored records either all carry their stored_seq or none does")
-        if with_order:
-            head = sorted(head, key=lambda r: r.stored_seq or 0)
-            self.records = head + self.records[len(head) :]
+        # Records not stored yet come last, in order: the record being checked, or a
+        # run's staged records after the stored ones. They come after everything
+        # stored. Stored records all carry their order, ahead of that tail; a stored
+        # record without one would let a missing order clear a problem. When no record
+        # carries an order (test data), only the last counts as not stored yet.
+        numbered = [r for r in self.records if r.stored_seq is not None]
+        tail = self.records[len(numbered) :]
+        if any(r.stored_seq is not None for r in tail) or any(
+            r.stored_seq is None for r in self.records[: len(numbered)]
+        ):
+            raise ValueError(
+                "stored records carry their stored_seq, ahead of the records not stored yet"
+            )
+        if numbered:
+            self.records = sorted(numbered, key=lambda r: r.stored_seq or 0) + tail
+            self._unstored_ids: set[str] = {r.id for r in tail}
+        else:
+            self._unstored_ids = {self.records[-1].id} if self.records else set()
         self.files: dict[str, EvidenceFile] = {f.id: f for f in files}
         self.by_id: dict[str, Record] = {}
         self._pos: dict[str, int] = {}
@@ -160,7 +165,7 @@ class RecordState:
     def _is_checking(self, record: Record) -> bool:
         """Whether `record` is the record being checked: not stored yet, so after everything."""
         return record.stored_seq is None and (
-            record.id == self._checking_id or record.id not in self._pos
+            record.id in self._unstored_ids or record.id not in self._pos
         )
 
     def suggestion_key(self, record: Record, i: int | None = None) -> tuple[str, ...] | None:
@@ -261,12 +266,24 @@ class RecordState:
         everything stored. A missing order otherwise never counts as new.
         When `new` is the agent's record and carries its run's read point (call 40),
         only what was stored up to that point counts: anything stored during the
-        run isn't new for that run's answers.
+        run isn't new for that run's answers. And when `since` is the agent's earlier
+        answer with its own run's read point, the window runs from that read point to
+        this one: new evidence is what the earlier run didn't read and this one did,
+        wherever the earlier answer was stored (the main coordinator's ruling on N3).
         `before` limits it to the records stored before that position.
         """
         read_point = new.read_through_seq if new.author == Author.AGENT else None
+        lower = (
+            since.read_through_seq
+            if read_point is not None and since.author == Author.AGENT
+            else None
+        )
         for f in self.files.values():
             if f.grant_id != new.grant_id:
+                continue
+            if lower is not None:
+                if f.stored_seq is not None and lower < f.stored_seq <= (read_point or 0):
+                    return True
                 continue
             after_since = f.arrived_at > since.written_at or (
                 f.arrived_at == since.written_at and _stored_after(f.stored_seq, since.stored_seq)
@@ -281,6 +298,8 @@ class RecordState:
             if after_since and before_new:
                 return True
         start = self._pos[since.id] + 1 if since.id in self._pos else 0
+        if lower is not None:
+            start = 0  # the window is by read points, not where `since` was stored
         stop = self._pos[new.id] if new.id in self._pos else len(self.records)
         if before is not None:
             stop = min(stop, before)
@@ -289,6 +308,8 @@ class RecordState:
                 continue
             if read_point is not None and (r.stored_seq is None or r.stored_seq > read_point):
                 continue  # stored during the run, or its order unknown
+            if lower is not None and (r.stored_seq or 0) <= lower:
+                continue  # the earlier run had read it
             if r.kind in TERM_KINDS:
                 return True
             data = r.data
@@ -590,6 +611,8 @@ def check_new_record(
         problems.append(f"the ID {new.id} is already used")
     if new.stored_seq is not None:
         problems.append("a new record gets its stored order when it's saved, not before")
+    if agent and new.read_through_seq is None:
+        problems.append("the agent's record carries the read point of the run writing it")
 
     # The agent writes inside a run, so its record comes with the run's trigger; the
     # accountant's doesn't.

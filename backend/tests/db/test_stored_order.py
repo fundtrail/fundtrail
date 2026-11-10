@@ -52,3 +52,15 @@ def test_existing_rows_are_numbered_files_and_charges_first_and_records_last() -
     charges = text.index("alter table public.charges")
     records = text.index("alter table public.records")
     assert files < charges < records
+
+
+def test_a_new_agent_record_carries_its_runs_read_point(
+    db: psycopg.Connection, g: dict[str, Any]
+) -> None:
+    from psycopg import errors
+
+    from tests.db.test_first_migration import record_values, rejects
+
+    values = record_values(g, {"kind": "bill", "total": {"value": 124000}})
+    del values["read_through_seq"]
+    rejects(db, errors.CheckViolation, "records", **values)

@@ -38,4 +38,8 @@ alter table public.agent_runs
 alter table public.records
   add column read_through_seq bigint,
   add constraint records_read_through_seq_only_for_agent
-    check (author = 'agent' or read_through_seq is null);
+    check (author = 'agent' or read_through_seq is null),
+  -- Every new agent record carries its run's read point. Not valid: rows stored
+  -- before this migration aren't checked.
+  add constraint records_agent_has_read_through_seq
+    check (author <> 'agent' or read_through_seq is not null) not valid;

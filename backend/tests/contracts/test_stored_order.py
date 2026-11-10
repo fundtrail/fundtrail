@@ -4,14 +4,17 @@ import pytest
 
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import Record
-from app.contracts.rules import RecordState
+from app.contracts.rules import RecordState, check_new_record
+from app.contracts.runs import Trigger, TriggerKind
 from tests.contracts.factory import (
+    CHARGES,
     FILES,
     agent,
     answer,
     bill,
     budget_line,
     confirm,
+    defaults,
     file,
     ids,
     link,
@@ -165,3 +168,63 @@ def test_a_term_confirmed_mid_run_isnt_new_for_that_run():
 def test_only_the_agents_records_carry_a_read_point():
     with pytest.raises(ValueError):
         Record.model_validate(user("b1", bill()).model_dump() | {"read_through_seq": 3})
+
+
+# The ruling on N3: the window runs from the earlier answer's read point to this run's.
+
+
+def test_a_receipt_uploaded_during_the_first_run_counts_for_the_follow_up_run():
+    """The reviewer's case: the first run read up to 1; the receipt was stored at 2,
+    while it ran, and its unsure answer at 3. The follow-up run read up to 4."""
+    unsure = read(agent("j1", answer("unsure")), 3, 1)
+    supports = read(agent("j2", answer("supports"), replaces_id="j1"), 5, 4)
+    assert RecordState([unsure, supports], [*FILES, receipt(2)]).waits("j2") is False
+
+
+def test_what_the_earlier_run_had_read_isnt_new():
+    unsure = read(agent("j1", answer("unsure")), 3, 2)
+    supports = read(agent("j2", answer("supports"), replaces_id="j1"), 5, 4)
+    assert RecordState([unsure, supports], [*FILES, receipt(2)]).waits("j2") is True
+
+
+def test_a_term_confirmed_during_the_first_run_counts_for_the_follow_up_run():
+    term = stored(agent("t1", budget_line()), 1)
+    confirmed = stored(user("ok", confirm("t1")), 2)  # while the first run worked
+    unsure = read(agent("j1", answer("unsure")), 3, 1)
+    supports = read(agent("j2", answer("supports"), replaces_id="j1"), 4, 3)
+    assert RecordState([term, confirmed, unsure, supports], FILES).waits("j2") is False
+
+
+# N1: a run's staged records come after the stored ones, each not stored yet.
+
+
+def test_a_runs_second_and_third_staged_records_are_checked():
+    b = stored(agent("b1", bill()), 1)
+    first = agent("l1", link(), 1).model_copy(update={"read_through_seq": 1})
+    second = agent(
+        "a1",
+        {"kind": "budget_assignment", "charge_id": "c1", "record_id": "t1", "reason": "Supplies."},
+        1,
+    ).model_copy(update={"read_through_seq": 1})
+    third = agent("j1", answer("supports"), 1).model_copy(update={"read_through_seq": 1})
+    line = stored(user("t1", budget_line()), 0)
+    state = RecordState([line, b, first, second])
+    assert ids(state.records) == ["t1", "b1", "l1", "a1"]
+    assert problems(third, [line, b, first, second]) == []
+    with pytest.raises(ValueError):  # a stored record after the staged ones
+        RecordState([line, first, b])
+
+
+# N2: the agent's record carries its run's read point.
+
+
+def test_the_agents_record_without_a_read_point_is_refused():
+    found = check_new_record(
+        agent("b1", bill()),
+        [],
+        CHARGES,
+        FILES,
+        default_items=defaults,
+        trigger=Trigger(kind=TriggerKind.CLOCK),
+    )
+    assert any("read point" in p for p in found)

@@ -30,10 +30,15 @@ def file(id: str, arrived_hours: float = -100, grant_id: str = "g") -> EvidenceF
         storage_path=f"w/{grant_id}/{id}/{name}",
         sha256=id,
         arrived_at=at(arrived_hours),
+        # Stored in arrival order, ahead of any record in these tests.
+        stored_seq=int((arrived_hours + 1000) * 100),
     )
 
 
 FILES = [file("f1"), file("f2"), file("f3")]
+
+# A run's read point in these tests: it read everything stored.
+RUN_READ_THROUGH = 10**9
 
 CHARGE = Charge(
     id="c1",
@@ -187,6 +192,8 @@ def problems(
     new: Record, written: Sequence[Record], files: Sequence[EvidenceFile] = FILES
 ) -> list[str]:
     trigger = Trigger(kind=TriggerKind.CLOCK) if new.author == "agent" else None
+    if new.author == "agent" and new.read_through_seq is None:
+        new = new.model_copy(update={"read_through_seq": RUN_READ_THROUGH})
     return check_new_record(new, written, CHARGES, files, default_items=defaults, trigger=trigger)
 
 
