@@ -1,9 +1,13 @@
 """Sign-in: verify the Supabase access token on each request and find the user.
 
 The browser signs in with Supabase Auth (Google) and sends `Authorization: Bearer <token>`.
-The token is checked against the project's published signing keys (asymmetric JSON Web
-Token signing keys), or against the legacy shared secret when SUPABASE_JWT_SECRET is set.
-Its audience must be "authenticated" and its issuer the project's auth URL.
+New Supabase projects sign user tokens with asymmetric keys, published as a JSON Web Key
+Set (JWKS) at `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`. The backend fetches it,
+caches it, and fetches it again when a token names a key ID (`kid`) it doesn't have, so a
+key rotation needs no restart. Only an older project that still uses the shared JWT secret
+sets SUPABASE_JWT_SECRET; then tokens are checked with HS256 against it instead.
+The signature, the audience ("authenticated"), the issuer (the project's auth URL) and the
+expiry are always checked.
 """
 
 from __future__ import annotations
@@ -36,6 +40,10 @@ def _user(claims: dict[str, Any]) -> User:
     return User(id=str(sub), email=str(email), name=str(name) if name else None)
 
 
+def jwks_url(supabase_url: str) -> str:
+    return f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+
+
 class SupabaseTokenVerifier:
     def __init__(
         self,
@@ -43,14 +51,18 @@ class SupabaseTokenVerifier:
         *,
         jwt_secret: str | None = None,
         signing_key: Callable[[str], Any] | None = None,
+        jwks_client: jwt.PyJWKClient | None = None,
     ):
-        """`signing_key(token)` returns the key for a token; by default it's fetched from
-        the project's JSON Web Key Set (JWKS) and cached."""
+        """`signing_key(token)` returns the key for a token. By default it comes from the
+        project's JWKS through `jwks_client` (made here unless a test passes one): the key
+        set is cached for five minutes and fetched again on a `kid` it doesn't have."""
         base = supabase_url.rstrip("/")
         self._issuer = f"{base}/auth/v1"
         self._secret = jwt_secret
         if signing_key is None and jwt_secret is None:
-            client = jwt.PyJWKClient(f"{self._issuer}/.well-known/jwks.json", cache_keys=True)
+            client = jwks_client or jwt.PyJWKClient(
+                jwks_url(supabase_url), cache_jwk_set=True, lifespan=300
+            )
             signing_key = lambda token: client.get_signing_key_from_jwt(token).key  # noqa: E731
         self._signing_key = signing_key
 
