@@ -165,9 +165,10 @@ def test_each_workspace_has_its_own_sample_accountant(platform: Platform) -> Non
 def test_the_sample_accountants_auth_row_is_outside_gotrue_and_banned(
     platform: Platform,  # noqa: F811
 ) -> None:
-    """On Supabase-shaped auth: no instance or audience, so GoTrue never loads the row, and
-    banned until a finite far date GoTrue can read. The stub has only the ID, so the
-    columns are added for this test."""
+    """On Supabase-shaped auth. The row must stay outside GoTrue's instance (instance_id
+    and aud null): that's what keeps every sign-in, admin call and token from reaching it,
+    and this test checks it. It's also banned until a finite far date GoTrue can read. The
+    stub has only the ID, so the columns are added for this test."""
     with transaction(platform.pool) as conn:
         conn.execute(
             """alter table auth.users

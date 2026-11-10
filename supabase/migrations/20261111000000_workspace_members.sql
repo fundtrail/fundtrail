@@ -28,9 +28,9 @@ as $$
 declare
   sample_id uuid := gen_random_uuid();
 begin
-  -- Only the ID is set. The row must stay outside GoTrue's instance (instance_id and aud
-  -- null), so GoTrue never loads it: no sign-in, admin call or token reaches it. The
-  -- membership tests check those columns.
+  -- Only the ID is set. With instance_id and aud null, the row is outside GoTrue's
+  -- instance, so GoTrue never loads it: no sign-in, admin call or token reaches it. That's
+  -- deliberate.
   insert into auth.users (id) values (sample_id);
   -- Banned as well, where the column exists. A finite far date, not 'infinity': GoTrue
   -- can't read 'infinity', and if the row ever entered its instance, its admin user list
