@@ -1,6 +1,6 @@
 # 0024. The demo workspace is built from a seed of files, and a saved read of its past waits for Alex
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Builds on [0007](0007-real-app-first.md).
+**Date:** 2026-11-10 · **Status:** replaced by [0027](0027-sample-grants.md): there's no demo workspace, and a sample is one grant chosen when adding a grant. This file was provisional and never reviewed by Alex. Builds on [0007](0007-real-app-first.md).
 
 ## Context
 

@@ -31,8 +31,8 @@ Each area gets a link to its decision file here once the file is written. Whoeve
 | Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0020](decisions/0020-reversals-and-cost-transfers.md) |
 | A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0021](decisions/0021-a-cost-shared-by-two-grants.md) |
 | The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0022](decisions/0022-evidence-report-and-sign-off.md) |
-| The clock | [product.md](product.md#not-decided-yet), [architecture.md](architecture.md#not-decided-yet) | [0023](decisions/0023-the-clock.md) |
-| The seeded demo workspace and its data | [product.md](product.md#not-decided-yet), and below | [0024](decisions/0024-the-seeded-demo-workspace.md) |
+| The clock. One clock per grant is decided ([0028](decisions/0028-one-clock-per-grant.md)). Still provisional: the rest of 0023, such as playing a jump's arrivals one run at a time, a status that time alone changes, and when a ledger line arrives. | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0023](decisions/0023-the-clock.md), amended by [0028](decisions/0028-one-clock-per-grant.md) |
+| Sample grants. What a sample is, how it's chosen, and the sample accountant are decided ([0027](decisions/0027-sample-grants.md)). Still provisional, as first versions: how the prerun is made and copied, the timeline panel, one larger sample read live at a time, start over, and the two timeline tests. What goes in each sample isn't decided. | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet), and below | [0027](decisions/0027-sample-grants.md), which replaces [0024](decisions/0024-the-seeded-demo-workspace.md) |
 | Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0025](decisions/0025-gmail-and-drive.md) |
 | The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | [0026](decisions/0026-eval-scoring-and-the-blind-test.md) |
 
@@ -64,8 +64,8 @@ The work is split into areas of the repo. The directories each area owns are in 
 | W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads. Also quotes: find each quote in its file, highlight positions, page images for scans, the second look on photos |
 | W2 | Checks, NSF rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text |
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data |
-| W4 | Platform: database, sign-in, workspaces, seeding, clock, API (application programming interface), background jobs on Procrastinate, thread messages, screen pings, deploys |
-| W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls |
+| W4 | Platform: database, sign-in, workspaces, the samples and their seeding, the clock per grant, API (application programming interface), background jobs on Procrastinate, thread messages, screen pings, deploys |
+| W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, the timeline panel on a sample grant |
 | W6 | Viewer with highlights, closeout view, PDF evidence report |
 | Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config |
 
@@ -116,5 +116,5 @@ A small correction inside one area doesn't need a decision file. The PR descript
 |---|---|
 | How to demo | product |
 | Issues for the work in decisions 0010 to 0019. Review threads are core. | whoever runs the build |
-| The demo data | product, built by W3 |
+| What goes in each sample grant ([0027](decisions/0027-sample-grants.md)) | product, built by W3 |
 | The agent's exact actions and the wording of its prompts: a W1 task of its own. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1), discussed with Alex before building |

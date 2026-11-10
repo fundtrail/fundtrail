@@ -39,7 +39,7 @@ The contract code for records, checks and the agent side is written first ([deci
 ## Conventions
 
 - IDs are strings. User IDs are Supabase auth UUIDs.
-- Timestamps are timezone-aware and stored in UTC. Records carry the workspace clock's "now".
+- Timestamps are timezone-aware and stored in UTC. Records carry their grant clock's "now". The clock belongs to the grant ([0028](decisions/0028-one-clock-per-grant.md)). Only what belongs to the machine stays on real time: the order records were stored in, background timers, logs and sign-in expiry.
 - Money is an integer number of cents in US dollars. Credits are negative.
 - Contract models reject unknown fields and can't be changed after they're created.
 - For now each grant is isolated: a record's charge and the records it points to are on its own grant, and the agent works on one grant at a time.
@@ -244,7 +244,7 @@ One charge comes from one ledger line, read by code. The agent never writes char
 | `ledger_line_id` | Unique within a workspace. The same line twice adds nothing. |
 | `transaction_date` | When the cost happened. The checks use this one. |
 | `posting_date` | When the ledger recorded it. The 60 days for missing evidence count from here. |
-| `arrived_at` | When it reached FundTrail. The clock uses this one. For an uploaded ledger file, 00:00 UTC on the posting date if that's still ahead of the workspace's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). |
+| `arrived_at` | When it reached FundTrail. The clock uses this one. For an uploaded ledger file, 00:00 UTC on the posting date if that's still ahead of the grant's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). |
 | `amount_cents` | Negative for a reversal, a transfer out or a credit |
 | `description`, `account`, `vendor`, `reference` | As the ledger gives them. `account` is the ledger's own expense category. |
 | `original_line_id` | For a reversal or cost transfer: the `ledger_line_id` of the line it undoes or moves. It's a line ID, not a charge ID, because the original may be on another grant or arrive later. |
@@ -258,7 +258,7 @@ The original is stored as it arrived, in the private Supabase Storage bucket `ev
 | `grant_id` | One grant per file for now. Files move to the workspace level later. |
 | `source` | `gmail`, `drive` or `upload` |
 | `name`, `media_type`, `storage_path`, `sha256` | The fingerprint catches the exact same file arriving twice |
-| `document_date` | The file's own date when the source gives one, such as an email's sent date. A date written inside the document is a cited value on a record instead. |
+| `document_date` | The file's own date when the source gives one, such as an email's sent date. A date written inside the document is a cited value on a record instead. On a sample grant, a live email or Drive file is dated to the simulated time, and the stored original is unchanged ([0028](decisions/0028-one-clock-per-grant.md)). |
 | `arrived_at` | When it reached FundTrail. The clock uses this one. |
 | `sender`, `source_ref` | The sender's address for Gmail, and the Gmail message ID or Drive file ID |
 | `parent_id` | For an attachment, the email it came with |
@@ -271,7 +271,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput
 
 A pure function, with no database and no model inside. W2 implements it in `backend/app/checks/`.
 
-- **In:** `now` and everything in one workspace visible at that time: the charges, the evidence files and the records, including replaced, waiting and rejected records. It takes the whole workspace. For now each grant is isolated, so the checks can also run one grant at a time.
+- **In:** `now` and everything in one workspace visible at that time: the charges, the evidence files and the records, including replaced, waiting and rejected records. It takes the whole workspace. For now each grant is isolated, so the checks can also run one grant at a time. Each grant has its own clock ([0028](decisions/0028-one-clock-per-grant.md)), so `now` is a grant's "now", and how the input reconciles that with a whole workspace is open (see "Not decided yet").
 - **Out:**
   - **A status for each charge:** its `bucket`, every reason (the check, its bucket, text built by code, and the records it rests on), its evidence checklist, whether it's `flagged`, whether it's `rechecking`, and whether it's accepted or snoozed.
   - **A status for each record or file that has a problem of its own** (new).
@@ -312,7 +312,7 @@ A run is one background job. It's queued each time a charge or an evidence file 
 - Code hands each run what needs attention, so the agent doesn't have to remember: the checklist items still missing on the grant, the checks failing on the charges in the run, the bills already on file that look like a new one, and for a thread message, that thread.
 - Every run also gets its funder's whole rulebook, and the end date in force.
 
-A run holds its `trigger`, its `status` (`queued`, `running`, `done` or `failed`), `clock_now` (the clock's "now" the run works at, which its records carry), real-time `queued_at`, `started_at` and `finished_at`, a short `summary` and any `error`. The exact actions the agent has are decided with its prompts (W1).
+A run holds its `trigger`, its `status` (`queued`, `running`, `done` or `failed`), `clock_now` (the grant clock's "now" the run works at, which its records carry), real-time `queued_at`, `started_at` and `finished_at`, a short `summary` and any `error`. The exact actions the agent has are decided with its prompts (W1).
 
 ## 10. Review threads
 
@@ -327,8 +327,9 @@ New with [0010](decisions/0010-agent-suggests-accountant-decides.md). Every char
 | Table | Holds |
 |---|---|
 | `users` | One row per Supabase auth user: the ID, email and name |
-| `workspaces` | The name, the owner and the clock. `clock_now` null means the real date. |
-| `grants` | The workspace, the funder (NSF only for now), award number and title. The last two are empty until the award letter is read. |
+| `workspaces` | The name and the owner. The clock isn't here: it belongs to the grant. |
+| Workspace members (new) | The membership list: workspace, user and role. The owner and the workspace's sample accountant are members ([0029](decisions/0029-workspace-members-and-one-access-check.md)). |
+| `grants` | The workspace, the funder (NSF only for now), award number and title. The last two are empty until the award letter is read. Each grant has its own clock: the real time, or a sample grant's simulated "now" ([0028](decisions/0028-one-clock-per-grant.md)). Its fields are open. |
 | `charges` | Section 6 |
 | `evidence_files` | Section 7 |
 | `records` | The envelope as columns and `data` as JSONB (binary JSON). The record's kind, its charge and the record it points to are generated from `data`, and the last two are foreign keys, so the database enforces what links and judgments point to. |
@@ -337,14 +338,14 @@ New with [0010](decisions/0010-agent-suggests-accountant-decides.md). Every char
 | Thread messages (new) | Section 10 |
 
 - Rows match the models, with these differences: a record row's `data` is the record's data as JSON, with `kind`, `charge_id` and `record_id` as columns generated from it. A status row splits its trigger into `trigger_kind` (`record`, `charge`, `file`, `clock`, and a thread message) and `trigger_id`, and adds `workspace_id`. `records` and `users` add a real-time `created_at`, which also orders records written at the same clock time. The view of the latest status is `current_statuses`.
-- `records`, `charges`, `statuses` and thread messages reject updates. Deletes stay allowed so a workspace reset can clear them.
-- The database also enforces: one charge per ledger line ID in a workspace, one file per storage path, `author_user_id` set exactly for `user` records, a record not replacing itself, a retraction replacing something, a link or budget assignment naming both its record and its charge, only the accountant writing confirmations, accepted reasons, snoozes and sign-offs, and one running agent run per grant.
+- `records`, `charges`, `statuses` and thread messages reject updates. Deletes stay allowed so starting a sample grant over can clear them ([0027](decisions/0027-sample-grants.md), first version).
+- The database also enforces: one charge per ledger line ID in a workspace, one file per storage path, `author_user_id` set exactly for `user` records, a user-written record's author being a member of the record's workspace ([0029](decisions/0029-workspace-members-and-one-access-check.md)), a record not replacing itself, a retraction replacing something, a link or budget assignment naming both its record and its charge, only the accountant writing confirmations, accepted reasons, snoozes and sign-offs, and one running agent run per grant.
 - Row level security is on, with no policies. The backend uses the service role key, and the browser never reads the tables directly.
 - There's no old data to convert. Nothing real is stored yet.
 
 ## 12. API
 
-**Sign-in.** The browser signs in with Supabase Auth (Google) and sends the access token on every request as `Authorization: Bearer <token>`. The backend verifies the token, finds the user from it, and checks that the user owns the workspace.
+**Sign-in.** The browser signs in with Supabase Auth (Google) and sends the access token on every request as `Authorization: Bearer <token>`. The backend verifies the token, finds the user from it, and asks the one access check whether the user may reach the workspace or grant ([0029](decisions/0029-workspace-members-and-one-access-check.md)).
 
 Errors use FastAPI's default `{"detail": ...}` body. A write that the write check rejects returns 422 with the list of problems.
 
@@ -352,11 +353,11 @@ Errors use FastAPI's default `{"detail": ...}` body. A write that the write chec
 |---|---|---|
 | `GET /workspaces` | | The user's workspaces |
 | `POST /workspaces` | A name | The workspace |
-| `POST /workspaces/{workspace_id}/reset` | | The workspace |
-| `GET /workspaces/{workspace_id}/clock` | | The clock: its "now", whether it's simulated, and the next arrival waiting for it |
-| `POST /workspaces/{workspace_id}/clock` | A time to move to, or nothing | The clock |
 | `GET /workspaces/{workspace_id}/grants` | | Each grant with its bucket counts, how many are on the problem list, and how many of the agent's records wait |
 | `POST /workspaces/{workspace_id}/grants` | Form with the award letter as `file` | The grant |
+| Opening a sample (new) | | Paths to settle ([0027](decisions/0027-sample-grants.md)) |
+| Reading and moving a grant's clock, and its timeline (new) | | Paths to settle, per grant ([0028](decisions/0028-one-clock-per-grant.md)) |
+| Starting a sample grant over (new) | | Path to settle ([0027](decisions/0027-sample-grants.md), first version) |
 | `GET /grants/{grant_id}` | | The grant's terms and their state, the agent's waiting suggestions, open questions for the accountant, problems on records and files, reusable notes, grant notes |
 | `GET /grants/{grant_id}/charges` | | Each charge with its status |
 | `POST /grants/{grant_id}/ledger` | Form with the ledger file as `file` | How many lines were added, already present, or rejected with the row and the reason |
@@ -373,12 +374,12 @@ Errors use FastAPI's default `{"detail": ...}` body. A write that the write chec
 - Adding a grant stores the award letter and queues an agent run. The grant comes back right away, and its terms appear as the agent writes them.
 - Every accountant action that decides something goes through `POST /grants/{grant_id}/records`: confirming or rejecting terms and the agent's suggestions, answering or overruling a question, linking or splitting by hand, changing a checklist, accepting a reason, snoozing, correcting or retracting a record, adding a known sender, and signing off. The server fills in the ID, author and time.
 - Thread messages aren't records, so they have their own routes.
-- `POST .../clock` with nothing in the body moves to the next arrival. The clock only moves forward.
+- The clock belongs to the grant. A real grant's clock is the real time and can't be moved. A sample grant's clock only moves forward: to the next event, or to a chosen date, with everything between played in order ([0027](decisions/0027-sample-grants.md), first version).
 - What each of these returns in detail depends on what each screen holds, which the docs haven't settled yet (see "Not decided yet").
 
 ## 13. Ledger file
 
-CSV or Excel, one file per grant. In the hackathon build, a seeded grant's file holds its whole history, and the clock releases each line on its posting date. The first row is a header with these names, in any order:
+CSV or Excel, one file per grant. In the hackathon build, a sample grant's file holds its whole history, and the clock releases each line on its posting date. The first row is a header with these names, in any order:
 
 | Column | Required | Format |
 |---|---|---|
@@ -392,7 +393,7 @@ CSV or Excel, one file per grant. In the hackathon build, a seeded grant's file 
 | `reference` | No | An invoice or document number |
 | `original_line_id` | No | For a reversal or cost transfer, the line it corrects |
 
-An empty cell is a missing value. Each row becomes one charge: `line_id` becomes `ledger_line_id`, `amount` becomes `amount_cents`, and `arrived_at` is 00:00 UTC on the posting date if that's still ahead of the workspace's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). A row whose `line_id` is already on file is skipped. Mapping another system's column names is a later addition.
+An empty cell is a missing value. Each row becomes one charge: `line_id` becomes `ledger_line_id`, `amount` becomes `amount_cents`, and `arrived_at` is 00:00 UTC on the posting date if that's still ahead of the grant's "now", and otherwise now ([0023](decisions/0023-the-clock.md)). A row whose `line_id` is already on file is skipped. Mapping another system's column names is a later addition.
 
 ## 14. Eval answer key
 
@@ -418,7 +419,7 @@ The key grows to cover checklist items, suggestions, disputes, unconfirmed value
 
 ## 15. The sample grant
 
-One small synthetic grant that every area tests against. It follows the extension-notice example in [product.md](product.md#demo-data-examples). The contract code carries it as a fixture, with its four documents, and tests that check the contracts against it.
+One small synthetic grant that every area tests against. It's a test fixture, not one of the samples a user can open ([0027](decisions/0027-sample-grants.md)). It follows the extension-notice example in [product.md](product.md#demo-data-examples). The contract code carries it as a fixture, with its four documents, and tests that check the contracts against it.
 
 **The grant:** award SYN-2300117, "Sediment Microbiome Survey of Example Bay", funded by NSF. It runs from February 1, 2023 to January 31, 2026. The award letter, dated January 10, 2023, is laid out like a real NSF award notice (see [domain.md](domain.md#what-an-nsf-award-notice-contains)). It gives:
 
@@ -529,3 +530,8 @@ The sample has the usage statement item carry the charge's amount, so its link c
 | How a file's own date is filled in for files that aren't emails | builder (W3) |
 | Columns or tables for mail held from unknown senders | builder (W4 with W3), through a contract PR |
 | The eval case's arrival schedule: when each file arrives | builder (W3) |
+| The clock's routes and fields, per grant: where a grant's clock and a sample grant's simulated "now" are stored, and the routes that read and move it ([0028](decisions/0028-one-clock-per-grant.md)) | contract |
+| How the checks' input, which takes a whole workspace at one `now`, works when each grant has its own clock | contract |
+| The membership list: its names, fields and roles ([0029](decisions/0029-workspace-members-and-one-access-check.md)) | contract |
+| A sample grant's timeline and its items to deliver: how the scheduled events are stored and released, and what the timeline panel reads ([0027](decisions/0027-sample-grants.md)) | contract |
+| The saved prerun and its copy: what's saved, and how opening it copies the grant into a workspace and points past decisions at that workspace's sample accountant ([0027](decisions/0027-sample-grants.md)) | contract |
