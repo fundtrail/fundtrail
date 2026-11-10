@@ -5,22 +5,20 @@
 // Everything here is a placeholder until the sample packs and the docs give the
 // words. The fake's timeline is the contract's sample grant played as events:
 // the two uploads are items the user delivers, and the Gmail and Drive files
-// and the two ledger lines arrive. The sample grant starts where the rest of
-// the fake stands, at FAKE_NOW, with every event played and both uploads on
-// file; Start over takes it back to its opening date. A sample grant opened in
-// fake mode starts at its opening date. The fake has no checks or agent, so the
-// grant's other pages don't follow the timeline.
+// and the two ledger lines arrive. A sample opens at the start of its
+// timeline: its first event, played. The fake's own sample grant starts where
+// the rest of the fake stands, at FAKE_NOW, with every event played and both
+// uploads on file; Start over takes it back to its first event. A sample grant
+// opened in fake mode starts at its first event. The fake has no checks or
+// agent, so the grant's other pages don't follow the timeline.
 
 import { ApiError, SampleRefusalError, type ApiClient } from "../client";
 import type { FileLink, FtRecord, Grant, GrantSample, GrantSummary, Id, IsoDatetime, PlayedEvent, SampleOption, TimelineEvent, TimelineView } from "../types";
 import { SAMPLE_DOCUMENTS } from "./documents";
 import { FAKE_NOW, fakeId, sample, served, SAMPLE_GRANT_ID } from "./sample";
 
-/** When the sample grant opens: the day its award letter arrives. */
-export const SAMPLE_OPENS_AT: IsoDatetime = "2023-01-12T00:00:00Z";
-
 /** How the fake marks the contract's sample grant as a sample. */
-export const SAMPLE_GRANT_SAMPLE: GrantSample = { sample: "sample-grant", choice: "small_live", opens_at: SAMPLE_OPENS_AT, prerun_id: null };
+export const SAMPLE_GRANT_SAMPLE: GrantSample = { sample: "sample-grant", choice: "small_live" };
 
 export const SAMPLE_OPTIONS: SampleOption[] = [
   {
@@ -90,13 +88,25 @@ interface TimelineState {
   stoppedOn: Id | null;
 }
 
-function startState(at: IsoDatetime): TimelineState {
+function emptyState(at: IsoDatetime): TimelineState {
   return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null };
+}
+
+/** A sample at the start of its timeline: its first event played. */
+function startState(events: TimelineEvent[]): TimelineState {
+  const state = emptyState(events[0].at);
+  playTo(events, state, events[0].at);
+  return state;
+}
+
+/** When a sample opens: its first event. */
+export function sampleStartsAt(): IsoDatetime {
+  return sampleEvents()[0].at;
 }
 
 /** The sample grant as the rest of the fake shows it: everything up to FAKE_NOW played, both uploads on file. */
 function sampleGrantState(events: TimelineEvent[]): TimelineState {
-  const state = startState(FAKE_NOW);
+  const state = emptyState(FAKE_NOW);
   const past = events.filter((e) => time(e.at) <= time(FAKE_NOW));
   for (const e of past) {
     state.played.add(e.id);
@@ -154,9 +164,7 @@ export function samplesFake(hooks: {
   problemRows: number;
 }): Pick<ApiClient, "listSamples" | "createSample" | "getTimeline" | "moveTimeline" | "startOver" | "deliverForMe" | "deliveryFileUrl"> {
   const events = sampleEvents();
-  const timelines = new Map<Id, { opensAt: IsoDatetime; state: TimelineState }>([
-    [SAMPLE_GRANT_ID, { opensAt: SAMPLE_OPENS_AT, state: sampleGrantState(events) }],
-  ]);
+  const timelines = new Map<Id, { state: TimelineState }>([[SAMPLE_GRANT_ID, { state: sampleGrantState(events) }]]);
   const notASample = () => served<TimelineView>(undefined);
   const show = (grantId: Id) => served(view(events, timelines.get(grantId)!.state, grantId === SAMPLE_GRANT_ID ? hooks.problemRows : 0));
 
@@ -177,11 +185,11 @@ export function samplesFake(hooks: {
         funder: "NSF",
         award_number: null,
         title: null,
-        clock_now: SAMPLE_OPENS_AT,
-        sample: { sample: "sample-grant", choice: body.choice, opens_at: SAMPLE_OPENS_AT, prerun_id: body.choice === "larger_prerun" ? "prerun-fake" : null },
+        clock_now: events[0].at,
+        sample: { sample: "sample-grant", choice: body.choice },
       };
       hooks.addGrant(grant);
-      timelines.set(grant.id, { opensAt: SAMPLE_OPENS_AT, state: startState(SAMPLE_OPENS_AT) });
+      timelines.set(grant.id, { state: startState(events) });
       return served(hooks.summaryOf(grant));
     },
     getTimeline: (grantId) => (timelines.has(grantId) ? show(grantId) : notASample()),
@@ -199,7 +207,7 @@ export function samplesFake(hooks: {
       if (confirmed !== true) return Promise.reject(new ApiError(422, "Starting over needs the user's confirmation."));
       const timeline = timelines.get(grantId);
       if (!timeline) return notASample();
-      timeline.state = startState(timeline.opensAt);
+      timeline.state = startState(events);
       return show(grantId);
     },
     deliverForMe: (grantId, eventId) => {

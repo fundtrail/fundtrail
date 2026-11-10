@@ -44,16 +44,20 @@ describe("TimelinePanel", () => {
     const confirm = screen.getByRole("group", { name: "Start this sample over?" });
     expect(within(confirm).getByRole("button", { name: "Cancel" })).toHaveFocus();
     fireEvent.click(within(confirm).getByRole("button", { name: "Start over" }));
-    await waitFor(() => expect(within(part("Now")).getByText("Jan 12, 2023")).toBeInTheDocument());
+    await waitFor(() => expect(within(part("Now")).getAllByText("Jan 12, 2023").length).toBeGreaterThan(0));
     expect(startOver).toHaveBeenCalledWith(SAMPLE_GRANT_ID, true);
-    expect(within(part("Coming up")).getAllByRole("listitem")).toHaveLength(6);
-
-    fireEvent.click(screen.getByRole("button", { name: "Next event" }));
+    // A sample starts at its first event, played: the award letter, for the user to deliver.
+    expect(within(part("Coming up")).getAllByRole("listitem")).toHaveLength(5);
     const deliveries = await screen.findByRole("list", { name: "For you to deliver" });
     expect(within(deliveries).getByText("award_letter.txt")).toBeInTheDocument();
     expect(within(deliveries).getByRole("button", { name: "Get the file" })).toBeInTheDocument();
     fireEvent.click(within(deliveries).getByRole("button", { name: "Deliver for me" }));
     await waitFor(() => expect(screen.queryByRole("list", { name: "For you to deliver" })).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Next event" }));
+    const next = await screen.findByRole("list", { name: "For you to deliver" });
+    expect(within(next).getByText("invoice_1001.txt")).toBeInTheDocument();
+    expect(within(part("Coming up")).getAllByRole("listitem")).toHaveLength(4);
   });
 
   it("goes to a date only forward, and links a played ledger line to its charge", async () => {
