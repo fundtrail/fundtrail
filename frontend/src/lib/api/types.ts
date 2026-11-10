@@ -243,6 +243,8 @@ export interface Notice {
   amendment_type: CitedText;
   obligated_by_amendment?: CitedMoney | null;
   obligated_to_date?: CitedMoney | null;
+  award_number?: CitedText | null;
+  title?: CitedText | null;
 }
 export interface OtherTerm {
   kind: "other_term";
@@ -389,6 +391,8 @@ export interface AcceptedReason {
   reusable?: boolean;
   reuses_id?: Id | null;
   rests_on?: Id[];
+  /** For the award limit's over_limit problem: the amount over that was accepted. */
+  amount_cents?: Cents | null;
 }
 export interface Snooze {
   kind: "snooze";
@@ -475,6 +479,8 @@ export interface Problem {
   record_ids?: Id[];
   /** The accepted reason, or the confirmed dispute, that accepts it. */
   accepted_by?: Id | null;
+  /** For the award limit's over_limit problem: the amount over. Null for every other problem. */
+  amount_cents?: Cents | null;
 }
 
 export interface Reason extends Problem {
@@ -485,6 +491,12 @@ export interface Reason extends Problem {
   dispute_id?: Id | null;
 }
 
+/**
+ * Who added a checklist item. "default" is the ledger account group's default.
+ * The contract also has "rule" (issue 115: one of the grant's approval rules
+ * applies, and the entry's rule_id names it). It joins here once the charge
+ * screen's added-by labels have wording for it.
+ */
 export type ItemSource = "default" | "agent" | "user";
 
 export interface ChecklistEntry {
@@ -498,6 +510,8 @@ export interface ChecklistEntry {
   filled: boolean;
   link_ids?: Id[];
   removal_waiting_id?: Id | null;
+  /** For an item an approval rule added: the approval_rule term's record ID. */
+  rule_id?: Id | null;
 }
 
 export interface ChargeStatus {
@@ -869,10 +883,21 @@ export interface AnswerView {
   rule?: RuleView | null;
 }
 
+/** What accepting one of the agent's waiting records changes, worded by code. */
+export interface SuggestionChange {
+  /** What accepting does, in one line. */
+  title: string;
+  /** What's in force now, when it replaces something. */
+  now?: string | null;
+  /** What the agent suggests instead. */
+  suggested?: string | null;
+}
+
 export interface SuggestionView {
   record: FtRecord;
   replaces?: FtRecord | null;
   charge_ids?: Id[];
+  change?: SuggestionChange | null;
 }
 
 export interface StatusThreadEntry {
