@@ -10,7 +10,9 @@ is the builder's (provisional). A category's budget is counted once per notice:
 the parent line's amount when the notice prints one, otherwise the sum of the
 category's lines. A line belongs to the notice whose file it's cited from (call
 36). A line the accountant typed has no citation: when it corrects a cited line
-it belongs to that line's notice, and otherwise it's grouped by its own date.
+it belongs to that line's notice. A typed sub-line joins the one cited notice
+that prints its parent with the same date; any other typed line is grouped with
+the typed lines of its date.
 The sub-lines of Participant Support Costs and of Travel carry their parent's
 category (contract ruling f),
 so this keeps a parent and its sub-lines from being counted twice. Then the
@@ -205,7 +207,9 @@ def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
 
     The file it's cited from. A line the accountant typed has no citation: when it
     corrects a cited line, it belongs to that line's file, followed back through the
-    corrections; a typed line with no cited line behind it is grouped by its date.
+    corrections. A typed line with no cited line behind it is keyed by its date here,
+    and _notice_keys() then puts it with the one cited notice of that date, if exactly
+    one exists (#84).
     """
     seen: set[str] = set()
     r: Record | None = record
@@ -220,13 +224,42 @@ def _notice_of(view: GrantView, record: Record) -> tuple[str, str]:
     return ("dated", record.data.dated.value.isoformat())
 
 
+def _is_parent(category: BudgetCategory, line: BudgetLine) -> bool:
+    """Whether a line is its category's parent line, named as NSF prints the category."""
+    return name_key(line.name.value) in {name_key(n) for n in CATEGORY_NAMES[category]}
+
+
+def _notice_keys(view: GrantView, lines: list[Record]) -> dict[str, tuple[str, str]]:
+    """Each budget line's notice.
+
+    A typed line with no cited line behind it joins a cited notice only when it can't
+    be a separate notice's line: it's a sub-line, and exactly one cited notice prints
+    its category's parent line with the same date (#84). A typed parent line could be
+    a separate notice's, such as an increment typed with the award letter's date, so
+    it never joins; it stays with the other typed lines of its date.
+    """
+    keys = {r.id: _notice_of(view, r) for r in lines}
+    parents_in: dict[tuple[BudgetCategory, str], set[str]] = defaultdict(set)
+    for r in lines:
+        kind, value = keys[r.id]
+        data = r.data
+        if kind == "file" and isinstance(data, BudgetLine) and _is_parent(data.category, data):
+            parents_in[(data.category, data.dated.value.isoformat())].add(value)
+    for r in lines:
+        kind, value = keys[r.id]
+        data = r.data
+        if kind != "dated" or not isinstance(data, BudgetLine) or _is_parent(data.category, data):
+            continue
+        files = parents_in.get((data.category, value), set())
+        if len(files) == 1:
+            keys[r.id] = ("file", next(iter(files)))
+    return keys
+
+
 def _notice_budget(category: BudgetCategory, members: list[Record]) -> int:
     """One notice's budget for a category: its parent line's amount, or its lines' sum."""
-    names = {name_key(n) for n in CATEGORY_NAMES[category]}
     parents = [
-        r
-        for r in members
-        if isinstance(r.data, BudgetLine) and name_key(r.data.name.value) in names
+        r for r in members if isinstance(r.data, BudgetLine) and _is_parent(category, r.data)
     ]
     counted = parents[-1:] if parents else members
     return sum(r.data.amount.value for r in counted if isinstance(r.data, BudgetLine))
@@ -236,9 +269,10 @@ def grant_notes(view: GrantView) -> list[GrantNote]:
     """An overspent budget line, for example "Materials and Supplies: $42,000.00 of $40,000.00"."""
     by_notice: dict[tuple[BudgetCategory, tuple[str, str]], list[Record]] = defaultdict(list)
     lines: dict[BudgetCategory, list[Record]] = defaultdict(list)
+    keys = _notice_keys(view, view.budget_lines())
     for r in view.budget_lines():
         assert isinstance(r.data, BudgetLine)
-        by_notice[(r.data.category, _notice_of(view, r))].append(r)
+        by_notice[(r.data.category, keys[r.id])].append(r)
         lines[r.data.category].append(r)
     budget: dict[BudgetCategory, int] = defaultdict(int)
     for (category, _), members in by_notice.items():
