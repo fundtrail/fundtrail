@@ -27,17 +27,9 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-try:  # the quote finder (#19) isn't merged yet; until it is, a PDF citation is not found
-    from app.quotes import (  # pyright: ignore[reportAttributeAccessIssue]
-        UnreadablePdfError,  # pyright: ignore[reportAttributeAccessIssue]
-        find_pdf_quote,  # pyright: ignore[reportAttributeAccessIssue]
-    )
-except ImportError:  # pragma: no cover - depends on what's merged
-    find_pdf_quote = None
-
-    class UnreadablePdfError(Exception):  # noqa: N818
-        pass
-
+from app.agent.adapter import char_citation
+from app.quotes import UnreadablePdfError, find_pdf_quote
+from app.quotes.text_match import clean, value_in_span
 
 LABEL_LINE = re.compile(r"^\s*[-*]?\s*@([A-Za-z0-9_.\-]+)\s*:\s?(.*?)\s*$")
 
@@ -111,26 +103,48 @@ class CitationProblem(Exception):
     """A citation that can't be used, as a plain sentence for the model."""
 
 
-def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[int, int]:
-    """Narrow a cited span to the line or lines inside it that hold the value's text.
+def standing_occurrences(text: str, start: int, end: int, value_text: str) -> list[int]:
+    """Where the value stands on its own inside text[start:end], as a whole value.
 
-    If the value's text appears more than once in the span, or not at all, the span stays whole.
-    Surrounding spaces and line breaks are trimmed.
+    "000" doesn't stand on its own inside "$120,000" or "00000", and "450.00" doesn't inside
+    "$12,450.00". The rule is the quote finder's own (`value_in_span`), checked on the whole text.
     """
-    passage = text[start:end]
-    first = passage.find(value_text) if value_text else -1
-    if first < 0 or passage.find(value_text, first + 1) >= 0:
-        return start, end
-    occ_start = start + first
-    occ_end = occ_start + len(value_text)
-    line_start = max(start, text.rfind("\n", 0, occ_start) + 1)
-    nl = text.find("\n", occ_end)
-    line_end = min(end, nl if nl >= 0 else len(text))
-    while line_start < line_end and text[line_start].isspace():
-        line_start += 1
-    while line_end > line_start and text[line_end - 1].isspace():
-        line_end -= 1
-    return line_start, line_end
+    found: list[int] = []
+    if not value_text:
+        return found
+    pos = text.find(value_text, start)
+    while 0 <= pos and pos + len(value_text) <= end:
+        if value_in_span(value_text, text, pos, pos + len(value_text)):
+            found.append(pos)
+        pos = text.find(value_text, pos + 1)
+    return found
+
+
+def value_lines(text: str, start: int, end: int, value_text: str) -> list[tuple[int, int]]:
+    """One character range per line inside text[start:end] where the value stands on its own.
+
+    Each range is the line clipped to the span, with surrounding spaces trimmed. "$120,000"
+    gives each line that states $120,000, and "Cost Share: $0" between them isn't one.
+    """
+    ranges: list[tuple[int, int]] = []
+    for pos in standing_occurrences(text, start, end, value_text):
+        line_start = max(start, text.rfind("\n", 0, pos) + 1)
+        nl = text.find("\n", pos + len(value_text))
+        line_end = min(end, nl if nl >= 0 else len(text))
+        while line_start < line_end and text[line_start].isspace():
+            line_start += 1
+        while line_end > line_start and text[line_end - 1].isspace():
+            line_end -= 1
+        if (line_start, line_end) not in ranges:
+            ranges.append((line_start, line_end))
+    return ranges
+
+
+def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[int, int]:
+    """The one range a text citation can hold today: from the first line where the value stands
+    on its own to the last, or the whole span when it stands on its own nowhere."""
+    lines = value_lines(text, start, end, value_text)
+    return (lines[0][0], lines[-1][1]) if lines else (start, end)
 
 
 def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
@@ -145,48 +159,37 @@ def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
             start, end = found, found + len(passage)
         else:
             match = "not_found"
-    if match == "exact":
-        start, end = narrow_to_lines(doc.text, start, end, value_text)
-        passage = doc.text[start:end]
-    return {
-        "file_id": doc.file_id,
-        "passage": passage,
-        "location": {"type": "char_location", "start_char_index": start, "end_char_index": end},
-        "match": match,
-    }
+    lines = value_lines(doc.text, start, end, value_text) if match == "exact" else []
+    return char_citation(doc.file_id, passage, start, end, match, lines)
 
 
 def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.pdf is not None
     passage = _get(raw, "cited_text") or ""
     first, last = int(_get(raw, "start_page_number")), int(_get(raw, "end_page_number"))
-    found: Any = None
-    if find_pdf_quote is not None:
-        try:
-            found = find_pdf_quote(
-                doc.pdf,
-                passage,
-                start_page_number=first,
-                end_page_number=last,
-                value_text=value_text,
-            )
-        except (UnreadablePdfError, ValueError):
-            found = None
+    try:
+        found = find_pdf_quote(
+            doc.pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
+        )
+    except (UnreadablePdfError, ValueError):
+        found = None
     match = "not_found"
     highlight: list[dict[str, Any]] | None = None
     if found is not None and found.match != "not_found" and found.value_found is not False:
         match = found.match
-        if found.page_number is not None:
-            highlight = [
-                {
-                    "page": found.page_number,
-                    "left": r.left,
-                    "top": r.top,
-                    "width": max(r.right - r.left, 1e-6),
-                    "height": max(r.bottom - r.top, 1e-6),
-                }
-                for r in found.rects
-            ] or None
+        # Every place the passage was found that holds the value; each box carries its page.
+        occurrences = [o for o in found.occurrences if o.value_found is not False]
+        highlight = [
+            {
+                "page": r.page_number,
+                "left": r.left,
+                "top": r.top,
+                "width": max(r.right - r.left, 1e-6),
+                "height": max(r.bottom - r.top, 1e-6),
+            }
+            for o in occurrences
+            for r in o.rects
+        ] or None
     citation: dict[str, Any] = {
         "file_id": doc.file_id,
         "passage": passage,
@@ -223,7 +226,12 @@ def resolve_citation(
 
 
 def value_in(text: str, passage: str) -> bool:
-    return bool(text) and text in passage
+    """Whether the value stands on its own in the passage, as a whole value (the quote finder's
+    rule): "$1,24" isn't in "Total Due: $1,240.00", and "000" isn't in "$120,000"."""
+    if not text:
+        return False
+    cleaned = clean(passage).text
+    return value_in_span(text, cleaned, 0, len(cleaned))
 
 
 def image_box(
@@ -255,21 +263,37 @@ SecondLook = Callable[[str, dict[str, Any], str], bool]
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
 
-_MONEY = re.compile(r"^\(?\s*(-)?\s*(?:USD\s*)?\$?\s*(-)?\s*([\d,]*\d(?:\.\d{1,2})?)\s*\)?$", re.I)
+# A minus sign as documents write it: a hyphen, an en dash, or the minus sign itself.
+_MINUS = "-\u2013\u2212"
+_AMOUNT = re.compile(r"^[\d,]*\d(?:\.\d{1,2})?$")
 
 
 def parse_money(text: str) -> int | None:
-    """Cents from money as a document writes it: "$1,240.00", "-$400", "($400.00)"."""
+    """Cents from money as a document writes it, negative for a credit.
+
+    A credit is written with a leading minus ("-$400", "–$450.00", "- $450.00", "$-450.00"), a
+    trailing minus ("$450.00-") or accounting parentheses ("($400.00)"). A missed sign would turn
+    a credit into a charge, so each of these counts.
+    """
     t = text.strip()
-    m = _MONEY.match(t)
-    if not m:
+    negative = False
+    if t.startswith("(") and t.endswith(")"):
+        negative, t = True, t[1:-1].strip()
+    if t[:1] and t[0] in _MINUS:
+        negative, t = True, t[1:].strip()
+    if t[-1:] and t[-1] in _MINUS:
+        negative, t = True, t[:-1].strip()
+    if t[:3].upper() == "USD":
+        t = t[3:].strip()
+    t = t.removeprefix("$").strip()
+    if t[:1] and t[0] in _MINUS:
+        negative, t = True, t[1:].strip()
+    if not _AMOUNT.match(t):
         return None
-    digits = m.group(3).replace(",", "")
     try:
-        cents = int((Decimal(digits) * 100).to_integral_value())
+        cents = int((Decimal(t.replace(",", "")) * 100).to_integral_value())
     except InvalidOperation:
         return None
-    negative = bool(m.group(1) or m.group(2)) or (t.startswith("(") and t.endswith(")"))
     return -cents if negative else cents
 
 
@@ -301,6 +325,30 @@ def parse_date(text: str) -> date | None:
 
 def parse_decimal(text: str) -> Decimal | None:
     try:
-        return Decimal(text.strip())
+        return Decimal(text.strip().replace(",", ""))
     except InvalidOperation:
         return None
+
+
+_QUANTITY = re.compile(r"^([\d,]*\d(?:\.\d+)?)(?:\s+[A-Za-z][A-Za-z .]*)?$")
+_PERCENT = re.compile(r"^([\d,]*\d(?:\.\d+)?)\s*%$")
+_PER_UNIT = re.compile(r"^(\$\s*[\d,]*\d(?:\.\d{1,2})?)(?:\s*(?:/|per|a|an|each)\b.*)?$", re.I)
+
+
+def parse_quantity(text: str) -> Decimal | None:
+    """A quantity as a document writes it: "50", "5 days", "1,200 samples"."""
+    m = _QUANTITY.match(text.strip())
+    return parse_decimal(m.group(1)) if m else None
+
+
+def parse_rate(text: str) -> Decimal | None:
+    """A rate in the contract's units: a percent as a fraction ("36.6%" is 0.366), a dollar rate
+    in cents per unit ("$100 a day" is 10000), or a plain number as written."""
+    t = text.strip()
+    if m := _PERCENT.match(t):
+        number = parse_decimal(m.group(1))
+        return None if number is None else number / 100
+    if m := _PER_UNIT.match(t):
+        cents = parse_money(m.group(1))
+        return None if cents is None else Decimal(cents)
+    return parse_decimal(t)

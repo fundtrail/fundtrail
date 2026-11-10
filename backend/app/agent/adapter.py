@@ -211,6 +211,46 @@ def _stand_in_likely_duplicates(new: Record, records: Sequence[Record]) -> list[
 likely_duplicates = _stand_in_likely_duplicates
 
 
+def record_waits(state: RecordState, record_id: str, trigger: Trigger) -> bool:
+    """Whether the agent's new record waits for the accountant.
+
+    The main coordinator's ruling: every record a run started by a thread message writes waits,
+    whatever its kind. The contract enforces it from the run's trigger once #39 lands; until
+    then this tells the model the same thing, and the saved record follows the contract.
+    """
+    return trigger.kind == TriggerKind.THREAD_MESSAGE or state.waits(record_id)
+
+
+def char_citation(
+    file_id: str,
+    passage: str,
+    start: int,
+    end: int,
+    match: str,
+    lines: list[tuple[int, int]],
+) -> dict[str, Any]:
+    """A plain-text citation, highlighted on the lines where its value stands on its own.
+
+    `start`, `end` and `passage` are the API's one cited range; `lines` are the character ranges
+    to highlight inside it. #39 adds several ranges to a text citation's highlight. Until it
+    lands, a citation holds one range, so it runs from the first such line to the last, and
+    the passage is that range's text.
+    """
+    location = {"type": "char_location", "start_char_index": start, "end_char_index": end}
+    citation: dict[str, Any] = {
+        "file_id": file_id,
+        "passage": passage,
+        "location": location,
+        "match": match,
+    }
+    if lines:
+        first, last = lines[0][0], lines[-1][1]
+        offset = first - start
+        citation["passage"] = passage[offset : offset + (last - first)]
+        location["start_char_index"], location["end_char_index"] = first, last
+    return citation
+
+
 def _record_models(*names: str) -> dict[str, Any]:
     from app.contracts import records
 

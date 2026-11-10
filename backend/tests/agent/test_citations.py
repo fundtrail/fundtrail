@@ -16,6 +16,7 @@ from app.agent.citations import (
     parse_label_lines,
     parse_money,
     resolve_citation,
+    standing_occurrences,
 )
 from app.contracts.fixtures import load_sample_grant
 
@@ -63,17 +64,67 @@ def test_a_text_citation_is_narrowed_to_the_line_that_holds_the_value():
     assert c["match"] == "exact"
 
 
-def test_a_value_that_appears_twice_in_the_passage_keeps_the_whole_passage():
+def test_a_value_stated_on_several_lines_covers_those_lines():
     chunk = "Sediment core liners, 50 count: $1,240.00\n\nTotal Due: $1,240.00"
     c = resolve_citation("$1,240.00", [char(chunk)], [DOC])
     assert c["passage"] == chunk
 
 
-def test_narrowing_covers_every_line_a_value_spans_and_stays_inside_the_passage():
+AWARD = load_sample_grant().document("file-award-letter")
+
+
+def _narrowed(chunk: str, value: str) -> str:
+    start = AWARD.find(chunk)
+    s, e = narrow_to_lines(AWARD, start, start + len(chunk), value)
+    return AWARD[s:e]
+
+
+def test_a_value_only_counts_where_it_stands_on_its_own():
+    """The main coordinator's ruling: "000" never matches inside "$120,000" or "00000"."""
+    head = AWARD[: AWARD.find("AWARD INFORMATION")]
+    assert "00000" in head and "000" in head.replace("Amendment Number: 000", "")
+    assert _narrowed(head, "000") == "Amendment Number: 000"
+
+
+def test_a_repeated_value_covers_the_lines_from_the_first_to_the_last_that_state_it():
+    funding = AWARD[AWARD.find("FUNDING INFORMATION") : AWARD.find("PROJECT PERSONNEL")]
+    assert _narrowed(funding, "$120,000") == (
+        "Amount Obligated by this Amendment: $120,000\n"
+        "Total Intended Award Amount: $120,000\n"
+        "Cost Share: $0\n"
+        "Total Amount Obligated to Date: $120,000"
+    )
+
+
+def test_a_value_that_stands_on_its_own_nowhere_keeps_the_whole_passage():
+    t = "Paid $12,450.00 in full.\nThanks."
+    assert narrow_to_lines(t, 0, len(t), "450.00") == (0, len(t))
+    assert standing_occurrences(t, 0, len(t), "$12,450.00") == [5]
+
+
+@pytest.mark.parametrize(
+    ("text", "value", "alone"),
+    [
+        ("Total: $120,000", "000", False),
+        ("EX 00000", "000", False),
+        ("Number: 000.", "000", True),
+        ("Paid -$450.00", "$450.00", False),
+        ("Paid ($450.00)", "$450.00", False),
+        ("Refund -$450.00", "-$450.00", True),
+        ("SYN-2300117", "2300117", True),
+    ],
+)
+def test_standing_on_its_own(text: str, value: str, alone: bool):
+    assert bool(standing_occurrences(text, 0, len(text), value)) is alone
+
+
+def test_narrowing_stays_inside_the_passage():
+    """A label line holds one line of text, so a value never spans lines; its line is clipped
+    to the passage when the passage starts partway along it."""
     t = "Note: the order\nwas placed\non time.\nNext."
     start = t.find("the order")
-    s, e = narrow_to_lines(t, start, t.find("Next."), "order\nwas placed")
-    assert t[s:e] == "the order\nwas placed"
+    s, e = narrow_to_lines(t, start, t.find("Next."), "order")
+    assert t[s:e] == "the order"
 
 
 def test_the_citation_whose_passage_holds_the_text_is_picked():
@@ -106,10 +157,8 @@ def test_a_citation_to_a_document_not_sent_is_refused():
 QUOTES_PDF = Path(__file__).parents[1] / "quotes" / "fixtures" / "invoice_reportlab.pdf"
 
 
-@pytest.mark.skipif(
-    not QUOTES_PDF.exists(), reason="the quote finder's test PDFs (#19) aren't here"
-)
 def test_a_pdf_citation_is_found_on_its_page_with_a_highlight():
+    """The quote finder's own test PDF, a synthetic invoice."""
     pdf = SentDocument("file-pdf", "pdf", pdf=QUOTES_PDF.read_bytes())
     raw = CitationPageLocation(
         type="page_location",
@@ -146,12 +195,21 @@ def test_a_pixel_box_becomes_fractions_of_the_page():
     [
         ("$1,240.00", 124000),
         ("$120,000", 12000000),
+        ("12.5", 1250),
+        ("USD 75.00", 7500),
         ("-$400.00", -40000),
         ("($400.00)", -40000),
-        ("12.5", 1250),
+        ("–$450.00", -45000),
+        ("−$450.00", -45000),
+        ("- $450.00", -45000),
+        ("$-450.00", -45000),
+        ("$450.00-", -45000),
+        ("$450.00 –", -45000),
+        ("(-$450.00)", -45000),
     ],
 )
 def test_money_is_read_from_its_text(written: str, cents: int):
+    """A credit's sign is read however a document writes it (the main coordinator's ruling)."""
     assert parse_money(written) == cents
 
 
