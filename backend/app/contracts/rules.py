@@ -28,6 +28,8 @@ from .mail import HeldMail, HoldReason
 from .records import (
     FACT_KINDS,
     FOUND,
+    OVER_LIMIT_CHECK,
+    OVER_LIMIT_PROBLEM,
     TERM_KINDS,
     AcceptedReason,
     Answer,
@@ -48,6 +50,7 @@ from .records import (
     MailAction,
     MailDecision,
     Note,
+    Notice,
     Question,
     Record,
     RecordKind,
@@ -973,7 +976,21 @@ def check_new_record(
                 f"({len(open_items)} open)"
             )
 
-    elif isinstance(data, AcceptedReason) and data.reuses_id is not None:
+    if isinstance(data, AcceptedReason) and data.amount_cents is not None:
+        over_limit = (
+            data.reason.check == OVER_LIMIT_CHECK
+            and data.reason.problem == OVER_LIMIT_PROBLEM
+            and data.charge_id is None
+            and data.record_id is None
+            and data.file_id is None
+        )
+        if not over_limit:
+            problems.append(
+                "an accepted reason carries an amount only for the award limit's over_limit "
+                "problem, on the grant"
+            )
+
+    if isinstance(data, AcceptedReason) and data.reuses_id is not None:
         note = pointed.get(data.reuses_id)
         if note is not None and not (isinstance(note.data, AcceptedReason) and note.data.reusable):
             problems.append(f"record {data.reuses_id} isn't a reusable note")
@@ -1024,3 +1041,21 @@ def still_held(held: HeldMail, state: RecordState, known_senders: Collection[str
     if held.reason == HoldReason.UNKNOWN_SENDER and held.sender is not None:
         return held.sender.lower() not in {s.lower() for s in known_senders}
     return True
+
+
+def award_number_and_title(state: RecordState) -> tuple[str | None, str | None]:
+    """The grant's award number and title, from the notices that count (issue 118).
+
+    Read from the current `notice` records, so the agent's count once the accountant
+    confirms them. The latest notice by its own date that prints a value wins; on the
+    same date, the one stored later. None while no notice that counts prints it.
+    """
+    notices = [
+        (r.data.dated.value, i, r.data)
+        for i, r in enumerate(state.records)
+        if isinstance(r.data, Notice) and state.is_current(r.id)
+    ]
+    notices.sort(key=lambda n: (n[0], n[1]), reverse=True)
+    number = next((n.award_number.value for _, _, n in notices if n.award_number), None)
+    title = next((n.title.value for _, _, n in notices if n.title), None)
+    return number, title

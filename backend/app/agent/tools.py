@@ -28,6 +28,7 @@ from .adapter import (
     Record,
     RecordKind,
     ThreadMessage,
+    applies_to_is_matchable,
     citation_of,
     likely_duplicates,
     uncited_value,
@@ -495,7 +496,35 @@ def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:
         data["category"] = a.category.value
     if a.label is not None:
         data["label"] = a.label
-    return _saved(ctx, data, a.replaces_id, "write_term")
+    note = ""
+    if a.kind == "approval_rule" and "applies_to" in data:
+        note = _check_applies_to(ctx, data["applies_to"]["text"])
+    text, error = _saved(ctx, data, a.replaces_id, "write_term")
+    return (text + note, error) if not error else (text, error)
+
+
+def _check_applies_to(ctx: RunContext, applies_to: str) -> str:
+    """An approval rule's applies_to has to name what code can match (issue #117).
+
+    Refused twice with the reason; on the third try it's saved, since an approval rule code
+    can't match still sends every charge to the accountant, and the agent is told to flag it.
+    """
+    if applies_to_is_matchable(applies_to, ctx.records):
+        return ""
+    key = ("applies_to", applies_to)
+    ctx.uncited_refusals[key] += 1
+    if ctx.uncited_refusals[key] < REPEAT_LIMIT:
+        raise WriteProblem(
+            f"applies_to: code can't match '{applies_to}' to one of the grant's budget lines or "
+            "NSF's budget categories. Cite the narrowest words that name the budget line or "
+            "category, as printed, such as 'Participant Support Costs' inside 'Funds budgeted "
+            "for Participant Support Costs may not be diverted ...'; the clause stays the "
+            "citation"
+        )
+    return (
+        f" Code can't match '{applies_to}' to a budget line or category, so every charge will "
+        "go to the accountant for this rule: flag the term saying so."
+    )
 
 
 MAIN_FIELD = {RecordKind.BILL: "total", RecordKind.APPROVAL: "covers", RecordKind.NOTE: "statement"}
@@ -794,7 +823,10 @@ TOOLS: dict[str, tuple[type[_In], Handler, str]] = {
         "it. Every term's dated is the date the document gives itself, such as an amendment's "
         "date. A budget_line's name is the line's name as printed, without its letter or "
         "number. A condition that says who must approve what is one approval_rule, with its "
-        "channel when stated; other_term holds only what no other kind holds. The fields of "
+        "channel when stated; its applies_to is the narrowest words that name the budget line "
+        'or NSF category, as printed ("Participant Support Costs", not "Funds budgeted for '
+        'Participant Support Costs"), cited from the clause. other_term holds only what no '
+        "other kind holds. The fields of "
         "each kind:\n" + TERM_FIELDS,
     ),
     "link": (

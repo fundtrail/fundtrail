@@ -2,6 +2,8 @@ import type { ChecklistEntry, EvidenceFile, FtRecord, Id, LinkView, SuggestionVi
 import { date, money } from "@/lib/format";
 import { SuggestionBox } from "../thread/Decide";
 import { describeChange } from "../thread/describe";
+import type { OnWrite } from "../thread/useThreadActions";
+import { AddChecklistItem, RemoveChecklistItem } from "./actions";
 import { ADDED_BY_LABELS, recordName } from "./labels";
 import styles from "./charge.module.css";
 
@@ -13,7 +15,8 @@ function entryKey(entry: ChecklistEntry): string {
  * The charge's evidence checklist as code worked it out: each item filled or
  * missing, who added it, what fills it, and any removal the agent suggested,
  * waiting. Its Accept and Reject are in the review thread, the one place the
- * agent's suggestions are decided.
+ * agent's suggestions are decided. With `onWrite`, the accountant adds and
+ * removes items, which take effect right away.
  */
 export function EvidenceChecklist({
   checklist,
@@ -21,18 +24,34 @@ export function EvidenceChecklist({
   waiting,
   records,
   files,
+  chargeId,
+  onWrite,
 }: {
   checklist: ChecklistEntry[];
   links: LinkView[];
   waiting: SuggestionView[];
   records: Record<Id, FtRecord>;
   files: Record<Id, EvidenceFile>;
+  chargeId?: Id;
+  onWrite?: OnWrite;
 }) {
+  const add =
+    chargeId && onWrite ? (
+      <div className={styles.toolbar}>
+        <AddChecklistItem chargeId={chargeId} onWrite={onWrite} />
+      </div>
+    ) : null;
   if (checklist.length === 0) {
-    return <p className="ft-empty">No items on the checklist yet.</p>;
+    return (
+      <>
+        <p className="ft-empty">No items on the checklist yet.</p>
+        {add}
+      </>
+    );
   }
   const ctx = { records, files, checklist };
   return (
+    <>
     <ul className={styles.list} aria-label="Evidence checklist">
       {checklist.map((entry) => {
         const fillers = links.filter((l) => (entry.link_ids ?? []).includes(l.link.id));
@@ -70,9 +89,12 @@ export function EvidenceChecklist({
                 note="Accept or reject it in the review thread."
               />
             )}
+            {chargeId && onWrite && <RemoveChecklistItem chargeId={chargeId} entry={entry} onWrite={onWrite} />}
           </li>
         );
       })}
     </ul>
+    {add}
+    </>
   );
 }

@@ -441,12 +441,15 @@ class Notice(_Term):
     kind: Literal[RecordKind.NOTICE] = RecordKind.NOTICE
     amendment_number: CitedText  # for example "000" for the new project
     amendment_type: CitedText  # for example "New Project", "Increment" or "No Cost Extensions"
-    obligated_by_amendment: CitedMoney | None = (
-        None  # "Amount Obligated by this Amendment": what it adds
-    )
-    obligated_to_date: CitedMoney | None = (
-        None  # "Total Amount Obligated to Date": the award's limit
-    )
+    # "Amount Obligated by this Amendment": what it adds.
+    obligated_by_amendment: CitedMoney | None = None
+    # "Total Amount Obligated to Date": the award's limit.
+    obligated_to_date: CitedMoney | None = None
+    # The award number and the project title as the notice prints them (issue 118).
+    # Once the notice counts, the platform copies them onto the grant's award_number
+    # and title: see rules.award_number_and_title.
+    award_number: CitedText | None = None
+    title: CitedText | None = None
 
 
 class OtherTerm(_Term):
@@ -796,6 +799,12 @@ class Confirmation(Model):
     decision: Decision = Decision.CONFIRMED
 
 
+# The award limit's problem (issue 83): the budget check's over_limit, on the grant.
+# The only reason an accepted reason may carry an amount for.
+OVER_LIMIT_CHECK = "budget"
+OVER_LIMIT_PROBLEM = "over_limit"
+
+
 class ReasonRef(Model):
     """Names one reason: the check's stable ID, and the problem within it that code names."""
 
@@ -832,6 +841,10 @@ class AcceptedReason(_Subject):
     reuses_id: Id | None = None
     # The records the reason rested on when accepted.
     rests_on: tuple[Id, ...] = ()
+    # Issue 83: for the award limit's over_limit problem, the amount over when it was
+    # accepted, copied from the problem. The problem comes back when the amount over
+    # grows larger, naming both. None for every other reason.
+    amount_cents: Cents | None = Field(default=None, ge=0)
 
 
 class Snooze(_Subject):

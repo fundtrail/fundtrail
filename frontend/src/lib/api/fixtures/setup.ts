@@ -8,8 +8,54 @@
 // the charges list.
 
 import type { ApiClient } from "../client";
-import type { Grant, LedgerUploadResult, RowError } from "../types";
-import { fakeId, sample, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
+import type { Grant, LedgerUploadResult, ReusableNoteView, RowError, TermView } from "../types";
+import { fakeId, sample, sampleCharge, sampleRecord, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
+
+/**
+ * A synthetic reusable note, for the reusable notes list's tests. The sample
+ * grant has none, so the fake's grant page serves none; this one is made up
+ * on L-1002 and isn't part of the sample's story.
+ */
+export const SAMPLE_REUSABLE_NOTE: ReusableNoteView = {
+  note: {
+    id: "rec-note-usage-statement",
+    workspace_id: WORKSPACE_ID,
+    grant_id: SAMPLE_GRANT_ID,
+    author: "user",
+    author_user_id: sample.user.id,
+    written_at: "2026-04-09T17:00:00Z",
+    replaces_id: null,
+    data: {
+      kind: "accepted_reason",
+      charge_id: "chg-l-1002",
+      reason: { check: "checklist", problem: "item_missing" },
+      note: "The core sends one usage statement a quarter.",
+      reusable: true,
+    },
+  },
+  charge: sampleCharge("chg-l-1002"),
+  amount_limit_cents: 218_000,
+  covered: [],
+};
+
+/**
+ * The sample's waiting extension with its end date not found in the file, for
+ * the confirm screen's tests of a value listed as unconfirmed.
+ */
+export function extensionWithUnfoundEnd(): TermView {
+  const record = sampleRecord("rec-period-extension");
+  return {
+    record,
+    state: "waiting",
+    decision: null,
+    replaces: null,
+    values: [
+      { path: "dated", confirmed: true, how: "found", confirmed_at: record.written_at },
+      { path: "end", confirmed: false, how: null, confirmed_at: null },
+    ],
+    status: null,
+  };
+}
 
 /** The sample's own ledger file (backend/app/contracts/fixtures/golden/ledger.csv). */
 export const SAMPLE_LEDGER_CSV = [

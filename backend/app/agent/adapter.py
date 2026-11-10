@@ -14,6 +14,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.checks.duplicates import likely_duplicates
+from app.checks.ledger_accounts import CATEGORY_NAMES
+from app.checks.rules_match import name_key
 from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput, ChecksOutput, OpenQuestion, RunChecks
 from app.contracts.evidence import EvidenceFile
@@ -26,6 +28,7 @@ from app.contracts.records import (
     Bill,
     BudgetAssignment,
     BudgetCategory,
+    BudgetLine,
     Citation,
     Cited,
     Decision,
@@ -247,3 +250,24 @@ TERM_RECORD_MODELS = _record_models(
     "PeriodOfPerformance", "BudgetLine", "Person", "ApprovalRule", "Rate", "Notice", "OtherTerm"
 )
 FACT_RECORD_MODELS = _record_models("Bill", "Approval", "Note")
+
+
+def applies_to_is_matchable(applies_to: str, records: Sequence[Record]) -> bool:
+    """Whether code can match an approval rule's applies_to to one budget category.
+
+    The checks' own rule (app.checks.rules_match): applies_to is compared with the grant's
+    budget line names, then with NSF's category names, after dropping case, punctuation, a
+    leading line letter and a trailing "Costs". Lines staged in this run count.
+    """
+    target = name_key(applies_to)
+    lines = {
+        r.data.category
+        for r in records
+        if isinstance(r.data, BudgetLine) and name_key(r.data.name.value) == target
+    }
+    if lines:
+        return len(lines) == 1
+    found = {
+        cat for cat, names in CATEGORY_NAMES.items() if any(name_key(n) == target for n in names)
+    }
+    return len(found) == 1

@@ -345,12 +345,26 @@ class AnswerView(Model):
     rule: RuleView | None = None
 
 
+class SuggestionChange(Model):
+    """What accepting one of the agent's waiting records changes, worded by code (issue 114).
+
+    The checks word it (app.checks.suggestions.suggestion_change), so every screen and
+    the report read the same words. The agent's own reason stays on the record.
+    """
+
+    title: Text  # what accepting does, in one line
+    now: str | None = None  # what's in force now, when it replaces something
+    suggested: str | None = None  # what the agent suggests instead
+
+
 class SuggestionView(Model):
     """One of the agent's records waiting for the accountant, with what it would replace."""
 
     record: Record
     replaces: Record | None = None
     charge_ids: tuple[Id, ...] = ()  # the charges it touches
+    # What accepting it changes, worded by the server. The platform fills it.
+    change: SuggestionChange | None = None
 
 
 class StatusThreadEntry(Model):

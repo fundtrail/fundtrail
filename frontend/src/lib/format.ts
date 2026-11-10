@@ -1,4 +1,4 @@
-import type { BudgetCategory, Bucket, Cents, IsoDate, IsoDatetime } from "./api/types";
+import type { BudgetCategory, Bucket, Cents, HoldReason, IsoDate, IsoDatetime } from "./api/types";
 
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -67,5 +67,11 @@ export function recordKindLabel(kind: string): string {
 
 /** Funders, spelled out with their short form. NSF only for now. */
 export const FUNDER_LABELS: Record<string, string> = { NSF: "National Science Foundation (NSF)" };
+
+/** Why mail is held, following the contract's words in mail.py (decision 0025). */
+export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
+  unknown_sender: "The sender isn't a known sender.",
+  unverified_sender: "The address is a known sender's, but it couldn't be verified as really theirs.",
+};
 
 export const SOURCE_LABELS = { gmail: "Gmail", drive: "Google Drive", upload: "Upload" } as const;
