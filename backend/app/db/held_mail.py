@@ -16,9 +16,10 @@ from app.contracts.mail import HeldMail
 from app.contracts.records import MailAction, MailDecision, Person
 from app.contracts.rules import RecordState, still_held
 from app.contracts.workspaces import Grant
+from app.ingest.channel_times import sample_sent_date
 from app.ingest.incoming import let_in_skips
 
-from . import store
+from . import clock, store
 from .platform import Platform
 from .store import Conn
 
@@ -70,6 +71,7 @@ def let_in_released(p: Platform, conn: Conn, grant: Grant, now: datetime) -> lis
         store.list_records(conn, grant.id, now), store.list_files(conn, grant.id, now)
     )
     known = known_senders(conn, grant, state)
+    sample = clock.has_stored_clock(conn, grant.id)
     arrived: list[EvidenceFile] = []
     for held in grant_held_mail(conn, grant, now):
         if still_held(held, state, known) or _dismissed(held, state):
@@ -88,9 +90,12 @@ def let_in_released(p: Platform, conn: Conn, grant: Grant, now: datetime) -> lis
                 media_type=held_file.media_type,
                 storage_path=storage_path(grant.workspace_id, grant.id, file_id, held_file.name),
                 sha256=held_file.sha256,
-                # Ruling 43: the sent date the file was held with (the Date header's date;
-                # on a sample grant, the sample's sent date).
-                document_date=held_file.document_date,
+                # Ruling 43: on a sample grant the message's sent date is the sample's,
+                # the grant's now when it was held, never its Date header; anywhere else,
+                # the date it was held with. An attachment keeps its own (none).
+                document_date=sample_sent_date(held.held_at)
+                if sample and parent is None
+                else held_file.document_date,
                 arrived_at=now,
                 sender=held.sender,
                 source_ref=held.source_ref,

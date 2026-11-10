@@ -177,22 +177,6 @@ def test_making_the_sender_known_lets_their_mail_in(platform: Platform) -> None:
     assert len(_mail(platform, grant)) == 2
 
 
-def test_a_let_in_message_keeps_its_sent_date(platform: Platform) -> None:  # noqa: F811
-    grant, user_id = _grant(platform)
-    held_id = _hold(platform, grant)
-    actions.add_record(
-        platform,
-        grant,
-        user_id,
-        {"kind": "mail_action", "held_mail_id": held_id, "action": "let_in"},
-        None,
-    )
-    with transaction(platform.pool) as conn:
-        files = store.list_files(conn, grant.id, CLOCK)
-    dates = {f.name: f.document_date for f in files if f.source == "gmail"}
-    assert dates == {"message.txt": SENT, "invoice.txt": None}
-
-
 def test_dismissed_beats_a_sender_becoming_known(platform: Platform) -> None:  # noqa: F811
     grant, user_id = _grant(platform)
     held_id = _hold(platform, grant)
@@ -216,3 +200,46 @@ def test_dismissed_beats_a_sender_becoming_known(platform: Platform) -> None:  #
         None,
     )
     assert _mail(platform, grant) == []
+
+
+def test_on_a_sample_grant_a_let_in_message_takes_the_samples_sent_date(
+    platform: Platform,  # noqa: F811
+) -> None:
+    """The workspace's clock is stored (a sample grant): the message's Date header said
+    March 30, but at let-in it takes the sample's sent date, the held time's UTC date."""
+    grant, user_id = _grant(platform)
+    assert SENT != HELD_AT.date()
+    held_id = _hold(platform, grant)
+    actions.add_record(
+        platform,
+        grant,
+        user_id,
+        {"kind": "mail_action", "held_mail_id": held_id, "action": "let_in"},
+        None,
+    )
+    with transaction(platform.pool) as conn:
+        files = store.list_files(conn, grant.id, CLOCK)
+    dates = {f.name: f.document_date for f in files if f.source == "gmail"}
+    assert dates == {"message.txt": HELD_AT.date(), "invoice.txt": None}
+
+
+def test_on_a_real_date_grant_a_let_in_message_keeps_its_header_date(
+    platform: Platform,  # noqa: F811
+) -> None:
+    grant, user_id = _grant(platform)
+    with transaction(platform.pool) as conn:
+        conn.execute(
+            "update public.workspaces set clock_now = null where id = %s", (grant.workspace_id,)
+        )
+    held_id = _hold(platform, grant)
+    actions.add_record(
+        platform,
+        grant,
+        user_id,
+        {"kind": "mail_action", "held_mail_id": held_id, "action": "let_in"},
+        None,
+    )
+    with transaction(platform.pool) as conn:
+        files = store.list_files(conn, grant.id, datetime.max.replace(tzinfo=UTC))
+    dates = {f.name: f.document_date for f in files if f.source == "gmail"}
+    assert dates == {"message.txt": SENT, "invoice.txt": None}
