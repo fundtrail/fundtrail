@@ -27,7 +27,7 @@ def _grant(api: Api, workspace_id: str) -> dict[str, Any]:
 def _set_clock(api: Api, workspace_id: str, now: datetime) -> None:
     with api.platform.pool.connection() as conn:
         conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s", (now, workspace_id)
+            "update public.grants set clock_now = %s where workspace_id = %s", (now, workspace_id)
         )
 
 

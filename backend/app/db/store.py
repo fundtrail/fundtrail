@@ -55,8 +55,7 @@ def upsert_user(conn: Conn, user: User) -> User:
 
 def list_workspaces(conn: Conn, owner_id: str) -> list[Workspace]:
     rows = conn.execute(
-        "select id, name, owner_id, clock_now from public.workspaces"
-        " where owner_id = %s order by name, id",
+        "select id, name, owner_id from public.workspaces where owner_id = %s order by name, id",
         (owner_id,),
     ).fetchall()
     return [Workspace.model_validate(_clean(r)) for r in rows]
@@ -65,7 +64,7 @@ def list_workspaces(conn: Conn, owner_id: str) -> list[Workspace]:
 def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
     row = conn.execute(
         "insert into public.workspaces (owner_id, name) values (%s, %s)"
-        " returning id, name, owner_id, clock_now",
+        " returning id, name, owner_id",
         (owner_id, name),
     ).fetchone()
     assert row is not None
@@ -75,8 +74,7 @@ def create_workspace(conn: Conn, owner_id: str, name: str) -> Workspace:
 def get_workspace(conn: Conn, workspace_id: str, owner_id: str) -> Workspace | None:
     """The workspace, only if this user owns it."""
     row = conn.execute(
-        "select id, name, owner_id, clock_now from public.workspaces"
-        " where id = %s and owner_id = %s",
+        "select id, name, owner_id from public.workspaces where id = %s and owner_id = %s",
         (workspace_id, owner_id),
     ).fetchone()
     return Workspace.model_validate(_clean(row)) if row else None
@@ -84,16 +82,23 @@ def get_workspace(conn: Conn, workspace_id: str, owner_id: str) -> Workspace | N
 
 def workspace_by_id(conn: Conn, workspace_id: str) -> Workspace:
     row = conn.execute(
-        "select id, name, owner_id, clock_now from public.workspaces where id = %s", (workspace_id,)
+        "select id, name, owner_id from public.workspaces where id = %s", (workspace_id,)
     ).fetchone()
     assert row is not None
     return Workspace.model_validate(_clean(row))
 
 
+# A grant's columns. `clock_now` is a sample grant's stored clock (read through the clock
+# module), and `sample` says what it was opened from.
+_GRANT_COLUMNS = (
+    "id, workspace_id, funder, award_number, title, address_code, drive_folder_id,"
+    " clock_now, sample"
+)
+
+
 def create_grant(conn: Conn, workspace_id: str) -> Grant:
     row = conn.execute(
-        "insert into public.grants (workspace_id) values (%s)"
-        " returning id, workspace_id, funder, award_number, title, address_code, drive_folder_id",
+        f"insert into public.grants (workspace_id) values (%s) returning {_GRANT_COLUMNS}",
         (workspace_id,),
     ).fetchone()
     assert row is not None
@@ -102,9 +107,7 @@ def create_grant(conn: Conn, workspace_id: str) -> Grant:
 
 def list_grants(conn: Conn, workspace_id: str) -> list[Grant]:
     rows = conn.execute(
-        "select id, workspace_id, funder, award_number, title, address_code, drive_folder_id"
-        " from public.grants"
-        " where workspace_id = %s order by id",
+        f"select {_GRANT_COLUMNS} from public.grants where workspace_id = %s order by id",
         (workspace_id,),
     ).fetchall()
     return [Grant.model_validate(r) for r in rows]
@@ -118,8 +121,8 @@ def get_grant(
     lock=True takes the grant's row lock until the transaction ends. Every write to a
     grant's records takes it, so the write check and the save see the same records.
     """
-    query = """select g.id, g.workspace_id, g.funder, g.award_number, g.title, g.address_code,
-                      g.drive_folder_id
+    columns = ", ".join(f"g.{c.strip()}" for c in _GRANT_COLUMNS.split(","))
+    query = f"""select {columns}
                from public.grants g join public.workspaces w on w.id = g.workspace_id
                where g.id = %s and (%s::uuid is null or w.owner_id = %s::uuid)"""
     if lock:
@@ -718,24 +721,13 @@ def pending_runs(conn: Conn, grant_id: str) -> list[AgentRun]:
     return [_run(r) for r in rows]
 
 
-def lock_workspace(conn: Conn, workspace_id: str) -> Workspace:
-    row = conn.execute(
-        "select id, name, owner_id, clock_now from public.workspaces where id = %s for update",
-        (workspace_id,),
-    ).fetchone()
-    assert row is not None
-    return Workspace.model_validate(_clean(row))
-
-
-def set_clock(conn: Conn, workspace_id: str, now: datetime) -> None:
-    conn.execute("update public.workspaces set clock_now = %s where id = %s", (now, workspace_id))
+def set_grant_clock(conn: Conn, grant_id: str, now: datetime) -> None:
+    """Set a grant's stored clock. Only the clock module calls this."""
+    conn.execute("update public.grants set clock_now = %s where id = %s", (now, grant_id))
 
 
 def all_grants(conn: Conn) -> list[Grant]:
-    rows = conn.execute(
-        "select id, workspace_id, funder, award_number, title, address_code, drive_folder_id"
-        " from public.grants order by id"
-    ).fetchall()
+    rows = conn.execute(f"select {_GRANT_COLUMNS} from public.grants order by id").fetchall()
     return [Grant.model_validate(r) for r in rows]
 
 

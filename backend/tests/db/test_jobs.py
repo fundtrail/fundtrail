@@ -582,9 +582,7 @@ def test_a_runs_clock_time_is_fixed_when_it_starts(platform: Platform) -> None: 
     grant = _grant(platform)
     later = datetime(2030, 1, 1, tzinfo=UTC)
     with transaction(platform.pool) as conn:
-        conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s", (later, grant.workspace_id)
-        )
+        conn.execute("update public.grants set clock_now = %s where id = %s", (later, grant.id))
     run_worker_until_idle(str(platform.pool.conninfo))
     [run] = _runs(platform, grant)
     assert agent.inputs[0].run.clock_now == later and run.clock_now == later
@@ -720,15 +718,15 @@ def _answer(i: AgentInput, charge: Charge, answer: str, replaces: str | None = N
 
 
 def _frozen_grant(p: Platform) -> tuple[Grant, Charge]:
-    """A demo workspace with its clock frozen, a charge, and no runs waiting."""
+    """A grant with its clock frozen, a charge, and no runs waiting."""
     from datetime import UTC, datetime
 
     grant = _grant(p)
     frozen = datetime(2025, 11, 20, tzinfo=UTC)
     with transaction(p.pool) as conn:
         conn.execute(
-            "update public.workspaces set clock_now = %s where id = %s",
-            (frozen, grant.workspace_id),
+            "update public.grants set clock_now = %s where id = %s",
+            (frozen, grant.id),
         )
         conn.execute(
             "update public.agent_runs set status = 'done' where grant_id = %s", (grant.id,)
