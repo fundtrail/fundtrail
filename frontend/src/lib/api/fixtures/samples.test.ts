@@ -79,12 +79,21 @@ describe("sample grants in fake mode", () => {
 
 describe("HttpApiClient for sample grants", () => {
   it("turns a 409 SampleRefusal into a SampleRefusalError", async () => {
-    const refusal = { reason: "history_reading", message: "Another sample is still reading its history.", grant: null };
+    const refusal = { reason: "another_sample_working", message: "Another sample is still working.", grant: null };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: refusal }), { status: 409 })));
     const api = new HttpApiClient("https://api.example", async () => "t");
     const error = await api.createSample("ws", { choice: "larger_live", confirmed: true }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SampleRefusalError);
     expect((error as SampleRefusalError).refusal).toEqual(refusal);
+  });
+
+  it("turns a refused clock move into a SampleRefusalError", async () => {
+    const refusal = { reason: "another_sample_working", message: "Another sample is still working.", grant: null };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: refusal }), { status: 409 })));
+    const api = new HttpApiClient("https://api.example", async () => "t");
+    const error = await api.moveTimeline("g", {}).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SampleRefusalError);
+    expect((error as SampleRefusalError).refusal.reason).toBe("another_sample_working");
   });
 
   it("leaves a 409 that isn't a refusal a plain ApiError", async () => {

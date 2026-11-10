@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiProvider, type ApiClient, type GrantSummary } from "@/lib/api";
+import { ApiProvider, SampleRefusalError, type ApiClient, type GrantSummary } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { SAMPLE_GRANT_ID, WORKSPACE_ID } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
@@ -70,6 +70,23 @@ describe("TimelinePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await waitFor(() => expect(within(part("Just happened")).getByText("L-1001")).toBeInTheDocument());
     expect(within(part("Just happened")).getByRole("link", { name: "Open the charge from L-1001" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
+  });
+});
+
+describe("a refused move", () => {
+  it("shows the refusal's message with a link to the sample that's still working", async () => {
+    const { client, Wrapper } = harness();
+    const [other] = await client.listGrants(WORKSPACE_ID);
+    const blocking: GrantSummary = { ...other, grant: { ...other.grant, id: "grant-other", title: "Other sample" } };
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    vi.spyOn(client, "moveTimeline").mockRejectedValueOnce(
+      new SampleRefusalError({ reason: "another_sample_working", message: "Another sample is still working.", grant: blocking }),
+    );
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    fireEvent.click(await screen.findByRole("button", { name: "Next event" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Another sample is still working.");
+    expect(within(alert).getByRole("link", { name: "Open Other sample" })).toHaveAttribute("href", "/grants/grant-other");
   });
 });
 

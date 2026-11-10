@@ -24,6 +24,7 @@ import {
 } from "@/lib/api";
 import { date, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { grantName } from "../GrantList";
 import "./timeline.css";
 
 const SOURCE_WORDS: Record<ArrivalSource, string> = {
@@ -273,7 +274,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const refresh = useRefresh();
   const timeline = useTimeline(grantId);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ text: string; grant: GrantSummary | null } | null>(null);
 
   async function act(run: () => Promise<unknown>): Promise<void> {
     await attempt(run);
@@ -290,10 +291,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
     } catch (error) {
       setProblem(
         error instanceof SampleRefusalError
-          ? error.refusal.message
-          : error instanceof ApiError && typeof error.detail === "string"
-            ? error.detail
-            : "That didn't work. Try again.",
+          ? { text: error.refusal.message, grant: error.refusal.grant ?? null }
+          : { text: error instanceof ApiError && typeof error.detail === "string" ? error.detail : "That didn't work. Try again.", grant: null },
       );
       return false;
     } finally {
@@ -330,7 +329,16 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           </div>
           {problem && (
             <p className="ft-error" role="alert">
-              {problem}
+              {problem.text}
+              {/* A refused move names the sample that's still working. */}
+              {problem.grant && (
+                <>
+                  {" "}
+                  <Link className="ft-link" href={routes.grant(problem.grant.grant.id)}>
+                    Open {grantName(problem.grant)}
+                  </Link>
+                </>
+              )}
             </p>
           )}
           <div className="ft-tl__parts">
