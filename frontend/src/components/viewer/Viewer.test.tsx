@@ -92,6 +92,32 @@ describe("Viewer: text and email", () => {
     expect(text.querySelector("mark")?.textContent).toBe("$300.00");
   });
 
+  it("keeps a leading byte order mark, as the server's character indexes count it", async () => {
+    const text = "﻿Total Due: $1,240.00";
+    // Index 0 is the mark, so the passage starts at 1.
+    const c = charCitation("Total Due: $1,240.00", text, [[11, 20]]);
+    expect(c.location).toMatchObject({ start_char_index: 1 });
+    render(<Viewer file={{ name: "invoice.txt", media_type: "text/plain" }} url={textUrl(text)} citation={c} />);
+    const shown = await screen.findByTestId("viewer-text");
+    expect(shown.querySelector("mark")?.textContent).toBe("$1,240.00");
+  });
+
+  it("words an unplaced value from its card's state, not from the citation", async () => {
+    const c = charCitation("Total Due: $1,240.00", INVOICE, null, "not_found");
+    render(
+      <Viewer
+        file={{ name: "invoice.txt", media_type: "text/plain" }}
+        url={textUrl(INVOICE)}
+        citation={c}
+        confirmation={{ confirmed: true, text: "Confirmed by the accountant, Mar 20, 2026" }}
+      />,
+    );
+    await screen.findByTestId("viewer-text");
+    expect(screen.getByTestId("value-state")).toHaveTextContent("Confirmed by the accountant, Mar 20, 2026");
+    expect(screen.getByRole("note")).toHaveTextContent("couldn't be placed in the file.");
+    expect(screen.getByRole("note")).not.toHaveTextContent("unconfirmed");
+  });
+
   it("shows a .docx's passage with the exact ranges highlighted and a link to the original", () => {
     const stored = "Budget justification\nTravel: two trips to the field site, $3,400 in all.";
     const passage = "Travel: two trips to the field site, $3,400 in all.";

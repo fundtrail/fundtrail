@@ -44,6 +44,7 @@ export function FileScreen() {
                   citation={spot?.citation.file_id === fileId ? spot.citation : null}
                   valueText={spot?.valueText ?? null}
                   label={spot?.label ?? null}
+                  confirmation={spot?.confirmation ?? null}
                 />
               )}
             </Loadable>

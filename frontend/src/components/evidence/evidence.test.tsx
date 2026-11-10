@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, ApiProvider, type ApiClient, type EvidenceCard, type FactView, type FtRecord, type NewRecordInput } from "@/lib/api";
@@ -7,7 +9,7 @@ import { FakeAuthProvider } from "@/lib/auth";
 import { ConfirmValues } from "./ConfirmValues";
 import { EvidenceCardView } from "./EvidenceCardView";
 import { findCitation } from "./findCitation";
-import { confirmationText, parseTyped, valueAt, valueLabel, withValueAt } from "./values";
+import { confirmationText, MONEY_KEYS, parseTyped, valueAt, valueLabel, valueType, withValueAt } from "./values";
 
 const GRANT = "grant-sample";
 
@@ -49,6 +51,21 @@ describe("values", () => {
     expect(parseTyped("money", "-150")).toEqual({ value: -15000 });
     expect(parseTyped("money", "abc")).toHaveProperty("error");
     expect(parseTyped("date", "2026-03-05")).toEqual({ value: "2026-03-05" });
+  });
+
+  it("types a funding notice's amounts as money, so 6,000.00 is $6,000.00 in cents", () => {
+    for (const path of ["obligated_by_amendment", "obligated_to_date", "total", "amount", "items[0].amount", "stated_amount", "share.total"]) {
+      expect(valueType(path, 100)).toBe("money");
+    }
+    expect(parseTyped(valueType("obligated_to_date", 12_000_000), "6,000.00")).toEqual({ value: 600_000 });
+  });
+
+  // The contract's CitedMoney fields, read from records.py, so a new one can't be missed.
+  // Tests run from frontend/.
+  const recordsPy = resolve(process.cwd(), "../backend/app/contracts/records.py");
+  it.runIf(existsSync(recordsPy))("knows every CitedMoney field in the contract, and no others", () => {
+    const fields = new Set([...readFileSync(recordsPy, "utf8").matchAll(/^\s+(\w+): CitedMoney\b/gm)].map((m) => m[1]));
+    expect([...MONEY_KEYS].sort()).toEqual([...fields].sort());
   });
 });
 
@@ -117,6 +134,14 @@ describe("ConfirmValues", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByRole("group", { name: "Vendor" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Dated" })).toBeInTheDocument();
+  });
+
+  it("says that saving accepts the whole record when it's still waiting", async () => {
+    const fact = await photoFact();
+    const { rerender } = render(withApi({}, <ConfirmValues grantId={GRANT} fileId="f" fact={fact} onDone={() => {}} />));
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    rerender(withApi({}, <ConfirmValues grantId={GRANT} fileId="f" fact={{ ...fact, state: "waiting" }} onDone={() => {}} />));
+    expect(screen.getByRole("note")).toHaveTextContent("Saving accepts the whole record");
   });
 
   it("confirms as read with one confirmation of the record", async () => {

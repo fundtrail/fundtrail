@@ -89,6 +89,12 @@ export function ConfirmValues({
 
   return (
     <form onSubmit={submit} aria-label="Confirm or correct values">
+      {fact.state === "waiting" && (
+        <p className={styles.problems} role="note" style={{ marginBottom: "var(--space-3)" }}>
+          This record is still waiting for you. Saving accepts the whole record, not only these values: &quot;Confirm as read&quot;
+          confirms the record as the agent wrote it, and a typed value replaces it with your own.
+        </p>
+      )}
       <ul className={styles.confirmList}>
         {open.map((v) => {
           const cited = valueAt(record.data, v.path);

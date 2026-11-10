@@ -58,7 +58,19 @@ export function citationAt(data: unknown, path: string): Citation | null {
   return isCitation(v) ? v : null;
 }
 
-const MONEY_KEYS = new Set(["total", "amount", "stated_amount", "amount_added", "running_total"]);
+/**
+ * Every CitedMoney field in backend/app/contracts/records.py, by its name:
+ * BudgetLine.amount, BillItem.amount, Bill.total, ShareBasis.total,
+ * Notice.obligated_by_amendment, Notice.obligated_to_date, Link.stated_amount.
+ * Money is typed in dollars and sent in cents.
+ */
+export const MONEY_KEYS: ReadonlySet<string> = new Set([
+  "amount",
+  "total",
+  "obligated_by_amendment",
+  "obligated_to_date",
+  "stated_amount",
+]);
 
 /** How a value is typed in and shown: money in cents, a calendar date, a number, or text. */
 export type ValueType = "money" | "date" | "number" | "text";

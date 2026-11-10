@@ -1,11 +1,13 @@
-import type { Citation, EvidenceCard, FtRecord, Id } from "@/lib/api";
-import { citationAt, isCited, valueAt, valueLabel } from "./values";
+import type { Citation, EvidenceCard, FtRecord, Id, ValueState } from "@/lib/api";
+import { citationAt, confirmationText, isCited, valueAt, valueLabel } from "./values";
 
 export interface Spot {
   citation: Citation;
   /** The value as the document writes it, when the path names a cited value. */
   valueText: string | null;
   label: string;
+  /** The value's state as its card shows it; null for a link's part, which has none. */
+  confirmation: { confirmed: boolean; text: string } | null;
 }
 
 /**
@@ -14,9 +16,13 @@ export interface Spot {
  */
 export function findCitation(cards: readonly EvidenceCard[], recordId: Id, path: string): Spot | null {
   let record: FtRecord | undefined;
+  let state: ValueState | undefined;
   for (const card of cards) {
     for (const fact of card.facts ?? []) {
-      if (fact.record.id === recordId) record = fact.record;
+      if (fact.record.id === recordId) {
+        record = fact.record;
+        state = fact.values?.find((v) => v.path === path);
+      }
       const link = fact.links?.find((l) => l.link.id === recordId);
       if (link) record = link.link;
     }
@@ -29,5 +35,6 @@ export function findCitation(cards: readonly EvidenceCard[], recordId: Id, path:
     citation,
     valueText: isCited(v) ? (v.text ?? null) : null,
     label: record.data.kind === "link" && path === "part" ? "The part for this charge" : valueLabel(path),
+    confirmation: state ? { confirmed: state.confirmed, text: confirmationText(state) } : null,
   };
 }

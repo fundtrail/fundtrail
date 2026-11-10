@@ -53,6 +53,12 @@ export interface ViewerProps {
   valueText?: string | null;
   /** What the value is, for example "Total". */
   label?: string | null;
+  /**
+   * The value's state from its evidence card (the server's ValueState, worded
+   * as the card words it). The viewer never works it out from the citation:
+   * a value the accountant confirmed is confirmed even when it couldn't be placed.
+   */
+  confirmation?: { confirmed: boolean; text: string } | null;
 }
 
 /**
@@ -62,7 +68,7 @@ export interface ViewerProps {
  * quote beside it and nothing highlighted. It draws only what the server
  * stored, and guesses nothing.
  */
-export function Viewer({ file, url, citation, valueText = null, label = null }: ViewerProps) {
+export function Viewer({ file, url, citation, valueText = null, label = null, confirmation = null }: ViewerProps) {
   const kind = fileKind(file.media_type, file.name);
   const placement = useMemo(() => (citation ? placeCitation(citation, valueText) : null), [citation, valueText]);
   const boxes = placement?.kind === "boxes" ? placement.boxes : [];
@@ -128,9 +134,15 @@ export function Viewer({ file, url, citation, valueText = null, label = null }: 
           <span className="ft-label">{label ?? "Quote"}</span>
           {valueText && <span className="ft-strong">{valueText}</span>}
           <span className="ft-caption">{placementCaption(placement, citation.match)}</span>
+          {confirmation && (
+            <span className="ft-caption" data-testid="value-state">
+              {confirmation.text}
+            </span>
+          )}
           {placement?.kind === "unplaced" && (
             <p className={styles.notice} role="note">
-              Nothing is highlighted: this value couldn&apos;t be placed in the file, so it&apos;s unconfirmed.
+              Nothing is highlighted: this value couldn&apos;t be placed in the file
+              {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
               {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
             </p>
           )}
@@ -154,8 +166,12 @@ function useText(url: string) {
     fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status));
-        return r.text();
+        return r.arrayBuffer();
       })
+      // Decoded the way the server decodes it for the model (agent/files.py:
+      // UTF-8, bad bytes replaced), keeping a leading byte order mark so the
+      // server's character indexes still line up. Response.text() would drop it.
+      .then((bytes) => new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes))
       .then(
         (text) => live && setState({ url, text }),
         () => live && setState({ url, failed: true }),
