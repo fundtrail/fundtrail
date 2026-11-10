@@ -43,10 +43,11 @@ TRAVEL = "Travel to the Boston conference cost {} in total for the trip."
 TYPO = "Travel to the Bostn conference cost $1,450.00 in total for the trip."
 SPLIT_1 = ["The cost of the conference travel was"]
 SIGNED = [
-    ("an en dash as a minus", "\u2013$450.00"),
-    ("a minus and a space", "- $450.00"),
+    ("an attached hyphen", "-$450.00"),
+    ("an attached en dash", "\u2013$450.00"),
     ("a trailing minus", "$450.00-"),
 ]
+"""Clearly negative under call 31: a value stated as positive must not confirm."""
 SPLIT_PASSAGE = "The cost of the conference travel was $1,450.00 for the whole trip."
 
 PROBES = [
@@ -262,6 +263,51 @@ PROBES = [
         )
         for name, amount in SIGNED
     ],
+    # Call 31, point 3: a spaced dash could be either, so the value's sign stands.
+    *[
+        Probe(f"either: {line}", [[line]], line, value, "exact", True)
+        for line, value in [
+            ("Airfare \u2013 $450.00", "$450.00"),
+            ("Year 2 - $50,000", "$50,000"),
+            ("Hotel rates run $400 \u2013 $500 per night", "$500"),
+        ]
+    ],
+    # Call 31, point 4: a date has no sign, so both dates confirm.
+    *[
+        Probe(
+            f"never a sign: date {value}",
+            [["Period of performance: 09/01/2025 - 08/31/2027"]],
+            "Period of performance: 09/01/2025 - 08/31/2027",
+            value,
+            "exact",
+            True,
+        )
+        for value in ["09/01/2025", "08/31/2027"]
+    ],
+    Probe(
+        "a dash ending the line after a number, next line a date",
+        [["Travel refund 450.00-", "2026-03-04 Lodging 300.00"]],
+        "Travel refund 450.00",
+        "450.00",
+        "exact",
+        False,
+    ),
+    Probe(
+        "close, a dash ending the line after a number",
+        [["Travel refund for the conference 450.00-", "2026-03-04 Lodging 300.00"]],
+        "Travl refund for the conference 450.00",
+        "450.00",
+        "not_found",
+        False,
+    ),
+    Probe(
+        "a negative value where the page's dash is a hyphen",
+        [["Hotel rates run $300-$450 per night"]],
+        "Hotel rates run $300-$450 per night",
+        "-$450",
+        "exact",
+        False,
+    ),
 ]
 
 
