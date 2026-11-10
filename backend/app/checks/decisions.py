@@ -27,6 +27,7 @@ from datetime import date, datetime, timedelta
 from enum import StrEnum
 
 from app.checks.findings import Finding
+from app.checks.grant_checks import award_limit
 from app.checks.text import money, norm
 from app.checks.view import GrantView
 from app.contracts.charges import Charge
@@ -114,21 +115,65 @@ class Decisions:
                 continue
             if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
                 continue
-            if self._holds(data, finding):
+            if self._holds(r, finding):
                 return r.id
         return None
 
-    def _holds(self, data: AcceptedReason, finding: Finding) -> bool:
+    def _holds(self, acceptance: Record, finding: Finding) -> bool:
         """Whether an acceptance still covers a problem as it stands.
 
         A problem that carries an amount (the award limit's over_limit) is judged by the
         amount alone (call 40): a new notice that raises the limit changes the records
-        the problem rests on, but the acceptance holds unless the amount over grows.
-        Every other problem holds while the records it rested on stand.
+        the problem rests on, but the acceptance holds unless the amount over grows. It
+        also ends once the grant is back within its limit (call 42): a later overspend
+        is a new problem. Every other problem holds while the records it rested on stand.
         """
+        data = acceptance.data
+        assert isinstance(data, AcceptedReason)
         if finding.amount_cents is not None:
-            return self._amount_held(data, finding)
+            return self._amount_held(data, finding) and not self._back_within_limit_since(
+                acceptance
+            )
         return self._stood(data.rests_on, finding)
+
+    def _back_within_limit_since(self, acceptance: Record) -> bool:
+        """Whether the grant's spending was within its limit at any point after an
+        acceptance (call 42, provisional): after any later charge, or any later record
+        that can move the limit, such as a notice or a confirmation.
+
+        Records are read in stored order. A charge counts as after the acceptance when
+        it arrived later, or at the same time and was stored after it.
+        """
+        view = self.view
+        records = view.state.records
+        at = view.pos[acceptance.id]
+        limits: dict[int, int | None] = {}
+
+        def limit_through(i: int) -> int | None:
+            """The award limit as of the records stored before position i."""
+            if i not in limits:
+                found = award_limit(GrantView(view.grant_id, RecordState(records[:i]), [], []))
+                limits[i] = found[0] if found is not None else None
+            return limits[i]
+
+        def spent_by(moment: datetime) -> int:
+            return sum(c.amount_cents for c in view.charges if c.arrived_at <= moment)
+
+        for i in range(at + 1, len(records)):
+            r = records[i]
+            if r.grant_id != view.grant_id:
+                continue
+            limit = limit_through(i + 1)
+            if limit is not None and spent_by(r.written_at) <= limit:
+                return True
+        for c in view.charges:
+            if not _later(c, acceptance):
+                continue
+            before = sum(1 for r in records if r.written_at <= c.arrived_at)
+            limit = limit_through(max(before, at + 1))
+            if limit is not None and spent_by(c.arrived_at) <= limit:
+                return True
+        return False
 
     @staticmethod
     def _amount_held(data: AcceptedReason, finding: Finding) -> bool:

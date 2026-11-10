@@ -116,7 +116,7 @@ def _notice_findings(view: GrantView) -> list[Finding]:
     return out
 
 
-def _limit(view: GrantView) -> tuple[int, Record] | None:
+def award_limit(view: GrantView) -> tuple[int, Record] | None:
     """The Total Amount Obligated to Date on the latest confirmed notice that prints one."""
     best: tuple[tuple[object, ...], int, Record] | None = None
     for r in view.notices():
@@ -128,6 +128,11 @@ def _limit(view: GrantView) -> tuple[int, Record] | None:
         if best is None or key > best[0]:
             best = (key, d.obligated_to_date.value, r)
     return (best[1], best[2]) if best else None
+
+
+# The platform's app/db/terms.py still imports the old private name; it goes once the
+# platform reads BudgetFigures.limit_cents instead (#106's follow-up there).
+_limit = award_limit
 
 
 def _has_term(view: GrantView, kind: RecordKind) -> bool:
@@ -179,7 +184,7 @@ def grant_problems(
                 + ".",
             )
         )
-    limit = _limit(view)
+    limit = award_limit(view)
     spending = sum(c.amount_cents for c in view.charges)
     if limit is not None and spending > limit[0]:
         d = limit[1].data
@@ -372,7 +377,7 @@ def _figures(view: GrantView) -> BudgetFigures:
         )
         for category, amount in budget.items()
     )
-    limit = _limit(view)
+    limit = award_limit(view)
     return BudgetFigures(
         lines=tuple(line_figures),
         categories=category_figures,
