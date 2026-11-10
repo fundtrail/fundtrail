@@ -120,6 +120,10 @@ class RecordState:
             return False  # the accountant replaced it, for example by typing the right value
         return r.replaces_id is None or self.is_current(r.replaces_id)
 
+    def answers_of(self, answer: Judgment) -> list[str]:
+        """The IDs of the answers to the same question about the same things, in order."""
+        return self._answers_of.get(_answer_key(answer), [])
+
     def is_replaced(self, record_id: str) -> bool:
         """Whether a record that counts replaces this one."""
         return bool(self._replaced_at(record_id, self._end))
@@ -379,6 +383,13 @@ def _suggestion_key(new: Record, state: RecordState) -> tuple[str, ...] | None:
     if new.replaces_id is not None:
         answer = data.answer.value if isinstance(data, Judgment) else ""
         return ("replace", new.replaces_id, new.kind.value, answer)
+    if isinstance(data, Judgment) and data.question != Question.FLAG:
+        # An answer beside the agent's own is a new answer over it.
+        for old_id in reversed(state.answers_of(data)):
+            old = state.by_id[old_id]
+            if old.author == Author.AGENT and old_id != new.id and state.is_current(old_id):
+                return ("replace", old_id, new.kind.value, data.answer.value)
+        return None
     if isinstance(data, ChecklistRemoval):
         return ("removal", data.charge_id, data.item_record_id or "", data.default_item or "")
     if isinstance(data, Dispute):
@@ -482,15 +493,27 @@ def check_new_record(
             )
             old = None
         else:
-            # The accountant may replace a waiting or rejected record of the agent's,
-            # for example by typing the right value, so pointers follow their record.
+            # The accountant may replace a new record of the agent's that waits or was
+            # rejected, such as a term, for example by typing the right value, so
+            # pointers follow it. To fix one of the agent's suggested replacements,
+            # the accountant replaces its target instead.
             typed_fix = (
                 not agent
                 and old.author == Author.AGENT
+                and old.replaces_id is None
                 and not state.is_replaced(old.id)
                 and (state.is_waiting(old.id) or state.decision(old.id) == Decision.REJECTED)
             )
-            if not (state.is_current(old.id) or typed_fix):
+            if (
+                new.kind == RecordKind.RETRACTION
+                and old.author == Author.AGENT
+                and (state.is_waiting(old.id))
+            ):
+                problems.append(
+                    f"record {old.id} waits for the accountant: reject it instead of retracting it"
+                )
+                old = None
+            elif not (state.is_current(old.id) or typed_fix):
                 problems.append(
                     f"the replaced record {old.id} isn't current: "
                     "it was replaced, retracted or rejected, or it still waits"

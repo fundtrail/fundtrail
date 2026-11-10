@@ -8,13 +8,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.contracts.rules import RecordState, current_version, waiting_records
+from app.contracts.rules import RecordState, current_records, current_version, waiting_records
 from tests.contracts.factory import (
     FILES,
     agent,
     answer,
     bill,
     budget_line,
+    citation,
     cited,
     confirm,
     file,
@@ -190,3 +191,49 @@ def test_an_uncited_value_is_unconfirmed_until_the_accountant_confirms_the_recor
 def test_a_flag_about_a_file_that_doesnt_exist_is_refused():
     flag = answer("unsure", question="flag", charge_id=None, file_id="nope", text="Can't read it?")
     assert any("file nope doesn't exist" in p for p in problems(agent("f", flag), []))
+
+
+# The re-review of 6ca0fc2.
+
+
+def test_r1_to_fix_a_suggested_replacement_the_accountant_replaces_its_target():
+    written = [
+        agent("b1", bill()),
+        agent("l1", link()),
+        agent("l2", link(amount=600), 1, replaces_id="l1"),
+    ]
+    over_the_fix = user("l3", link(amount=700), 2, replaces_id="l2")
+    assert any("isn't current" in p for p in problems(over_the_fix, written))
+    over_the_target = user("l3", link(amount=700), 2, replaces_id="l1")
+    assert problems(over_the_target, written) == []
+    assert ids(current_records([*written, over_the_target])) == ["b1", "l3"]
+
+    answers = [
+        user("j1", answer("contradicts")),
+        agent("j2", answer("supports"), 1, replaces_id="j1"),
+    ]
+    over_the_answer = user("j3", answer("unsure"), 2, replaces_id="j2")
+    assert any("isn't current" in p for p in problems(over_the_answer, answers))
+
+
+def test_r2_the_accountant_rejects_a_waiting_suggestion_rather_than_retracting_it():
+    dispute: dict[str, Any] = {
+        "kind": "dispute",
+        "charge_id": "c1",
+        "check": "period_of_performance",
+        "reasoning": "The order was placed before the end date.",
+        "quotes": [citation()],
+    }
+    written = [agent("d1", dispute)]
+    retracting = problems(user("x", {"kind": "retraction"}, 1, replaces_id="d1"), written)
+    assert any("reject it instead" in p for p in retracting)
+
+
+def test_r3_a_rejected_answer_doesnt_come_back_beside_the_agents_own():
+    written = [
+        agent("j1", answer("contradicts")),
+        agent("j2", answer("supports"), 1, replaces_id="j1"),
+        user("no", confirm("j2", decision="rejected"), 2),
+    ]
+    beside = agent("j3", answer("supports"), 3)
+    assert any("rejected the same suggestion" in p for p in problems(beside, written))
