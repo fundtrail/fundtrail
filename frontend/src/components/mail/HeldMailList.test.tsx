@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SAMPLE_HELD_MAIL } from "@/lib/api/fixtures/mail";
+import { SAMPLE_HELD_MAIL } from "@/lib/api/fixtures/sample";
 import { fakeHarness } from "../setup/testing";
 import { HeldMailList } from "./HeldMailList";
 

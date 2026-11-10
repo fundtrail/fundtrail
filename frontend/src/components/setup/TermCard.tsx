@@ -30,7 +30,7 @@ const SAVED_LABELS ={ confirmed: "Confirmed.", rejected: "Rejected.", typed: "Yo
  * in the file listed one by one, the term's own problem as the server words
  * it, and, while it waits, Confirm, Reject and Type the right value.
  */
-export function TermCard({ term }: { term: TermView }) {
+export function TermCard({ term, settled = false }: { term: TermView; settled?: boolean }) {
   const { record } = term;
   const kind = record.data.kind;
   const { state, write } = useWrite();
@@ -43,6 +43,9 @@ export function TermCard({ term }: { term: TermView }) {
   const fieldLabel = (path: string) => fields.find((f) => f.path === path)?.label ?? path.replaceAll("_", " ");
   const saving = state.status === "saving";
   const waiting = term.state === "waiting";
+  // A wrong term is rejected, then fixed by typing the right value (product.md, Grants).
+  const rejectedNow = done === "rejected" || (done === null && term.state === "rejected");
+  const fixable = record.author === "agent" && rejectedNow;
 
   async function decide(decision: "confirmed" | "rejected") {
     const saved = await write(record.grant_id, { data: { kind: "confirmation", record_ids: [record.id], decision } });
@@ -118,7 +121,7 @@ export function TermCard({ term }: { term: TermView }) {
         </p>
       )}
 
-      {waiting && !typing && done === null && (
+      {waiting && !typing && done === null && !settled && (
         <div className="ft-actions">
           <button type="button" className="ft-btn ft-btn--main ft-btn--sm" disabled={saving} onClick={() => void decide("confirmed")}>
             Confirm
@@ -131,6 +134,19 @@ export function TermCard({ term }: { term: TermView }) {
           </button>
         </div>
       )}
+      {fixable && !typing && (
+        <div className="ft-actions">
+          <button type="button" className="ft-btn ft-btn--sm" disabled={saving} onClick={() => setTyping(true)}>
+            Type the right value
+          </button>
+        </div>
+      )}
+      <p className="ft-caption">
+        <Link className="ft-link" href={routes.record(record.grant_id, record.id)}>
+          Open the term&apos;s thread
+        </Link>
+        {record.author === "agent" && " to tell the agent where to look"}
+      </p>
       {typing && <TypeTermForm term={record} kind={kind} saving={saving} onSave={(d) => void saveTyped(d)} onCancel={() => setTyping(false)} />}
       {done && (
         <p className="ft-caption" role="status">

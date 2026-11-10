@@ -59,7 +59,7 @@ function WaitingGroup({ file, text, terms }: { file: EvidenceFile | null; text: 
       <WriteProblems state={state} />
       <div className="ft-terms">
         {terms.map((t) => (
-          <TermCard key={t.record.id} term={t} />
+          <TermCard key={t.record.id} term={t} settled={confirmedAll} />
         ))}
       </div>
     </section>

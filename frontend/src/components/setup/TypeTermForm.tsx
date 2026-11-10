@@ -41,6 +41,12 @@ export function buildTypedTerm(kind: TermKind, values: Record<string, string>): 
         else data[field.path] = { value: cents };
         break;
       }
+      case "decimal": {
+        // A rate is a plain number: a percent as a fraction, or cents per unit (records.py, CitedDecimal).
+        if (!/^-?\d+(\.\d+)?$/.test(input)) problems.push(`${field.label} isn't a number.`);
+        else data[field.path] = { value: input };
+        break;
+      }
       case "category":
       case "label":
         data[field.path] = input;

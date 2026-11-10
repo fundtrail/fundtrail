@@ -77,6 +77,40 @@ describe("GrantTerms", () => {
     expect(await within(waitingGroup()).findByRole("alert")).toHaveTextContent("The record is already confirmed.");
   });
 
+  it("offers to type the right value after rejecting, replacing the rejected term", async () => {
+    const { detail, rows, writeRecord, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    const group = waitingGroup();
+    fireEvent.click(within(group).getByRole("button", { name: "Reject" }));
+    await waitFor(() => expect(within(group).getByRole("status")).toHaveTextContent("Rejected."));
+    fireEvent.click(within(group).getByRole("button", { name: "Type the right value" }));
+    fireEvent.click(within(group).getByRole("button", { name: "Save typed value" }));
+    await waitFor(() => expect(writeRecord).toHaveBeenCalledTimes(2));
+    expect(writeRecord.mock.calls[1]![1]).toMatchObject({ replaces_id: "rec-period-extension" });
+  });
+
+  it("offers to type the right value on an agent term the server says was rejected, and links its thread", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const rejected = detail.terms.filter((t) => t.record.id === "rec-period-extension").map((t) => ({ ...t, state: "rejected" as const }));
+    render(<GrantTerms terms={rejected} rows={[]} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "Type the right value" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the term's thread" })).toHaveAttribute("href", "/grants/grant-sample/records/rec-period-extension");
+  });
+
+  it("hides each term's buttons once all of a document's terms are confirmed", async () => {
+    const { detail, writeRecord, Wrapper } = await sampleTerms();
+    const ids = ["rec-period-extension", "rec-person-pi"];
+    const terms = detail.terms.map((t) => (ids.includes(t.record.id) ? { ...t, state: "waiting" as const } : t));
+    const notice = (await fakeHarness().client.getProblemList("grant-sample")).rows.find((r) => r.kind === "terms_waiting")!;
+    const rows: ProblemRow[] = [{ ...notice, record_ids: ids } as ProblemRow];
+    render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
+    const group = waitingGroup();
+    fireEvent.click(within(group).getByRole("button", { name: "Confirm all 2" }));
+    await waitFor(() => expect(within(group).getByText("All 2 confirmed.")).toBeInTheDocument());
+    expect(writeRecord.mock.calls[0]![1]).toEqual({ data: { kind: "confirmation", record_ids: ids, decision: "confirmed" } });
+    expect(within(group).queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+  });
+
   it("says so when nothing waits", async () => {
     const { detail, Wrapper } = await sampleTerms();
     const rows: ProblemRow[] = [];
