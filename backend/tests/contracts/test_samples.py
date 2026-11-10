@@ -128,3 +128,20 @@ def test_a_sample_refusal_names_why_and_the_grant_still_reading():
     assert confirm.grant is None
     with pytest.raises(ValidationError):
         api.SampleRefusal.model_validate({"reason": "too_many", "message": "x"})
+
+
+def test_skipping_the_human_steps_and_the_run_through():
+    """Ruling 47: the move can skip the human steps; played events say who decided and
+    whether the result was loaded; a prerun sample says whether it's on the run-through."""
+    assert TimelineMove().skip_human_steps is False
+    assert TimelineMove(skip_human_steps=True).skip_human_steps
+    arrival = TimelineEvent(id="e1", at=at(1), kind=TimelineEventKind.ARRIVAL, name="L-1001")
+    decision = agent("b1", bill())
+    played = PlayedEvent(event=arrival, scripted_decisions=(decision,), loaded=True)
+    assert PlayedEvent.model_validate_json(played.model_dump_json()) == played
+    assert PlayedEvent(event=arrival).loaded is False
+    now = TimelineNow(now=at(1), waiting_on_problem_list=0)
+    live = TimelineView(now=now, finished=False, catching_up=False)
+    assert live.on_run_through is None  # a sample read live
+    prerun = TimelineView(now=now, finished=False, catching_up=False, on_run_through=True)
+    assert prerun.on_run_through is True
