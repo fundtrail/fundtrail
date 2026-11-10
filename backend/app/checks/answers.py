@@ -97,7 +97,17 @@ def _out_of_date(view: GrantView, judgment: Record) -> bool:
         if isinstance(r.data, Link) and r.data.charge_id == j.charge_id and view.pos[r.id] > at:
             return True
     rests = list(j.rests_on) + ([j.record_id] if j.record_id else [])
-    return any(not view.state.is_current(rid) for rid in rests)
+    return any(not view.state.is_current(rid) and not _new_and_waiting(view, rid) for rid in rests)
+
+
+def _new_and_waiting(view: GrantView, record_id: str) -> bool:
+    """A record that was never in force yet, such as a term waiting for its first confirmation.
+
+    An answer resting on one isn't out of date: nothing it rested on changed. The values
+    check keeps the charge in Needs a human until the accountant confirms it.
+    """
+    r = view.state.by_id.get(record_id)
+    return r is not None and r.replaces_id is None and view.state.is_waiting(record_id)
 
 
 def answer_state(
