@@ -629,3 +629,32 @@ def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:
     ]
     assert rows == [("2026-02-24", Bucket.EVIDENCE_COMPLETE)]
     assert not any(row.status.flagged for row in history)
+
+
+def test_an_accepted_over_limit_problem_takes_the_amount_over_from_the_problem(api: Api) -> None:
+    """Issue 83: the server fills the accepted amount from the current problem and ignores
+    the client's."""
+    checks = _checks(api)
+    checks.grant_problems = [
+        Problem(check="budget", problem="over_limit", text="Over.", amount_cents=5000)
+    ]
+    sample = _sample(api)
+
+    def accept(reason: dict[str, str]) -> Any:
+        response = api.client.post(
+            f"/grants/{sample.grant.id}/records",
+            json={
+                "data": {
+                    "kind": "accepted_reason",
+                    "reason": reason,
+                    "note": "The sponsor approved the overspend.",
+                    "amount_cents": 1,
+                }
+            },
+            headers=api.headers,
+        )
+        assert response.status_code == 201, response.text
+        return response.json()["data"]["amount_cents"]
+
+    assert accept({"check": "budget", "problem": "over_limit"}) == 5000
+    assert accept({"check": "budget", "problem": "something_else"}) is None

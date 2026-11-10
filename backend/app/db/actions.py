@@ -16,8 +16,16 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from app.contracts.api import LedgerUploadResult, RowError
+from app.contracts.checks import ChargeStatus, Problem
 from app.contracts.evidence import EvidenceFile, Source, storage_path
-from app.contracts.records import TERM_KINDS, Author, Record, RecordData, SignOff
+from app.contracts.records import (
+    TERM_KINDS,
+    AcceptedReason,
+    Author,
+    Record,
+    RecordData,
+    SignOff,
+)
 from app.contracts.rules import check_new_record
 from app.contracts.runs import AgentRun, Trigger, TriggerKind, charge_batches
 from app.contracts.signoff import SignOffSnapshot
@@ -158,6 +166,38 @@ def _fill_term_date(data: dict[str, Any], now: datetime) -> dict[str, Any]:
     return data
 
 
+def _accepted_amount(
+    conn: store.Conn, grant_id: str, now: datetime, data: AcceptedReason
+) -> AcceptedReason:
+    """An accepted reason's amount is the server's: the amount over on the problem it
+    accepts, as that problem stands now (issue 83), whatever the client sent. Only the
+    award limit's over_limit problem carries one; every other acceptance gets None."""
+    if data.charge_id:
+        key: tuple[str, str | None] = ("charge", data.charge_id)
+    elif data.record_id:
+        key = ("record", data.record_id)
+    elif data.file_id:
+        key = ("file", data.file_id)
+    else:
+        key = ("grant", None)
+    status = store.statuses_as_of(conn, grant_id, now).get(key)
+    if status is None:
+        problems: tuple[Problem, ...] = ()
+    elif isinstance(status, ChargeStatus):
+        problems = status.reasons
+    else:
+        problems = status.problems
+    amount = next(
+        (
+            x.amount_cents
+            for x in problems
+            if x.check == data.reason.check and x.problem == data.reason.problem
+        ),
+        None,
+    )
+    return data.model_copy(update={"amount_cents": amount})
+
+
 def add_record(
     p: Platform, grant: Grant, user_id: str, data: dict[str, Any], replaces_id: str | None
 ) -> Record:
@@ -188,6 +228,10 @@ def add_record(
             raise WriteRejected(
                 [e["msg"] + f" ({'.'.join(map(str, e['loc']))})" for e in error.errors()]
             ) from error
+        if isinstance(record.data, AcceptedReason):
+            record = record.model_copy(
+                update={"data": _accepted_amount(conn, grant.id, now, record.data)}
+            )
         records = store.list_records(conn, grant.id, now)
         problems = check_new_record(
             record,
