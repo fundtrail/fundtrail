@@ -2,25 +2,26 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { ApiError, type Grant, type GrantSummary, type Id } from "@/lib/api";
+import { grantName } from "@/components/GrantList";
+import { ApiError, type GrantSummary, type Id } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import type { BlockingGrant, SampleChoice, SampleCreate, SampleOption } from "./sampleTypes";
+import type { BlockingGrant, SampleChoice, SampleCreate, SampleOption, SampleRefusal } from "./sampleTypes";
 import "./setup.css";
 
 // Wording here is a placeholder until the docs give it.
 
 /**
- * The grant a 409 from the one-at-a-time rule names, read from FastAPI's
- * `detail`. The body's exact shape isn't settled yet; this reads a `grant`
- * that is either a grant or a grant summary.
+ * A 409's SampleRefusal (ruling 41), read from FastAPI's `detail`: the
+ * server's message, and the blocking larger-live sample when it names one.
+ * Null when the body isn't a refusal.
  */
-export function readBlockingGrant(detail: unknown): BlockingGrant | null {
-  if (typeof detail !== "object" || detail === null || !("grant" in detail)) return null;
-  const raw = (detail as { grant: unknown }).grant;
-  if (typeof raw !== "object" || raw === null) return null;
-  const grant = ("grant" in raw ? (raw as GrantSummary).grant : raw) as Partial<Grant>;
-  if (typeof grant.id !== "string") return null;
-  return { id: grant.id, name: grant.title || grant.award_number || "Untitled grant" };
+export function readRefusal(detail: unknown): { message: string; blocking: BlockingGrant | null } | null {
+  if (typeof detail !== "object" || detail === null) return null;
+  const refusal = detail as Partial<SampleRefusal>;
+  if (typeof refusal.message !== "string") return null;
+  const grant = refusal.grant?.grant;
+  const blocking = grant && typeof grant.id === "string" ? { id: grant.id, name: grantName(refusal.grant!) } : null;
+  return { message: refusal.message, blocking };
 }
 
 type OpenState =
@@ -59,8 +60,8 @@ export function SampleCard({
       onOpened(summary.grant.id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        const blocking = readBlockingGrant(error.detail);
-        setState({ status: "refused", message: blocking ? "Another of your larger live samples is still reading its history:" : error.message, blocking });
+        const refusal = readRefusal(error.detail);
+        setState({ status: "refused", message: refusal?.message ?? error.message, blocking: refusal?.blocking ?? null });
       } else {
         setState({ status: "refused", message: error instanceof ApiError ? error.message : "Couldn't open the sample. Try again.", blocking: null });
       }

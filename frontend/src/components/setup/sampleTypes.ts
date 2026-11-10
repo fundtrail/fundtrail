@@ -3,7 +3,7 @@
 // contracts PR lands and lib/api types them, this file goes and the imports
 // point at "@/lib/api" instead, with the same names.
 
-import type { Id } from "@/lib/api";
+import type { GrantSummary, Id } from "@/lib/api";
 
 export type SampleChoice = "small_live" | "larger_live" | "larger_prerun";
 
@@ -22,6 +22,14 @@ export interface SampleOption {
 export interface SampleCreate {
   choice: SampleChoice;
   confirmed?: boolean;
+}
+
+/** The 409 body's `detail` from POST /workspaces/{workspace_id}/samples (ruling 41). */
+export interface SampleRefusal {
+  reason: "needs_confirm" | "history_reading";
+  message: string;
+  /** The blocking larger-live sample; set for history_reading. */
+  grant?: GrantSummary | null;
 }
 
 /** The grant a 409 names when the one-at-a-time rule refuses a sample. */

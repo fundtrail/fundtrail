@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, type GrantSummary } from "@/lib/api";
-import { readBlockingGrant, SampleCard } from "./SampleCard";
+import { readRefusal, SampleCard } from "./SampleCard";
 import type { SampleOption } from "./sampleTypes";
 
 // Placeholder options in GET /samples' order. Names and descriptions are made up.
@@ -64,24 +64,37 @@ describe("SampleCard", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
   });
 
-  it("names the grant that blocks a sample, with a link", async () => {
+  it("shows the server's refusal message with a link to the blocking sample", async () => {
+    const running = { grant: { id: "grant-running", workspace_id: "ws", funder: "NSF", award_number: "SYN-1", title: "Running sample" } } as GrantSummary;
     const refuse = vi.fn(async () => {
-      throw new ApiError(409, { grant: { id: "grant-running", workspace_id: "ws", funder: "NSF", award_number: "SYN-1", title: "Running sample" } });
+      throw new ApiError(409, { reason: "history_reading", message: "Another larger live sample is still reading its history.", grant: running });
     });
     const { choose } = setup(refuse);
     choose("larger_live");
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     fireEvent.click(screen.getByRole("button", { name: "Start it" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Another of your larger live samples is still reading its history:");
+    expect(alert).toHaveTextContent("Another larger live sample is still reading its history.");
     expect(screen.getByRole("link", { name: "Running sample" })).toHaveAttribute("href", "/grants/grant-running");
+  });
+
+  it("shows a refusal with no grant as its message alone", async () => {
+    const refuse = vi.fn(async () => {
+      throw new ApiError(409, { reason: "needs_confirm", message: "Confirm before starting this sample." });
+    });
+    const { choose } = setup(refuse);
+    choose("small_live");
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Confirm before starting this sample.");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
 
-describe("readBlockingGrant", () => {
-  it("reads a grant or a grant summary, and nothing else", () => {
-    expect(readBlockingGrant({ grant: { id: "g", title: null, award_number: "SYN-2" } })).toEqual({ id: "g", name: "SYN-2" });
-    expect(readBlockingGrant({ grant: { grant: { id: "g", title: "T" } } })).toEqual({ id: "g", name: "T" });
-    expect(readBlockingGrant("Confirm first")).toBeNull();
+describe("readRefusal", () => {
+  it("reads a SampleRefusal, and nothing else", () => {
+    const grant = { grant: { id: "g", title: null, award_number: "SYN-2" } } as GrantSummary;
+    expect(readRefusal({ reason: "history_reading", message: "m", grant })).toEqual({ message: "m", blocking: { id: "g", name: "SYN-2" } });
+    expect(readRefusal({ reason: "needs_confirm", message: "m" })).toEqual({ message: "m", blocking: null });
+    expect(readRefusal("Confirm first")).toBeNull();
   });
 });
