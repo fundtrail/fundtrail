@@ -90,6 +90,8 @@ function JustHappened({ grantId, played }: { grantId: Id; played: PlayedEvent[] 
               <EventLine event={p.event} />
               {/* A result loaded from the prerun is marked, so it never passes for live work. */}
               {p.loaded && <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>}
+              {/* An item that was the user's to deliver, delivered for them by the sample accountant. */}
+              {p.event.kind === "user_delivery" && <span className="ft-tag ft-tl__loaded">Delivered for you by the sample accountant</span>}
               <span>{agentSummary(p)}</span>
               {(p.scripted_decisions ?? []).length > 0 && (
                 <ul className="ft-tl__decisions" aria-label="The sample accountant's decisions">
@@ -240,7 +242,11 @@ function GoToDate({ now, busy, onGo }: { now: string; busy: boolean; onGo: (to: 
   const min = dayAfter(now);
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (value && value >= min) onGo(`${value}T00:00:00Z`);
+    if (value && value >= min) {
+      onGo(`${value}T00:00:00Z`);
+      // The field starts empty again after a move.
+      setValue("");
+    }
   }
   return (
     <form className="ft-tl__goto" onSubmit={submit}>

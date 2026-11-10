@@ -27,8 +27,9 @@ describe("skipping the human steps (ruling 47)", () => {
     const api = createFakeApiClient();
     await api.startOver(SAMPLE_GRANT_ID, true);
     const view = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-14T12:00:00Z", skip_human_steps: true });
-    // Both uploads were delivered for the user.
+    // Both uploads were delivered for the user, and say so under Just happened.
     expect(view.now.deliveries).toEqual([]);
+    expect((view.just_happened ?? []).map((p) => p.event.name)).toEqual(["award_letter.txt", "invoice_1001.txt", "L-1001"]);
     // The accountant's confirmation of the award terms is listed under the event it follows.
     const decisions = (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id));
     expect(decisions).toEqual(["rec-confirm-award-terms"]);
@@ -43,10 +44,15 @@ describe("skipping the human steps (ruling 47)", () => {
     fireEvent.click(screen.getByLabelText("Skip the human steps"));
     fireEvent.click(next);
     await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { skip_human_steps: true }));
+    // What the sample accountant delivered shows under Just happened, not just gone from Now.
+    await waitFor(() => expect(within(part("Just happened")).getAllByText("Delivered for you by the sample accountant")).toHaveLength(2));
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await waitFor(() => expect(move).toHaveBeenLastCalledWith(SAMPLE_GRANT_ID, { to: "2025-11-15T00:00:00Z", skip_human_steps: true }));
+    // The date field starts empty again.
+    expect((screen.getByLabelText("Go to a date") as HTMLInputElement).value).toBe("");
+
   });
 
   it("marks loaded results, lists the sample accountant's decisions, and says when the grant is off the run-through", async () => {

@@ -155,12 +155,19 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
 
 /**
  * Skipping the human steps: as the clock passes them, the sample accountant
- * delivers what was the user's to deliver, and makes the sample's own
- * accountant decisions. Each decision is listed under the event it follows.
+ * delivers what was the user's to deliver, and each item it delivered is
+ * listed under Just happened. The sample's own accountant decisions are listed
+ * under the event they follow.
+ *
+ * The fake only lists those decisions; it doesn't carry them out. It has no
+ * checks, so the grant's terms, problem list and records stay as they are.
  */
 function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: IsoDatetime) {
   for (const e of events) {
-    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) state.delivered.set(e.id, e.at);
+    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) {
+      state.delivered.set(e.id, e.at);
+      if (!state.justHappened.includes(e.id)) state.justHappened.push(e.id);
+    }
   }
   const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
   for (const decision of decisions) {
@@ -169,6 +176,9 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
     if (!state.justHappened.includes(after.id)) state.justHappened.push(after.id);
     state.scripted.set(after.id, [...(state.scripted.get(after.id) ?? []), decision]);
   }
+  // In date order, as the server sends them.
+  const at = new Map(events.map((e) => [e.id, time(e.at)]));
+  state.justHappened.sort((a, b) => at.get(a)! - at.get(b)!);
 }
 
 function dataUrl(text: string, mediaType: string): string {
