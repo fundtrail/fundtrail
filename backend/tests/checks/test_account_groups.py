@@ -116,10 +116,29 @@ def test_ledger_account_with_its_name() -> None:
     assert group_id("  59009 Recharge-Other Expenses") == "recharges"
 
 
-@pytest.mark.parametrize("account", ["", "Lab supplies", "5501", "550160", "5501x", "x55016"])
+@pytest.mark.parametrize(
+    "account",
+    [
+        "",
+        "Lab supplies",
+        "5501",
+        "550160",
+        "5501x",
+        "x55016",
+        "55016x",
+        "55016_lab",
+        "٥٥٠١٦",  # 55016 in Arabic-Indic digits
+        "５５０１６",  # 55016 in full-width digits
+    ],
+)
 def test_account_without_a_five_digit_code(account: str) -> None:
     assert account_code(account) is None
     assert lookup_account(account) is None
+
+
+@pytest.mark.parametrize("account", ["55016", "55016 Lab", "55016-Lab", " 55016\tLab"])
+def test_account_code_ends_at_a_separator(account: str) -> None:
+    assert account_code(account) == "55016"
 
 
 def test_sample_grant_defaults_match_the_fixture() -> None:
@@ -197,6 +216,41 @@ def test_salary_items_name_the_charge_month() -> None:
     assert items[0].period is None
     assert items[1].period == Period(start=date(2024, 2, 1), end=date(2024, 2, 29))
     assert all(i.amount_cents is None for i in items)
+    assert items[0].expected_by is None
+
+
+@pytest.mark.parametrize(
+    ("day", "expected"),
+    [
+        # January to June: 120 days after June 30 is October 28.
+        (date(2025, 1, 1), date(2025, 10, 28)),
+        (date(2025, 6, 30), date(2025, 10, 28)),
+        # July to December: 120 days after December 31 is April 30, or April 29
+        # when February has 29 days.
+        (date(2025, 7, 1), date(2026, 4, 30)),
+        (date(2025, 12, 31), date(2026, 4, 30)),
+        (date(2027, 9, 15), date(2028, 4, 29)),
+    ],
+)
+def test_effort_report_is_expected_120_days_after_the_half_year(day: date, expected: date) -> None:
+    items = account_group_items(charge("51200", day=day))
+    effort = next(i for i in items if i.key == "effort_report")
+    assert effort.expected_by == expected
+
+
+def test_only_the_effort_report_has_an_expected_date() -> None:
+    for group in ACCOUNT_GROUPS:
+        for item in group.items:
+            assert (item.due_days_after_half_year is not None) == (item.key == "effort_report")
+
+
+def test_categories_by_account_cannot_be_changed() -> None:
+    recharges = next(g for g in ACCOUNT_GROUPS if g.id == "recharges")
+    with pytest.raises(TypeError):
+        recharges.categories_by_account["59009"] = (B.TRAVEL,)  # type: ignore[index]
+    benefits = next(g for g in ACCOUNT_GROUPS if g.id == "benefits")
+    with pytest.raises(TypeError):
+        benefits.categories_by_account["53100"] = (B.TRAVEL,)  # type: ignore[index]
 
 
 def test_amount_goes_on_the_bill_like_item_only() -> None:
