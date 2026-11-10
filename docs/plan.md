@@ -13,32 +13,32 @@ There are no dates. The work goes in this order ([decisions/0019](decisions/0019
 | 5 | The full seed data and the blind test | |
 
 - **The skeleton** follows the layout in [CLAUDE.md](../CLAUDE.md#repo-map) and fills in its "Running things" section.
-- **The screens.** The docs decide what the app does and what each screen holds. Grant's design system and clickable screens (pull request 11, under `frontend/design/`) are inspiration for the look and the general layout. Where they differ from the docs, the docs win. Nothing waits on the mockup.
+- **The screens.** The docs decide what the app does and what each screen holds. Grant's design system and clickable screens (pull request 11) are inspiration for the look and the general layout. Where they differ from the docs, the docs win. Nothing waits on the mockup.
 - **Optional features** start only once the thin path works.
 
 ### What the first build includes
 
 The first build includes everything except the optional features in [product.md](product.md#scope).
 
-Areas that haven't been discussed yet aren't left out. A first version of each is built, and it's tracked as provisional in the list below. That way it's easy to override once it's discussed, and the first implementation isn't mistaken for a decision.
+Areas that haven't been discussed yet aren't left out. Before one is built, its design is worked through from first principles and written down as a decision file in [decisions/](decisions/) whose status line says "Provisional: not yet reviewed by Alex". Building follows that file. A provisional file can be overridden when it's reviewed, and a first implementation is never a decision.
 
-### Built first, discussed after
+### Provisional areas
 
-Whoever builds a provisional area records the choices they made for it in this list, in the same pull request. Each area also stays in its doc's "Not decided yet" table until it's discussed.
+Each area gets a link to its decision file here once the file is written. A builder doesn't edit this list. A builder who has to make a further choice inside a provisional area says so in the pull request description. Each area also stays in its doc's "Not decided yet" table until it's reviewed.
 
-| Provisional area | Its open items are in | Choices made in the first version |
+| Provisional area | Its open items are in | Provisional decision file |
 |---|---|---|
-| Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | |
-| A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | |
-| The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | |
-| The clock | [product.md](product.md#not-decided-yet), [architecture.md](architecture.md#not-decided-yet) | |
-| The seeded demo workspace and its data | [product.md](product.md#not-decided-yet), and below | |
-| Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | |
-| The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | |
+| Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
+| A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
+| The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
+| The clock | [product.md](product.md#not-decided-yet), [architecture.md](architecture.md#not-decided-yet) | Not written yet |
+| The seeded demo workspace and its data | [product.md](product.md#not-decided-yet), and below | Not written yet |
+| Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | Not written yet |
+| The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | Not written yet |
 
 ### Work in parallel
 
-Parallelize as much as possible. Inside each stage, split the work across subagents or separate sessions wherever the pieces don't touch the same files. Shared files (contracts, migrations, docs) have one writer at a time.
+Parallelize as much as possible. Inside each stage, split the work across separate agents wherever the pieces don't touch the same files. Shared files (contracts, migrations, docs) have one writer at a time.
 
 - The three pieces of test material are independent of each other.
 - The four areas on Alex's side (ingestion, the agent, quotes, the checks) live in separate folders.
@@ -64,7 +64,7 @@ Parallelize as much as possible. Inside each stage, split the work across subage
 - **A lead session** picks the next issues and starts each worker with a short brief: the issue link and the docs to read. It reviews PRs with `/code-review`, and its human merges.
 - **A worker** is a fresh session on one issue, in its own worktree, and finishes with a PR. The working rules are in [CLAUDE.md](../CLAUDE.md#working-rules).
 - **Model: Opus 5.5 for every session.** Rework costs more than tokens here. Sonnet 5.5 is fine for narrow, fully specified tasks such as seed files, UI polish or test fixtures, when speed matters.
-- **Status lives in GitHub issues,** not in this file, so parallel PRs don't collide on a shared status list. The one exception is the "Built first, discussed after" list above, which records choices, not progress.
+- **Status lives in GitHub issues,** not in this file, so parallel PRs don't collide on a shared status list.
 - **The blind-test generator** is a separate claude.ai chat with no repo access (see [eval.md](eval.md)).
 
 ## Workstreams
@@ -76,10 +76,10 @@ The split follows one seam. Alex owns everything that turns files into records a
 | W1 | Agent: read with citations, write records and links, add to evidence checklists, answer the checks' questions, suggest fixes, dispute checks, reply in threads. Also quotes: find each quote in its file, highlight positions, page images for scans, the second look on photos | Alex |
 | W2 | Checks, NSF rules, evidence checklists, link sums, the questions for the agent, buckets, the problem list, status history and status text | Alex |
 | W3 | Ingestion: ledger file, Gmail, Drive, upload, file prep. Then eval and seed data | Alex |
-| W4 | Platform: database, sign-in, workspaces, seeding, clock, API, background jobs on Procrastinate, thread messages, screen pings, deploys | Grant |
+| W4 | Platform: database, sign-in, workspaces, seeding, clock, API (application programming interface), background jobs on Procrastinate, thread messages, screen pings, deploys | Grant |
 | W5 | App screens: sign-in, workspaces, grants, buckets, the problem list, charge detail with its checklist and thread, evidence cards, history, clock controls | Grant |
 | W6 | Viewer with highlights, closeout view, PDF evidence report | Grant |
-| Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config | both |
+| Shared | Contracts, migrations, docs, `CLAUDE.md`, CI (continuous integration) config | both |
 
 ### Setup only a person can do
 
@@ -118,7 +118,7 @@ A small correction inside one area doesn't need a decision file. The PR descript
 - **Review bottleneck.** Workers are capped at three per person.
 - **Contract churn.** Once the contract code is merged, later changes follow the process above.
 - **Late integration.** The thin path comes before the parallel work, which forces integration early.
-- **A first version mistaken for a decision.** Provisional areas are listed above, with the choices made for each.
+- **A provisional decision mistaken for a reviewed one.** Its status line says "Provisional: not yet reviewed by Alex", and the provisional areas are listed above.
 - **Google test-mode tokens.** While the OAuth app is in Testing mode, Google refresh tokens expire after 7 days. Reconnect the demo account before a demo.
 - **Cost.** Six Opus workers plus live eval runs. Keep an eye on the Anthropic console.
 

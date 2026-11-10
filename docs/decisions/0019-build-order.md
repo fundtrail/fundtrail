@@ -15,18 +15,18 @@
   4. Everything else, in parallel.
   5. The full seed data and the blind test.
 - **The first build includes everything except the optional features** in [product.md](../product.md#scope).
-- **Areas that haven't been discussed aren't left out.** A first version of each is built and tracked as provisional, so it's easy to override once it's discussed and the first implementation isn't mistaken for a decision. [plan.md](../plan.md#built-first-discussed-after) lists the provisional areas. Whoever builds one records the choices they made for it in that list, in the same pull request. Each area stays in its doc's "Not decided yet" table too.
-- **Parallelize as much as possible.** Inside each stage, the work is split across subagents or separate sessions wherever the pieces don't touch the same files. Shared files (contracts, migrations, docs) have one writer at a time.
-- **The docs decide what the app does and what each screen holds.** Grant's design system and clickable screens (pull request 11, under `frontend/design/`) are inspiration for the look and the general layout. Where they differ from the docs, the docs win. Nothing waits on the mockup.
+- **Areas that haven't been discussed aren't left out.** Before one is built, its design is worked through from first principles and written down as a decision file in `docs/decisions/` whose status line says "Provisional: not yet reviewed by Alex". Building follows that file. A provisional file can be overridden when it's reviewed, and a first implementation is never a decision. [plan.md](../plan.md#provisional-areas) lists the provisional areas and links each to its decision file once it's written. A builder who has to make a further choice inside a provisional area says so in the pull request description. Each area stays in its doc's "Not decided yet" table too.
+- **Parallelize as much as possible.** Inside each stage, the work is split across separate agents wherever the pieces don't touch the same files. Shared files (contracts, migrations, docs) have one writer at a time.
+- **The docs decide what the app does and what each screen holds.** Grant's design system and clickable screens (pull request 11) are inspiration for the look and the general layout. Where they differ from the docs, the docs win. Nothing waits on the mockup.
 
 ## Considered and set aside
 
 - **A smaller first prototype,** with Gmail and Drive, photos and scans, the clock and the seeded workspace, the evidence report, snooze and reusable notes, and the blind test left for after.
-- **Leaving out the areas that haven't been discussed** until they are. They get a provisional first version instead.
+- **Leaving out the areas that haven't been discussed** until they are. Each gets a provisional decision file instead, and is built from it.
 - **Waiting for the UI flow before any contract code.** The records, the checks and the agent side don't depend on the screens.
 
 ## Consequences
 
-- [plan.md](../plan.md) holds the order, the provisional list and the parallel rule, and no dates.
+- [plan.md](../plan.md) holds the order, the list of provisional areas and the parallel rule, and no dates.
 - The contract code for records, checks and the agent side is written from [contracts.md](../contracts.md) in stage 2. What each screen gets from the server is still to write.
-- A provisional area can be mistaken for a decision if its choices aren't recorded. The list in plan.md is the guard.
+- A provisional decision could be mistaken for a reviewed one. Its status line says which it is.

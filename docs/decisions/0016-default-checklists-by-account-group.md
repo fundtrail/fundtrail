@@ -11,10 +11,11 @@ The budget line is also checked from two sides: the ledger's account against the
 ## Decision
 
 - **A default hangs on a group of accounts,** not on each account. There are about a dozen groups, each with one list. Code keeps a small table that says which account codes belong to which group, taken from Berkeley's public account list. The starting groups: salaries, benefits, tuition and fee remission, travel, supplies, equipment, participant support, subawards, consultants and services, printing, and internal recharges.
-- **A default holds only what every charge in the group needs.** Differences inside a group, such as a flight and a hotel, are left to the agent's own items. An account in no group gets no default, as before.
+- **A default holds only what every charge in the group needs.** Differences inside a group, such as a flight and a hotel, are left to the agent's own items. An account in no group gets no default, as before. Where two account ranges overlap, the more specific one wins.
 - **The list for each group is a starting point.** It's in [domain.md](../domain.md#default-checklists-by-account-group).
 - **The effort report follows Berkeley's timing.** Berkeley certifies effort twice a year, within 120 days of the period's end. The report for January to June is expected by late October, and the checklist item carries that date.
-- **A budget line is one of NSF's standard budget categories,** so it needs no category of its own. Only the ledger's account is translated: each account group carries its NSF category, in the same table as its default list, and code compares that with the budget line the agent picked.
+- **A budget line is one of NSF's standard budget categories,** so it needs no category of its own. Only the ledger's account is translated: each account group carries its NSF category, in the same table as its default list, and code compares that with the budget line the agent picked. They match when the category is that line, or when one contains the other, as Other Direct Costs contains its six sub-lines.
+- **Reversals and cost transfers aren't an account group.** Their default items apply to any line that corrects another, whatever its account, in place of its account group's default. The line's NSF category still comes from its account's group.
 
 ## Considered and set aside
 

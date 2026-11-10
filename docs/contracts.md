@@ -9,9 +9,9 @@ Two parts aren't settled:
 - **The newer records,** marked "new" below. What each one is for is agreed. Its exact names and fields aren't, and for some of them, neither is everything it has to hold.
 - **What each screen gets from the server.** The docs decide what each screen holds, and that part isn't written yet.
 
-The contract code for records, checks and the agent side is written first ([decisions/0019](decisions/0019-build-order.md)).
-
 Both are listed under [Not decided yet](#not-decided-yet).
+
+The contract code for records, checks and the agent side is written first ([decisions/0019](decisions/0019-build-order.md)).
 
 ## Where the contracts will live
 
@@ -23,7 +23,7 @@ Both are listed under [Not decided yet](#not-decided-yet).
 | Checks interface | `backend/app/contracts/checks.py` |
 | Agent runs | `backend/app/contracts/runs.py` |
 | Review threads | `backend/app/contracts/threads.py` |
-| API bodies | `backend/app/contracts/api.py`, and the endpoint list below. The frontend generates its TypeScript types from FastAPI's OpenAPI schema. |
+| API (application programming interface) bodies | `backend/app/contracts/api.py`, and the endpoint list below. The frontend generates its TypeScript types from FastAPI's OpenAPI schema. |
 | Users, workspaces and grants | `backend/app/contracts/workspaces.py` |
 | The base every model shares | `backend/app/contracts/base.py` |
 | Eval answer key | `backend/app/contracts/eval.py` |
@@ -32,7 +32,7 @@ Both are listed under [Not decided yet](#not-decided-yet).
 
 ## Changing a contract
 
-1. Open a PR that changes the contract. Both Alex and Grant approve it.
+1. Open a pull request (PR) that changes the contract. Both Alex and Grant approve it.
 2. Once the contract code exists, update the code that uses it in the same PR so main stays green, or have both owners agree on who follows up.
 3. If the change alters behavior or direction, add a file to [decisions/](decisions/).
 
@@ -52,7 +52,7 @@ A record is one thing the agent or the accountant wrote. It's never edited. A co
 | Group | Kind | What it holds | Who writes it |
 |---|---|---|---|
 | Grant terms | `period_of_performance` | `start` (optional: an amendment may state only the new end date), `end` | Agent or accountant |
-| | `budget_line` | `name`, `amount`. One of the standard budget categories of the National Science Foundation (NSF), or a sub-line of one. | Agent or accountant |
+| | `budget_line` | `name`, `amount`. One line or sub-line of the budget, in the standard categories of the National Science Foundation (NSF). | Agent or accountant |
 | | `person` | `name`, `email` (optional), `role` as the document states it. Someone named in the award letter, or a known sender the accountant adds. | Agent or accountant |
 | | `approval_rule` | `applies_to`, `approver`, `channel` (optional) | Agent or accountant |
 | | A rate (new) | A rate that applies across the grant, such as a fringe benefit rate, and its name | Agent or accountant |
@@ -86,7 +86,7 @@ Rules every record follows:
 - **`bill`** is the working name for the kind the earlier code called `receipt`. It covers invoices, receipts, card slips and credit memos.
 - **A bill's document number** is its invoice or order number. The ledger line often carries the same number, which makes it the strongest match. The agent puts anything else that identifies a document in its description: names, order numbers, and the project or award number it mentions.
 - **Terms come from the award letter, an amendment, or a program solicitation** added to the grant as a source. A solicitation's terms use the same kinds. It has no record kind of its own.
-- **A `budget_line`** is named as the award letter prints it. In an NSF award that's one of NSF's standard budget categories, or a sub-line of one, such as Materials and Supplies inside Other Direct Costs.
+- **A `budget_line`** is one line or sub-line the award letter's budget prints, named as NSF prints it. Each one is its own term: Other Direct Costs is a term, and so is Materials and Supplies inside it.
 - **Every term also has `dated`:** the date the document gives itself, such as an amendment's date. An amendment isn't a correction. It's a new term, and the checks use `dated` to decide which terms are in force.
 - **`other_term`** holds anything an award letter or amendment says that no other kind holds, such as a principal investigator (PI) on leave. It's in force from its own date on, and the agent reads any dates inside its statement.
 - **A `note`** is evidence that supports or explains a charge without billing or approving it: a payment notice saying which invoices a payment covered, an appointment letter, an effort report. A document that covers a stretch of time states it as a period, so code can check it against the checklist item it fills.
@@ -109,7 +109,7 @@ New with [0012](decisions/0012-checked-quotes-and-highlights.md):
 
 - **What goes with the flow takes effect, and what goes against it waits** ([0010](decisions/0010-agent-suggests-accountant-decides.md)). These records of the agent's count only once a `confirmation` lists them with `confirmed`:
   - its grant terms
-  - any record that replaces or retracts an existing record: a suggested fix to a link, a withdrawn flag, a correction. Only link fixes, answers and flags were discussed. Whether the agent's corrections to its own facts wait is open (see "Not decided yet"), and this design makes them wait.
+  - any record that replaces or retracts an existing record: a suggested fix to a link, a withdrawn flag, a correction. That link fixes, changed answers and withdrawn flags wait is decided. Whether the agent's corrections to its own facts wait is open (see "Not decided yet"), and this design makes them wait.
   - a second link between a bill and a charge that already have one in force. It's saved and waits like a fix.
   - removing a checklist item
   - a dispute
@@ -117,6 +117,7 @@ New with [0012](decisions/0012-checked-quotes-and-highlights.md):
 - **A new answer over one of the agent's own** counts right away, unless it clears a problem. Contradicts turning into anything milder waits. Unsure turning into supports waits unless new evidence has arrived. A refreshed answer that says the same thing, and any change toward a concern, count right away.
 - **New evidence** means something that arrived after the agent's last answer, or a grant term confirmed after it. Something the agent links later from what was already on file doesn't count. Code checks this.
 - **The agent can suggest a fix to one of the accountant's links, and a new answer to one of theirs.** Both wait, and theirs stays in force meanwhile. It never replaces any other record of theirs. It also can't write a second answer beside theirs.
+- **A waiting suggestion keeps its charge with the accountant.** While any suggestion of the agent's waits, every charge it touches has a Needs a human reason that shows the suggestion, so the charge is in Needs a human unless a more serious reason applies. That holds for a link fix, a checklist item removal, a duplicate mark, a replacement for the accountant's answer, and a withdrawal of the agent's own flag. What was in force stays in force meanwhile. A waiting dispute is the special case: the disputed reason itself counts as Needs a human, which moves the charge from Possible conflict to Needs a human unless another reason keeps it there (section 4).
 - **No repeats.** After the accountant rejects a suggestion or a dispute, the same one is refused unless new evidence has arrived.
 - **The latest decision on a record wins,** and a rejected record never counts. Only the accountant's confirmations that nothing has replaced are counted.
 - **Several records may replace the same one,** because the agent's suggestions wait. The accountant confirms at most one.
@@ -156,7 +157,7 @@ A link ties a fact to a charge. It's a record of kind `link`, and it's its own c
 
 The meaning comes from the record: a bill link means "pays for", an approval link "approves", and a note link "supports" or "explains". A split is one bill linked to several charges, each link with its amount and part, such as an itemized line. There's no separate split record. When an email gives the basis instead, such as "56 of the 96 samples are for grant 1", the email is read as a `note` and linked to each charge, because a link's part has to be in its own record's file.
 
-**Budget lines.** The agent decides which budget line each charge belongs to and writes a `budget_assignment`: the charge, the `budget_line` term and a one-line reason. A charge has at most one current assignment, so a change replaces it, and the accountant can replace the agent's. The checks read it for whether an approval rule applies, and for the grant's note on an overspent line. They also read the ledger's own account. A budget line is already one of NSF's budget categories, so only the account is translated: its account group carries an NSF category, and code compares that with the assigned line. An approval is required if either one says so, and a disagreement between them is Needs a human.
+**Budget lines.** The agent decides which budget line each charge belongs to and writes a `budget_assignment`: the charge, the `budget_line` term and a one-line reason. A charge has at most one current assignment, so a change replaces it, and the accountant can replace the agent's. The checks read it for whether an approval rule applies, and the budget check on the grant reads it for spending on each line. They also read the ledger's own account. A budget line is already one of NSF's budget categories, so only the account is translated: its account group carries an NSF category, and code compares that with the assigned line. They match when the category is that line, or when one contains the other, as Other Direct Costs contains its six sub-lines. An approval is required if either one says so, and a disagreement between them is Needs a human.
 
 **A waiting fix.** While a fix the agent suggested waits for the accountant, every charge it touches is in Needs a human, showing the suggestion. The old link stays in force until the accountant confirms the fix.
 
@@ -181,7 +182,7 @@ New with [0011](decisions/0011-evidence-checklist.md). Every charge has a checkl
 - **Defaults hang on groups of accounts** ([0016](decisions/0016-default-checklists-by-account-group.md)). A small table in the code says which account codes belong to which group, and gives each group its default list and its NSF budget category. It covers Berkeley's accounts first, and the starting lists are in [domain.md](domain.md#default-checklists-by-account-group). An account in no group gets only the items the agent adds.
 - **A required approval is a default item too.** Code adds it when one of the grant's approval rules applies to the charge. "NSF approval" also goes on the checklist when the agent recognizes something on NSF's standing list.
 - **A cost dated up to 90 days before the start date** gets an item for the university's own pre-award approval.
-- **A reversal or cost transfer** defaults to the line it corrects plus a written justification.
+- **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account, in place of its account group's default. The line's NSF category still comes from its account's group. Check 6 is carried out through them, so a gap gives one reason, not two.
 - **An added item is a record** on the charge: what's needed, and who added it. It takes effect right away.
 - **Removing an item** is a record too. The agent's removal waits for the accountant. The accountant's takes effect right away.
 - **An item can carry an amount.** Either the bills linked to it add up to that amount, or the amount comes from a rate: a quantity times a rate, both cited, with the math re-checked by code. The rate has to come from a file on the grant or from a confirmed rate term.
@@ -196,7 +197,7 @@ Code checks the clear-cut rules itself. For what it can't settle, it asks a ques
 | Question | When code asks it |
 |---|---|
 | `allowable`: "Is this cost necessary and reasonable, and is it for this project?" | Every charge that has evidence linked |
-| `covers`: "Does this approval cover this charge?" | When an approval rule applies to the charge and an approval is linked. `record_id` is the approval. Whether a rule applies depends on the charge's `budget_assignment` and on the ledger's account. |
+| `covers`: "Does this approval cover this charge?" | When an approval rule applies to the charge and an approval is linked, or when an approval is linked to a charge dated more than 90 days before the start date (section 8). `record_id` is the approval. Whether a rule applies depends on the charge's `budget_assignment` and on the ledger's account. |
 | `unusual_term`: "Does this term change anything for this charge?" | Once for each confirmed `other_term` in force on the charge's date. `record_id` is the term. |
 | `flag`: the agent's own question | Whenever the agent sees something no other question covers. The agent's answer is always `unsure`, and the accountant settles it by answering it. A flag can be about a charge, a record, or a file that has no record, such as one that can't be read. |
 
@@ -275,12 +276,15 @@ A pure function, with no database and no model inside. W2 implements it in `back
   - **A status for each charge:** its `bucket`, every reason (the check, its bucket, text built by code, and the records it rests on), its evidence checklist, whether it's `flagged`, whether it's `rechecking`, and whether it's accepted or snoozed.
   - **A status for each record or file that has a problem of its own** (new).
   - **The open questions:** every required question without a current answer, and who answers it (the agent, or the accountant when they answered before).
-  - **Problems on the grant itself** (new): a problem about the whole grant, which goes on the problem list.
+  - **Problems on the grant itself** (new): a problem about the whole grant, which goes on the problem list, such as spending over the award's limit.
   - **Grant notes:** anything else about the grant as a whole that isn't about one charge or record, such as an overspent budget line. A note isn't a problem.
 - **Confirmed terms only.** The checks read only confirmed terms. Where an older confirmed term exists, it stays in force. Where none exists, each charge is in Needs a human, with a reason that says which terms aren't confirmed. Checks that need no terms still run.
-- **The code checks.** There are six ([0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), and [product.md](product.md#what-code-checks) for what each one fails to): the cost's date against the period in force, the evidence checklist and its sums, required approvals, the budget, that every value the charge rests on is confirmed, and that a reversal or cost transfer names its line and has a justification.
+- **The code checks.** There are six ([0015](decisions/0015-six-code-checks-and-the-agents-rulebook.md), and [product.md](product.md#what-code-checks) for what each one fails to).
+  - **Five give a charge its reasons:** the cost's date against the period in force, the evidence checklist and its sums, required approvals, that every value the charge rests on is confirmed, and that a reversal or cost transfer names the line it corrects and has a written justification. The last is carried out through the checklist (section 3), so a gap gives one reason, not two.
+  - **One is about the grant:** the budget. It never adds a reason to a charge.
+- **The cost's date.** A cost dated more than 90 days before the start date is in Possible conflict unless NSF's approval is on file. That means an `approval` record linked to the charge that the agent's `covers` answer supports.
 - **The buckets,** as the code and the answer key write them: `evidence_complete`, `possible_conflict`, `missing_evidence` and `needs_human`.
-- **A reason** holds the check's stable ID, such as `period_of_performance`, the bucket that check puts the charge in, text built by code, and the records it rests on. A charge's reasons include the checks that pass. A pass is `evidence_complete`.
+- **A reason** holds the check's stable ID, such as `period_of_performance`, the bucket that check puts the charge in, text built by code, and the records it rests on. A charge's reasons come from the five checks about a charge, and include the ones that pass. A pass is `evidence_complete`.
 - **The bucket** is the most serious bucket among the reasons, in the order Possible conflict, Needs a human, Missing evidence, Evidence complete. It's the bucket the checks give, whether or not the accountant accepted a reason.
 - **Flagged** means on the accountant's problem list.
   - Possible conflict and Needs a human are flagged, unless the accountant accepted the reason or snoozed the charge.
@@ -290,10 +294,10 @@ A pure function, with no database and no model inside. W2 implements it in `back
 - **Problems on records and files.** Code raises the clear-cut ones: a bill linked for more than its total, a bill with money nobody charged 60 days after it arrived, a term waiting to be confirmed, confirmed terms that disagree, and the exact same file on the grant twice. The agent raises anything else with a flag.
 - **Problems on the grant itself.** Code raises four:
   - the grant has no confirmed dates, or no budget
-  - spending is over the whole award
+  - spending is over the award's limit
   - a funding notice's totals don't add up: the earlier confirmed total plus the amount the notice adds has to equal the notice's running total
   - an amendment number is skipped
-- **The budget.** An overspent budget line is never a problem on a charge. It's a grant note. A notice that adds money adds to the award's limit once the accountant confirms it.
+- **The budget.** This check runs on the grant. An overspent budget line is a grant note. Spending over the award's limit is a problem on the grant. The limit is the "Total Amount Obligated to Date" on the latest confirmed notice, so a notice that adds money raises it once the accountant confirms it. Spending is the sum of the charges on the grant's ledger.
 - **Status history:** a row is written each time a status changes, with when it changed and its trigger: a record, a charge, a file, a message in a thread, or the clock. For a change that comes from saving an agent run, the trigger is what started the run, for example "invoice 1001 arrived".
 
 ## 9. Agent runs
@@ -415,9 +419,10 @@ The key grows to cover checklist items, suggestions, disputes, unconfirmed value
 
 One small synthetic grant that every workstream tests against. It follows the extension-notice example in [product.md](product.md#demo-data-examples). The contract code carries it as a fixture, with its four documents, and tests that check the contracts against it.
 
-**The grant:** award SYN-2300117, "Sediment Microbiome Survey of Example Bay", funded by NSF. It runs from February 1, 2023 to January 31, 2026. The award letter, dated January 10, 2023, gives:
+**The grant:** award SYN-2300117, "Sediment Microbiome Survey of Example Bay", funded by NSF. It runs from February 1, 2023 to January 31, 2026. The award letter, dated January 10, 2023, is laid out like a real NSF award notice (see [domain.md](domain.md#what-an-nsf-award-notice-contains)). It gives:
 
-- a budget in the layout of a real NSF award notice (see [domain.md](domain.md#what-an-nsf-award-notice-contains)). Only the lines that hold money are shown:
+- its funding amounts: amendment 000, a new project, with $120,000 obligated by this amendment and $120,000 obligated to date
+- a budget. Only the lines that hold money are shown:
 
   | Line | Amount |
   |---|---|
@@ -427,45 +432,60 @@ One small synthetic grant that every workstream tests against. It follows the ex
   | Other, a sub-line of G | $60,000 |
   | H. Total Direct Costs | $120,000 |
 
-  It's read as three `budget_line` terms, one for each line that holds money of its own: Participant Support Costs $20,000, Materials and Supplies $40,000, and Other $60,000. The sample has no indirect costs, which FundTrail doesn't cover for now.
+  Each line and sub-line is a `budget_line` term, so there are four: Participant Support Costs $20,000, Other Direct Costs $100,000, Materials and Supplies $40,000, and Other $60,000. The sample treats Total Direct Costs as a sum, not a term. It has no indirect costs, which FundTrail doesn't cover for now.
 - three people: Dr. Robin Example, Principal Investigator. Dr. Jesse Sample, Program Officer. Casey Placeholder, Grants Officer.
 - one approval rule: Participant Support Costs need the Program Officer's approval through Research.gov
+
+That's 10 terms: the period, four budget lines, three people, one approval rule and the funding amounts.
 
 **The ledger:**
 
 | Line | Cost date | Posted | Amount | Description | Account | Vendor | Reference |
 |---|---|---|---|---|---|---|---|
-| L-1001 | Nov 12, 2025 | Nov 14, 2025 | $1,240.00 | Sediment core liners | Materials and Supplies | Example Lab Supply Co. | INV-1001 |
-| L-1002 | Feb 20, 2026 | Feb 24, 2026 | $2,180.00 | Sediment DNA sequencing run 7 | Other Direct Costs | Example Sequencing Core | SEQ-0207 |
+| L-1001 | Nov 12, 2025 | Nov 14, 2025 | $1,240.00 | Sediment core liners | 55016 Lab Instruments and Supplies | Example Lab Supply Co. | INV-1001 |
+| L-1002 | Feb 20, 2026 | Feb 24, 2026 | $2,180.00 | Sediment DNA sequencing run 7 | 59009 Recharge-Other Expenses | Example Sequencing Core | SEQ-0207 |
 
-**The documents.** Four plain-text files, each read as one block per paragraph, so every citation is a `content_block_location`:
+The sequencing core is a campus core facility, so L-1002 is an internal recharge. The sample assumes recharges fall under Other, the sub-line of Other Direct Costs.
+
+**The documents.** Four plain-text files. Text and email are cited by character range, so every citation is a `char_location`:
 
 | File | How it arrives | What it is |
 |---|---|---|
 | `award_letter.txt` | Upload | The award letter, with the terms above |
 | `invoice_1001.txt` | Upload | Invoice INV-1001 from Example Lab Supply Co., dated November 12, 2025: "Sediment core liners, 50 count", total $1,240.00 |
-| `sequencing_invoice.eml` | Gmail, from the PI | An email carrying invoice SEQ-0207 from Example Sequencing Core, dated February 20, 2026: "Sediment DNA sequencing, run 7, 48 samples", total $2,180.00 |
+| `sequencing_statement.eml` | Gmail, from the PI | An email carrying usage statement SEQ-0207 from Example Sequencing Core, dated February 20, 2026: "Sediment DNA sequencing, run 7, 48 samples", total $2,180.00. It states an amount, so it's read as a `bill`. |
 | `extension_notice.txt` | Drive | The extension notice, dated January 15, 2026 |
 
 The people's email addresses are `robin.example@university.example`, `jesse.sample@funder.example` and `casey.placeholder@funder.example`.
 
-**The checklists.** Each charge's checklist has one item, a bill that adds up to the charge, and the charge's link fills it. That assumes each line's ledger account is in a group whose default is a bill alone, as the supplies group's is. The sample's account names are older than the account groups, and they still have to become accounts in the default table (see "Not decided yet").
+**The checklists.** Each charge's checklist has one item, its account group's default, and the charge's link fills it.
 
-**What the sample leaves out.** Its award letter and extension notice don't carry an amendment number, a type or amounts yet. They join the sample once that term's fields are settled.
+| Line | Account group | Default item | Filled by | Assigned budget line |
+|---|---|---|---|---|
+| L-1001 | Supplies | A bill that adds up to the charge | The invoice, linked for $1,240 | Materials and Supplies |
+| L-1002 | Internal recharges | The facility's usage statement | The statement, linked for $2,180 | Other |
+
+The sample has the usage statement item carry the charge's amount, so its link carries $2,180 and the sums balance.
+
+**What the sample leaves out.** The extension notice carries no amendment number, because where a notice that adds no money records it isn't settled.
 
 **What happens:**
 
 | Clock (UTC) | What happens |
 |---|---|
-| 2023-01-12 | The award letter is uploaded. The agent writes 8 terms, and the accountant confirms them. |
+| 2023-01-12 | The award letter is uploaded. The agent writes 10 terms, and the accountant confirms them. |
 | 2025-11-12 | Invoice INV-1001 is uploaded and waits, unlinked. |
 | 2025-11-14 | Ledger line L-1001 arrives. The agent links the invoice for $1,240, assigns it to Materials and Supplies, and answers Allowable: supports. |
-| 2026-02-21 | The PI emails the sequencing invoice, and it waits. |
-| 2026-02-24 | Ledger line L-1002 arrives, for work done after the end date. The agent links the invoice for $2,180, assigns it to Other, the sub-line of Other Direct Costs, and answers Allowable: supports. |
+| 2026-02-21 | The PI emails the sequencing core's usage statement, and it waits. |
+| 2026-02-24 | Ledger line L-1002 arrives, for work done after the end date. The agent links the statement for $2,180, assigns it to Other, the sub-line of Other Direct Costs, and answers Allowable: supports. |
 | 2026-04-09 | The extension notice, dated January 15, 2026, turns up in Drive. It moves the end date to January 31, 2027. |
 | 2026-04-10 | The accountant confirms the new end date. |
 
-**Expected buckets,** checked at noon UTC on November 14, 2025 and February 24, 2026, and at 17:00 UTC on April 10, 2026: L-1001 is Evidence complete throughout. L-1002 is Possible conflict once it arrives, resting on the award letter's period. Between the extension's arrival and its confirmation it stays Possible conflict, because the old end date stays in force until the new one is confirmed. After the confirmation it's Evidence complete, resting on the extension, with no agent call: its Allowable answer didn't rest on the end date.
+**Expected buckets,** checked at noon UTC on November 14, 2025 and February 24, 2026, and at 17:00 UTC on April 10, 2026:
+
+- **L-1001 is Evidence complete throughout.** Its date is inside the period, its one item is filled and adds up, no approval rule applies, and its account group's category, Materials and Supplies, is the line it's assigned to.
+- **L-1002 is Possible conflict once it arrives,** resting on the award letter's period. Its item is filled, and its account group's category, Other, is the line it's assigned to, so the date is its only failing check. Between the extension's arrival and its confirmation it stays Possible conflict, because the old end date stays in force until the new one is confirmed. After the confirmation it's Evidence complete, resting on the extension, with no agent call: its Allowable answer didn't rest on the end date.
+- **The grant has no problem of its own.** Spending of $3,420 is under the $120,000 limit, and no budget line is overspent. The agent has no reason to flag the extension notice, which is dated 16 days before the old end date.
 
 **What the tests check:** that the sample grant fits the contracts, that every passage is copied exactly from its document, that every record passes the write check when replayed in order, that the sums balance, that the ledger file matches the charges, and that the answer key scores all right against the sample grant's own agent records. Everything in it is synthetic.
 
@@ -475,7 +495,9 @@ The people's email addresses are `robin.example@university.example`, `jesse.samp
 |---|---|
 | The names and fields of the newer records: the rate term, the funding notice's amounts, the checklist item and its removal, the accepted reason, the snooze, the dispute, the duplicate mark, the flag on a record or file, and the thread messages table | contract |
 | The newer fields on existing records: how a link names the checklist item it fills, how a link or a removal names a default item that isn't stored, the note's period, the bill's document number, the citation's match and highlight position, and how a box on a photo is stored | contract |
-| How a `budget_line` records that it's a sub-line of a category, and whether a category that has sub-lines is a term of its own | contract |
+| How a `budget_line` records that it's a sub-line of a category, and whether the totals a notice prints, such as Total Direct Costs, are terms. The sample grant treats them as sums. | contract |
+| Where a notice that adds no money, such as a no-cost extension, records its amendment number | contract |
+| How the budget check treats indirect costs. They're out for now, so comparing spending with the award's limit is only as complete as the ledger. | product, later |
 | How a funding notice's own budget lines combine with the lines already confirmed | contract |
 | How a problem on the grant itself is carried in the checks' output | contract |
 | How the agent's recognizing something on NSF's standing list is recorded, so the approval item goes on the checklist, and how an answer names the rule it used | contract |
@@ -485,15 +507,15 @@ The people's email addresses are `robin.example@university.example`, `jesse.samp
 | What each screen gets from the server: a charge page, the grant page, an evidence card and a thread. The docs decide it, and nothing waits on the mockup. | product, then contract |
 | How Procrastinate's jobs relate to the `agent_runs` table. Procrastinate keeps its own job tables, and `agent_runs` is the app's own record of each run. | contract |
 | Whether new evidence has to be something the agent's new answer points at, by quoting it or resting on it, or whether anything that arrived since is enough | contract |
-| Whether a correction to a record the agent's answer rested on also counts as new evidence. An earlier version of the rule said so, and the agreed wording leaves it out. | product |
+| Whether a correction to a record the agent's answer rested on also counts as new evidence. The rule as decided doesn't count it. | product |
 | Whether a question has one answer in force at a time. A charge could still have several flags. | contract |
 | What a snooze and an accepted reason record so code can tell a new problem and changed facts apart. Suggested: the reasons a snooze covered, and the records an accepted reason rested on. | contract |
-| Whether "one link in force" is for a bill and a charge, or for a bill, a charge and a checklist item | contract |
+| A bill and a charge have one link in force at a time. Still open: whether the same bill can have a second link in force to the same charge when it fills a different checklist item. | contract |
 | Whether a copy can still be linked while its duplicate mark waits | contract |
 | Whether a thread can be about a file that has no record | contract |
 | How reasons name "the same problem", so a reusable note can be matched to a later charge | contract |
 | How the answer key expresses checklist items, suggestions, disputes and unconfirmed values | contract |
-| The exact table of account codes, groups and NSF budget categories (see [domain.md](domain.md#not-decided-yet)), and the sample grant's ledger accounts, which have to be in it | builder (W2), discussed with Alex before building |
+| The exact table of account codes, groups and NSF budget categories (see [domain.md](domain.md#not-decided-yet)) | builder (W2), discussed with Alex before building |
 | How reversals and cost transfers show in buckets and at closeout, beyond their default checklist. Berkeley's 120-day limit on cost transfers is discussed with it. | product |
 | Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
 | Whether the agent's corrections to its own facts (not links) wait for the accountant. This design makes them wait. | product |
