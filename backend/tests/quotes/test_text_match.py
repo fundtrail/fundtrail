@@ -5,6 +5,7 @@ import random
 import pytest
 
 from app.quotes.text_match import (
+    LINE_DASH,
     LINE_HYPHEN,
     _end_scores,  # pyright: ignore[reportPrivateUsage]
     best_substring_match,
@@ -253,11 +254,13 @@ def test_best_substring_match_agrees_with_brute_force() -> None:
 
 
 def test_clean_keeps_a_line_end_hyphen_between_digits() -> None:
-    assert clean("pages 10-\r\n20 of the").text == "pages 10-20 of the"
-    assert clean("pages 10\x0220 of the").text == "pages 10-20 of the"
+    assert clean("pages 10-\r\n20 of the").text == f"pages 10{LINE_DASH}20 of the"
+    assert clean("pages 10\x0220 of the").text == f"pages 10{LINE_DASH}20 of the"
     page = clean("pages 10-\r\n20 of the")
     assert not find_exact("pages 1020 of the", page)
     assert find_exact("pages 10-20 of the", page)
+    assert find_exact("pages 10-\n20 of the", page)
+    assert find_exact("pages 10- 20 of the", page)
 
 
 def test_clean_turns_two_single_quotes_into_a_double_quote() -> None:
@@ -277,8 +280,128 @@ def test_clean_drops_a_soft_hyphen_between_digits() -> None:
     assert (
         clean("the order total was 1\u00ad450 dollars").text == "the order total was 1450 dollars"
     )
-    # pdfium's own line-end hyphen between digits is a real hyphen.
-    assert clean("pages 10\x0220").text == "pages 10-20"
+    # pdfium's own line-end hyphen between digits is a real dash that ended a line.
+    assert clean("pages 10\x0220").text == f"pages 10{LINE_DASH}20"
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "Travel refund 450.00-\n2026-03-04 Lodging 300.00",
+        "Travel refund 450.00\x022026-03-04 Lodging 300.00",
+    ],
+)
+def test_a_dash_ending_a_line_after_a_number_is_a_trailing_minus(page: str) -> None:
+    """A ledger report's "450.00-" with a date on the next line isn't confirmed as 450.00."""
+    text = clean(page)
+    (span,) = find_exact("Travel refund 450.00", text)
+    assert not value_in_span("450.00", text.text, *span)
+    # The date on the next line is still read as written.
+    assert contains_exactly("2026-03-04", text.text)
+    # A passage keeping the minus matches, and its tokens carry the sign.
+    assert find_exact("Travel refund 450.00-\n2026-03-04", text)
+
+
+def test_close_guard_reads_a_dash_ending_a_line_as_a_minus() -> None:
+    page = clean("Travel refund for the conference 450.00-\n2026-03-04 Lodging").text
+    end = page.index("Lodging")
+    assert not close_span_ok("Travl refund for the conference 450.00", "450.00", page, 0, end)
+
+
+def test_a_range_broken_across_lines_doesnt_confirm_its_first_number() -> None:
+    """On the safe side: "10-" then "20" may be a trailing minus, so "10" isn't confirmed.
+
+    Nor is the range "10-20" itself, which starts with that "10"; "20" is.
+    """
+    page = clean("Stay of 10-\n20 days for the field work").text
+    assert not contains_exactly("10", page)
+    assert not contains_exactly("10-20", page)
+    assert contains_exactly("20", page)
+
+
+@pytest.mark.parametrize(
+    ("value", "page", "found"),
+    [
+        ("-$450", "Hotel rates run $300-$450 per night", False),
+        ("-450", "Charged to account 10-450 for the lab", False),
+        ("-450", "Charged to account SYN-450 for the lab", False),
+        ("-$450", "Adjustment of -$450 posted", True),
+        ("-$450", "Adjustment:-$450 posted", True),
+        ("$450-", "Adjustment of $450- posted", True),
+        ("$450-", "Rates $450-$500 per night", False),
+        ("$450-", "Rates $450-500 per night", False),
+        ("450.00-", "refund 450.00-\n2026-03-04", True),
+    ],
+)
+def test_a_value_carrying_its_own_minus_needs_a_minus_on_the_page(
+    value: str, page: str, found: bool
+) -> None:
+    """A negative record must not confirm where the page's dash is a hyphen."""
+    assert contains_exactly(value, clean(page).text) is found
+
+
+@pytest.mark.parametrize(
+    ("value", "page", "found"),
+    [
+        # 1. Clearly negative: a positive value doesn't confirm.
+        ("$450.00", "Adjustment of -$450.00 posted", False),
+        ("$450.00", "Adjustment of \u2013$450.00 posted", False),
+        ("450.00", "Adjustment of $-450.00 posted", False),
+        ("$450.00", "Adjustment of (-$450.00) posted", False),
+        ("$450.00", "Adjustment of \u2212$450.00 posted", False),
+        ("$450.00", "Adjustment of \u2212 $450.00 posted", False),
+        ("$450.00", "Adjustment of $450.00- posted", False),
+        ("$450.00", "Adjustment of $450.00\u2013 posted", False),
+        ("$450.00", "Adjustment of $450.00-", False),
+        ("$450.00", "Adjustment of $450.00 CR posted", False),
+        ("$450.00", "Adjustment ($450.00)", False),
+        ("$450.00", "The airfare ($450.00) was booked", False),
+        # 2. No mark: a positive value confirms.
+        ("$450.00", "Adjustment of $450.00 posted", True),
+        # 3. Could be either: the value's sign stands.
+        ("$450.00", "Airfare \u2013 $450.00", True),
+        ("$50,000", "Year 2 - $50,000", True),
+        ("$500", "Rates run $400 \u2013 $500 per night", True),
+        ("$450.00", "Adjustment of - $450.00 posted", True),
+        ("20", "pages 10 - 20 of the", True),
+        # 4. Never a sign.
+        ("$450.00", "Total \u2014 $450.00 posted", True),
+        ("$500", "Rates $400-$500 per night", True),
+        ("$400", "Rates $400-$500 per night", True),
+        ("$450", "Rates $450\u2013$500 per night", True),
+        ("$50,000", "Year 2-$50,000", True),
+        ("20", "pages 10-20 of the", True),
+        ("20", "pages 10\u201320 of the", True),
+        ("10", "pages 10-20 of the", True),
+        ("2026", "Award SYN-2026 funded", True),
+        ("09/01/2025", "Period of performance: 09/01/2025 - 08/31/2027", True),
+        ("08/31/2027", "Period of performance: 09/01/2025 - 08/31/2027", True),
+        ("08/31/2027", "Period of performance: 09/01/2025 -08/31/2027", True),
+    ],
+)
+def test_signs_follow_call_31(value: str, page: str, found: bool) -> None:
+    """Provisional call 31: a sign is rejected only where the text can be read one way."""
+    assert contains_exactly(value, clean(page).text) is found
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "Adjustment of -$450.00 posted",
+        "Adjustment of \u2013$450.00 posted",
+        "Adjustment of $450.00- posted",
+    ],
+)
+def test_close_guard_reads_a_clear_minus(page: str) -> None:
+    assert not close_span_ok("Adjustment of $450.00 posted", None, page, 0, len(page))
+
+
+@pytest.mark.parametrize(
+    "page",
+    ["Airfare - $450.00 posted", "Airfare \u2013 $450.00 posted"],
+)
+def test_close_guard_lets_the_passage_sign_stand_on_a_spaced_dash(page: str) -> None:
+    assert close_span_ok("Airfare $450.00 posted", None, page, 0, len(page))
 
 
 def _brute_force_anchored(pattern: str, text: str) -> list[int]:
@@ -300,43 +423,6 @@ def test_anchored_scores_agree_with_brute_force() -> None:
         text = "".join(rng.choice("abcd") for _ in range(rng.randint(1, 60)))
         pattern = "".join(rng.choice("abcd") for _ in range(rng.randint(1, 80)))
         assert _end_scores(pattern, text, anchored=True) == _brute_force_anchored(pattern, text)
-
-
-@pytest.mark.parametrize(
-    ("value", "page", "found"),
-    [
-        ("$450.00", "Adjustment of \u2013$450.00 posted", False),
-        ("$450.00", "Adjustment of - $450.00 posted", False),
-        ("$450.00", "Adjustment of \u2212 $450.00 posted", False),
-        ("$450.00", "Adjustment of $450.00- posted", False),
-        ("$450.00", "Adjustment of $450.00\u2013 posted", False),
-        ("$450.00", "Adjustment of $450.00-", False),
-        ("450.00", "Adjustment of $-450.00 posted", False),
-        ("$450.00", "The airfare ($450.00) was booked", False),
-        ("$450.00", "Adjustment of $450.00 posted", True),
-        ("$450.00", "Total \u2014 $450.00 posted", True),
-        ("20", "pages 10-20 of the", True),
-        ("20", "pages 10\u201320 of the", True),
-        ("20", "pages 10 - 20 of the", False),
-        ("10", "pages 10-20 of the", True),
-        ("2026", "Award SYN-2026 funded", True),
-    ],
-)
-def test_a_minus_sign_in_any_form_stops_a_value(value: str, page: str, found: bool) -> None:
-    """A credit must not confirm as a charge: en dash, spaced and trailing minus all count."""
-    assert contains_exactly(value, clean(page).text) is found
-
-
-@pytest.mark.parametrize(
-    "page",
-    [
-        "Adjustment of \u2013$450.00 posted",
-        "Adjustment of - $450.00 posted",
-        "Adjustment of $450.00- posted",
-    ],
-)
-def test_close_guard_reads_every_minus(page: str) -> None:
-    assert not close_span_ok("Adjustment of $450.00 posted", None, page, 0, len(page))
 
 
 def test_a_line_end_hyphen_is_not_a_word_edge() -> None:
