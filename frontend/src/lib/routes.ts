@@ -6,6 +6,12 @@ import type { Id } from "./api/types";
 
 const e = encodeURIComponent;
 
+/** Where the viewer opens a file: one record, and optionally one of its values. */
+export interface ViewerSpot {
+  recordId: Id;
+  value?: string;
+}
+
 export const routes = {
   signIn: () => "/sign-in",
   home: () => "/",
@@ -23,8 +29,25 @@ export const routes = {
   ledger: (grantId: Id) => `/grants/${e(grantId)}/ledger`,
   closeout: (grantId: Id) => `/grants/${e(grantId)}/closeout`,
 
+  /** Every file on the grant: the evidence cards. */
+  evidence: (grantId: Id) => `/grants/${e(grantId)}/files`,
+
   // One item on a grant
   charge: (grantId: Id, chargeId: Id) => `/grants/${e(grantId)}/charges/${e(chargeId)}`,
   record: (grantId: Id, recordId: Id) => `/grants/${e(grantId)}/records/${e(recordId)}`,
-  file: (grantId: Id, fileId: Id) => `/grants/${e(grantId)}/files/${e(fileId)}`,
+  /**
+   * One file in the viewer. With `at`, it opens at one value of one record:
+   * `value` names it the server's way ("total", "items[0].amount"), or "part"
+   * for a link's part, or "quotes[0]" for an answer's first quote.
+   */
+  file: (grantId: Id, fileId: Id, at?: ViewerSpot) => {
+    const base = `/grants/${e(grantId)}/files/${e(fileId)}`;
+    if (!at) return base;
+    const query = new URLSearchParams({ record: at.recordId });
+    if (at.value) query.set("value", at.value);
+    return `${base}?${query.toString()}`;
+  },
+  /** Confirming or typing the values of one record that couldn't be found in its file. */
+  confirmValues: (grantId: Id, fileId: Id, recordId: Id) =>
+    `/grants/${e(grantId)}/files/${e(fileId)}/confirm?${new URLSearchParams({ record: recordId }).toString()}`,
 } as const;
