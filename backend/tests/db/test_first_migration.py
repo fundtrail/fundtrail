@@ -202,12 +202,15 @@ def g(db: psycopg.Connection) -> dict[str, Any]:
 def test_creates_every_table_with_row_level_security_and_no_policies(
     db: psycopg.Connection,
 ) -> None:
-    rows = db.execute(
-        "select relname, relrowsecurity from pg_class "
-        "where relnamespace = 'public'::regnamespace and relkind = 'r' "
-        "and relname not like 'procrastinate\\_%'"  # Procrastinate's, from a later migration
-    ).fetchall()
-    assert dict(rows) == {table: True for table in TABLES}
+    rows = dict(
+        db.execute(
+            "select relname, relrowsecurity from pg_class "
+            "where relnamespace = 'public'::regnamespace and relkind = 'r'"
+        ).fetchall()
+    )
+    # These tables, and every table later migrations add, have row level security.
+    assert set(TABLES) <= set(rows)
+    assert {table for table, on in rows.items() if not on} == set()
     policies = db.execute("select count(*) from pg_policies where schemaname = 'public'").fetchone()
     assert policies == (0,)
 
@@ -237,7 +240,8 @@ ROWS: dict[str, tuple[set[str], set[str]]] = {
     "grants": (fields(Grant), set()),
     "charges": (fields(Charge), set()),
     "evidence_files": (fields(EvidenceFile), set()),
-    "records": (fields(Record), {"kind", "charge_id", "record_id", "created_at"}),
+    # held_mail_id, generated from a mail_action record's data, comes with issue 43.
+    "records": (fields(Record), {"kind", "charge_id", "record_id", "held_mail_id", "created_at"}),
     "agent_runs": (fields(AgentRun) - {"trigger"}, TRIGGER),
     # created_at orders messages written at the same clock time, as on records.
     "thread_messages": (fields(ThreadMessage), {"created_at"}),

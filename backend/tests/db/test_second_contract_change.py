@@ -161,6 +161,13 @@ def test_a_record_names_a_thread_message_that_exists(
 
 
 def test_mail_action_is_the_accountants_only(db: psycopg.Connection, g: dict[str, Any]) -> None:
+    # The held message it names has to exist (issue 43's migration).
+    db.execute(
+        "insert into public.held_mail "
+        "(id, workspace_id, grant_id, reason, source_ref, held_at, files) "
+        "values ('held-1', %s, %s, 'unknown_sender', 'msg-1', %s, '[]')",
+        [g["workspace_id"], g["grant_id"], NOW],
+    )
     data = {"kind": "mail_action", "held_mail_id": "held-1", "action": "let_in"}
     make_record(db, g, data, author="user", author_user_id=g["user_id"])
     rejects(db, errors.CheckViolation, "records", **record_values(g, data, author="agent"))
