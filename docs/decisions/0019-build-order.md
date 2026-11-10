@@ -16,12 +16,9 @@
   5. The full seed data and the blind test.
 - **The first build includes everything except the optional features** in [product.md](../product.md#scope).
 - **Areas that haven't been discussed aren't left out.** Before one is built, its design is worked through from first principles and written down as a decision file in `docs/decisions/` whose status line says "Provisional: not yet reviewed by Alex". Building follows that file. A provisional file can be overridden when it's reviewed, and a first implementation is never a decision. [plan.md](../plan.md#provisional-areas) lists the provisional areas and links each to its decision file once it's written. A builder who has to make a further choice inside a provisional area says so in the pull request description. Each area stays in its doc's "Not decided yet" table too.
-- **Everything is built in this repo by agents,** including the folders that were Grant's. Alex decides the product.
-- **The roles.** The main coordinator holds the design discussion with Alex, and all product questions and decisions flow through it. A build coordinator runs the build. Builders each take one issue in one area. A different agent reviews every pull request. A human assistant walks Alex through the steps only a person can do.
-- **A reviewed pull request with passing tests merges straight to main.**
-- **Parallelize as much as possible.** Inside each stage, the work is split across separate agents wherever the pieces don't touch the same files. As many builders run at once as reviews and merges can keep up with, with one writer at a time on shared files.
-- **The design discussion continues while the build runs.** A new decision goes into the docs first, then to the build coordinator, then to the builder it affects. A change to work that's already merged becomes a new issue.
-- **Every agent runs on Opus at medium effort or higher.** The contracts as code, the agent, the checks, the quotes, the eval cases and the reviewer run at high effort or above.
+- **A pull request merges to main once someone other than its author has reviewed it against the docs and the tests pass.**
+- **Parallelize as much as possible.** Inside each stage, the work is split across separate agents wherever the pieces don't touch the same files. As much runs at once as reviews and merges can keep up with, with one writer at a time on shared files.
+- **The design discussion continues while the build runs.** A new decision goes into the docs first, then to whoever is building the part it affects. A change to work that's already merged becomes a new issue.
 - **The docs decide what the app does and what each screen holds.** Grant's design system and clickable screens (pull request 11) are inspiration for the look and the general layout. Where they differ from the docs, the docs win. Nothing waits on the mockup.
 
 ## Considered and set aside
@@ -33,6 +30,6 @@
 
 ## Consequences
 
-- [plan.md](../plan.md) holds the order, the list of provisional areas, the parallel rule and how the build is run, and no dates. The areas of the repo keep their numbers, W1 to W6, with no owner. [CLAUDE.md](../../CLAUDE.md) says who does what and holds the working rules.
+- [plan.md](../plan.md) holds the order, the list of provisional areas, the parallel rule and how the build is run, and no dates. The areas of the repo keep their numbers, W1 to W6, with no owner. [CLAUDE.md](../../CLAUDE.md) holds the working rules.
 - The contract code for records, checks and the agent side is written from [contracts.md](../contracts.md) in stage 2. What each screen gets from the server is still to write.
 - A provisional decision could be mistaken for a reviewed one. Its status line says which it is.

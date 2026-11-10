@@ -24,7 +24,7 @@ Areas that haven't been discussed yet aren't left out. Before one is built, its 
 
 ### Provisional areas
 
-Each area gets a link to its decision file here once the file is written. A builder doesn't edit this list. A builder who has to make a further choice inside a provisional area says so in the pull request description. Each area also stays in its doc's "Not decided yet" table until it's reviewed.
+Each area gets a link to its decision file here once the file is written. Whoever builds an area doesn't edit this list. A builder who has to make a further choice inside a provisional area says so in the pull request description. Each area also stays in its doc's "Not decided yet" table until it's reviewed.
 
 | Provisional area | Its open items are in | Provisional decision file |
 |---|---|---|
@@ -46,23 +46,12 @@ Parallelize as much as possible. Inside each stage, split the work across separa
 ## How we work
 
 ```
-   Alex ◄──► main coordinator ──► docs/ and docs/decisions/
-                    │ new decisions
-                    ▼
-             build coordinator ──► GitHub issues
-                    │
-                 builders ──► pull requests ──► reviewer ──► main
-
    one task = one issue = one worktree and branch = one PR
 ```
 
-- **Everything is built in this repo by agents,** in every folder.
-- **Who does what** is in [CLAUDE.md](../CLAUDE.md#who-does-what): Alex, the main coordinator, the build coordinator, builders, a reviewer and the human assistant.
-- **One task is one issue.** A builder takes one issue in one area, works in its own worktree, and finishes with a PR. The working rules are in [CLAUDE.md](../CLAUDE.md#working-rules).
-- **Merging.** A PR merges straight to main once a different agent has reviewed it against the docs and the tests pass.
-- **How many builders.** As many builders run at once as reviews and merges can keep up with, with one writer at a time on shared files.
-- **The design discussion continues during the build.** A new decision goes into the docs first, then to the build coordinator, then to the builder it affects. A change to work that's already merged becomes a new issue.
-- **Models.** Every agent runs on Opus at medium effort or higher. The contracts as code, the agent, the checks, the quotes, the eval cases and the reviewer run at high effort or above.
+- **One task is one issue.** Whoever takes it works in one area, in their own worktree, and finishes with a PR. The working rules are in [CLAUDE.md](../CLAUDE.md#working-rules).
+- **Review before merge.** A PR merges to main once someone other than its author has reviewed it against the docs and the tests pass.
+- **The design discussion continues during the build.** A new decision goes into the docs first, then to whoever is building the part it affects. A change to work that's already merged becomes a new issue.
 - **Status lives in GitHub issues,** not in this file, so parallel PRs don't collide on a shared status list.
 - **The blind-test generator** is a separate claude.ai chat with no repo access (see [eval.md](eval.md)).
 
@@ -81,8 +70,6 @@ The work is split into areas of the repo. The directories each area owns are in 
 | Shared | Contracts, migrations, docs, `CLAUDE.md`, CI config |
 
 ### Setup only a person can do
-
-The human assistant walks Alex through these.
 
 - [ ] A Supabase project with Google sign-in turned on
 - [ ] A Google Cloud project: an OAuth client, the Gmail and Drive APIs, and the demo Gmail account
@@ -105,29 +92,29 @@ Read first: docs sections
 
 ## Direction changes
 
-Only Alex changes direction, through the main coordinator.
+Only Alex changes direction.
 
 1. Alex decides.
-2. The main coordinator adds a file to [decisions/](decisions/) and updates every doc the decision touches. If a contract changes, the code that uses it is updated in the same PR so main stays green, or the build coordinator opens an issue for the follow-up.
-3. The build coordinator edits, closes or reopens the affected issues and labels them `changed`. A change to work that's already merged becomes a new issue.
-4. Builders at work on an affected issue are told to stop, or to rebase and reread the decision.
+2. A file is added to [decisions/](decisions/), and every doc the decision touches is updated. If a contract changes, the code that uses it is updated in the same PR so main stays green, or an issue is opened for the follow-up.
+3. The affected issues are edited, closed or reopened and labeled `changed`. A change to work that's already merged becomes a new issue.
+4. Whoever is at work on an affected issue is told to stop, or to rebase and reread the decision.
 
 A small correction inside one area doesn't need a decision file. The PR description is enough.
 
 ## Risks
 
-- **Review bottleneck.** Builders can only run as fast as reviews and merges keep up.
+- **Review bottleneck.** The build can only run as fast as reviews and merges keep up.
 - **Contract churn.** Once the contract code is merged, later changes follow the process above.
 - **Late integration.** The thin path comes before the parallel work, which forces integration early.
 - **A provisional decision mistaken for a reviewed one.** Its status line says "Provisional: not yet reviewed by Alex", and the provisional areas are listed above.
 - **Google test-mode tokens.** While the OAuth app is in Testing mode, Google refresh tokens expire after 7 days. Reconnect the demo account before a demo.
-- **Cost.** Many Opus agents plus live eval runs. Keep an eye on the Anthropic console.
+- **Cost.** Many agents at once plus live eval runs. Keep an eye on the Anthropic console.
 
 ## Not decided yet
 
 | Item | Who settles it |
 |---|---|
 | How to demo | product |
-| Issues for the work in decisions 0010 to 0019. Review threads are core. | the build coordinator |
+| Issues for the work in decisions 0010 to 0019. Review threads are core. | whoever runs the build |
 | The demo data | product, built by W3 |
 | The agent's exact actions and the wording of its prompts: a W1 task of its own. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1), discussed with Alex before building |
