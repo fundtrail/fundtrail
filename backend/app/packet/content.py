@@ -48,9 +48,9 @@ from app.contracts.records import (
     cited_values,
 )
 from app.contracts.rules import RecordState
-from app.contracts.runs import TriggerKind
 
 from . import fmt
+from .history import history_text
 from .inputs import ReportInputs
 from .view import Block, Heading, Para, Quote, ReportView, Section, SignLines, Table
 
@@ -79,7 +79,7 @@ KIND_LABELS = {
     RecordKind.BUDGET_ASSIGNMENT: "Budget line assignment",
     RecordKind.JUDGMENT: "Answer",
     RecordKind.CHECKLIST_ITEM: "Checklist item",
-    RecordKind.CHECKLIST_REMOVAL: "Checklist item removal",
+    RecordKind.CHECKLIST_REMOVAL: "Checklist removal",
     RecordKind.DISPUTE: "Dispute",
     RecordKind.DUPLICATE: "Duplicate mark",
     RecordKind.CONFIRMATION: "Confirmation",
@@ -248,6 +248,12 @@ class _Report:
             return r
         return self.state.decided_by(r.id) or r
 
+    def source_of(self, record_id: str) -> str:
+        """The name of the file a term was read from."""
+        r = self.by_id.get(record_id)
+        cited = next(citations(r.data), None) if r else None
+        return self.file_name(cited.file_id) if cited else record_id
+
     def confirmed(self, record_id: str | None) -> str:
         r = self.by_id.get(record_id or "")
         if r is None:
@@ -269,8 +275,7 @@ class _Report:
                 (
                     ("Award number", g.award_number or ""),
                     ("Project title", g.title or ""),
-                    ("Funder", g.funder),
-                    ("As of", fmt.moment(self.inp.now)),
+                    ("Funder", fmt.FUNDER_NAMES.get(g.funder, g.funder)),
                 ),
                 (0.25, 0.75),
             ),
@@ -281,7 +286,7 @@ class _Report:
             (
                 "Period of performance",
                 self.value_text(t.period) if t.period else "None confirmed",
-                "; ".join(self.confirmed(rid) for rid in t.period_ids),
+                "; ".join(f"{self.source_of(rid)}: {self.confirmed(rid)}" for rid in t.period_ids),
             )
         )
         notice = self.by_id.get(t.limit_notice_id or "")
@@ -322,20 +327,20 @@ class _Report:
                     r.data.name.value,
                     fmt.money(r.data.amount.value),
                     fmt.money(b.spent_cents),
-                    "Over" if b.over else "Within",
+                    "Yes" if b.over else "No",
                     self.confirmed(b.record_id),
                 )
             )
         if rows:
             blocks.append(
                 Table(
-                    ("Budget line", "Amount", "Spent", "Against it", "Confirmed"),
+                    ("Budget line", "Amount", "Spent", "Over budget", "Confirmed"),
                     tuple(rows),
                     (0.3, 0.15, 0.15, 0.12, 0.28),
                 )
             )
 
-        blocks.append(Heading("Charges", 3))
+        blocks.append(Heading("Charges by status", 3))
         counts: Counter[str] = Counter()
         for c in self.inp.charges:
             if self.ledger[c.id].reversed:
@@ -350,7 +355,7 @@ class _Report:
             ("Reversed", str(counts["reversed"])),
             ("All charges", str(len(self.inp.charges))),
         ]
-        blocks.append(Table(("", "Charges"), tuple(count_rows), (0.4, 0.6)))
+        blocks.append(Table(("Status", "Number"), tuple(count_rows), (0.4, 0.6)))
         ready = sum(1 for s in self.inp.ledger if s.ready)
         blocks.append(
             Para(
@@ -374,13 +379,29 @@ class _Report:
 
     # 2. Open at sign-off
 
-    def snooze_of(self, charge_id: str) -> Snooze | None:
+    def snooze_of(
+        self,
+        charge_id: str | None = None,
+        record_id: str | None = None,
+        file_id: str | None = None,
+    ) -> Snooze | None:
+        """The current snooze on a charge, a record, a file, or (none given) the grant."""
         found = [
             r.data
             for r in self.current
-            if isinstance(r.data, Snooze) and r.data.charge_id == charge_id
+            if isinstance(r.data, Snooze)
+            and (r.data.charge_id, r.data.record_id, r.data.file_id)
+            == (charge_id, record_id, file_id)
         ]
         return found[-1] if found else None
+
+    def snooze_mark(self, snoozed: bool, **subject: str | None) -> str:
+        if not snoozed:
+            return ""
+        snooze = self.snooze_of(**subject)
+        if snooze is None:
+            return "Snoozed"
+        return f"Snoozed until {fmt.day(snooze.until)}. Note: {snooze.note}"
 
     @staticmethod
     def reason_marks(r: Reason) -> str:
@@ -400,11 +421,8 @@ class _Report:
                     "label",
                 )
             )
-            snooze = self.snooze_of(c.id) if s.snoozed else None
-            if snooze:
-                blocks.append(
-                    Para(f"Snoozed until {fmt.day(snooze.until)}. Note: {snooze.note}", "small")
-                )
+            if s.snoozed:
+                blocks.append(Para(self.snooze_mark(True, charge_id=c.id), "small"))
             rows = tuple(
                 (
                     r.check,
@@ -429,8 +447,7 @@ class _Report:
         for g in self.inp.checks.grants:
             if g.grant_id == self.inp.grant.id and not g.accepted:
                 problems += [
-                    ("The grant", p.check, p.text, "Snoozed" if g.snoozed else "")
-                    for p in g.problems
+                    ("The grant", p.check, p.text, self.snooze_mark(g.snoozed)) for p in g.problems
                 ]
         for rs in self.inp.checks.records:
             if rs.grant_id != self.inp.grant.id or rs.accepted:
@@ -441,7 +458,13 @@ class _Report:
                 else self.describe(self.by_id.get(rs.record_id or ""))
             )
             problems += [
-                (about, p.check, p.text, "Snoozed" if rs.snoozed else "") for p in rs.problems
+                (
+                    about,
+                    p.check,
+                    p.text,
+                    self.snooze_mark(rs.snoozed, record_id=rs.record_id, file_id=rs.file_id),
+                )
+                for p in rs.problems
             ]
         if problems:
             blocks.append(Heading("Problems on the grant, its records and files", 3))
@@ -496,17 +519,12 @@ class _Report:
         if r.replaces_id is not None:
             old = self.by_id.get(r.replaces_id)
             return old if old and isinstance(old.data, Judgment) else None
-        key = (r.data.question, r.data.charge_id, r.data.record_id)
-        before = [
-            o
-            for o in self.inp.records
-            if o.id != r.id
-            and isinstance(o.data, Judgment)
-            and (o.data.question, o.data.charge_id, o.data.record_id) == key
-            and self.state.is_effective(o.id)
-            and o.written_at <= r.written_at
-        ]
-        return before[-1] if before else None
+        # The contract's own grouping of answers to the same question; flags aren't grouped.
+        ids = self.state.answers_of(r.data)
+        if r.id not in ids:
+            return None
+        before = [i for i in ids[: ids.index(r.id)] if self.state.is_effective(i)]
+        return self.by_id[before[-1]] if before else None
 
     @staticmethod
     def value_text(v: object) -> str:
@@ -707,32 +725,14 @@ class _Report:
             if e.status.bucket == last:
                 continue
             last = e.status.bucket
-            why = self.trigger_text(e)
-            reason = self.headline_reason(e.status)
             rows.append(
                 (
                     fmt.day(e.changed_at),
                     fmt.bucket(e.status.bucket),
-                    f"{why}. {reason}" if reason else why,
+                    history_text(e, records=self.by_id, files=self.files, charges=self.charges),
                 )
             )
         return tuple(rows)
-
-    def trigger_text(self, e: StatusEntry) -> str:
-        t = e.trigger
-        if t.kind == TriggerKind.RECORD:
-            r = self.by_id.get(t.id or "")
-            if r is None:
-                return "A record was written"
-            by = "the agent" if r.author == Author.AGENT else "the accountant"
-            return f"{KIND_LABELS[r.kind]} by {by}"
-        if t.kind == TriggerKind.CHARGE:
-            return f"Ledger line {self.line_of(t.id)} arrived"
-        if t.kind == TriggerKind.FILE:
-            return f"{self.file_name(t.id)} arrived"
-        if t.kind == TriggerKind.THREAD_MESSAGE:
-            return "A message in the review thread"
-        return "Time passed"
 
     def charge_section(self, c: Charge, is_correction: bool) -> list[Block]:
         s, led = self.status[c.id], self.ledger[c.id]
@@ -841,13 +841,18 @@ class _Report:
             if d.part.passage is not None:
                 blocks.append(Quote(d.part.passage, self.place(d.part)))
             else:
-                value = (
-                    target.data.total.text
-                    if target is not None and isinstance(target.data, Bill)
-                    else None
-                )
+                value = self.value_at(target, d.part) if target is not None else None
                 blocks.append(Para(f"Cited: {self.place(d.part, value)}", "small"))
         return blocks
+
+    @staticmethod
+    def value_at(record: Record, part: Citation) -> str | None:
+        """The value the record read at the part's place, as the document writes it."""
+        for _, v in cited_values(record.data):
+            c = v.citation
+            if c is not None and c.file_id == part.file_id and c.location == part.location:
+                return v.text or str(v.value)
+        return None
 
     def charge_sections(self) -> Section:
         blocks: list[Block] = []
@@ -858,8 +863,11 @@ class _Report:
     # 6. Sources
 
     def sources(self) -> Section:
+        # Cited by any record that isn't rejected or replaced, a waiting term included.
         cited: set[str] = set()
-        for r in self.current:
+        for r in self.inp.records:
+            if self.state.decision(r.id) == Decision.REJECTED or self.state.is_replaced(r.id):
+                continue
             cited.update(c.file_id for c in citations(r.data))
         copies = {
             r.data.copy_file_id: r.data.original_file_id
@@ -885,8 +893,9 @@ class _Report:
             rows.append(("\n".join(name), "\n".join(came), f.sha256))
         blocks: list[Block] = [
             Para(
-                "Every file a record in this report cites. The SHA-256 checksum shows a file "
-                "is the same one later.",
+                "Every file a record cites, including a term still waiting to be confirmed. "
+                "The SHA-256 (Secure Hash Algorithm, 256-bit) checksum shows a file is the "
+                "same one later.",
                 "small",
             ),
             Table(("File", "How it came", "SHA-256"), tuple(rows), (0.26, 0.2, 0.54), mono_column=2)
@@ -923,9 +932,14 @@ class _Report:
             blocks.append(Para(f"Not signed. This is a draft as of {fmt.moment(self.inp.now)}."))
         else:
             assert isinstance(so.data, SignOff)
+            # The sign-off's own author; the preparer is the only user known by name.
             p = self.inp.preparer
-            name = p.name or p.email
-            blocks.append(Para(f"Signed off by {name} ({p.email}) on {fmt.moment(so.written_at)}."))
+            who = (
+                f"{p.name or p.email} ({p.email})"
+                if so.author_user_id == p.id
+                else (so.author_user_id or "the accountant")
+            )
+            blocks.append(Para(f"Signed off by {who} on {fmt.moment(so.written_at)}."))
             blocks.append(Para("Note for the reviewer", "label"))
             blocks.append(Para(so.data.note or "No note."))
         blocks.append(SignLines("Reviewed by", ("Name", "Title", "Signature", "Date")))

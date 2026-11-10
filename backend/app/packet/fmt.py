@@ -19,7 +19,9 @@ BUCKET_LABELS = {
     Bucket.NEEDS_HUMAN: "Needs a human",
 }
 
-SOURCE_LABELS = {"upload": "Upload", "gmail": "Email", "drive": "Drive"}
+SOURCE_LABELS = {"upload": "Upload", "gmail": "Gmail", "drive": "Google Drive"}
+
+FUNDER_NAMES = {"NSF": "National Science Foundation (NSF)"}
 
 
 def money(cents: int) -> str:

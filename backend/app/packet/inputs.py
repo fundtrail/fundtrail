@@ -46,6 +46,15 @@ class ReportInputs(Model):
             raise ValueError("the checks' output has one status per charge")
         if {s.charge_id for s in self.ledger} != charge_ids:
             raise ValueError("ledger has one entry per charge")
-        if self.sign_off is not None and not isinstance(self.sign_off.data, SignOff):
-            raise ValueError("sign_off is a sign_off record")
+        if self.sign_off is not None:
+            if not isinstance(self.sign_off.data, SignOff):
+                raise ValueError("sign_off is a sign_off record")
+            if self.sign_off.written_at != self.now:
+                raise ValueError("a signed report is built at the sign-off's own time")
+        grant = self.grant.id
+        everything = (*self.charges, *self.files, *self.records)
+        if self.sign_off is not None:
+            everything += (self.sign_off,)
+        if any(x.grant_id != grant for x in everything):
+            raise ValueError("every charge, file and record belongs to the grant")
         return self
