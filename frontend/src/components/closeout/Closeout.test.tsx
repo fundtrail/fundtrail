@@ -31,6 +31,7 @@ describe("CloseoutCharges", () => {
     render(wrap(client, <CloseoutCharges grantId={SAMPLE_GRANT_ID} rows={rows} />));
 
     expect(screen.getAllByRole("row")).toHaveLength(rows.length + 1);
+    expect(screen.queryByRole("row", { name: "Evidence and history for L-1002" })).not.toBeInTheDocument();
     expect(screen.getByText("L-1002")).toBeInTheDocument();
     expect(screen.getAllByText("Possible conflict").length).toBeGreaterThan(0);
 

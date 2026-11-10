@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import useSWR from "swr";
 import { ChargeStatusBadge } from "@/components/BucketBadge";
 import {
@@ -121,34 +121,43 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
         {rows.map(({ charge, status }) => {
           const isOpen = open.has(charge.id);
           return (
-            <tr key={charge.id}>
-              <td>
-                <div className="ft-num">{date(charge.transaction_date)}</div>
-                <div className="ft-id">{charge.ledger_line_id}</div>
-              </td>
-              <td>
-                <Link className="ft-link" href={routes.charge(grantId, charge.id)}>
-                  {charge.description}
-                </Link>
-                {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
-              </td>
-              <td className="ft-right ft-num">{money(charge.amount_cents)}</td>
-              <td>
-                <ChargeStatusBadge status={status ?? null} />
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className="ft-btn ft-btn--sm"
-                  aria-expanded={isOpen}
-                  aria-label={`${isOpen ? "Hide" : "Show"} evidence and history for ${charge.ledger_line_id}`}
-                  onClick={() => toggle(charge.id)}
-                >
-                  {isOpen ? "Hide" : "Show"}
-                </button>
-                {isOpen && <EvidenceAndHistory grantId={grantId} chargeId={charge.id} />}
-              </td>
-            </tr>
+            <Fragment key={charge.id}>
+              <tr>
+                <td>
+                  <div className="ft-num">{date(charge.transaction_date)}</div>
+                  <div className="ft-id">{charge.ledger_line_id}</div>
+                </td>
+                <td>
+                  <Link className="ft-link" href={routes.charge(grantId, charge.id)}>
+                    {charge.description}
+                  </Link>
+                  {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
+                </td>
+                <td className="ft-right ft-num">{money(charge.amount_cents)}</td>
+                <td>
+                  <ChargeStatusBadge status={status ?? null} />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="ft-btn ft-btn--sm"
+                    aria-expanded={isOpen}
+                    aria-controls={isOpen ? `closeout-detail-${charge.id}` : undefined}
+                    aria-label={`${isOpen ? "Hide" : "Show"} evidence and history for ${charge.ledger_line_id}`}
+                    onClick={() => toggle(charge.id)}
+                  >
+                    {isOpen ? "Hide" : "Show"}
+                  </button>
+                </td>
+              </tr>
+              {isOpen && (
+                <tr id={`closeout-detail-${charge.id}`} aria-label={`Evidence and history for ${charge.ledger_line_id}`}>
+                  <td colSpan={5}>
+                    <EvidenceAndHistory grantId={grantId} chargeId={charge.id} />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           );
         })}
       </tbody>
