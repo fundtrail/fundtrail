@@ -19,7 +19,7 @@ import { date, recordKindLabel } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
 import { ANSWER_LABELS, AUTHOR_LABELS, field } from "../charge/labels";
 import { DisputeBox, errorLines, SuggestionBox, type Decision, type DecisionMade, type OnDecide } from "./Decide";
-import { describeChange } from "./describe";
+import { changeFor } from "./describe";
 import styles from "./thread.module.css";
 
 export interface ThreadContext {
@@ -158,7 +158,7 @@ function RecordBody({
   }
   const view = ctx.waiting.find((w) => w.record.id === record.id);
   const replaces = view?.replaces ?? (record.replaces_id ? (ctx.records[record.replaces_id] ?? null) : null);
-  const change = describeChange(record, replaces, ctx);
+  const change = changeFor(view, record, replaces, ctx);
   return <SuggestionBox record={record} change={change} state={state} decision={decision} onDecide={onDecide} />;
 }
 

@@ -1,10 +1,10 @@
 import type { ChecklistEntry, EvidenceFile, FtRecord, Id, LinkView, SuggestionView } from "@/lib/api";
 import { date, money } from "@/lib/format";
 import { SuggestionBox } from "../thread/Decide";
-import { describeChange } from "../thread/describe";
+import { changeFor } from "../thread/describe";
 import type { OnWrite } from "../thread/useThreadActions";
 import { AddChecklistItem, RemoveChecklistItem } from "./actions";
-import { ADDED_BY_LABELS, recordName } from "./labels";
+import { addedByLabel, recordName } from "./labels";
 import styles from "./charge.module.css";
 
 function entryKey(entry: ChecklistEntry): string {
@@ -67,7 +67,7 @@ export function EvidenceChecklist({
               <span className="ft-tag">{entry.filled ? "Filled" : "Missing"}</span>
             </p>
             <p className="ft-caption">
-              {ADDED_BY_LABELS[entry.added_by]}
+              {addedByLabel(entry, records)}
               {entry.period && (
                 <>
                   {" · "}For {date(entry.period.start)} to {date(entry.period.end)}
@@ -84,7 +84,7 @@ export function EvidenceChecklist({
             {removal && (
               <SuggestionBox
                 record={removal.record}
-                change={describeChange(removal.record, removal.replaces ?? null, ctx)}
+                change={changeFor(removal, removal.record, removal.replaces ?? null, ctx)}
                 state="waiting"
                 note="Accept or reject it in the review thread."
               />

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { FtRecord, ProblemRow, Reason } from "@/lib/api";
-import { date, HOLD_REASON_LABELS, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
+import type { FtRecord, HeldMail, ProblemRow, Reason } from "@/lib/api";
+import { date, HOLD_REASON_LABELS, money, recordKindLabel, SOURCE_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { ChargeStatusBadge } from "./BucketBadge";
 
@@ -19,6 +19,11 @@ function ReasonLine({ reason }: { reason: Reason }) {
       )}
     </p>
   );
+}
+
+/** A held message's sender, or null when its From line couldn't be read. */
+function heldSender(held: HeldMail): string | null {
+  return held.sender?.trim() || null;
 }
 
 function recordName(record: FtRecord): string {
@@ -152,8 +157,13 @@ function Row({ row }: { row: ProblemRow }) {
               </Link>
             </p>
             <p className="ft-problem__text">
-              {HOLD_REASON_LABELS[row.held.reason]}
-              {row.held.sender && <> · {row.held.sender}</>}
+              {heldSender(row.held) ? (
+                <>
+                  {HOLD_REASON_LABELS[row.held.reason]} · {heldSender(row.held)}
+                </>
+              ) : (
+                UNREADABLE_FROM_LABEL
+              )}
             </p>
           </div>
           <div className="ft-problem__side ft-caption">Gmail · {date(row.held.held_at)}</div>
