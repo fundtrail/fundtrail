@@ -254,12 +254,24 @@ def test_a_checks_save_keeps_what_a_concurrent_check_saved(
     assert saved.mail_cursor == "next"
 
 
-def test_merged_progress_keeps_the_stored_version_of_a_file() -> None:
-    old = DriveVersion(grant_id="g", drive_file_id="f", version="md5:old")
-    new = DriveVersion(grant_id="g", drive_file_id="f", version="md5:new")
-    stored = CheckerProgress(mail_cursor="b", drive_versions=(new,), first_search_done=("g1",))
-    checked = CheckerProgress(mail_cursor=None, drive_versions=(old,), first_search_done=("g2",))
-    merged = merged_progress(stored, checked)
-    assert merged.drive_versions == (new,)
-    assert merged.mail_cursor == "b"
-    assert merged.first_search_done == ("g1", "g2")
+def test_merged_progress_keeps_concurrent_versions_and_moves_forward() -> None:
+    v1 = DriveVersion(grant_id="g", drive_file_id="f", version="md5:1")
+    v2 = DriveVersion(grant_id="g", drive_file_id="f", version="md5:2")
+    v3 = DriveVersion(grant_id="g", drive_file_id="f", version="md5:3")
+    start = CheckerProgress(mail_cursor="100", drive_versions=(v1,))
+    # This check skipped v2 (no sink saves a skip's version): v2 is kept, not retried.
+    skipped = merged_progress(
+        start,
+        CheckerProgress(mail_cursor="100", drive_versions=(v1,)),
+        CheckerProgress(mail_cursor="120", drive_versions=(v2,), first_search_done=("g2",)),
+    )
+    assert skipped.drive_versions == (v2,) and skipped.mail_cursor == "120"
+    # Another check's sink saved v3 meanwhile, and moved the cursor further: both stay.
+    concurrent = merged_progress(
+        start,
+        CheckerProgress(mail_cursor="150", drive_versions=(v3,), first_search_done=("g1",)),
+        CheckerProgress(mail_cursor="120", drive_versions=(v2,), first_search_done=("g2",)),
+    )
+    assert concurrent.drive_versions == (v3,)
+    assert concurrent.mail_cursor == "150"
+    assert concurrent.first_search_done == ("g1", "g2")
