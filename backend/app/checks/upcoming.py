@@ -10,7 +10,8 @@ wording: the screens word it. The kinds:
 - `grant_ends`: the end date in force.
 - `missing_flagged`: a missing item goes on the problem list, 60 days past the date it
   was expected or when the closeout window opens, whichever is first. It belongs to the
-  charge and the reason's check and problem.
+  charge and the reason's check and problem. A missing approval is on the list right
+  away, so it has no such date; a fully reversed charge never goes on the list.
 
 Only dates after the grant's "now" are given, in date order.
 """
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.checks.decisions import Decisions
+from app.checks.findings import APPROVAL
 from app.checks.run import run_checks
 from app.checks.view import GrantView
 from app.contracts.checks import MISSING_EVIDENCE_DAYS, Bucket, ChecksInput
@@ -80,8 +82,8 @@ def upcoming_dates(checks_input: ChecksInput, grant_id: str) -> list[UpcomingDat
         for reason in status.reasons:
             if reason.bucket != Bucket.MISSING_EVIDENCE or reason.accepted_by is not None:
                 continue
-            if reason.expected_by is None:
-                continue
+            if reason.expected_by is None or reason.check == APPROVAL:
+                continue  # a missing approval is on the list right away
             on = reason.expected_by + timedelta(days=MISSING_EVIDENCE_DAYS)
             if window is not None:
                 on = min(on, window)
