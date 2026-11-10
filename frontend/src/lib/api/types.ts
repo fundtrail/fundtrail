@@ -796,7 +796,7 @@ export interface SampleCreate {
  */
 export type SampleRefusalReason = "needs_confirm" | "another_sample_working";
 
-/** The 409 detail when opening a sample or moving its clock is refused (ruling 41). */
+/** The 409 detail when opening a sample, starting one over or moving its clock is refused (rulings 41 and 48). */
 export interface SampleRefusal {
   reason: SampleRefusalReason;
   message: string;
