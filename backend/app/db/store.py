@@ -42,11 +42,10 @@ def _clean(row: dict[str, Any], *drop: str) -> dict[str, Any]:
 
 
 def upsert_user(conn: Conn, user: User) -> User:
-    """The users row for a signed-in Supabase user, created on first sight and kept current."""
+    """The users row for a signed-in Supabase user, written only the first time they're seen."""
     conn.execute(
         """insert into public.users (id, email, name) values (%s, %s, %s)
-           on conflict (id) do update set email = excluded.email,
-             name = coalesce(excluded.name, public.users.name)""",
+           on conflict (id) do nothing""",
         (user.id, user.email, user.name),
     )
     return user

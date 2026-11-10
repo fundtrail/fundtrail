@@ -9,7 +9,7 @@ from typing import Annotated
 
 from pydantic import Field
 
-from app.contracts.base import Id, Model
+from app.contracts.base import Id, Model, UtcDatetime
 from app.contracts.charges import Charge
 from app.contracts.checks import ChargeStatus
 from app.contracts.records import (
@@ -39,6 +39,24 @@ from app.contracts.records import (
     SignOff,
     Snooze,
 )
+from app.contracts.runs import RunStatus, Trigger
+
+
+class RunRow(Model):
+    """One row of GET /grants/{grant_id}/runs: the run as section 9 describes it, without the
+    debug log's path, which is never shown to the accountant."""
+
+    id: Id
+    workspace_id: Id
+    grant_id: Id
+    trigger: Trigger
+    status: RunStatus
+    clock_now: UtcDatetime
+    queued_at: UtcDatetime
+    started_at: UtcDatetime | None = None
+    finished_at: UtcDatetime | None = None
+    summary: str | None = None
+    error: str | None = None
 
 
 class ChargeRow(Model):

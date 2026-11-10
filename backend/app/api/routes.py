@@ -7,36 +7,67 @@ clock and the report follow the agreed screen bodies (#22) in a later pull reque
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 
-from app.contracts.api import FileLink, LedgerUploadResult, WorkspaceCreate
+from app.contracts.api import FileLink, LedgerUploadResult, WorkspaceCreate, WriteRejected
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import BudgetAssignment, Record
 from app.contracts.rules import RecordState
-from app.contracts.runs import AgentRun
 from app.contracts.workspaces import Grant, Workspace
 from app.db import actions, store
 from app.db.pool import transaction, workspace_now
 
-from .bodies import ChargeRow, NewRecordInput
+from .bodies import ChargeRow, NewRecordInput, RunRow
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
 
-router = APIRouter()
+
+class PlainErrorsRoute(APIRoute):
+    """Every 422 from these routes has one shape: `{"detail": [sentence, ...]}`, the contracts'
+    WriteRejected. FastAPI's own body validation errors are turned into sentences too."""
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def route(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError as error:
+                problems = [
+                    f"{e['msg']} ({'.'.join(str(x) for x in e['loc'])})" for e in error.errors()
+                ]
+                return _rejected(actions.WriteRejected(problems))
+
+        return route
+
+
+router = APIRouter(route_class=PlainErrorsRoute)
 
 # How long a link to an original file works.
 CONTENT_LINK_SECONDS = 300
+# The largest file an upload takes. A choice: ample for award letters, invoices, scans
+# and a grant's ledger, and small enough to hold in memory.
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 async def _upload(file: UploadFile) -> actions.Upload:
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
     return actions.Upload(
         name=file.filename or "file",
         media_type=file.content_type or "application/octet-stream",
-        data=await file.read(),
+        data=data,
     )
 
 
@@ -47,7 +78,7 @@ def _rejected(error: actions.WriteRejected) -> JSONResponse:
 
 
 _REJECTED: dict[int | str, dict[str, Any]] = {
-    422: {"description": "The write check's problems, as plain sentences in `detail`"}
+    422: {"model": WriteRejected, "description": "The problems, as plain sentences"}
 }
 
 
@@ -77,7 +108,7 @@ async def upload_ledger(
     grant: GrantDep, platform: PlatformDep, file: UploadFile
 ) -> LedgerUploadResult:
 
-    content = await file.read()
+    content = (await _upload(file)).data
     try:
         return await run_in_threadpool(actions.add_ledger, platform, grant, content)
     except actions.WriteRejected as error:
@@ -112,9 +143,11 @@ def create_record(
 
 
 @router.get("/grants/{grant_id}/runs")
-def list_runs(grant: GrantDep, platform: PlatformDep) -> list[AgentRun]:
+def list_runs(grant: GrantDep, platform: PlatformDep) -> list[RunRow]:
+    """The grant's runs, newest first. A run's debug log is never shown, so its path isn't sent."""
     with transaction(platform.pool) as conn:
-        return store.list_runs(conn, grant.id)
+        runs = store.list_runs(conn, grant.id)
+    return [RunRow.model_validate(r.model_dump(exclude={"log_path"})) for r in runs]
 
 
 @router.get("/grants/{grant_id}/charges")

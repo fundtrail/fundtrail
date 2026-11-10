@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
+from psycopg.errors import ForeignKeyViolation
 
 from app.contracts.workspaces import Grant, User, Workspace
 from app.db import store
@@ -47,8 +48,16 @@ def current_user(
             "The sign-in token isn't valid.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
-    with transaction(platform.pool) as conn:
-        store.upsert_user(conn, user)
+    try:
+        with transaction(platform.pool) as conn:
+            store.upsert_user(conn, user)
+    except ForeignKeyViolation:
+        # A valid token for a user Supabase no longer has, such as one just deleted.
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "The sign-in token isn't valid.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
     return user
 
 

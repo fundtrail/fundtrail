@@ -1,21 +1,21 @@
 """Settings the platform reads from the environment."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class Settings:
     # Postgres. On Supabase this is the session pooler's connection string (port 5432 on
     # the pooler host): it works over IPv4 and keeps LISTEN/NOTIFY, which the job worker uses.
-    database_url: str
+    database_url: str = field(repr=False)  # it carries the database password
     # The Supabase project URL, for token keys, Storage and Realtime pings.
     supabase_url: str | None = None
     # The service role key: Storage and Realtime calls from the backend only.
-    supabase_service_role_key: str | None = None
+    supabase_service_role_key: str | None = field(default=None, repr=False)
     # Only for a project still on the legacy shared JWT secret. Without it, tokens are
     # checked against the project's published signing keys.
-    supabase_jwt_secret: str | None = None
+    supabase_jwt_secret: str | None = field(default=None, repr=False)
     # How many grants the worker runs at once. Runs for one grant always go one at a time.
     worker_concurrency: int = 2
     # "inline" runs the job worker inside the API process; "off" leaves it to its own process.

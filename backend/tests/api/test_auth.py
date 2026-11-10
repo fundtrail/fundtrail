@@ -83,3 +83,24 @@ def test_anything_outside_the_users_workspaces_is_404(api: Api, signer: Signer) 
     for path in ("records", "runs", "charges"):
         assert api.client.get(f"/grants/{grant['id']}/{path}", headers=other).status_code == 404
     assert api.client.get("/grants/no-such-grant/records", headers=api.headers).status_code == 404
+
+
+def test_a_valid_token_for_a_user_supabase_no_longer_has_is_401(api: Api, signer: Signer) -> None:
+    import uuid
+
+    gone = str(uuid.uuid4())  # never in auth.users
+    headers = {"Authorization": f"Bearer {signer.token(gone, 'gone@university.example')}"}
+    assert api.client.get("/workspaces", headers=headers).status_code == 401
+
+
+def test_settings_never_print_the_keys() -> None:
+    from app.db.config import Settings
+
+    settings = Settings(
+        database_url="postgresql://u:db-password@host/db",
+        supabase_service_role_key="service-role-secret",
+        supabase_jwt_secret="jwt-secret",
+    )
+    shown = repr(settings)
+    assert "service-role-secret" not in shown and "jwt-secret" not in shown
+    assert "db-password" not in shown
