@@ -104,6 +104,11 @@ class GrantRoute:
     # and becomes Gmail's `after:` search filter. A grant clock can sit ahead of real time,
     # and a time taken from one would make the first search miss real mail.
     address_created_at: datetime | None = None
+    # True for a sample grant, one with a stored clock (`Grant.clock_now` set): a time a
+    # channel supplies, such as an email's sent date, is replaced by the grant's "now"
+    # wherever it's stored or shown (issue 165, point 4). Stands in for reading
+    # `Grant.clock_now` until the contracts carry it.
+    channel_times_from_grant_now: bool = False
 
     def __post_init__(self) -> None:
         lowered = frozenset(s.strip().lower() for s in self.known_senders)
