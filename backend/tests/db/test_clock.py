@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.contracts.checks import ChecksInput
+import pytest
+
+from app.contracts.checks import ChecksInput, ChecksOutput
 from app.contracts.runs import Trigger, TriggerKind
 from app.contracts.workspaces import Grant, User
 from app.db import actions, clock, store
@@ -92,3 +94,27 @@ def test_the_daily_recheck_leaves_a_catching_up_grant_to_its_runs(
     checks.calls.clear()
     clock.daily_recheck(platform)
     assert all(sample.grant.id not in _grants_in(ci) for ci in checks.calls)
+
+
+def test_one_grants_failure_or_removal_doesnt_stop_the_daily_recheck(
+    platform: Platform,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broken, first, second = (_real_grant(platform) for _ in range(3))
+    gone = first.model_copy(update={"id": "grant-removed-since-the-list"})
+    real_list = store.all_grants
+    monkeypatch.setattr(store, "all_grants", lambda conn: [gone, *real_list(conn)])
+    checks = _checks(platform)
+    real_run = checks.run_checks
+
+    def run_checks(ci: ChecksInput) -> ChecksOutput:
+        if broken.id in _grants_in(ci):
+            raise ValueError("this grant's checks fail")
+        return real_run(ci)
+
+    monkeypatch.setattr(checks, "run_checks", run_checks)
+    checks.calls.clear()
+    clock.daily_recheck(platform)
+    rechecked = {g for ci in checks.calls for g in _grants_in(ci)}
+    assert {first.id, second.id} <= rechecked
+    assert broken.id not in rechecked

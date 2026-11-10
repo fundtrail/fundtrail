@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
@@ -37,6 +38,8 @@ from .platform import Platform
 from .pool import transaction
 from .recheck import recheck_grant
 from .store import Conn
+
+log = logging.getLogger(__name__)
 
 _SOURCE_NAMES = {Source.GMAIL: "gmail", Source.DRIVE: "drive", Source.UPLOAD: "upload"}
 
@@ -278,17 +281,26 @@ def daily_recheck(p: Platform) -> None:
     and queue the closeout review if its window is open and it hasn't run for this end date
     (so a missed day doesn't lose it). A grant whose agent is catching up is left to its
     catch-up runs, whose saves step time on, so no status runs ahead of them. On a clock
-    that hasn't moved, nothing has changed, so nothing is written."""
+    that hasn't moved, nothing has changed, so nothing is written.
+
+    One grant's failure, or a grant removed since the list was read, doesn't stop the
+    others: it's logged, and tomorrow's check tries it again.
+    """
     with transaction(p.pool) as conn:
         grants = store.all_grants(conn)
     for grant in grants:
-        with transaction(p.pool) as conn:
-            store.get_grant(conn, grant.id, lock=True)
-            if jobs.grant_catching_up(conn, grant.id):
-                continue
-            now = grant_now(conn, grant.id)
-            recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.CLOCK))
-            review = queue_review_if_due(conn, grant, now)
+        try:
+            with transaction(p.pool) as conn:
+                if store.get_grant(conn, grant.id, lock=True) is None:
+                    continue  # removed since the list was read, such as a workspace reset
+                if jobs.grant_catching_up(conn, grant.id):
+                    continue
+                now = grant_now(conn, grant.id)
+                recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.CLOCK))
+                review = queue_review_if_due(conn, grant, now)
+        except Exception:  # noqa: BLE001 - one grant's failure mustn't stop the others
+            log.exception("daily recheck of grant %s failed; tried again tomorrow", grant.id)
+            continue
         if review is not None:
             ping_run(p.pinger, review)
         ping_changed(p.pinger, grant.workspace_id, grant.id, "statuses")
