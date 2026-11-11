@@ -19,22 +19,10 @@
   color: var(--ink);
 }
 
-/* The charge and record views are built for a full page. In the pane they get one column. */
+/* The charge and record views lay themselves out; this wrapper only gives them their width as a container. */
 .charge {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  container-type: inline-size;
   min-width: 0;
-}
-.charge [class*="layout"] {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-/* The charge header's panel has no top padding of its own yet. */
-.charge > header:global(.ft-panel):first-child {
-  padding-top: var(--space-4);
-}
-.charge :global(.ft-panel) {
-  border-radius: var(--radius-lg);
 }
 
 .summary {
@@ -63,7 +51,7 @@
 }
 .summaryName {
   margin: 0;
-  font: 700 21px/1.2 var(--display, var(--sans));
+  font: 700 21px/1.2 var(--display);
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }

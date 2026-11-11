@@ -157,8 +157,13 @@ describe("ProblemList", () => {
     expect(screen.getByText("Approval rule, written Mar 2, 2026")).toBeInTheDocument();
   });
 
-  it("filters on screen by bucket, counting the rows the server sent, and keeps their order", () => {
+  it("has no filter tabs unless asked, as on the closeout page", () => {
     render(<ProblemList rows={rows} />);
+    expect(screen.queryByRole("group", { name: "Show on the problem list" })).toBeNull();
+  });
+
+  it("filters on screen by bucket, counting the rows the server sent, and keeps their order", () => {
+    render(<ProblemList rows={rows} variant="pick" tabs />);
     expect(screen.getByRole("button", { name: "All 5" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Possible conflict 1" }));
     expect(shownOrder()).toEqual(["charge:L-1"]);
@@ -168,7 +173,7 @@ describe("ProblemList", () => {
 
   it("picks a row on a plain click and leaves its link to its page", () => {
     const onSelect = vi.fn();
-    render(<ProblemList rows={rows} onSelect={onSelect} selected="charge:c1" />);
+    render(<ProblemList rows={rows} onSelect={onSelect} selected="charge:c1" variant="pick" />);
     const link = screen.getByRole("link", { name: "Oldest conflict" });
     expect(link).toHaveAttribute("href", "/grants/g/charges/c1");
     expect(link).toHaveAttribute("aria-current", "true");
@@ -179,12 +184,17 @@ describe("ProblemList", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("shows only the first reason, with a count of the rest, when asked", () => {
-    const two = status("needs_human", [reason("needs_human", "The agent is unsure."), reason("missing_evidence", "A bill isn't on file.")]);
-    render(<ProblemList rows={[{ kind: "charge", charge: charge("c1", "L-1", "2025-01-01", "A charge"), status: two }]} reasons="first" />);
+  it("shows every reason, the ledger line, date and vendor, and when a missing item is expected, beside the picked item", () => {
+    const missing = { ...reason("missing_evidence", "A bill isn't on file."), expected_by: "2025-12-18" };
+    const two = status("needs_human", [reason("needs_human", "The agent is unsure."), missing]);
+    const withVendor = { ...charge("c1", "L-1", "2025-01-01", "A charge"), vendor: "Example Vendor" };
+    render(<ProblemList rows={[{ kind: "charge", charge: withVendor, status: two }]} variant="pick" />);
     expect(screen.getByText("The agent is unsure.")).toBeInTheDocument();
-    expect(screen.queryByText("A bill isn't on file.")).toBeNull();
-    expect(screen.getByText("1 more reason")).toBeInTheDocument();
+    expect(screen.getByText(/A bill isn't on file\./)).toBeInTheDocument();
+    expect(screen.getByText(/Expected by Dec 18, 2025/)).toBeInTheDocument();
+    expect(screen.getByText("L-1")).toBeInTheDocument();
+    expect(screen.getByText("Jan 1, 2025")).toBeInTheDocument();
+    expect(screen.getByText(/Example Vendor/)).toBeInTheDocument();
   });
 
   it("says so when nothing is on the list", () => {

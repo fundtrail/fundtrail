@@ -190,44 +190,55 @@
   opacity: 0.8;
 }
 
-/* --- The narrow list, beside the picked item: name and amount, one reason, then the bucket --- */
+/* --- The pick list, beside the picked item: name and amount, every reason, when and from whom, then the bucket --- */
 
-.list[data-variant="narrow"] .row {
+.list[data-variant="pick"] .row {
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px var(--space-3);
+  gap: 3px var(--space-3);
   padding: 14px var(--space-4);
 }
-.list[data-variant="narrow"] .row :global(.ft-problem__main),
-.list[data-variant="narrow"] .row :global(.ft-problem__side) {
+.list[data-variant="pick"] .row :global(.ft-problem__main),
+.list[data-variant="pick"] .row :global(.ft-problem__side) {
   display: contents;
 }
-.list[data-variant="narrow"] .mark,
-.list[data-variant="narrow"] .when {
+.list[data-variant="pick"] .mark {
   display: none;
 }
-.list[data-variant="narrow"] .row > :global(.ft-problem__main) > *,
-.list[data-variant="narrow"] .row > :global(.ft-problem__side) > * {
+.list[data-variant="pick"] .row > :global(.ft-problem__main) > *,
+.list[data-variant="pick"] .row > :global(.ft-problem__side) > * {
   grid-column: 1 / -1;
   justify-self: start;
+  min-width: 0;
+  max-width: 100%;
 }
-.list[data-variant="narrow"] .row :global(.ft-problem__name) {
+.list[data-variant="pick"] .row :global(.ft-problem__name) {
   grid-row: 1;
   grid-column: 1;
+  overflow-wrap: anywhere;
 }
-.list[data-variant="narrow"] .row .amount {
+.list[data-variant="pick"] .row .amount {
   grid-row: 1;
   grid-column: 2;
   justify-self: end;
   font-size: 14px;
 }
-.list[data-variant="narrow"] .row :global(.ft-problem__text) {
+/* Every reason the server gives: the first in ink, the rest muted. */
+.list[data-variant="pick"] .row :global(.ft-problem__text) {
   color: var(--ink-muted);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
-.list[data-variant="narrow"] .row :global(.ft-problem__side) > :not(.amount) {
+.list[data-variant="pick"] .row > :global(.ft-problem__main) > :global(.ft-problem__text):first-child,
+.list[data-variant="pick"] .row :global(.ft-problem__name) + :global(.ft-problem__text) {
+  color: var(--ink);
+}
+.list[data-variant="pick"] .row .when {
+  font-size: 12px;
+}
+.list[data-variant="pick"] .row :global(.ft-problem__side) > :not(.amount) {
   margin-top: 6px;
 }
-.list[data-variant="narrow"] .row :global(.ft-problem__waiting) {
+.list[data-variant="pick"] .row :global(.ft-problem__waiting) {
   font-size: 12px;
 }
 

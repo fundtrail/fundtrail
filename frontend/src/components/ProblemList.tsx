@@ -117,38 +117,18 @@ function Mark({ bucket }: { bucket: Bucket | null }) {
   return <span className={styles.mark} data-bucket={bucket ?? "none"} aria-hidden="true" />;
 }
 
-/** How many of a row's reasons show: all of them, or the first with a count of the rest. */
-export type ReasonsShown = "all" | "first";
-
-/** The reasons a row shows, and how many more it has. */
-function shownOf<T>(all: T[], reasons: ReasonsShown): { shown: T[]; more: number } {
-  const shown = reasons === "first" ? all.slice(0, 1) : all;
-  return { shown, more: all.length - shown.length };
-}
-
-function MoreReasons({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <p className="ft-caption">
-      {count} more {count === 1 ? "reason" : "reasons"}
-    </p>
-  );
-}
-
 function Row({
   row,
   rowKey,
   charges,
   onSelect,
   selected,
-  reasons,
 }: {
   row: ProblemRow;
   rowKey: string;
   charges: Record<Id, Charge>;
   onSelect?: OnSelectRow;
   selected: boolean;
-  reasons: ReasonsShown;
 }) {
   const link = (href: string, children: ReactNode) => (
     <RowLink href={href} selectKey={rowKey} onSelect={onSelect} current={selected}>
@@ -196,12 +176,11 @@ function Row({
             ) : (
               row.file && <p className="ft-problem__name">{link(routes.file(row.status.grant_id, row.file.id), row.file.name)}</p>
             )}
-            {shownOf(row.status.problems, reasons).shown.map((p) => (
+            {row.status.problems.map((p) => (
               <p className="ft-problem__text" key={`${p.check}:${p.problem}`}>
                 {p.text}
               </p>
             ))}
-            <MoreReasons count={shownOf(row.status.problems, reasons).more} />
           </div>
           <div className="ft-problem__side">
             <span className={`ft-tag ${styles.kind}`}>{row.file && !row.record ? "File" : "Record"}</span>
@@ -216,10 +195,9 @@ function Row({
           <Mark bucket={row.status.bucket} />
           <div className="ft-problem__main">
             <p className="ft-problem__name">{link(routes.charge(row.charge.grant_id, row.charge.id), row.charge.description)}</p>
-            {shownOf(failing(row.status.reasons), reasons).shown.map((r) => (
+            {failing(row.status.reasons).map((r) => (
               <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.status.net_cents ?? row.charge.amount_cents} />
             ))}
-            <MoreReasons count={shownOf(failing(row.status.reasons), reasons).more} />
             <p className={`ft-caption ${styles.when}`}>
               <span className="ft-id">{row.charge.ledger_line_id}</span> · <span className="ft-num">{date(row.charge.transaction_date)}</span>
               {row.charge.vendor && <> · {row.charge.vendor}</>}
@@ -383,50 +361,191 @@ export function ProblemBrief({ row, href }: { row: ProblemRow; href: string }) {
   );
 }
 
+/** A row as the closeout page shows it, unchanged from before the grant page's restyle. */
+function ClassicRow({ row, charges }: { row: ProblemRow; charges: Record<Id, Charge> }) {
+  switch (row.kind) {
+    case "grant":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">Grant</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__text">{row.problem.text}</p>
+          </div>
+          <div className="ft-problem__side">
+            {row.problem.accepted && <span className="ft-tag">Accepted</span>}
+            {row.problem.snoozed && <span className="ft-tag">Snoozed</span>}
+          </div>
+        </>
+      );
+    case "terms_waiting":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">Terms</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__name">
+              <Link className="ft-link" href={routes.terms(row.file.grant_id)}>
+                {row.file.name}
+              </Link>
+            </p>
+            <p className="ft-problem__text">{row.text}</p>
+          </div>
+          <div className="ft-problem__side ft-caption">
+            {SOURCE_LABELS[row.file.source]} · {date(row.file.arrived_at)}
+          </div>
+        </>
+      );
+    case "record":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">{row.file && !row.record ? "File" : "Record"}</span>
+          </div>
+          <div className="ft-problem__main">
+            {row.record ? (
+              <p className="ft-problem__name">
+                <Link className="ft-link" href={routes.record(row.status.grant_id, row.record.id)}>
+                  {row.file ? row.file.name : recordName(row.record)}
+                </Link>
+              </p>
+            ) : (
+              row.file && (
+                <p className="ft-problem__name">
+                  <Link className="ft-link" href={routes.file(row.status.grant_id, row.file.id)}>
+                    {row.file.name}
+                  </Link>
+                </p>
+              )
+            )}
+            {row.status.problems.map((p) => (
+              <p className="ft-problem__text" key={`${p.check}:${p.problem}`}>
+                {p.text}
+              </p>
+            ))}
+          </div>
+          <div className="ft-problem__side">
+            {row.status.accepted && <span className="ft-tag">Accepted</span>}
+            {row.status.snoozed && <span className="ft-tag">Snoozed</span>}
+          </div>
+        </>
+      );
+    case "charge":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-num">{date(row.charge.transaction_date)}</span>
+            <span className="ft-id">{row.charge.ledger_line_id}</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__name">
+              <Link className="ft-link" href={routes.charge(row.charge.grant_id, row.charge.id)}>
+                {row.charge.description}
+              </Link>
+              {row.charge.vendor && <span className="ft-caption"> · {row.charge.vendor}</span>}
+            </p>
+            {failing(row.status.reasons).map((r) => (
+              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.status.net_cents ?? row.charge.amount_cents} />
+            ))}
+            {(row.waiting_charge_ids ?? []).length > 0 && (
+              <WaitingCharges grantId={row.charge.grant_id} ids={row.waiting_charge_ids ?? []} charges={charges} />
+            )}
+          </div>
+          <div className="ft-problem__side">
+            <span className="ft-amount">{money(row.charge.amount_cents)}</span>
+            <ChargeStatusBadge status={row.status} />
+          </div>
+        </>
+      );
+    case "held_mail":
+      return (
+        <>
+          <div className="ft-problem__what">
+            <span className="ft-tag">Mail</span>
+          </div>
+          <div className="ft-problem__main">
+            <p className="ft-problem__name">
+              <Link className="ft-link" href={routes.mail(row.held.workspace_id)}>
+                {row.held.subject || "No subject"}
+              </Link>
+            </p>
+            <p className="ft-problem__text">
+              {heldSender(row.held) ? (
+                <>
+                  {HOLD_REASON_LABELS[row.held.reason]} · {heldSender(row.held)}
+                </>
+              ) : (
+                UNREADABLE_FROM_LABEL
+              )}
+            </p>
+          </div>
+          <div className="ft-problem__side ft-caption">Gmail · {date(row.held.held_at)}</div>
+        </>
+      );
+  }
+}
+
+/** The rows a filter shows, in the server's order. A filter whose rows have all gone shows them all. */
+export function rowsInFilter(rows: ProblemRow[], filter: ProblemFilter): ProblemRow[] {
+  if (filter === "all" || !bucketCounts(rows).has(filter)) return rows;
+  return rows.filter((row) => rowBucket(row) === filter);
+}
+
 /**
  * The problem list, in the order the server sends it: grant problems, then
  * records, files and held mail, then charges by bucket, oldest first (answer
  * 1 of #22). Each row links to its page through routes.
- * The screen never sorts it. The filter only hides rows on screen.
+ * The screen never sorts it.
  *
- * With `onSelect`, clicking a row picks it, for the page to show where it
- * likes; `selected` is the key of the picked row. With `reasons="first"` a
- * row shows only the reason the server lists first, with a count of the
- * rest; the item's own view shows them all. `variant="narrow"` lays each row
- * out for a column beside the picked item: name and amount, one reason line,
- * then the bucket. A page that puts the filter in its own head passes
- * `filter` and `onFilter` and turns the list's own tabs off with `tabs={false}`.
+ * By default the rows look as they always have (the closeout page).
+ * `variant="pick"` is the problem list page's column beside the picked item:
+ * name and amount, every reason the server gives (the first in ink), the
+ * ledger line, date and vendor, then the bucket. There, `onSelect` picks a
+ * row and `selected` is the picked row's key; `filter` and `onFilter` hide
+ * rows on screen, and `tabs` draws the filter over the list.
  */
 export function ProblemList({
   rows,
   charges = {},
   selected = null,
   onSelect,
-  reasons = "all",
-  variant = "full",
+  variant = "classic",
   filter,
   onFilter,
-  tabs = true,
+  tabs = false,
 }: {
   rows: ProblemRow[];
   charges?: Record<Id, Charge>;
   selected?: string | null;
   onSelect?: OnSelectRow;
-  reasons?: ReasonsShown;
-  variant?: "full" | "narrow";
+  variant?: "classic" | "pick";
   filter?: ProblemFilter;
   onFilter?: (filter: ProblemFilter) => void;
   tabs?: boolean;
 }) {
   const [ownFilter, setOwnFilter] = useState<ProblemFilter>("all");
+  if (variant === "classic") {
+    if (rows.length === 0) {
+      return <p className="ft-empty">Nothing on the problem list.</p>;
+    }
+    return (
+      <ol className="ft-problems" aria-label="Problem list">
+        {rows.map((row, i) => (
+          <li className="ft-problem" key={problemRowKey(row, i)} data-kind={row.kind}>
+            <ClassicRow row={row} charges={charges} />
+          </li>
+        ))}
+      </ol>
+    );
+  }
   if (rows.length === 0) {
     return <p className={`ft-empty ${styles.empty}`}>Nothing on the problem list.</p>;
   }
   const value = filter ?? ownFilter;
   const setFilter = onFilter ?? setOwnFilter;
-  const counts = bucketCounts(rows);
-  // A filter whose rows have all gone falls back to All.
-  const shown = value !== "all" && counts.has(value) ? value : "all";
+  const visible = new Set(rowsInFilter(rows, value));
 
   function clickRow(event: MouseEvent<HTMLLIElement>, key: string) {
     if (!onSelect) return;
@@ -438,11 +557,11 @@ export function ProblemList({
 
   return (
     <div className={styles.list} data-variant={variant}>
-      {tabs && <ProblemFilters rows={rows} value={shown} onChange={setFilter} />}
+      {tabs && <ProblemFilters rows={rows} value={value} onChange={setFilter} />}
       <ol className="ft-problems" aria-label="Problem list">
         {rows.map((row, i) => {
           const key = problemRowKey(row, i);
-          if (shown !== "all" && rowBucket(row) !== shown) return null;
+          if (!visible.has(row)) return null;
           const isSelected = selected === key;
           return (
             <li
@@ -453,7 +572,7 @@ export function ProblemList({
               data-selectable={onSelect ? "" : undefined}
               onClick={(e) => clickRow(e, key)}
             >
-              <Row row={row} rowKey={key} charges={charges} onSelect={onSelect} selected={isSelected} reasons={reasons} />
+              <Row row={row} rowKey={key} charges={charges} onSelect={onSelect} selected={isSelected} />
             </li>
           );
         })}
