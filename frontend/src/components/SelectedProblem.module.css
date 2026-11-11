@@ -1,0 +1,58 @@
+/* The item picked on the problem list: a charge, a record's thread, or a row's own words with a link to its page. */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.paneBar {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 13px;
+}
+.paneBar :global(.ft-link) {
+  color: var(--ink-muted);
+  text-underline-offset: 3px;
+}
+.paneBar :global(.ft-link:hover) {
+  color: var(--ink);
+}
+
+/* The charge and record views lay themselves out; this wrapper only gives them their width as a container. */
+.charge {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.summaryTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  align-self: stretch;
+}
+.open {
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-underline-offset: 3px;
+}
+.open:hover {
+  color: var(--ink);
+}
+.summaryName {
+  margin: 0;
+  font: 700 21px/1.2 var(--display);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+

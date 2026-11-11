@@ -34,3 +34,15 @@ def test_a_filled_an_empty_or_an_over_item_isnt_partly_filled() -> None:
     for linked in (67600, None, 70000):
         [entry] = _status(linked).checklist
         assert entry.covered_cents is None and entry.partly_filled_text is None
+
+
+def test_a_line_that_takes_money_off_has_no_amount_to_partly_fill() -> None:
+    """A negative line gets the two correction items, which have no amount (0020), so
+    nothing on it is partly filled."""
+    for entry in _status(-15000, charge=-40000).checklist:
+        assert entry.amount_cents is None and entry.covered_cents is None
+
+
+def test_a_link_of_the_opposite_sign_isnt_partly_filled() -> None:
+    for entry in _status(-5000, charge=10000).checklist:
+        assert entry.covered_cents is None and entry.partly_filled_text is None

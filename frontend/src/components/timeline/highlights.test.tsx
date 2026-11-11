@@ -22,12 +22,18 @@ function harness() {
 
 const part = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
+/** The panel shows folded; More opens the controls and the trail these tests read. */
+async function openMore() {
+  fireEvent.click(await screen.findByRole("button", { name: "More" }));
+}
+
 describe("highlights (ruling 58)", () => {
   it("marks highlights in Coming up, and Next highlight moves to the next one with the human steps skipped", async () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
     const move = vi.spyOn(client, "moveTimeline");
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     await screen.findByRole("heading", { name: "Coming up" });
     const coming = part("Coming up");
     expect(within(coming).getByText("Highlight: A bill by email")).toBeInTheDocument();
@@ -48,6 +54,7 @@ describe("highlights (ruling 58)", () => {
   it("can't move to a highlight when none is coming up", async () => {
     const { Wrapper } = harness();
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     // Where the fake stands, everything has played.
     expect(await screen.findByRole("button", { name: "Next highlight" })).toBeDisabled();
   });
