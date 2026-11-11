@@ -30,8 +30,11 @@ from app.quotes.pdf import UnreadablePdfError
 from .adapter import EvidenceFile
 from .citations import SentDocument, SentImage
 
-# The model's high-resolution tier for images: the long edge in pixels.
+# The model's high-resolution tier for images: the long edge in pixels, and the most pixels in
+# all. The API refuses a larger image we've marked not to be resized: a 1991 by 2576 page came
+# back "would be downsized to 1688x2184", which is 1920 by 1920 pixels in all.
 MAX_IMAGE_EDGE = 2576
+MAX_IMAGE_PIXELS = 1920 * 1920
 
 TEXT_TYPES = ("text/", "message/rfc822")
 IMAGE_TYPES = {"image/jpeg": "JPEG", "image/png": "PNG", "image/gif": "GIF", "image/webp": "WEBP"}
@@ -120,9 +123,14 @@ def open_file(f: EvidenceFile, data: bytes, reading_now: datetime | None = None)
 
 def fit(image: Image.Image) -> Image.Image:
     """The image at a size we control: no larger than the model's high-resolution tier."""
-    scale = min(1.0, MAX_IMAGE_EDGE / max(image.size))
+    scale = min(
+        1.0,
+        MAX_IMAGE_EDGE / max(image.size),
+        (MAX_IMAGE_PIXELS / (image.width * image.height)) ** 0.5,
+    )
     if scale < 1.0:
-        size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
+        # Rounded down, so the size never runs over a limit.
+        size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
         image = image.resize(size, Image.Resampling.LANCZOS)
     return image
 
@@ -176,7 +184,7 @@ def _open_pdf(f: EvidenceFile, data: bytes, head: dict[str, Any], title: str) ->
         return Opened(blocks, document=document)
     sent: list[SentImage] = []
     for page in scanned[:MAX_SCANNED_PAGES]:
-        image = render_pdf_page(data, page, MAX_IMAGE_EDGE)
+        image = fit(render_pdf_page(data, page, MAX_IMAGE_EDGE))
         block, image_sent = image_block(f.id, page, image)
         blocks.append(
             {

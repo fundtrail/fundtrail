@@ -244,11 +244,12 @@ def test_a_scanned_pdf_page_goes_as_an_image_and_its_boxes_get_the_second_look()
     opened = open_file(scan, scan_pdf())
     assert opened.document is None  # nothing to cite on a scan
     assert opened.images is not None and [i.page for i in opened.images] == [1]
-    image = opened.images[0]
-    assert max(image.width, image.height) == 2576
+    image = opened.images[0]  # within the model's limits: 2,576 on a side, 1920 x 1920 in all
+    assert max(image.width, image.height) <= 2576 and image.width * image.height <= 1920 * 1920
+    assert image.width * image.height > 0.99 * 1920 * 1920  # as large as allowed
     assert any(b["type"] == "image" for b in opened.blocks)
 
-    boxes: Boxes = {"total": (1500, 2200, 1900, 2300), "vendor": (200, 100, 900, 200)}
+    boxes: Boxes = {"total": (1300, 1900, 1600, 2000), "vendor": (200, 100, 900, 200)}
     bill, seen, _ = run_bill(
         ["$45.00", "Example Taxi Co."], boxes=boxes, file=(scan, scan_pdf()), page=1
     )
@@ -264,3 +265,11 @@ def test_a_pdf_keeps_citations_on_its_text_pages_and_sends_only_scanned_pages_as
     with open(TEXT_PDF, "rb") as f:
         text_only = open_file(mixed, f.read())
     assert text_only.images is None and text_only.document is not None
+
+
+def test_a_large_photo_is_sent_within_the_pixel_limit():
+    big = evidence("file-big", "big.png", "image/png")
+    opened = open_file(big, photo_bytes((3000, 4000)))
+    assert opened.images is not None
+    [image] = opened.images
+    assert image.width * image.height <= 1920 * 1920 and max(image.width, image.height) <= 2576
