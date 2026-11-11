@@ -1,0 +1,43 @@
+From: Harper Fixture <harper.fixture@university.example>
+To: Earth and Ocean Sciences Grants <grants@university.example>
+Date: Mon, 10 Feb 2025 10:20:00 -0800
+Subject: Fwd: Invoice INV-20514
+Message-ID: <fwd-inv-20514@university.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Invoice INV-20514 for SYN-2401835, for the files.
+
+Harper
+
+---------- Forwarded message ----------
+From: Example Lab Supply Co. Billing <orders@labsupply.example>
+Date: Thu, 6 Feb 2025 15:05:00 -0800
+Subject: Invoice INV-20514
+To: harper.fixture@university.example
+
+EXAMPLE LAB SUPPLY CO.
+200 Example Parkway, Example City, CA 94001
+orders@labsupply.example
+
+INVOICE
+
+Invoice number: INV-20514
+Invoice date: February 6, 2025
+Customer PO: PO-25-1102
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Harper Fixture
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2401835, salt marsh carbon burial
+
+Item  Description                                   Qty   Unit price      Amount
+1     Sediment core liners, 50 count                  1      $248.00     $248.00
+2     Sample bags, sterile, 500 count                 1       $96.00      $96.00
+
+Subtotal                                                                 $344.00
+Shipping                                                                  $12.50
+Total due                                                                $356.50
+
+Terms: net 30

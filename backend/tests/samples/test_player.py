@@ -287,6 +287,36 @@ def test_gmail_and_drive_events_arrive_as_those_channels_bring_them(api: Api) ->
     assert stored.source is Source.DRIVE and stored.source_ref and stored.arrived_at == drive.at
 
 
+def test_an_email_from_a_sender_who_isnt_known_is_held(api: Api) -> None:
+    """Ruling 58: a scheduled email goes through the known-sender hold as live mail does,
+    and arrives once it's let in."""
+    from app.ingest.email_files import parse_headers
+
+    pack = player.pack_for("salt-marsh-carbon")
+    gmail = next(e for e in pack.events if e.source.value == "gmail")
+    grant_id = _open(api, "larger_live")  # nobody named in confirmed terms yet
+    _move(api, grant_id, _iso(gmail.at))
+    assert pack.sha256(gmail.name) not in {f.sha256 for f in _files(api, grant_id)}
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        [held] = [
+            h
+            for h in store.list_held_mail(conn, grant.workspace_id, gmail.at)
+            if h.grant_id == grant_id
+        ]
+    assert held.files[0].sha256 == pack.sha256(gmail.name)
+    assert held.sender == parse_headers(pack.file_bytes(gmail.name)).sender
+    assert held.held_at == gmail.at and held.reason.value == "unknown_sender"
+    let_in = _post(
+        api,
+        f"/grants/{grant_id}/records",
+        {"data": {"kind": "mail_action", "held_mail_id": held.id, "action": "let_in"}},
+    )
+    assert let_in.status_code == 201, let_in.text
+    assert pack.sha256(gmail.name) in {f.sha256 for f in _files(api, grant_id)}
+
+
 def test_a_grant_that_isnt_a_sample_has_no_timeline(api: Api) -> None:
     workspace_id = _workspace(api)
     created = api.client.post(

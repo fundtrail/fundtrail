@@ -1,0 +1,29 @@
+NATIONAL SCIENCE FOUNDATION
+AWARD NOTICE
+
+RECIPIENT INFORMATION
+Recipient: University of Example
+Address: 100 Example Hall, Example City, CA 94000
+
+AMENDMENT INFORMATION
+Amendment Type: No Cost Extensions
+Amendment Number: 002
+Amendment Date: July 15, 2026
+Amendment Description: The purpose of this amendment is to extend the end
+date from July 31, 2026 to January 31, 2027, as notified by the awardee
+under its authority to extend the award once without additional funds. No
+funds are added by this amendment.
+
+AWARD INFORMATION
+Award Number (FAIN): SYN-2401835
+Period of Performance Start Date: February 1, 2024
+Period of Performance End Date: January 31, 2027
+Project Title: Salt Marsh Carbon Burial at Example Point
+
+NSF CONTACT INFORMATION
+Managing Grants Official: Avery Ledger
+  Email: avery.ledger@funder.example
+Managing Program Officer: Jamie Program
+  Email: jamie.program@funder.example
+
+Except as modified by this amendment, the award conditions remain unchanged.

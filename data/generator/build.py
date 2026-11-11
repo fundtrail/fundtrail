@@ -90,12 +90,15 @@ def agent_records_json(g) -> str:
 def built() -> tuple[dict[str, object], list[object]]:
     """The samples by name, and the unused grants."""
     import demo
+    import larger
     import scratch
 
     grants, _ = demo.build()
-    by_slug = {g.slug: g for g in grants}
-    samples = {LARGER: by_slug.pop(LARGER), SMALL: scratch.build()}
-    return samples, list(by_slug.values())
+    # The larger sample is its own content now (the sample content brief). The
+    # placeholder seed's Grant A is no longer written; B and C stay unused.
+    unused = [g for g in grants if g.slug != LARGER]
+    samples = {LARGER: larger.build(), SMALL: scratch.build()}
+    return samples, unused
 
 
 def main() -> None:
