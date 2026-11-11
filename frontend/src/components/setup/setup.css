@@ -1,19 +1,13 @@
-/* The grant setup and held mail screens. Built on the tokens in globals.css. */
+/* The grant setup screens (adding a grant, grant terms, reusable notes, the
+   ledger upload) and the held mail list. Built on the tokens and ft- classes
+   in globals.css. Flat: color only where something needs the accountant, and
+   the highlighter only on words quoted from a file. */
 
 .ft-pad {
-  padding: var(--space-4);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-.ft-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: var(--space-4);
-  align-items: start;
-}
-.ft-section-head {
-  margin: var(--space-5) 0 var(--space-3);
 }
 .ft-actions {
   display: flex;
@@ -24,24 +18,654 @@
 .ft-field {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ft-field :where(select, input:not([type="file"], [type="checkbox"], [type="radio"])) {
+  width: 100%;
+}
+.ft-struck {
+  text-decoration: line-through;
+}
+
+/* --- Adding a grant: two choices side by side, stacking when narrow --- */
+
+.ft-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+  max-width: 1040px;
+}
+.ft-choice-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow: visible;
+}
+/* The card's one action sits at its foot, so the two cards' actions line up. */
+.ft-choice-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-1);
+}
+
+/* The file picker as a dashed well. Its input lies over the whole well, unseen:
+   a click anywhere opens it, and a file dropped on it lands in it. Dashed while
+   empty, solid once it holds a file. */
+.ft-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-1);
+  min-height: 128px;
+  padding: var(--space-6) var(--space-5);
+  border: 1.5px dashed var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  text-align: center;
 }
-.ft-field input,
-.ft-field select {
-  min-height: var(--control-md);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-sm);
+.ft-drop:hover {
+  border-color: var(--ink);
+  background: var(--paper-sunken);
+}
+.ft-drop.has-file {
+  border-style: solid;
+  border-color: var(--ink);
   background: var(--paper-raised);
-  color: var(--ink);
-  font: inherit;
+}
+.ft-drop:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ft-drop input[type="file"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.ft-drop input[type="file"]:focus-visible {
+  outline: none;
+}
+.ft-drop__title {
   max-width: 100%;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
-.ft-waiting {
-  margin-bottom: var(--space-4);
+.ft-drop__hint {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
 }
-.ft-terms,
-.ft-notes-list {
+
+/* The chosen sample's description, in a sunken well under the dropdown. */
+.ft-sample-about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--paper-sunken);
+  max-width: var(--measure);
+}
+.ft-sample-about.is-empty {
+  color: var(--ink-muted);
+}
+.ft-sample-about__name {
+  font-weight: 600;
+}
+.ft-sample-about.is-unavailable .ft-sample-about__name {
+  color: var(--ink-muted);
+}
+.ft-sample-about__reason {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+/* The larger live sample's confirm step: it waits on the accountant. */
+.ft-sample-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--needs-human-tint);
+}
+
+/* --- Grant terms --- */
+
+.ft-waiting-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.ft-waiting-list + .ft-panel {
+  margin-top: var(--space-4);
+}
+.ft-waiting__none {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+}
+/* The header of what waits: the needs-human tint, the file the terms came
+   from, how many wait, and the set's one Confirm. */
+.ft-waiting__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--needs-human-tint);
+}
+.ft-waiting__what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ft-waiting__what .ft-heading {
+  overflow-wrap: anywhere;
+}
+.ft-waiting__meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--needs-human);
+}
+.ft-waiting__count {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--needs-human);
+}
+.ft-waiting__done {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--approve);
+}
+.ft-waiting__problems {
+  padding: var(--space-2) var(--space-4) 0;
+}
+.ft-tag--waiting {
+  border-color: var(--needs-human);
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+}
+
+/* One term, one row: what it is on the left, its values with their quotes in
+   the middle, its actions at the end. The rows measure their own list, so the
+   actions drop under the values where the list is narrow. */
+.ft-trs {
+  container-type: inline-size;
+}
+.ft-tr {
+  --tr-meta: 216px;
+  --tr-gap: var(--space-5);
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--tr-meta) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "meta main actions"
+    "meta form form";
+  column-gap: var(--tr-gap);
+  padding: 14px var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+/* A row of the same kind as the one above joins its group: the rule between
+   them starts at the values, and the kind isn't repeated. */
+.ft-tr.is-cont {
+  border-top-color: transparent;
+}
+.ft-tr.is-cont::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: calc(var(--space-4) + var(--tr-meta) + var(--tr-gap));
+  right: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.ft-tr__meta {
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ft-tr__date {
+  white-space: nowrap;
+}
+.ft-tr__kind {
+  font-size: 13px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.ft-tr__main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ft-tr__fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.ft-tr__field {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
+  column-gap: var(--space-4);
+}
+/* The label's first line sits on the value's baseline. */
+.ft-tr__field dt {
+  padding-top: 4px;
+}
+.ft-tr__field dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+.ft-tr__value {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ft-tr.is-muted .ft-tr__kind,
+.ft-tr.is-muted .ft-tr__value {
+  color: var(--ink-muted);
+}
+.ft-tr.is-muted .ft-tr__value {
+  font-weight: 500;
+}
+.ft-tr__unconfirmed ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-tr__unconfirmed .ft-label {
+  color: var(--needs-human);
+}
+/* A value that couldn't be found carries the dashed ring of missing evidence. */
+.ft-tr__unconfirmed li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+.ft-tr__unconfirmed li::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1.5px dashed var(--needs-human);
+  border-radius: 50%;
+}
+.ft-tr .ft-problem__text {
+  font-size: 13px;
+  line-height: 18px;
+}
+.ft-tr__actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: start;
+  gap: var(--space-1) var(--space-1);
+}
+.ft-tr__done {
+  margin-right: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+.ft-tr__form {
+  grid-area: form;
+  margin-top: var(--space-3);
+}
+/* The terms no check uses any more come last, after a stronger rule. */
+.ft-retired > .ft-trs > .ft-tr:first-child {
+  border-top-color: var(--rule-strong);
+}
+
+/* A value's quote: the file's own words in serif on the highlighter, held to
+   two lines until opened in place. */
+/* "Open the source" sits beside a quote that fits on one line, so a value with
+   its quote takes two lines; a longer quote puts it underneath. */
+.ft-tq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: var(--space-4);
+  min-width: 0;
+  width: 100%;
+}
+.ft-tq__text {
+  display: -webkit-box;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: var(--measure);
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.ft-tq__text.is-open {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+}
+.ft-tq__text mark {
+  padding: 1px 2px;
+  border-radius: var(--radius-sm);
+  background: var(--highlight);
+  color: var(--on-highlight);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* A replaced or rejected term's quote stays a quote, on the paler wash. */
+.ft-tq__text.is-muted mark {
+  background: var(--highlight-wash);
+  color: var(--ink);
+}
+.ft-tq__foot {
+  display: flex;
+  gap: var(--space-4);
+  font-size: 12px;
+  line-height: 24px;
+  white-space: nowrap;
+}
+.ft-tq__foot .ft-linkbtn {
+  color: var(--ink-muted);
+}
+.ft-tq__foot .ft-linkbtn:hover {
+  color: var(--ink);
+}
+
+@container (max-width: 820px) {
+  .ft-tr {
+    --tr-meta: 168px;
+    grid-template-columns: var(--tr-meta) minmax(0, 1fr);
+    grid-template-areas:
+      "meta main"
+      "meta actions"
+      "form form";
+  }
+  .ft-tr__actions {
+    justify-content: flex-start;
+    margin-top: var(--space-3);
+    margin-left: calc(-1 * 10px);
+  }
+}
+@container (max-width: 540px) {
+  .ft-tr {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "meta" "main" "actions" "form";
+    row-gap: var(--space-2);
+  }
+  .ft-tr.is-cont::before {
+    left: var(--space-4);
+  }
+  .ft-tr__meta {
+    flex-flow: row wrap;
+    align-items: baseline;
+    column-gap: var(--space-2);
+  }
+  .ft-tr__field {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .ft-tr__field dt {
+    padding-top: 0;
+  }
+  .ft-tq__foot {
+    line-height: 20px;
+  }
+}
+
+/* Typing the right value, in place under the term: a sunken well with the
+   foundation's fields, one neutral main button and a quiet Cancel. */
+.ft-typeterm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--paper-sunken);
+}
+.ft-typeterm__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.ft-typeterm .ft-error {
+  margin: 0;
+  padding: 0 0 0 var(--space-5);
+}
+
+/* --- Reusable notes --- */
+
+.ft-rnotes {
+  container-type: inline-size;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+  gap: var(--space-3) var(--space-6);
+  padding: 14px var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.ft-note__what {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ft-note__text {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  max-width: var(--measure);
+}
+.ft-note__terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: var(--space-2) 0 0;
+}
+.ft-note__terms > div {
+  min-width: 0;
+}
+.ft-note__terms dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+.ft-note__covered {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ft-note__covered ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-note__covered li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 18px;
+}
+.ft-note__covered li .ft-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-notes-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+}
+.ft-notes-empty__mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px dashed var(--missing);
+  border-radius: 50%;
+}
+@container (max-width: 640px) {
+  .ft-note {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- The ledger upload: a short form in a panel, then what came of it --- */
+
+.ft-upload {
+  max-width: 760px;
+  overflow: visible;
+}
+.ft-upload__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+.ft-upload__columns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.ft-upload__cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-upload__columns code {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ft-upload__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ft-upload__error {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-4);
+}
+.ft-upload__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--rule);
+}
+.ft-upload__result .ft-heading {
+  overflow-wrap: anywhere;
+}
+/* What the file produced: a solid dot for lines added, the dashed ring of
+   missing evidence for lines held back. Never red: a skipped row isn't a conflict. */
+.ft-found {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.ft-found li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ft-found li::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1.5px dashed var(--missing);
+  border-radius: 50%;
+}
+.ft-found li.is-done::before {
+  border: 0;
+  background: var(--complete);
+}
+.ft-upload__rows {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ft-upload__rows .ft-ledger tr:first-child th {
+  border-top: 0;
+}
+.ft-upload__rows .ft-ledger th:first-child,
+.ft-upload__rows .ft-ledger td:first-child {
+  width: 72px;
+}
+
+/* --- The held mail list (components/mail), which shares this sheet --- */
+
+.ft-terms {
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -55,56 +679,11 @@
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--rule);
 }
-.ft-term.is-muted {
-  color: var(--ink-muted);
-}
 .ft-term__head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
-}
-.ft-term__values {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.ft-term__value {
-  display: grid;
-  grid-template-columns: minmax(120px, 200px) 1fr;
-  gap: var(--space-3);
-}
-.ft-term__value dd {
-  margin: 0;
-  min-width: 0;
-}
-@media (max-width: 640px) {
-  .ft-term__value {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-}
-.ft-term__unconfirmed ul {
-  margin: var(--space-1) 0 0;
-  padding-left: var(--space-5);
-}
-.ft-struck {
-  text-decoration: line-through;
-}
-.ft-quote {
-  margin: var(--space-1) 0 0;
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--rule-strong);
-  color: var(--ink-muted);
-  overflow-wrap: anywhere;
-}
-.ft-typeterm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px dashed var(--rule-strong);
-  border-radius: var(--radius-md);
 }
 .ft-files {
   margin: var(--space-1) 0 0;
