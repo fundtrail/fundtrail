@@ -82,7 +82,12 @@ def test_the_grant_page_shows_terms_in_force_budget_and_closeout(api: Api) -> No
     }
     assert (budget["limit_cents"], budget["spent_cents"]) == (12000000, 342000)
     assert [n["text"] for n in detail["grant_notes"]] == ["Other is over its budget."]
-    assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}
+    assert detail["sign_off"] == {
+        "state": "not_signed",
+        "sign_off": None,
+        "changes": [],
+        "unavailable_reason": None,
+    }
 
     [row] = _get(api, f"/workspaces/{sample.workspace.id}/grants")
     assert row == s
@@ -599,7 +604,12 @@ def test_the_grant_page_lists_reusable_notes_and_term_values(api: Api) -> None:
         t for t in detail["terms"] if t["record"]["data"]["kind"] == "period_of_performance"
     )
     assert period["values"] and all(v["confirmed"] for v in period["values"])
-    assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}
+    assert detail["sign_off"] == {
+        "state": "not_signed",
+        "sign_off": None,
+        "changes": [],
+        "unavailable_reason": None,
+    }
 
 
 def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:

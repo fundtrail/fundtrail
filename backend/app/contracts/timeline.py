@@ -98,6 +98,13 @@ class TimelineView(Model):
     # missing. A user's decision or a missed scripted one takes it off for good.
     # None on a sample the agent reads live.
     on_run_through: bool | None = None
+    # Ruling 72: why "Next event" and "Go to a date" can't move the clock now, in
+    # plain words, for example "Nothing is left to play." or, under the read-live
+    # limit, "The agent is still reading <the other sample>."; None when they can.
+    move_unavailable_reason: Text | None = None
+    # Ruling 72: why "Next highlight" can't move now, for example "No highlight is
+    # left to play.", or the move's own reason; None when it can.
+    next_highlight_unavailable_reason: Text | None = None
 
 
 class TimelineMove(Model):

@@ -115,6 +115,20 @@ class ChecklistEntry(Model):
     # links, so it has no link_ids.
     rate_id: Id | None = None
     charge_ids: tuple[Id, ...] = ()
+    # Ruling 73: a partly covered item. Words only: the item stays not filled and the
+    # charge's bucket doesn't change. `covered_cents` is what the links cover so far,
+    # beside `amount_cents`, what's needed; `partly_filled_text` is the wording, built
+    # by code, for example "Partly filled, $250.00 of $676.00". Both None otherwise.
+    covered_cents: Cents | None = None
+    partly_filled_text: Text | None = None
+
+    @model_validator(mode="after")
+    def _partly_filled(self):
+        if (self.covered_cents is None) != (self.partly_filled_text is None):
+            raise ValueError("a partly filled item has both its covered amount and its wording")
+        if self.covered_cents is not None and (self.filled or self.amount_cents is None):
+            raise ValueError("only an item with an amount that isn't filled is partly filled")
+        return self
 
     @model_validator(mode="after")
     def _one_item(self):
