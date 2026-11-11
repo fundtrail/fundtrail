@@ -46,6 +46,25 @@ uv run python ../eval/run.py --fake                       # a fake model: no cal
 - CI's ruff and pyright cover `backend/` only, so they don't check `eval/run.py`. Check it by hand from `backend/`: `uv run ruff check ../eval/run.py` and `uv run pyright ../eval/run.py`. Adding it to CI is a change to the CI config.
 - This runner scores the agent end to end. The checks-only score on hand-written records, which docs/eval.md also asks for, lives in the sample plays (`backend/tests/samples/test_plays.py`), not here.
 
+## The key's format
+
+A key follows contracts.md section 14. Ruling 81 adds two optional fields.
+
+- **`checklist_items`: the items the agent should add to a charge's checklist.**
+  - Each item has its charge's `line_id` and what's `needed`. `needed` isn't compared, because it's the agent's own wording.
+  - An item may also have its `amount_cents`, and the `rate` it comes from: a `quantity` and a `rate` in dollars, with the rate cited from `file`.
+  - An agent item matches when it's on the same charge, with the same amount and the same quantity and rate, and its rate is cited from the same file.
+  - A key without this field doesn't score checklist items.
+- **`not_scored`: the agent's items the key leaves unscored.**
+  - Each entry has a `part` (`records`, `links`, `budget_lines`, `answers` or `checklist_items`) and at least one of `line_id`, `file`, `kind` or `question`.
+  - An agent item it picks is neither right nor wrong. The report lists it as not scored.
+
+So far, the trip case expects its per diem item, at 5 days of $100.00 cited from `per_diem_rates.txt`. The guest speaker case leaves L-7101's budget line unscored, as its README always said.
+
+`test_cases.py` checks both fields, including that the quantity times the rate is the amount, and that the rate is written in its file.
+
+Ruling 81 also gives an `other_term` record the field `standard_conditions`, as "true" or "false". It's true for the award letter's sentence naming the funder's standard conditions (GC-1). Every case's key expects that term once, and no `unusual_term` answer about it.
+
 ## What it does
 
 Each case gets its own grant, played through the app's ordinary paths, the way a sample grant's timeline is played:
@@ -74,7 +93,7 @@ These are counted on their own:
 - unsure answers where the key has an answer
 - values whose citation couldn't be found in their file
 
-A wrong bucket is listed with the checks' reasons for it. Which checks fail for a charge, checklist items and suggestions aren't scored yet, because the key's format doesn't cover them (contracts.md, "Not decided yet").
+A wrong bucket is listed with the checks' reasons for it. Checklist items the agent adds are scored when the key lists them. Which checks fail for a charge, and suggestions, aren't scored yet, because the key's format doesn't cover them (contracts.md, "Not decided yet").
 
 ## First run, Nov 11, 2026
 
@@ -120,7 +139,7 @@ None of the keys lists that term.
 
 - **At fault: the key.** contracts.md says an `other_term` holds "anything an award letter or amendment says that no other kind holds", and that wording covers this sentence.
 - Ruling 81 settles it. The sentence is recorded once, as an `other_term` marked as the standard conditions, and code never asks `unusual_term` about it.
-- The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these 17 items count as the key's.
+- Every key now expects it: one `other_term` from the award letter with `standard_conditions` true and its date, and no `unusual_term` answer about it. In this first run, which predates that, these 17 items count as the key's.
 
 **effort-report-six-months: 7 other wrong records.**
 

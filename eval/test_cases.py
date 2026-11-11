@@ -15,7 +15,7 @@ import csv
 import json
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 CASES_DIR = Path(__file__).resolve().parent / "cases"
@@ -26,39 +26,75 @@ CASE_META_FILES = {"answer_key.json", "arrivals.json", "ledger.csv", "README.md"
 
 # Section 14: the answer key's top-level fields.
 KEY_FIELDS = {"case", "award_number", "records", "links", "budget_lines", "answers", "buckets"}
+# Ruling 81: a key may also expect the checklist items the agent adds, and say which of the
+# agent's items aren't scored. A key without checklist_items doesn't score them.
+OPTIONAL_KEY_FIELDS = {"checklist_items", "not_scored"}
+CHECKLIST_ITEM_FIELDS = {"line_id", "needed", "file", "amount_cents", "rate"}
+# The parts of a key whose agent items can be left unscored, and how to pick them.
+SCORED_PARTS = {"records", "links", "budget_lines", "answers", "checklist_items"}
+NOT_SCORED_SELECTORS = {"line_id", "file", "kind", "question"}
 
 # Section 1: the record kinds the agent reads from documents, and the field
 # paths each one can carry. `dated` is on every term. `notice` (an award
 # notice's amendment and amounts) and `budget_line.category` follow the shapes
 # agreed for the contract code (issue 14). The rate term's fields aren't
 # settled, so a key can't name it yet.
-TERM_KINDS = {"period_of_performance", "budget_line", "person", "approval_rule", "other_term", "notice"}
+TERM_KINDS = {
+    "period_of_performance",
+    "budget_line",
+    "person",
+    "approval_rule",
+    "other_term",
+    "notice",
+}
 RECORD_FIELDS = {
     "period_of_performance": {"start", "end", "dated"},
-    "notice": {"amendment_number", "amendment_type", "obligated_by_amendment", "obligated_to_date", "dated"},
+    "notice": {
+        "amendment_number",
+        "amendment_type",
+        "obligated_by_amendment",
+        "obligated_to_date",
+        "dated",
+    },
     "budget_line": {"name", "category", "amount", "dated"},
     "person": {"name", "email", "role", "dated"},
     "approval_rule": {"applies_to", "approver", "channel", "dated"},
-    "other_term": {"label", "statement", "dated"},
+    "other_term": {"label", "statement", "dated", "standard_conditions"},
     "bill": {"total", "vendor", "dated", "description", "items[].description", "items[].amount"},
     "approval": {"approver_email", "covers", "approver_name", "approved_on", "channel"},
     "note": {"label", "statement"},
 }
 DATE_FIELDS = {"start", "end", "dated", "approved_on"}
 MONEY_FIELDS = {"amount", "total", "items[].amount", "obligated_by_amendment", "obligated_to_date"}
-# A label is the agent's own short name, not a value read from the file.
-UNCITED_FIELDS = {"label"}
+# A label is the agent's own short name, not a value read from the file. Ruling 81: an
+# other_term's standard_conditions is the agent's mark, "true" or "false".
+UNCITED_FIELDS = {"label", "standard_conditions"}
+BOOL_FIELDS = {"standard_conditions"}
 # NSF's standard categories and Other Direct Costs' six sub-lines, spelled as
 # the contract code's BudgetCategory spells them. The sixth sub-line is
 # other_direct_costs_other, so it can't be read as participant support's Other.
 CATEGORIES = {
-    "senior_personnel", "other_personnel", "fringe_benefits", "equipment", "travel",
-    "participant_support", "other_direct_costs", "materials_and_supplies", "publication",
-    "consultant_services", "computer_services", "subawards", "other_direct_costs_other",
+    "senior_personnel",
+    "other_personnel",
+    "fringe_benefits",
+    "equipment",
+    "travel",
+    "participant_support",
+    "other_direct_costs",
+    "materials_and_supplies",
+    "publication",
+    "consultant_services",
+    "computer_services",
+    "subawards",
+    "other_direct_costs_other",
 }
 ODC_SUBLINE_CATEGORIES = {
-    "materials_and_supplies", "publication", "consultant_services",
-    "computer_services", "subawards", "other_direct_costs_other",
+    "materials_and_supplies",
+    "publication",
+    "consultant_services",
+    "computer_services",
+    "subawards",
+    "other_direct_costs_other",
 }
 
 QUESTIONS = {"allowable", "covers", "unusual_term", "flag"}
@@ -68,14 +104,34 @@ ANSWERS = {"supports", "contradicts", "unsure"}
 BUCKETS = {"evidence_complete", "possible_conflict", "missing_evidence", "needs_human", "reversed"}
 
 # Section 13: ledger file columns.
-LEDGER_REQUIRED = {"line_id", "transaction_date", "posting_date", "amount", "description", "account"}
+LEDGER_REQUIRED = {
+    "line_id",
+    "transaction_date",
+    "posting_date",
+    "amount",
+    "description",
+    "account",
+}
 LEDGER_OPTIONAL = {"vendor", "reference", "original_line_id"}
 
 # domain.md, "Default checklists by account group": the starting table of
 # Berkeley account ranges. A ledger account must start with one of these.
 ACCOUNT_GROUP_PREFIXES = (
-    "50", "51", "53", "538", "5742", "5721", "5722", "550", "553",
-    "542", "5671", "5781", "5672", "564", "590",
+    "50",
+    "51",
+    "53",
+    "538",
+    "5742",
+    "5721",
+    "5722",
+    "550",
+    "553",
+    "542",
+    "5671",
+    "5781",
+    "5672",
+    "564",
+    "590",
 )
 
 # The arrival schedule: what can arrive, and what the accountant can do.
@@ -108,7 +164,7 @@ def normalize(text: str) -> str:
 
 
 def parse_time(value: str) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 def date_renderings(value: date) -> list[str]:
@@ -264,10 +320,15 @@ def check_ledger(case: Path, problems: list[str]) -> dict[str, dict[str, str]]:
         if len(dates) == 2 and dates["posting_date"] < dates["transaction_date"]:
             problems.append(f"{where}: posted before its transaction date")
         if not DOLLARS.match(row.get("amount") or ""):
-            problems.append(f"{where}: amount {row.get('amount')!r} isn't dollars with up to two decimals")
+            problems.append(
+                f"{where}: amount {row.get('amount')!r} isn't dollars with up to two decimals"
+            )
         code = (row.get("account") or "").split(" ")[0]
         if not (re.fullmatch(r"5\d{4}", code) and code.startswith(ACCOUNT_GROUP_PREFIXES)):
-            problems.append(f"{where}: account {row.get('account')!r} isn't in a group from domain.md's starting table")
+            problems.append(
+                f"{where}: account {row.get('account')!r} isn't in a group "
+                "from domain.md's starting table"
+            )
         lines[line_id] = row
     return lines
 
@@ -283,7 +344,9 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
         return
     kind, name, fields = rec["kind"], rec["file"], rec["fields"]
     if kind not in RECORD_FIELDS:
-        problems.append(f"{where}: kind {kind!r} isn't a record kind the agent reads from a document")
+        problems.append(
+            f"{where}: kind {kind!r} isn't a record kind the agent reads from a document"
+        )
         return
     path = case / name if isinstance(name, str) else None
     if path is None or name in CASE_META_FILES or not path.is_file():
@@ -301,7 +364,10 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
         if not isinstance(value, str):
             problems.append(f"{where}: {field} must be a string")
             continue
-        if ftype == "category":
+        if ftype in BOOL_FIELDS:
+            if value not in ("true", "false"):
+                problems.append(f'{where}: {field} must be "true" or "false"')
+        elif ftype == "category":
             if value not in CATEGORIES:
                 problems.append(f"{where}: category {value!r} isn't one of {sorted(CATEGORIES)}")
         elif ftype in DATE_FIELDS:
@@ -324,14 +390,22 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
         problems.append(f"{where}: a term should give its dated")
 
 
-def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, datetime],
-              problems: list[str], key: dict | None = None) -> None:
+def check_key(
+    case: Path,
+    lines: dict[str, dict[str, str]],
+    arrivals: dict[str, datetime],
+    problems: list[str],
+    key: dict | None = None,
+) -> None:
     if key is None:
         key = load_json(case / "answer_key.json", problems)
     if key is None:
         return
-    if set(key) != KEY_FIELDS:
-        problems.append(f"answer_key.json: fields must be exactly {sorted(KEY_FIELDS)}")
+    if not KEY_FIELDS <= set(key) <= KEY_FIELDS | OPTIONAL_KEY_FIELDS:
+        problems.append(
+            f"answer_key.json: fields must be {sorted(KEY_FIELDS)}, "
+            f"and may add {sorted(OPTIONAL_KEY_FIELDS)}"
+        )
         return
     if key["case"] != case.name:
         problems.append(f"answer_key.json: case {key['case']!r} doesn't match its folder")
@@ -343,7 +417,14 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         problems.append("the case needs exactly one award_letter file")
     elif isinstance(award, str) and award not in letters[0].read_text(encoding="utf-8"):
         problems.append(f"{letters[0].name} doesn't carry the award number {award}")
-    for part in ("records", "links", "budget_lines", "answers", "buckets"):
+    for part in (
+        "records",
+        "links",
+        "budget_lines",
+        "answers",
+        "buckets",
+        *sorted(OPTIONAL_KEY_FIELDS & set(key)),
+    ):
         if not isinstance(key[part], list):
             problems.append(f"answer_key.json: {part} must be a list")
             return
@@ -354,7 +435,7 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
     for i, rec in enumerate(key["records"]):
         check_record(rec, i, case, problems)
         if isinstance(rec, dict) and isinstance(rec.get("fields"), dict):
-            kinds_by_file.setdefault(rec.get("file"), set()).add(rec.get("kind"))
+            kinds_by_file.setdefault(str(rec.get("file")), set()).add(str(rec.get("kind")))
             fields = rec["fields"]
             if rec.get("kind") == "bill" and CENTS.match(fields.get("total", "")):
                 bill_totals[rec["file"]] = int(fields["total"])
@@ -366,8 +447,10 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
     categories = {
         r["fields"]["name"]: r["fields"].get("category")
         for r in key["records"]
-        if isinstance(r, dict) and r.get("kind") == "budget_line"
-        and isinstance(r.get("fields"), dict) and "name" in r["fields"]
+        if isinstance(r, dict)
+        and r.get("kind") == "budget_line"
+        and isinstance(r.get("fields"), dict)
+        and "name" in r["fields"]
     }
     if len(letters) == 1:
         parents = budget_parents(letters[0].read_text(encoding="utf-8"))
@@ -377,16 +460,20 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
                 continue
             parent_category = categories.get(parent)
             if parent_category is None:
-                problems.append(f"answer_key.json: sub-line {name!r} has no budget_line for its line {parent!r}")
+                problems.append(
+                    f"answer_key.json: sub-line {name!r} has no budget_line for its line {parent!r}"
+                )
             elif parent_category == "other_direct_costs":
                 if category not in ODC_SUBLINE_CATEGORIES:
                     problems.append(
                         f"answer_key.json: sub-line {name!r} of Other Direct Costs needs one of "
-                        f"{sorted(ODC_SUBLINE_CATEGORIES)}, not {category!r}")
+                        f"{sorted(ODC_SUBLINE_CATEGORIES)}, not {category!r}"
+                    )
             elif category != parent_category:
                 problems.append(
                     f"answer_key.json: sub-line {name!r} has category {category!r}, "
-                    f"but its line {parent!r} is {parent_category!r}")
+                    f"but its line {parent!r} is {parent_category!r}"
+                )
 
     linked_lines: set[str] = set()
     files_by_line: dict[str, set[str]] = {}
@@ -394,7 +481,11 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
     used_by_bill: dict[str, int] = {}
     for i, link in enumerate(key["links"]):
         where = f"answer_key.json links[{i}]"
-        if not isinstance(link, dict) or not {"file", "line_id"} <= set(link) <= {"file", "line_id", "amount_cents"}:
+        if not isinstance(link, dict) or not {"file", "line_id"} <= set(link) <= {
+            "file",
+            "line_id",
+            "amount_cents",
+        }:
             problems.append(f"{where}: must have file and line_id, and may have amount_cents")
             continue
         name, line_id = link["file"], link["line_id"]
@@ -413,7 +504,7 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             problems.append(f"{where}: a link to a bill needs an integer amount_cents")
         elif not is_bill and "amount_cents" in link:
             problems.append(f"{where}: only a link to a bill carries amount_cents")
-        elif is_bill:
+        elif is_bill and isinstance(amount, int):
             # Call 38, A1: a link's amount has the same sign as its bill's total.
             total = bill_totals.get(name)
             if total is not None and amount * total < 0:
@@ -439,18 +530,28 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             problems.append(f"{where}: a charge has at most one budget line")
         assigned.add(item["line_id"])
         if item["budget_line"] not in budget_names:
-            problems.append(f"{where}: {item['budget_line']!r} isn't a budget_line record in the key")
+            problems.append(
+                f"{where}: {item['budget_line']!r} isn't a budget_line record in the key"
+            )
 
     for i, ans in enumerate(key["answers"]):
         where = f"answer_key.json answers[{i}]"
         if not isinstance(ans, dict) or not {"line_id", "question", "answer"} <= set(ans) <= {
-            "line_id", "question", "answer", "about_file"}:
-            problems.append(f"{where}: must have line_id, question and answer, and may have about_file")
+            "line_id",
+            "question",
+            "answer",
+            "about_file",
+        }:
+            problems.append(
+                f"{where}: must have line_id, question and answer, and may have about_file"
+            )
             continue
         if ans["line_id"] not in lines:
             problems.append(f"{where}: line_id {ans['line_id']!r} isn't in ledger.csv")
         if ans["question"] not in QUESTIONS:
-            problems.append(f"{where}: question {ans['question']!r} isn't one of {sorted(QUESTIONS)}")
+            problems.append(
+                f"{where}: question {ans['question']!r} isn't one of {sorted(QUESTIONS)}"
+            )
         if ans["answer"] not in ANSWERS:
             problems.append(f"{where}: answer {ans['answer']!r} isn't one of {sorted(ANSWERS)}")
         if ans["question"] in QUESTIONS_WITH_FILE:
@@ -462,6 +563,9 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         if ans["question"] == "allowable" and ans["line_id"] not in linked_lines:
             problems.append(f"{where}: Allowable is only asked for a charge with evidence linked")
 
+    check_checklist_items(case, key.get("checklist_items", []), lines, problems)
+    check_not_scored(case, key.get("not_scored", []), lines, problems)
+
     confirmed = [t for k, t in arrivals.items() if k.startswith("confirm_terms:")]
     for i, item in enumerate(key["buckets"]):
         where = f"answer_key.json buckets[{i}]"
@@ -471,7 +575,9 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         if item["bucket"] not in BUCKETS:
             problems.append(f"{where}: bucket {item['bucket']!r} isn't one of {sorted(BUCKETS)}")
         if not ISO_TIME.match(str(item["at"])):
-            problems.append(f"{where}: at {item['at']!r} isn't a UTC time like 2026-01-31T12:00:00Z")
+            problems.append(
+                f"{where}: at {item['at']!r} isn't a UTC time like 2026-01-31T12:00:00Z"
+            )
             continue
         at = parse_time(item["at"])
         arrived = arrivals.get(f"line:{item['line_id']}")
@@ -487,9 +593,11 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         if item["bucket"] == "evidence_complete":
             charge = cents_of(lines[item["line_id"]]) if item["line_id"] in lines else 0
             credits = {
-                link["file"] for link in key["links"]
+                link["file"]
+                for link in key["links"]
                 if link["line_id"] == item["line_id"]
-                and isinstance(link.get("amount_cents"), int) and link["amount_cents"] * charge < 0
+                and isinstance(link.get("amount_cents"), int)
+                and link["amount_cents"] * charge < 0
             }
             for name in sorted(files_by_line.get(item["line_id"], set()) - credits):
                 file_at = arrivals.get(f"file:{name}")
@@ -502,20 +610,115 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
             # because an item from a rate, such as a trip's per diem, carries an
             # amount the key can't express.
             arrived = [
-                link for link in key["links"]
-                if link["line_id"] == item["line_id"] and isinstance(link.get("amount_cents"), int)
+                link
+                for link in key["links"]
+                if link["line_id"] == item["line_id"]
+                and isinstance(link.get("amount_cents"), int)
                 and arrivals.get(f"file:{link['file']}", at) < at
             ]
             if arrived:
                 signed = sum(link["amount_cents"] for link in arrived)
                 credit_on_file = any(link["file"] in credits for link in arrived)
-                if abs(signed) > abs(charge) or signed * charge < 0 or (
-                        credit_on_file and signed != charge):
-                    problems.append(f"{where}: evidence_complete, but the bills on file add up "
-                                    f"to {signed} cents against the charge's {charge}")
+                if (
+                    abs(signed) > abs(charge)
+                    or signed * charge < 0
+                    or (credit_on_file and signed != charge)
+                ):
+                    problems.append(
+                        f"{where}: evidence_complete, but the bills on file add up "
+                        f"to {signed} cents against the charge's {charge}"
+                    )
 
 
-def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[str]) -> dict[str, datetime]:
+def check_checklist_items(
+    case: Path, items: list, lines: dict[str, dict[str, str]], problems: list[str]
+) -> None:
+    """Ruling 81: the items the agent should add to a charge's checklist. Each has the
+    charge's line_id and what's `needed` (not compared, since it's the agent's wording), and
+    may have the `amount_cents` it carries, and the `rate` it comes from: a quantity and a
+    rate in dollars, the rate cited from `file`."""
+    for i, item in enumerate(items):
+        where = f"answer_key.json checklist_items[{i}]"
+        if (
+            not isinstance(item, dict)
+            or not {"line_id", "needed"} <= set(item) <= CHECKLIST_ITEM_FIELDS
+        ):
+            problems.append(
+                f"{where}: must have line_id and needed, and may have "
+                f"{sorted(CHECKLIST_ITEM_FIELDS - {'line_id', 'needed'})}"
+            )
+            continue
+        if item["line_id"] not in lines:
+            problems.append(f"{where}: line_id {item['line_id']!r} isn't in ledger.csv")
+        if not (isinstance(item["needed"], str) and item["needed"].strip()):
+            problems.append(f"{where}: needed must say what's needed")
+        amount = item.get("amount_cents")
+        if "amount_cents" in item and not (
+            isinstance(amount, int) and not isinstance(amount, bool)
+        ):
+            problems.append(f"{where}: amount_cents must be an integer")
+            amount = None
+        text = None
+        if "file" in item:
+            path = case / str(item["file"])
+            if not path.is_file() or path.name in CASE_META_FILES:
+                problems.append(f"{where}: file {item['file']!r} isn't a document of the case")
+            else:
+                text = path.read_text(encoding="utf-8")
+        rate = item.get("rate")
+        if rate is None:
+            continue
+        if not (
+            isinstance(rate, dict)
+            and set(rate) == {"quantity", "rate"}
+            and all(isinstance(v, str) and DOLLARS.match(v) for v in rate.values())
+        ):
+            problems.append(
+                f"{where}: rate must have exactly quantity and rate, as numbers in strings"
+            )
+            continue
+        if "file" not in item:
+            problems.append(f"{where}: a rate is cited from a file, so the item needs file")
+        rate_cents = round(float(rate["rate"]) * 100)
+        if text is not None and not money_written(rate_cents, text):
+            problems.append(f"{where}: the rate ${rate['rate']} isn't written in {item['file']}")
+        if amount is not None and round(float(rate["quantity"]) * rate_cents) != amount:
+            problems.append(f"{where}: quantity times rate isn't amount_cents")
+
+
+def check_not_scored(
+    case: Path, entries: list, lines: dict[str, dict[str, str]], problems: list[str]
+) -> None:
+    """Ruling 81: the agent's items a key leaves unscored, by part and by at least one of a
+    line_id, a file, a record kind or a question. Such an item is neither right nor wrong."""
+    for i, entry in enumerate(entries):
+        where = f"answer_key.json not_scored[{i}]"
+        selectors = set(entry) - {"part"} if isinstance(entry, dict) else set()
+        if not (
+            isinstance(entry, dict)
+            and "part" in entry
+            and selectors
+            and selectors <= NOT_SCORED_SELECTORS
+        ):
+            problems.append(
+                f"{where}: must have part and at least one of {sorted(NOT_SCORED_SELECTORS)}"
+            )
+            continue
+        if entry["part"] not in SCORED_PARTS:
+            problems.append(f"{where}: part must be one of {sorted(SCORED_PARTS)}")
+        if "line_id" in entry and entry["line_id"] not in lines:
+            problems.append(f"{where}: line_id {entry['line_id']!r} isn't in ledger.csv")
+        if "file" in entry and not (case / str(entry["file"])).is_file():
+            problems.append(f"{where}: file {entry['file']!r} isn't in the case")
+        if "question" in entry and entry["question"] not in QUESTIONS:
+            problems.append(
+                f"{where}: question {entry['question']!r} isn't one of {sorted(QUESTIONS)}"
+            )
+
+
+def check_arrivals(
+    case: Path, lines: dict[str, dict[str, str]], problems: list[str]
+) -> dict[str, datetime]:
     """Returns when each line and file arrives, and when terms are confirmed."""
     out: dict[str, datetime] = {}
     sched = load_json(case / "arrivals.json", problems)
@@ -542,7 +745,7 @@ def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[
         kind = ev.get("kind")
         if kind == "file":
             allowed = {"at", "kind", "file", "source", "sender", "note"}
-            name = ev.get("file")
+            name = str(ev.get("file"))
             if name not in documents:
                 problems.append(f"{where}: file {name!r} isn't a document in the case")
             file_count[name] = file_count.get(name, 0) + 1
@@ -551,12 +754,14 @@ def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[
                 problems.append(f"{where}: source must be one of {sorted(SOURCES)}")
             if ev.get("source") == "gmail":
                 if not str(ev.get("sender", "")).endswith(".example"):
-                    problems.append(f"{where}: a gmail arrival needs a sender at a .example address")
+                    problems.append(
+                        f"{where}: a gmail arrival needs a sender at a .example address"
+                    )
             elif "sender" in ev:
                 problems.append(f"{where}: only a gmail arrival has a sender")
         elif kind == "ledger_line":
             allowed = {"at", "kind", "line_id", "note"}
-            line_id = ev.get("line_id")
+            line_id = str(ev.get("line_id"))
             line_count[line_id] = line_count.get(line_id, 0) + 1
             out[f"line:{line_id}"] = at
             if line_id not in lines:
@@ -586,8 +791,9 @@ def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[
     return out
 
 
-def check_line_arrivals(lines: dict[str, dict[str, str]], out: dict[str, datetime],
-                        problems: list[str]) -> None:
+def check_line_arrivals(
+    lines: dict[str, dict[str, str]], out: dict[str, datetime], problems: list[str]
+) -> None:
     """Decision 0023: a ledger line arrives at the later of 00:00 UTC on its
     posting date and the workspace's "now" when the ledger is uploaded (the
     contract's LedgerRow.arrival(now)). A seeded line arrives on its posting
@@ -602,15 +808,19 @@ def check_line_arrivals(lines: dict[str, dict[str, str]], out: dict[str, datetim
     arrived = {line_id: out[f"line:{line_id}"] for line_id in posted if f"line:{line_id}" in out}
     uploads = {at for line_id, at in arrived.items() if at > posted[line_id]}
     if len(uploads) > 1:
-        problems.append("arrivals.json: lines arriving after their posting date must share "
-                        "the ledger's one upload time")
+        problems.append(
+            "arrivals.json: lines arriving after their posting date must share "
+            "the ledger's one upload time"
+        )
         return
     upload = next(iter(uploads), None)
     for line_id, at in sorted(arrived.items()):
         want = max(posted[line_id], upload) if upload else posted[line_id]
         if at != want:
-            problems.append(f"arrivals.json: {line_id} arrives at the later of its posting "
-                            "date and the ledger's upload (decision 0023)")
+            problems.append(
+                f"arrivals.json: {line_id} arrives at the later of its posting "
+                "date and the ledger's upload (decision 0023)"
+            )
 
 
 def check_documents(case: Path, problems: list[str]) -> None:
@@ -628,7 +838,10 @@ def check_documents(case: Path, problems: list[str]) -> None:
         text = letter.read_text(encoding="utf-8")
         positions = [text.find(s) for s in AWARD_LETTER_SECTIONS]
         if -1 in positions or positions != sorted(positions):
-            problems.append(f"{letter.name}: needs the award notice's sections, in order: {AWARD_LETTER_SECTIONS}")
+            problems.append(
+                f"{letter.name}: needs the award notice's sections, in order: "
+                f"{AWARD_LETTER_SECTIONS}"
+            )
 
 
 def check_case(case: Path) -> list[str]:
@@ -652,20 +865,33 @@ def test_every_case_is_valid() -> None:
 def test_sign_marks() -> None:
     """The sign ruling's examples, read as the check reads them."""
     cases = [
-        ("Credit - $450.00", 45000, True), ("Credit - $450.00", -45000, True),
+        ("Credit - $450.00", 45000, True),
+        ("Credit - $450.00", -45000, True),
         ("Airfare \N{EN DASH} $450.00", 45000, True),
-        ("Year 2 - $50,000", 5000000, True), ("$400-$500", 50000, True),
-        ("$400-$500", -50000, False), ("Year 2-$50,000", 5000000, True),
-        ("Refund -$450.00", -45000, True), ("Refund -$450.00", 45000, False),
-        ("$-450.00", -45000, True), ("$-450.00", 45000, False),
-        ("\N{MINUS SIGN}$450.00", -45000, True), ("\N{MINUS SIGN} $450.00", 45000, False),
-        ("$450.00-", -45000, True), ("$450.00-", 45000, False),
-        ("$400-$500", 40000, True), ("$400-$500", -40000, False),
-        ("$450.00-$500.00", 45000, True), ("$450.00-$500.00", -45000, False),
-        ("$450.00 cr", -45000, True), ("$450.00 cr", 45000, False),
-        ("fee ($450.00) paid", -45000, True), ("fee ($450.00) paid", 45000, True),
-        ("total $450.00", 45000, True), ("total $450.00", -45000, False),
-        ("total \N{EM DASH} $450.00", -45000, False), ("$1,450.00", 45000, False),
+        ("Year 2 - $50,000", 5000000, True),
+        ("$400-$500", 50000, True),
+        ("$400-$500", -50000, False),
+        ("Year 2-$50,000", 5000000, True),
+        ("Refund -$450.00", -45000, True),
+        ("Refund -$450.00", 45000, False),
+        ("$-450.00", -45000, True),
+        ("$-450.00", 45000, False),
+        ("\N{MINUS SIGN}$450.00", -45000, True),
+        ("\N{MINUS SIGN} $450.00", 45000, False),
+        ("$450.00-", -45000, True),
+        ("$450.00-", 45000, False),
+        ("$400-$500", 40000, True),
+        ("$400-$500", -40000, False),
+        ("$450.00-$500.00", 45000, True),
+        ("$450.00-$500.00", -45000, False),
+        ("$450.00 cr", -45000, True),
+        ("$450.00 cr", 45000, False),
+        ("fee ($450.00) paid", -45000, True),
+        ("fee ($450.00) paid", 45000, True),
+        ("total $450.00", 45000, True),
+        ("total $450.00", -45000, False),
+        ("total \N{EM DASH} $450.00", -45000, False),
+        ("$1,450.00", 45000, False),
     ]
     wrong = [(t, c) for t, c, ok in cases if money_written(c, normalize(t)) != ok]
     assert not wrong, wrong
@@ -708,9 +934,65 @@ def test_link_sign_must_match_its_bill() -> None:
     exists for, fails the check."""
     case, lines, arrivals, key = credit_memo_case()
     problems: list[str] = []
-    key["links"].append({"file": "credit_memo_20417.eml", "line_id": "L-8102", "amount_cents": 45000})
+    key["links"].append(
+        {"file": "credit_memo_20417.eml", "line_id": "L-8102", "amount_cents": 45000}
+    )
     check_key(case, lines, arrivals, problems, key)
     assert any("credit_memo_20417.eml" in p for p in problems), problems
+
+
+def test_a_checklist_item_rate_must_add_up_and_be_written() -> None:
+    """Ruling 81: an expected checklist item's quantity times its rate is its amount, and
+    the rate is written in the file it's cited from."""
+    case = CASES_DIR / "trip-airfare-and-per-diem"
+    lines = {"L-5201": {}}
+    good = {
+        "line_id": "L-5201",
+        "needed": "Per diem",
+        "file": "per_diem_rates.txt",
+        "amount_cents": 50000,
+        "rate": {"quantity": "5", "rate": "100.00"},
+    }
+    problems: list[str] = []
+    check_checklist_items(case, [good], lines, problems)
+    assert problems == []
+    check_checklist_items(case, [{**good, "amount_cents": 60000}], lines, problems)
+    check_checklist_items(
+        case,
+        [{**good, "rate": {"quantity": "5", "rate": "120.00"}, "amount_cents": 60000}],
+        lines,
+        problems,
+    )
+    assert len(problems) == 2, problems
+
+
+def test_standard_conditions_is_true_or_false() -> None:
+    """Ruling 81: an other_term's standard_conditions mark is "true" or "false"."""
+    case = CASES_DIR / "credit-memo-spaced-dash"
+    rec = {
+        "kind": "other_term",
+        "file": "award_letter.txt",
+        "fields": {"standard_conditions": "true", "dated": "2026-01-06"},
+    }
+    problems: list[str] = []
+    check_record(rec, 0, case, problems)
+    assert problems == []
+    check_record(
+        {**rec, "fields": {"standard_conditions": "yes", "dated": "2026-01-06"}}, 0, case, problems
+    )
+    assert len(problems) == 1, problems
+
+
+def test_not_scored_needs_a_part_and_a_selector() -> None:
+    case = CASES_DIR / "guest-speaker-stipend"
+    lines = {"L-7101": {}}
+    problems: list[str] = []
+    check_not_scored(case, [{"part": "budget_lines", "line_id": "L-7101"}], lines, problems)
+    assert problems == []
+    check_not_scored(
+        case, [{"part": "budget_lines"}, {"part": "buckets", "line_id": "L-7101"}], lines, problems
+    )
+    assert len(problems) == 2, problems
 
 
 if __name__ == "__main__":

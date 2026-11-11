@@ -4,6 +4,7 @@
   "records": [
     {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2026-02-01", "end": "2029-01-31", "dated": "2026-01-06"}},
     {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "3000000", "obligated_to_date": "3000000", "dated": "2026-01-06"}},
+    {"kind": "other_term", "file": "award_letter.txt", "fields": {"standard_conditions": "true", "dated": "2026-01-06"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "3000000", "dated": "2026-01-06"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Materials and Supplies", "category": "materials_and_supplies", "amount": "3000000", "dated": "2026-01-06"}},
     {"kind": "person", "file": "award_letter.txt", "fields": {"name": "Reese Mockup", "email": "reese.mockup@university.example", "role": "Principal Investigator", "dated": "2026-01-06"}},

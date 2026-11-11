@@ -37,7 +37,7 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 **Verdict: the key, by the contract's wording and ruling 81.**
 
 - The sentence is something the letter says that no other kind holds, so the agent's reading follows the contract. The 12 answers follow from code's rule, not from the agent's choice.
-- **Settled by ruling 81.** The sentence is one `other_term` marked as the standard conditions, and it never raises `unusual_term`. The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these items count as the key's.
+- **Settled by ruling 81.** The sentence is one `other_term` marked as the standard conditions, and it never raises `unusual_term`. Every key now expects that: one `other_term` from the award letter with `standard_conditions` true. In this run, which predates it, these items count as the key's.
 
 ## 2. Notes the key doesn't list: 17 wrong records
 

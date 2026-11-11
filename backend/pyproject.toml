@@ -43,7 +43,7 @@ target-version = "py312"
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pyright]
-include = ["app", "tests"]
+include = ["app", "tests", "../eval"]  # ../eval: the eval runner and cases (ruling 82)
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 venvPath = "."

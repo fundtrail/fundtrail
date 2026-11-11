@@ -82,6 +82,29 @@ def test_records_compare_listed_fields_ignoring_case_and_spaces() -> None:
     assert (out.records.right, len(out.records.missing), len(out.records.wrong)) == (2, 0, 1)
 
 
+def test_the_standard_conditions_mark_compares_as_true_or_false() -> None:
+    key = _key(
+        records=[
+            {
+                "kind": "other_term",
+                "file": "award_letter.txt",
+                "fields": {"standard_conditions": "true", "dated": "2026-01-06"},
+            }
+        ]
+    )
+    mark = ev.norm(True)
+    got = ev.GotRecord(
+        "other_term", "award_letter.txt", {"standard_conditions": mark, "dated": "2026-01-06"}
+    )
+    assert _score(key, ev.Got(records=[got])).records.right == 1
+    unmarked = ev.GotRecord(
+        "other_term",
+        "award_letter.txt",
+        {"standard_conditions": ev.norm(False), "dated": "2026-01-06"},
+    )
+    assert _score(key, ev.Got(records=[unmarked])).records.right == 0
+
+
 def test_a_record_with_a_different_field_or_file_or_kind_is_wrong() -> None:
     key = _key(records=[{"kind": "bill", "file": "a.txt", "fields": {"total": "120000"}}])
     for got in (
@@ -160,6 +183,58 @@ def test_answers_count_false_clears_and_unsure_on_their_own() -> None:
     assert out.answers.right == 0
     assert len(out.answers.missing) == 2 and len(out.answers.wrong) == 2
     assert len(out.agent_false_clears) == 1 and len(out.unsure) == 1
+
+
+def test_a_checklist_item_matches_by_charge_amount_and_cited_rate() -> None:
+    from decimal import Decimal
+
+    item = {
+        "line_id": "L-5201",
+        "needed": "Per diem",
+        "file": "per_diem_rates.txt",
+        "amount_cents": 50000,
+        "rate": {"quantity": "5", "rate": "100.00"},
+    }
+    got = ev.Got(
+        checklist_items=[
+            ev.GotItem(
+                "L-5201",
+                "5 days of per diem",
+                50000,
+                "per_diem_rates.txt",
+                Decimal("5"),
+                Decimal("100"),
+            ),
+            ev.GotItem(
+                "L-5201", "Per diem", 50000, "expense_report.txt", Decimal("5"), Decimal("100")
+            ),
+        ]
+    )
+    out = ev.CaseScore(case="c")
+    ev.score_agent(_key(checklist_items=[item]), got, out)
+    assert out.checklist_items.right == 1
+    assert len(out.checklist_items.wrong) == 1 and not out.checklist_items.missing
+
+
+def test_checklist_items_are_unscored_when_the_key_has_none() -> None:
+    from decimal import Decimal
+
+    got = ev.Got(checklist_items=[ev.GotItem("L-1", "x", None, None, None, Decimal("1"))])
+    out = ev.CaseScore(case="c")
+    ev.score_agent(_key(), got, out)
+    assert out.unscored_parts == ["checklist_items"]
+    assert not out.checklist_items.wrong
+
+
+def test_an_item_the_key_leaves_unscored_is_neither_right_nor_wrong() -> None:
+    key = _key(not_scored=[{"part": "budget_lines", "line_id": "L-7101"}])
+    got = ev.Got(
+        budget_lines=[ev.GotBudget("L-7101", "Stipends"), ev.GotBudget("L-7102", "Stipends")]
+    )
+    out = ev.CaseScore(case="c")
+    ev.score_agent(key, got, out)
+    assert out.not_scored == ["budget line 'Stipends' for L-7101"]
+    assert out.budget_lines.wrong == ["budget line 'Stipends' for L-7102"]
 
 
 def test_one_answer_is_counted_once_as_unsure() -> None:
@@ -388,9 +463,10 @@ def test_every_case_plays_through_the_app_with_a_fake_model() -> None:
     assert not run.stopped and run.base_url is None
     for c in run.cases:
         key = _key_of(c.case)
-        for part in ("links", "budget_lines", "answers", "records"):
+        for part in ("links", "budget_lines", "answers", "records", "checklist_items"):
             t = getattr(c, part)
-            assert t.right + len(t.missing) == len(key[part]), (c.case, part)
+            assert t.right + len(t.missing) == len(key.get(part, [])), (c.case, part)
+        assert ("checklist_items" in c.unscored_parts) == ("checklist_items" not in key)
         # The fake model writes nothing, so no term is confirmed, and every charge is in
         # Needs a human at every time the key names, read at that time, never missing.
         in_time_order = sorted(key["buckets"], key=lambda b: b["at"])

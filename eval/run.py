@@ -448,6 +448,27 @@ class GotAnswer:
         return f"{self.question}{about} on {self.line_id}: {self.answer}"
 
 
+@dataclass(frozen=True)
+class GotItem:
+    """A checklist item the agent added: its charge, its amount, and the rate it comes from."""
+
+    line_id: str | None
+    needed: str
+    amount_cents: int | None
+    rate_file: str | None = None
+    quantity: Decimal | None = None
+    rate: Decimal | None = None
+
+    def show(self) -> str:
+        amount = "" if self.amount_cents is None else f" for {self.amount_cents}"
+        rate = (
+            f", {self.quantity} at {self.rate} from {self.rate_file}"
+            if self.rate is not None
+            else ""
+        )
+        return f"checklist item {self.needed!r} on {self.line_id}{amount}{rate}"
+
+
 @dataclass
 class Got:
     """What the agent left: its current records, as the key compares them."""
@@ -456,6 +477,7 @@ class Got:
     links: list[GotLink] = field(default_factory=list[GotLink])
     budget_lines: list[GotBudget] = field(default_factory=list[GotBudget])
     answers: list[GotAnswer] = field(default_factory=list[GotAnswer])
+    checklist_items: list[GotItem] = field(default_factory=list[GotItem])
     values_not_found: int = 0
 
 
@@ -474,6 +496,11 @@ class CaseScore:
     budget_lines: Tally = field(default_factory=Tally)
     answers: Tally = field(default_factory=Tally)
     records: Tally = field(default_factory=Tally)
+    checklist_items: Tally = field(default_factory=Tally)
+    # The parts of the agent's work this case's key doesn't score, and the agent's items
+    # its key leaves unscored (ruling 81).
+    unscored_parts: list[str] = field(default_factory=list[str])
+    not_scored: list[str] = field(default_factory=list[str])
     # Every bucket read, as "<line> at <time>: <bucket>", in the order the key names them.
     bucket_values: list[str] = field(default_factory=list[str])
     false_clears: list[str] = field(default_factory=list[str])
@@ -517,8 +544,49 @@ def _show_key_record(e: dict[str, Any]) -> str:
     return f"{e['kind']} from {e['file']}: {fields}"
 
 
+def _selected(entry: dict[str, Any], part: str, g: Any) -> bool:
+    """Whether a key's not_scored entry picks this agent item (ruling 81)."""
+    if entry["part"] != part:
+        return False
+    file = {
+        "records": "file",
+        "links": "file",
+        "answers": "about_file",
+        "checklist_items": "rate_file",
+    }.get(part)
+    checks = {
+        "line_id": getattr(g, "line_id", None),
+        "file": getattr(g, file, None) if file else None,
+        "kind": getattr(g, "kind", None),
+        "question": getattr(g, "question", None),
+    }
+    return all(checks[k] == v for k, v in entry.items() if k != "part")
+
+
 def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
-    """The agent's part: records, links, budget lines and answers (decision 0026, 3 to 5)."""
+    """The agent's part: records, links, budget lines, answers and, when the key has them,
+    checklist items (decision 0026, 3 to 6). An agent item the key leaves unscored is
+    neither right nor wrong (ruling 81)."""
+    unscored = key.get("not_scored", [])
+
+    def score(
+        part: str,
+        expected: Sequence[Any],
+        items: Sequence[Any],
+        same: Callable,
+        show_expected: Callable[[Any], str],
+    ) -> None:
+        kept = []
+        for g in items:
+            if any(_selected(e, part, g) for e in unscored):
+                out.not_scored.append(g.show())
+            else:
+                kept.append(g)
+        pairs, missing, wrong = _pair(expected, kept, same)
+        tally: Tally = getattr(out, part)
+        tally.right = len(pairs)
+        tally.missing = [show_expected(e) for e in missing]
+        tally.wrong = [g.show() for g in wrong]
 
     def record_same(e: dict[str, Any], g: GotRecord) -> bool:
         return (
@@ -527,10 +595,7 @@ def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
             and all(norm(v) == g.fields.get(k) for k, v in e["fields"].items())
         )
 
-    pairs, missing, wrong = _pair(key["records"], got.records, record_same)
-    out.records.right = len(pairs)
-    out.records.missing = [_show_key_record(e) for e in missing]
-    out.records.wrong = [g.show() for g in wrong]
+    score("records", key["records"], got.records, record_same, _show_key_record)
 
     def link_same(e: dict[str, Any], g: GotLink) -> bool:
         return (
@@ -539,20 +604,24 @@ def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
             and e.get("amount_cents") == g.amount_cents
         )
 
-    pairs, missing, wrong = _pair(key["links"], got.links, link_same)
-    out.links.right = len(pairs)
-    out.links.missing = [
-        GotLink(e["file"], e["line_id"], e.get("amount_cents")).show() for e in missing
-    ]
-    out.links.wrong = [g.show() for g in wrong]
+    score(
+        "links",
+        key["links"],
+        got.links,
+        link_same,
+        lambda e: GotLink(e["file"], e["line_id"], e.get("amount_cents")).show(),
+    )
 
     def budget_same(e: dict[str, Any], g: GotBudget) -> bool:
         return e["line_id"] == g.line_id and norm(e["budget_line"]) == norm(g.budget_line or "")
 
-    pairs, missing, wrong = _pair(key["budget_lines"], got.budget_lines, budget_same)
-    out.budget_lines.right = len(pairs)
-    out.budget_lines.missing = [GotBudget(e["line_id"], e["budget_line"]).show() for e in missing]
-    out.budget_lines.wrong = [g.show() for g in wrong]
+    score(
+        "budget_lines",
+        key["budget_lines"],
+        got.budget_lines,
+        budget_same,
+        lambda e: GotBudget(e["line_id"], e["budget_line"]).show(),
+    )
 
     def answer_same(e: dict[str, Any], g: GotAnswer) -> bool:
         return (
@@ -562,13 +631,13 @@ def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
             and e["answer"] == g.answer
         )
 
-    pairs, missing, wrong = _pair(key["answers"], got.answers, answer_same)
-    out.answers.right = len(pairs)
-    out.answers.missing = [
-        GotAnswer(e["line_id"], e["question"], e.get("about_file"), e["answer"]).show()
-        for e in missing
-    ]
-    out.answers.wrong = [g.show() for g in wrong]
+    score(
+        "answers",
+        key["answers"],
+        got.answers,
+        answer_same,
+        lambda e: GotAnswer(e["line_id"], e["question"], e.get("about_file"), e["answer"]).show(),
+    )
     for g in got.answers:
         e = next(
             (
@@ -585,6 +654,36 @@ def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
             out.agent_false_clears.append(f"{g.show()} (key: {e['answer']})")
         if g.answer == "unsure" and e["answer"] != "unsure":
             out.unsure.append(f"{g.show()} (key: {e['answer']})")
+
+    def item_same(e: dict[str, Any], g: GotItem) -> bool:
+        if e["line_id"] != g.line_id:
+            return False
+        if "amount_cents" in e and e["amount_cents"] != g.amount_cents:
+            return False
+        rate = e.get("rate")
+        return rate is None or (
+            g.rate_file == e.get("file")
+            and g.quantity == Decimal(rate["quantity"])
+            and g.rate == Decimal(rate["rate"])
+        )
+
+    def item_expected(e: dict[str, Any]) -> str:
+        rate = e.get("rate")
+        return GotItem(
+            e["line_id"],
+            e["needed"],
+            e.get("amount_cents"),
+            e.get("file") if rate else None,
+            Decimal(rate["quantity"]) if rate else None,
+            Decimal(rate["rate"]) if rate else None,
+        ).show()
+
+    if "checklist_items" in key:
+        score(
+            "checklist_items", key["checklist_items"], got.checklist_items, item_same, item_expected
+        )
+    else:
+        out.unscored_parts.append("checklist_items")
     out.values_not_found = got.values_not_found
 
 
@@ -654,6 +753,7 @@ def what_the_agent_left(
         TERM_KINDS,
         Author,
         BudgetAssignment,
+        ChecklistItem,
         Judgment,
         Link,
         Match,
@@ -696,6 +796,20 @@ def what_the_agent_left(
                     line.get(d.charge_id),
                     getattr(term_name, "value", term_name) if term_name is not None else None,
                 )
+            )
+        elif isinstance(d, ChecklistItem):
+            rate_file, quantity, rate = None, None, None
+            if d.rate is not None:
+                quantity = Decimal(str(d.rate.quantity.value))
+                if d.rate.rate is not None:
+                    rate = Decimal(str(d.rate.rate.value))
+                    c = d.rate.rate.citation
+                    rate_file = name.get(c.file_id) if c is not None else None
+                elif d.rate.rate_id is not None and (term := by_id.get(d.rate.rate_id)):
+                    rate = Decimal(str(term.data.rate.value))
+                    rate_file = file_of(term)
+            got.checklist_items.append(
+                GotItem(line.get(d.charge_id), d.needed, d.amount_cents, rate_file, quantity, rate)
             )
         elif isinstance(d, Judgment) and d.charge_id is not None:
             about = by_id.get(d.record_id) if d.record_id else None
@@ -908,7 +1022,7 @@ def run_eval(
 
 # The report.
 
-PARTS = ("buckets", "links", "budget_lines", "answers", "records")
+PARTS = ("buckets", "links", "budget_lines", "answers", "records", "checklist_items")
 
 
 def report(run: Run) -> str:
@@ -947,6 +1061,9 @@ def report(run: Run) -> str:
         lines += [f"  the agent's false clear: {f}" for f in c.agent_false_clears]
         lines += [f"  unsure: {f}" for f in c.unsure]
         lines += [f"  left for the user: {s}" for s in c.steps_left_for_user]
+        lines += [f"  not scored, by the key: {s}" for s in c.not_scored]
+        if c.unscored_parts:
+            lines.append(f"  not in this key, so not scored: {', '.join(c.unscored_parts)}")
         lines.append("")
     lines.append("## All cases")
     for part in PARTS:
