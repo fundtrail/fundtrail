@@ -47,10 +47,14 @@ export function ChargesTable({ rows }: { rows: ChargeRow[] }) {
                 {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
               </td>
               <td>
+                <span className={styles.label}>Ledger account</span>
                 <div>{charge.account}</div>
                 {account_categories.length > 0 && <div className="ft-caption">{account_categories.map((c) => CATEGORY_LABELS[c]).join(", ")}</div>}
               </td>
-              <td>{budget_line ? budget_line.data.name.value : <span className="ft-caption">Not assigned yet</span>}</td>
+              <td>
+                <span className={styles.label}>Budget line</span>
+                {budget_line ? budget_line.data.name.value : <span className="ft-caption">Not assigned yet</span>}
+              </td>
               <td className={`ft-num ${styles.right} ${styles.amount}`}>{money(charge.amount_cents)}</td>
               <td>
                 <ChargeStatusBadge status={status} />
