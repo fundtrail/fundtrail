@@ -1,8 +1,8 @@
 /*
- * The sample timeline strip: one header row of controls, then one trail.
- * What happened is a solid line with filled dots, now is the yellow dot, and
- * what's coming is a dashed line with hollow dots. Neutral like every panel:
- * yellow only on now and on highlights, color only on the one destructive confirm.
+ * The sample timeline: one quiet line, and under More the controls and one
+ * trail. What happened is a solid line with filled dots, now is the now dot,
+ * and what's coming is a dashed line with hollow dots. Neutral like every
+ * panel: color only on now and on the one destructive confirm.
  */
 
 .ft-tl {
@@ -14,20 +14,8 @@
   overflow: visible;
 }
 
-/* --- The header row --- */
+/* --- The controls under More --- */
 
-.ft-tl__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-2) var(--space-4);
-}
-.ft-tl__title {
-  margin: 0 auto 0 0;
-  padding-top: 5px;
-  font-size: 14px;
-  font-weight: 600;
-}
 .ft-tl__controls {
   display: flex;
   flex-wrap: wrap;
@@ -158,6 +146,29 @@
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+}
+/* The stop's marks and what comes next, a second quiet line under the first. */
+.ft-tl__also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  margin: calc(-1 * var(--space-1)) 0 0;
+  padding: 0 0 0 26px;
+  font-size: 13px;
+  list-style: none;
+}
+.ft-tl__also .ft-label {
+  margin-right: 4px;
+}
+.ft-tl__also .ft-tl__loaded {
+  margin: 0;
+}
+.ft-tl__flag--next {
+  outline: 1px dashed var(--rule-strong);
+  outline-offset: -1px;
+  background: none;
+  color: var(--ink);
 }
 .ft-tl__lineActions {
   display: inline-flex;
@@ -476,7 +487,30 @@
   .ft-tl__where {
     flex-basis: calc(100% - 26px);
   }
-  .ft-tl__lineActions {
+  /* The stop's marks and what comes next, a second quiet line under the first. */
+.ft-tl__also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  margin: calc(-1 * var(--space-1)) 0 0;
+  padding: 0 0 0 26px;
+  font-size: 13px;
+  list-style: none;
+}
+.ft-tl__also .ft-label {
+  margin-right: 4px;
+}
+.ft-tl__also .ft-tl__loaded {
+  margin: 0;
+}
+.ft-tl__flag--next {
+  outline: 1px dashed var(--rule-strong);
+  outline-offset: -1px;
+  background: none;
+  color: var(--ink);
+}
+.ft-tl__lineActions {
     margin-left: 26px;
   }
   .ft-tl__track,

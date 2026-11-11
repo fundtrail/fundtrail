@@ -385,14 +385,14 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
 }
 
 /**
- * The panel itself, for a grant known to be a sample. `compact` folds it to
- * one quiet line: where the clock stands, what it stopped on, what waits on
- * the problem list, Next event, and More, which opens everything else in
- * place: the other controls and the trail with every mark the full panel
- * shows. A refused move, a load error, catching up and the run-through note
- * show on the folded line too.
+ * The panel itself, for a grant known to be a sample, folded to a quiet line:
+ * where the clock stands, what it stopped on (with its prerun mark and the
+ * sample accountant's decisions, decision 0027), what waits on the problem
+ * list, what comes next, Next event, and More, which opens everything else in
+ * place: the other controls and the trail with every mark. A refused move, a
+ * load error, catching up and the run-through note show while folded too.
  */
-export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compact?: boolean }) {
+export function TimelinePanel({ grantId }: { grantId: Id }) {
   const grantName = useGrantDisplayName();
   const api = useApi();
   const refresh = useRefresh();
@@ -403,7 +403,7 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
   const [skip, setSkip] = useState(false);
   // Start over asks first, under the controls.
   const [asking, setAsking] = useState(false);
-  // The compact form keeps everything but Next event folded until More.
+  // Everything but Next event stays folded until More.
   const [trailOpen, setTrailOpen] = useState(false);
   const trailId = useId();
   const skipId = useId();
@@ -435,13 +435,12 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
 
   const view = timeline.data;
   const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
-  const open = !compact || trailOpen;
   const toDeliver = (view?.now.deliveries ?? []).filter((d) => !d.delivered).length;
 
   const nextEvent = view && (
     <button
       type="button"
-      className={`ft-btn ft-btn--sm${compact ? "" : " ft-btn--main"}`}
+      className="ft-btn ft-btn--sm"
       disabled={busy || (view.coming_up ?? []).length === 0}
       onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
     >
@@ -478,72 +477,92 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
     </>
   );
 
+  // The event the clock stopped on, as the last move played it, for its marks on the folded line.
+  const stop = view?.now.stopped_on ? (view.just_happened ?? []).find((p) => p.event.id === view.now.stopped_on?.id) : undefined;
+  const decisions = stop?.scripted_decisions ?? [];
+  const next = (view?.coming_up ?? [])[0];
+
   return (
-    <section className={`ft-tl${compact ? "" : " ft-panel"}`} aria-labelledby="tl-heading" data-compact={compact || undefined} aria-busy={busy || undefined}>
-      {compact ? (
-        <div className="ft-tl__line">
-          <span className="ft-tl__dot" aria-hidden="true" />
-          <p className="ft-tl__where">
-            <span id="tl-heading" role="heading" aria-level={2} className="ft-strong">
-              Sample timeline
-            </span>
-            {view && (
-              <>
-                <span className="ft-tl__sep">·</span>
-                <span className="ft-num">{date(view.now.now)}</span>
-                {view.now.stopped_on && (
-                  <>
-                    <span className="ft-tl__sep">·</span>
-                    <span className="ft-tl__where-stop">
-                      stopped on <span className="ft-id">{view.now.stopped_on.name}</span>
-                      {view.now.stopped_on.highlight && <span className="ft-tl__flag">{view.now.stopped_on.highlight}</span>}
-                    </span>
-                  </>
-                )}
-                {view.now.waiting_on_problem_list > 0 && (
-                  <>
-                    <span className="ft-tl__sep">·</span>
-                    <Link className="ft-link" href={routes.problemList(grantId)}>
-                      {view.now.waiting_on_problem_list} waiting on the problem list
-                    </Link>
-                  </>
-                )}
-                {toDeliver > 0 && !trailOpen && (
-                  <>
-                    <span className="ft-tl__sep">·</span>
-                    <span>{toDeliver} for you to deliver</span>
-                  </>
-                )}
-                {view.catching_up && !trailOpen && (
-                  <>
-                    <span className="ft-tl__sep">·</span>
-                    <span className="ft-caption">The agent is still catching up on what arrived.</span>
-                  </>
-                )}
-              </>
-            )}
-          </p>
-          {view && (
-            <span className="ft-tl__lineActions">
-              {nextEvent}
-              <button type="button" className="ft-btn ft-btn--sm" aria-expanded={trailOpen} aria-controls={trailId} onClick={() => setTrailOpen(!trailOpen)}>
-                {trailOpen ? "Less" : "More"}
-              </button>
-            </span>
-          )}
-        </div>
-      ) : (
-        <div className="ft-tl__head">
-          <h2 id="tl-heading" className="ft-tl__title">
+    <section className="ft-tl" aria-labelledby="tl-heading" data-compact="" aria-busy={busy || undefined}>
+      <div className="ft-tl__line">
+        <span className="ft-tl__dot" aria-hidden="true" />
+        <p className="ft-tl__where">
+          <span id="tl-heading" role="heading" aria-level={2} className="ft-strong">
             Sample timeline
-          </h2>
+          </span>
           {view && (
-            <div className="ft-tl__controls">
-              {nextEvent}
-              {otherControls}
-            </div>
+            <>
+              <span className="ft-tl__sep">·</span>
+              <span className="ft-num">{date(view.now.now)}</span>
+              {view.now.stopped_on && (
+                <>
+                  <span className="ft-tl__sep">·</span>
+                  <span className="ft-tl__where-stop">
+                    stopped on <span className="ft-id">{view.now.stopped_on.name}</span>
+                    {view.now.stopped_on.highlight && <span className="ft-tl__flag">{view.now.stopped_on.highlight}</span>}
+                  </span>
+                </>
+              )}
+              {view.now.waiting_on_problem_list > 0 && (
+                <>
+                  <span className="ft-tl__sep">·</span>
+                  <Link className="ft-link" href={routes.problemList(grantId)}>
+                    {view.now.waiting_on_problem_list} waiting on the problem list
+                  </Link>
+                </>
+              )}
+              {toDeliver > 0 && !trailOpen && (
+                <>
+                  <span className="ft-tl__sep">·</span>
+                  <span>{toDeliver} for you to deliver</span>
+                </>
+              )}
+              {view.catching_up && !trailOpen && (
+                <>
+                  <span className="ft-tl__sep">·</span>
+                  <span className="ft-caption">The agent is still catching up on what arrived.</span>
+                </>
+              )}
+            </>
           )}
-        </div>
+        </p>
+        {view && (
+          <span className="ft-tl__lineActions">
+            {nextEvent}
+            <button
+              type="button"
+              className="ft-btn ft-btn--sm"
+              aria-expanded={trailOpen}
+              aria-controls={trailOpen ? trailId : undefined}
+              onClick={() => setTrailOpen(!trailOpen)}
+            >
+              {trailOpen ? "Less" : "More"}
+            </button>
+          </span>
+        )}
+      </div>
+      {/* Folded, the stop's marks and what comes next, on a second quiet line. */}
+      {view && !trailOpen && (stop?.loaded || decisions.length > 0 || next || view.finished) && (
+        <ul className="ft-tl__also" aria-label="About the stop and what comes next">
+          {stop?.loaded && (
+            <li>
+              <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>
+            </li>
+          )}
+          {decisions.map((d) => (
+            <li key={d.id} className="ft-caption">
+              The sample accountant: {decisionWords(d)}, {date(d.written_at)}
+            </li>
+          ))}
+          {next ? (
+            <li>
+              <span className="ft-label">Coming up</span> <span className="ft-num">{date(next.at)}</span> · <span className="ft-id">{next.name}</span>
+              {next.highlight && <span className="ft-tl__flag ft-tl__flag--next">{next.highlight}</span>}
+            </li>
+          ) : (
+            view.finished && <li className="ft-caption">The timeline has played to its end.</li>
+          )}
+        </ul>
       )}
       {timeline.error && !view ? (
         <p className="ft-error" role="alert">
@@ -568,9 +587,9 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
             </p>
           )}
           {view.on_run_through === false && <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>}
-          {open && (
+          {trailOpen && (
             <div id={trailId} className="ft-tl__body">
-              {compact && <div className="ft-tl__controls">{otherControls}</div>}
+              <div className="ft-tl__controls">{otherControls}</div>
               {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
               <div className="ft-tl__track">
                 <JustHappened
@@ -590,6 +609,6 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
 }
 
 /** The timeline panel when the grant is a sample grant; nothing for any other grant. */
-export function SampleTimeline({ summary, compact = false }: { summary: GrantSummary; compact?: boolean }) {
-  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} compact={compact} /> : null;
+export function SampleTimeline({ summary }: { summary: GrantSummary }) {
+  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} /> : null;
 }
