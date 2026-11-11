@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 
+from app.checks.codes import same_code, same_family
 from app.checks.findings import Finding
 from app.checks.grant_checks import award_limit
 from app.checks.text import money, norm
@@ -117,6 +118,19 @@ class Decisions:
 
     # Accepting.
 
+    def _same(self, check: str, problem: str, finding: Finding) -> bool:
+        """Whether a stored acceptance's or snooze's code names this reason (issue 307).
+
+        Before issue 307 an accountant's answer to a flag (the answer form sends no rule)
+        had the code flag:{root}; it now takes its flag's rule, so a code stored as
+        flag:{root} still names the flag whose root that is.
+        """
+        if same_code(check, problem, finding.check, finding.problem):
+            return True
+        if check != "flag" or finding.check != "flag" or not finding.record_ids:
+            return False
+        return problem == f"flag:{self.view.root(finding.record_ids[0])}"
+
     def _stood(self, rests_on: Sequence[str], finding: Finding) -> bool:
         if not all(self.view.state.is_current(r) for r in rests_on):
             return False
@@ -128,7 +142,7 @@ class Decisions:
             assert isinstance(data, AcceptedReason)
             if _key_of(data) != subject:
                 continue
-            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
+            if not self._same(data.reason.check, data.reason.problem, finding):
                 continue
             if self._holds(r, finding):
                 return r.id
@@ -229,7 +243,7 @@ class Decisions:
             assert isinstance(data, AcceptedReason)
             if _key_of(data) != subject or data.amount_cents is None:
                 continue
-            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
+            if not self._same(data.reason.check, data.reason.problem, finding):
                 continue
             if finding.amount_cents > data.amount_cents:
                 return data.amount_cents
@@ -275,7 +289,7 @@ class Decisions:
         assert isinstance(data, AcceptedReason) and data.charge_id is not None
         if data.charge_id == charge.id:
             return None
-        if (data.reason.check, data.reason.problem) != (check, problem):
+        if not same_family(data.reason.check, data.reason.problem, check, problem):
             return None
         noted = self.charges[data.charge_id]
         if noted.account != charge.account or not _later(charge, note):
@@ -378,11 +392,11 @@ class Decisions:
         active = [r for r in self.snoozes if _key_of(r.data) == subject and self._active(r)]  # type: ignore[arg-type]
         if not active:
             return False
-        covered: set[tuple[str, str]] = set()
+        covered: list[tuple[str, str]] = []
         for r in active:
             assert isinstance(r.data, Snooze)
-            covered |= {(x.check, x.problem) for x in r.data.reasons}
-        return all((m.finding.check, m.finding.problem) in covered for m in flagging)
+            covered += [(x.check, x.problem) for x in r.data.reasons]
+        return all(any(self._same(c, p, m.finding) for c, p in covered) for m in flagging)
 
 
 def _decisions_for(

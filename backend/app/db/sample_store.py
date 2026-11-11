@@ -25,6 +25,7 @@ class SampleMove:
     moved_from: datetime | None
     moved_to: datetime
     id: int = 0
+    loaded: bool = False  # it copied a prerun's saved result rather than playing live
     walk_stopped: str | None = None  # why its walk stopped short of moved_to
     reached: str | None = None  # a Next highlight move: the highlight it went to (ruling 85)
 
@@ -48,11 +49,18 @@ def set_sample(conn: Conn, grant_id: str, sample: GrantSample) -> None:
     )
 
 
-def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to: datetime) -> int:
+def insert_move(
+    conn: Conn,
+    grant_id: str,
+    moved_from: datetime | None,
+    moved_to: datetime,
+    *,
+    loaded: bool = False,
+) -> int:
     row = conn.execute(
-        """insert into public.sample_moves (grant_id, moved_from, moved_to)
-           values (%s, %s, %s) returning id""",
-        (grant_id, moved_from, moved_to),
+        """insert into public.sample_moves (grant_id, moved_from, moved_to, loaded)
+           values (%s, %s, %s, %s) returning id""",
+        (grant_id, moved_from, moved_to, loaded),
     ).fetchone()
     assert row is not None
     return int(row["id"])
@@ -60,14 +68,19 @@ def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to
 
 def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     row = conn.execute(
-        """select id, moved_from, moved_to, walk_stopped, reached from public.sample_moves
+        """select id, moved_from, moved_to, loaded, walk_stopped, reached from public.sample_moves
            where grant_id = %s order by id desc limit 1""",
         (grant_id,),
     ).fetchone()
     if row is None:
         return None
     return SampleMove(
-        row["moved_from"], row["moved_to"], int(row["id"]), row["walk_stopped"], row["reached"]
+        row["moved_from"],
+        row["moved_to"],
+        int(row["id"]),
+        row["loaded"],
+        row["walk_stopped"],
+        row["reached"],
     )
 
 
@@ -109,6 +122,13 @@ def finish_scripted(
            where grant_id = %s and step = %s""",
         (state, record_id, file_id, move_id, grant_id, step),
     )
+
+
+def user_acted(conn: Conn, grant_id: str) -> None:
+    """A person did something on the grant (decided, uploaded, delivered, asked): a grant
+    opened from a prerun is off its run-through for good (ruling 47), before any live run
+    the action queues."""
+    conn.execute("update public.sample_runthrough set off = true where grant_id = %s", (grant_id,))
 
 
 def walk_target(conn: Conn, grant_id: str) -> datetime | None:
@@ -156,8 +176,15 @@ def stop_walk(conn: Conn, grant_id: str, now: datetime, reason: str) -> None:
 
 
 def walking_grants(conn: Conn) -> list[str]:
-    """The grants with a walk under way."""
-    rows = conn.execute("select grant_id from public.sample_walks order by grant_id").fetchall()
+    """The grants with a walk under way, but for a prerun's seeding grants: only the prerun
+    command takes those on."""
+    rows = conn.execute(
+        """select w.grant_id from public.sample_walks w
+             join public.grants g on g.id = w.grant_id
+           where not exists (
+             select 1 from public.sample_seeding s where s.workspace_id = g.workspace_id)
+           order by w.grant_id"""
+    ).fetchall()
     return [r["grant_id"] for r in rows]
 
 
@@ -246,7 +273,7 @@ def scripted_files(conn: Conn, grant_id: str) -> dict[str, int]:
     listed under: the grant's last move when it was brought."""
     rows = conn.execute(
         """select file_id, move_id from public.sample_scripted
-           where grant_id = %s and file_id is not null""",
+           where grant_id = %s and file_id is not null and state = 'done'""",
         (grant_id,),
     ).fetchall()
     return {r["file_id"]: int(r["move_id"]) for r in rows}

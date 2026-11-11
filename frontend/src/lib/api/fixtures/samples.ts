@@ -165,12 +165,25 @@ function ownStepWaiting(events: TimelineEvent[], state: TimelineState, marks: Re
     (s) => !!marks[s.id] && s.decision?.data.kind !== "sign_off" && !isDone(s, state) && time(s.at) <= time(state.now),
   );
   if (!step) return null;
+  const read = step.decision?.data.kind === "confirmation" ? termsFile(step.decision.data.record_ids) : null;
   const what = step.delivery
     ? `Bring in ${step.delivery.name}`
     : step.decision?.data.kind === "confirmation"
-      ? "Confirm the terms"
+      ? read
+        ? `Confirm the terms read from ${read}`
+        : "Confirm the terms"
       : "Make this highlight's decision";
   return `${what} first: that's this highlight's step.`;
+}
+
+/** The file the terms a confirmation covers were read from, as the backend names it. */
+function termsFile(recordIds: Id[]): string | null {
+  for (const id of recordIds) {
+    const text = JSON.stringify(sample.records.find((r) => r.id === id)?.data ?? {});
+    const file = sample.files.find((f) => text.includes(`"${f.id}"`));
+    if (file) return file.name;
+  }
+  return null;
 }
 
 function view(events: TimelineEvent[], state: TimelineState, problemRows: number, marks: Record<string, string> = {}): TimelineView {

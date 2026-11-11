@@ -83,7 +83,7 @@ describe("Next highlight in the fake (ruling 77)", () => {
     const first = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
     expect(first.now.now).not.toBe("2026-02-21T17:30:00Z");
     expect(decided(first)).not.toContain("rec-confirm-award-terms");
-    const reason = "Confirm the terms first: that's this highlight's step.";
+    const reason = "Confirm the terms read from award_letter.txt first: that's this highlight's step.";
     expect(first.next_highlight_unavailable_reason).toBe(reason);
     await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({ status: 409, detail: reason });
   });

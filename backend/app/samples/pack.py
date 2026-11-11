@@ -52,6 +52,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
@@ -65,8 +66,13 @@ from typing import Any
 from app.contracts.api import ArrivalSource
 from app.contracts.records import RecordKind
 
-# The repo's data folder: backend/app/samples/pack.py -> the repo root -> data.
-DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+# The data folder: FUNDTRAIL_DATA_DIR when set (the deployed image carries data/samples
+# there, ruling 83), else the repo's: backend/app/samples/pack.py -> the repo root -> data.
+DATA_DIR = (
+    Path(os.environ["FUNDTRAIL_DATA_DIR"])
+    if os.environ.get("FUNDTRAIL_DATA_DIR")
+    else Path(__file__).resolve().parents[3] / "data"
+)
 
 LEDGER_FILE = "ledger.csv"
 

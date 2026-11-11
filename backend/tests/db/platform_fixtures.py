@@ -207,6 +207,10 @@ class FakeStorage:
     def get(self, path: str, /) -> bytes:
         return self.objects[path][0]
 
+    def remove(self, paths: Sequence[str], /) -> None:
+        for path in paths:
+            self.objects.pop(path, None)
+
     def signed_url(self, path: str, expires_in: int, /) -> str:
         return f"{SUPABASE_URL}/storage/v1/object/sign/evidence/{path}?token=fake&ttl={expires_in}"
 

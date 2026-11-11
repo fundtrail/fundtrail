@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from app.checks.answers import ANSWER_BUCKET
+from app.checks.codes import flag_code
 from app.checks.findings import AGENT_RUN, APPROVAL, BILL, SAME_FILE, TERMS, Finding
 from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
@@ -297,7 +298,7 @@ def record_problems(
                 subject,
                 Finding(
                     "flag",
-                    f"flag:{j.rule or view.root(r.id)}",
+                    flag_code(view, r),
                     ANSWER_BUCKET[j.answer],
                     f"{who}: {j.text}",
                     [r.id, *j.rests_on],

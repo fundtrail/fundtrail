@@ -5,7 +5,7 @@ from datetime import date
 from app.contracts.checks import Bucket
 from app.contracts.records import Author
 
-from .grant_builder import Grant, at, cited, failing, problems
+from .grant_builder import Grant, at, cited, failing, families
 
 
 def _charge(g: Grant, t: dict[str, str], cost_date: date = date(2024, 3, 1)) -> str:
@@ -25,7 +25,7 @@ def test_a_required_question_with_no_answer_is_needs_a_human_and_open_for_the_ag
     _charge(g, t)
     out = g.run(at(2024, 3, 2))
     status = out.charges[0]
-    assert problems(status) == {("allowable", "not_answered")}
+    assert families(status) == {("allowable", "not_answered")}
     assert status.bucket == Bucket.NEEDS_HUMAN
     (q,) = out.questions
     assert (q.charge_id, q.question, q.answer_by) == ("c1", "allowable", Author.AGENT)
@@ -67,7 +67,7 @@ def test_the_accountants_out_of_date_answer_goes_back_to_the_accountant() -> Non
     g.link(g.note(f, at(2024, 3, 5)), "c1", at(2024, 3, 5))
     out = g.run(at(2024, 3, 6))
     status = out.charges[0]
-    assert problems(status) == {("allowable", "out_of_date")}
+    assert families(status) == {("allowable", "out_of_date")}
     assert status.bucket == Bucket.NEEDS_HUMAN
     assert not status.rechecking
     assert [(q.question, q.answer_by) for q in out.questions] == [("allowable", Author.USER)]
@@ -110,7 +110,7 @@ def test_an_unusual_term_in_force_on_the_charges_date_is_asked_about() -> None:
     assert g.status("c1", at(2024, 3, 3)).bucket == Bucket.EVIDENCE_COMPLETE  # not confirmed yet
     g.confirm(leave, when=at(2024, 3, 4))
     out = g.run(at(2024, 3, 5))
-    assert ("unusual_term", "not_answered") in problems(out.charges[0])
+    assert ("unusual_term", "not_answered") in families(out.charges[0])
     assert [(q.question, q.record_id) for q in out.questions] == [("unusual_term", leave)]
 
 
@@ -156,14 +156,14 @@ def test_the_agents_flag_is_needs_a_human_until_the_accountant_settles_it() -> N
     g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
     flag = g.answer("c1", "unsure", at(2024, 3, 1), question="flag", rule="close-to-end-date")
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("flag", "flag:close-to-end-date")}
+    assert families(status) == {("flag", "flag:close-to-end-date")}
     assert status.bucket == Bucket.NEEDS_HUMAN
 
     # The agent withdrawing its own flag waits.
     g.agent({"kind": "retraction"}, at(2024, 3, 3), replaces=flag)
     status = g.status("c1", at(2024, 3, 4))
-    assert {p for p in problems(status) if p[0] == "suggestion"}
-    assert ("flag", "flag:close-to-end-date") in problems(status)
+    assert {p for p in families(status) if p[0] == "suggestion"}
+    assert ("flag", "flag:close-to-end-date") in families(status)
 
     g.answer("c1", "supports", at(2024, 3, 5), question="flag", author="user", replaces=flag)
     assert g.status("c1", at(2024, 3, 6)).bucket == Bucket.EVIDENCE_COMPLETE
@@ -179,7 +179,7 @@ def test_a_waiting_link_fix_keeps_the_charge_with_the_accountant_and_the_old_lin
     old = next(r.id for r in g.records if r.kind == "link")
     fix = g.link(b, "c1", at(2024, 3, 2), amount=9000, default="bill", replaces=old)
     status = g.status("c1", at(2024, 3, 3))
-    assert problems(status) == {("suggestion", f"waiting:{fix}")}
+    assert families(status) == {("suggestion", f"waiting:{fix}")}
     assert status.bucket == Bucket.NEEDS_HUMAN
     assert status.checklist[0].filled  # the old link stays in force
     assert (
@@ -251,10 +251,10 @@ def test_an_answer_resting_on_a_term_not_yet_confirmed_is_needs_a_human_not_out_
     g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b, leave])
     status = g.status("c1", at(2024, 3, 2))
     assert not status.rechecking
-    assert problems(status) == {("values_confirmed", "term_not_confirmed")}
+    assert families(status) == {("values_confirmed", "term_not_confirmed")}
     g.confirm(leave, when=at(2024, 3, 3))
     status = g.status("c1", at(2024, 3, 4))
-    assert ("values_confirmed", "term_not_confirmed") not in problems(status)
+    assert ("values_confirmed", "term_not_confirmed") not in families(status)
     assert not status.rechecking
 
 
@@ -267,8 +267,8 @@ def test_two_current_links_between_one_bill_and_one_charge_both_count() -> None:
     g.link(b, "c1", at(2024, 3, 2), amount=10000, default="bill", author="user")
     out = g.run(at(2024, 3, 3))
     status = out.charges[0]
-    assert ("checklist", "over:bill") in problems(status)
-    assert ("checklist", "bill_over_linked") in problems(status)
+    assert ("checklist", "over:bill") in families(status)
+    assert ("checklist", "bill_over_linked") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
     assert {p.problem for r in out.records for p in r.problems} == {"over_linked"}
 

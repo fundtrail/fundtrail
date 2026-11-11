@@ -22,7 +22,7 @@ import mimetypes
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from functools import cache
 from typing import Any
 
@@ -41,7 +41,7 @@ from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import HeldFile, HoldReason
 from app.contracts.records import Author, Record
 from app.contracts.rules import RecordState
-from app.contracts.runs import AgentRun, TriggerKind
+from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.timeline import (
     PlayedEvent,
     TimelineEvent,
@@ -59,12 +59,13 @@ from app.db.mail_sink import arrive_files, held_storage_path
 from app.db.pings import ping_changed, ping_run
 from app.db.platform import Platform
 from app.db.pool import transaction
+from app.db.recheck import recheck_grant
 from app.db.store import Conn
 from app.ingest.email_files import email_parts, parse_headers
 from app.ingest.incoming import IncomingFile, PendingHold, to_held_mail
 from app.ingest.ledger import read_ledger_file
 
-from . import skipping
+from . import prerun, skipping
 from .pack import (
     LARGER_SAMPLE,
     SMALL_SAMPLE,
@@ -151,8 +152,9 @@ def _sample_of(grant: Grant) -> GrantSample:
 # The choices.
 
 
-def options() -> list[SampleOption]:
-    """The Add a grant dropdown's sample choices, in order, with the packs' names."""
+def options(prerun_unavailable: str | None = PRERUN_UNAVAILABLE) -> list[SampleOption]:
+    """The Add a grant dropdown's sample choices, in order, with the packs' names. The
+    prerun choice is available when `prerun_unavailable` gives no reason it isn't."""
     out: list[SampleOption] = []
     for choice in SampleChoice:
         meta = pack_for(PACK_FOR_CHOICE[choice]).meta
@@ -167,8 +169,8 @@ def options() -> list[SampleOption]:
                 name=text["name"],
                 description=text["description"],
                 needs_confirm=choice is SampleChoice.LARGER_LIVE,
-                available=not prerun,
-                unavailable_reason=PRERUN_UNAVAILABLE if prerun else None,
+                available=not (prerun and prerun_unavailable),
+                unavailable_reason=prerun_unavailable if prerun else None,
             )
         )
     return out
@@ -310,10 +312,85 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
     pack = pack_for(info.sample)
     start = plan_start(items_for(info.sample), pack.starts_at)
     sample_store.set_sample(conn, grant.id, info)
+    if info.choice is SampleChoice.LARGER_PRERUN:
+        # Opened from the prerun: on its run-through, its first moment loaded, not played.
+        saved = prerun.current(conn, info.sample)
+        if saved is None:
+            raise SampleError(prerun.unavailable_reason(conn, info.sample) or PRERUN_UNAVAILABLE)
+        prerun.start_run_through(conn, grant.id, saved.id)
+        _load(p, conn, grant, saved, None, start.until)
+        return []
     store_events(p, conn, grant, pack, [e.id for e in start.play])
     runs = clock.set_and_replay(p, conn, grant, None, start.until)
     sample_store.insert_move(conn, grant.id, None, start.until)
     return runs
+
+
+def _load(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    saved: prerun.Prerun,
+    after: datetime | None,
+    until: datetime,
+    *,
+    hold: str | None = None,
+    reached: str | None = None,
+) -> None:
+    """A loaded move (ruling 47): the prerun's saved result up to `until`, copied at once
+    from where the last load stopped; the clock set; the statuses worked out at the new
+    now. Nothing runs. With `hold` (a Next highlight move, rulings 80 and 86), the loading
+    stops before any highlight's own step (but the sign-off) it reaches, which waits for
+    the user. `reached`: the highlight the move went to (ruling 85)."""
+    pack = pack_for(saved.sample)
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant.id)}
+    held = [
+        (n, a)
+        for n, a in enumerate(pack.actions)
+        if hold is not None
+        and a.highlight is not None
+        and a.action != "sign_off"
+        and a.at <= until
+        and n not in rows
+    ]
+    # On a Next highlight move, the loading also stops before a step an earlier one held
+    # that nobody has made: what the prerun built on it waits for the user's step, or a
+    # later skip's (ruling 77, amended).
+    waiting = [
+        a.at
+        for n, a in enumerate(pack.actions)
+        if hold and getattr(rows.get(n), "state", "") == "held"
+    ]
+    load_to = min(
+        [until, *(at - timedelta(microseconds=1) for at in [*(a.at for _, a in held), *waiting])]
+    )
+    loaded_to = prerun.loaded_to(conn, grant.id)
+    if loaded_to is not None:
+        load_to = max(load_to, loaded_to)  # never back
+    move_id = sample_store.insert_move(conn, grant.id, after, until, loaded=True)
+    if reached is not None:
+        sample_store.set_reached(conn, move_id, reached)
+    prerun.load(p, conn, grant, saved, loaded_to, load_to, move_id)
+    for n, a in held:
+        sample_store.insert_scripted(
+            conn, grant.id, sample_store.Scripted(n, move_id, a.at, "held")
+        )
+    prerun.set_loaded_to(conn, grant.id, load_to)
+    clock.set_stored_clock(conn, grant.id, until)
+    recheck_grant(conn, p.checks, grant, until, Trigger(kind=TriggerKind.CLOCK))
+
+
+def _undone(conn: Conn, grant_id: str, pack: SamplePack, start: datetime, until: datetime) -> bool:
+    """Whether a move from `start` to `until` passes a scripted step (but the sign-off,
+    always the user's) that nobody has made: one in the move, or one held earlier."""
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant_id)}
+    for n, a in enumerate(pack.actions):
+        if a.action == "sign_off" or a.at > until:
+            continue
+        row = rows.get(n)
+        if (row is None and a.at > start) or (row is not None and row.state == "held"):
+            return True
+    return False
 
 
 class GrantGone(Exception):
@@ -331,8 +408,6 @@ def _lock_grant(conn: Conn, grant_id: str) -> Grant:
 
 def open_sample(p: Platform, user_id: str, workspace_id: str, choice: SampleChoice) -> Grant:
     """A new sample grant in the workspace, its clock at the timeline's first event."""
-    if choice is SampleChoice.LARGER_PRERUN:
-        raise SampleError(PRERUN_UNAVAILABLE)
     info = GrantSample(sample=PACK_FOR_CHOICE[choice], choice=choice)
     with transaction(p.pool) as conn:
         # The user's move lock, so a move of another larger read-live sample waits for this
@@ -400,7 +475,7 @@ def deliver_for_me(p: Platform, grant: Grant, event_id: str) -> EvidenceFile:
         if delivered_at(pack, e, _on_grant(p, pack, items, files)) is not None:
             raise SampleError(f"{e.name} is already on the grant.")
         f, run = arrive_upload(p, conn, grant, _item_upload(pack, e))
-    _ping(p, grant, [run])
+    _ping(p, grant, [run] if run is not None else [])
     return f
 
 
@@ -511,14 +586,23 @@ def move(
             hold = label
             skip = True
         plan = plan_move(items, start, to)
-        # The move plays what the clock passes from where it stands now, a walk's later
-        # steps included, so every played event is under exactly one move.
-        move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
-        if highlight is not None:
-            sample_store.set_reached(conn, move_id, highlight)
+        saved = prerun.run_through(conn, locked)
+        if saved is not None and not skip and _undone(conn, grant.id, pack, start, plan.until):
+            saved = None  # a scripted step moved past without skipping, and not made, is missed
+        if saved is None:
+            # Off the run-through for good, if it was on one: the agent works live from here.
+            prerun.take_off(conn, grant.id)
         runs: list[AgentRun] = []
         walked = skipping.Walked()
-        if skip or walking is not None:
+        if saved is not None:
+            # On the run-through: the saved result, loaded at once. Nothing runs.
+            _load(p, conn, locked, saved, now, plan.until, hold=hold, reached=highlight)
+        elif skip or walking is not None:
+            # The move plays what the clock passes from where it stands now, a walk's later
+            # steps included, so every played event is under exactly one move.
+            move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
+            if highlight is not None:
+                sample_store.set_reached(conn, move_id, highlight)
             if skip:
                 skipping.queue_steps(
                     conn,
@@ -533,6 +617,7 @@ def move(
             sample_store.start_walk(conn, grant.id, plan.until)
             walked = skipping.advance(p, conn, locked)
         else:
+            sample_store.insert_move(conn, grant.id, now, plan.until)
             store_events(p, conn, locked, pack, [e.id for e in plan.play])
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
@@ -732,6 +817,7 @@ def view(
             (
                 at,
                 PlayedEvent(
+                    loaded=last is not None and last.loaded,
                     event=event,
                     agent_records=_agent_records(event, brought, runs, records, charges),
                     charge_ids=brought,
@@ -779,6 +865,7 @@ def view(
         ),
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
+        on_run_through=prerun.is_on_run_through(conn, grant),
         move_unavailable_reason=move_reason,
         next_highlight_unavailable_reason=highlight_reason,
     )
@@ -862,7 +949,7 @@ def _decisions(conn: Conn, last: Any, records: Sequence[Record]) -> list[Record]
         return []
     by_id = {r.id: r for r in records}
     made = sample_store.move_scripted(conn, last.id)
-    return [by_id[s.record_id] for s in made if s.record_id in by_id]
+    return [by_id[s.record_id] for s in made if s.state == "done" and s.record_id in by_id]
 
 
 def _stood_on(
