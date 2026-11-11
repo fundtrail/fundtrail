@@ -45,6 +45,7 @@ function ChargePane({ grantId, chargeId }: { grantId: Id; chargeId: Id }) {
               onWrite={actions.write}
               onAsk={actions.ask}
               links={links}
+              headingLevel={2}
             />
           )}
         </Loadable>
@@ -82,6 +83,7 @@ function RecordPane({ grantId, recordId }: { grantId: Id; recordId: Id }) {
               quoteHref={(citation) => routes.file(grantId, citation.file_id)}
               onDecide={actions.decide}
               onAsk={actions.ask}
+              headingLevel={2}
             />
           )}
         </Loadable>

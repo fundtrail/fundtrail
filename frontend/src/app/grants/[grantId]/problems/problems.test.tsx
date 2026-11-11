@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiProvider, type ApiClient } from "@/lib/api";
+import { ApiProvider, type ApiClient, type ProblemRow } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
+import { sampleRecord } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
 import { ProblemsScreen } from "./screen";
 
@@ -43,6 +44,27 @@ describe("the problem list page", () => {
   it("shows the first row beside the list when nothing is picked, with one h1", async () => {
     renderPage();
     await waitFor(() => expect(within(pane()).getByRole("heading", { name: "extension_notice.txt" })).toBeInTheDocument());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("has one h1 with a charge picked: the charge's title is an h2 in the pane", async () => {
+    renderPage("item=charge%3Achg-l-1002");
+    await waitFor(() => expect(within(pane()).getByRole("heading", { level: 2, name: "Sediment DNA sequencing run 7" })).toBeInTheDocument());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("has one h1 with a record picked: the record's title is an h2 in the pane", async () => {
+    const client = createFakeApiClient();
+    const { rows } = await client.getProblemList("grant-sample");
+    const recordRow: ProblemRow = {
+      kind: "record",
+      status: { grant_id: "grant-sample", record_id: "rec-period-extension", file_id: null, problems: [{ check: "terms", problem: "waiting", text: "A term waiting to be confirmed.", record_ids: [] }], flagged: true, accepted: false, snoozed: false },
+      record: sampleRecord("rec-period-extension"),
+      file: null,
+    };
+    vi.spyOn(client, "getProblemList").mockResolvedValue({ rows: [recordRow, ...rows] });
+    renderPage("item=record%3Arec-period-extension", client);
+    await waitFor(() => expect(within(pane()).getByRole("heading", { level: 2, name: "Period of performance" })).toBeInTheDocument());
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
