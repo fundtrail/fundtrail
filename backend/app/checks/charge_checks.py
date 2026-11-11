@@ -92,6 +92,8 @@ def _questions(
             states.append(answer_state(view, charge.id, Question.COVERS, a.id, label))
     for term in view.other_terms_on(charge.transaction_date):
         assert isinstance(term.data, OtherTerm)
+        if term.data.standard_conditions:
+            continue  # ruling 81: naming the standard conditions changes nothing for a charge
         label = f"Unusual term '{term.data.label}'"
         states.append(answer_state(view, charge.id, Question.UNUSUAL_TERM, term.id, label))
     return states

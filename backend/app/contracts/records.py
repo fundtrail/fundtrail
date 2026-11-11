@@ -511,6 +511,11 @@ class OtherTerm(_Term):
     kind: Literal[RecordKind.OTHER_TERM] = RecordKind.OTHER_TERM
     label: Text  # a plain short name, for example "PI on leave"
     statement: CitedText
+    # Ruling 81: true when the statement only names the funder's standard conditions,
+    # for example "subject to the NSF Grant General Conditions (GC-1) effective ...".
+    # It's recorded once and confirmed like any term, and the checks never ask the
+    # unusual-term question about it. A term stored before this field reads as false.
+    standard_conditions: bool = False
 
 
 # Facts from evidence.
