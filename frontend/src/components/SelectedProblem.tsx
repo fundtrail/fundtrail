@@ -9,6 +9,7 @@ import { useThreadActions } from "@/components/thread/useThreadActions";
 import { useCharge, useChargeThread, useEvidence, useProblemList, useRecords, useRecordThread, type EvidenceFile, type Id, type ProblemRow } from "@/lib/api";
 import { date, HOLD_REASON_LABELS, SOURCE_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { GrantProblemPane } from "./GrantProblemPane";
 import styles from "./SelectedProblem.module.css";
 
 /** The bar over the item: a link to open it on its own page. */
@@ -142,11 +143,7 @@ function RowPane({ grantId, row }: { grantId: Id; row: ProblemRow }) {
         </Summary>
       );
     case "grant":
-      return (
-        <Summary tag="Grant">
-          <p>{row.problem.text}</p>
-        </Summary>
-      );
+      return <GrantProblemPane grantId={grantId} problem={row.problem} />;
   }
 }
 

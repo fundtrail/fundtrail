@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, type AnswerView, type ChargeStatus, type ChecklistEntry, type FtRecord, type NewRecordInput, type OpenQuestion, type Reason } from "@/lib/api";
-import { parseDollars } from "./actions";
+import { AcceptReason, parseDollars } from "./actions";
 import { AgentAnswers } from "./AgentAnswers";
 import { EvidenceChecklist } from "./EvidenceChecklist";
 import { StatusReasons } from "./StatusReasons";
@@ -237,6 +237,28 @@ describe("accepting a reason, and snoozing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
     await waitFor(() => expect(onWrite).toHaveBeenCalledTimes(1));
     expect(onWrite.mock.calls[0][0]).toMatchObject({ data: { reusable: true } });
+  });
+
+  it("accepts a problem on the grant itself as a one-off, with no charge, record or file (issue 301)", async () => {
+    const onWrite = writer();
+    const overLimit = { check: "budget", problem: "over_limit", text: "Spending is over the award's limit.", record_ids: ["rec-notice-000"] };
+    render(<AcceptReason chargeId={null} reason={overLimit} onWrite={onWrite} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept with a note" }));
+    // A reusable note is about charges, so a grant's problem doesn't offer one.
+    expect(screen.queryByText("Use the note")).toBeNull();
+    expect(screen.queryByLabelText("Just this charge")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Covered by the supplement in Amendment 2." } });
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await waitFor(() => expect(onWrite).toHaveBeenCalledTimes(1));
+    expect(onWrite.mock.calls[0][0]).toStrictEqual({
+      data: {
+        kind: "accepted_reason",
+        reason: { check: "budget", problem: "over_limit" },
+        note: "Covered by the supplement in Amendment 2.",
+        reusable: false,
+        rests_on: ["rec-notice-000"],
+      },
+    });
   });
 
   it("offers an earlier note with one click, just this charge or this and similar ones", async () => {
