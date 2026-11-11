@@ -8,6 +8,19 @@ import { signedInWith, useAuth } from "@/lib/auth";
 import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
+/** The wordmark's glyph: a trail with a dot, a ring, a dashed stretch and the highlighter's diamond. */
+function TrailMark() {
+  return (
+    <svg className="ft-wordmark__mark" width="30" height="16" viewBox="0 0 30 16" fill="none" aria-hidden="true">
+      <path d="M3 8h9" stroke="currentColor" strokeWidth="2" />
+      <path d="M15 8h6" stroke="currentColor" strokeWidth="2" strokeDasharray="2 2" />
+      <circle cx="3.5" cy="8" r="3.5" fill="currentColor" />
+      <circle cx="13" cy="8" r="2.6" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect className="ft-wordmark__diamond" x="21.2" y="4.2" width="7.6" height="7.6" transform="rotate(45 25 8)" />
+    </svg>
+  );
+}
+
 function NavLink({
   href,
   children,
@@ -82,7 +95,10 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
 
   return (
     <nav className="ft-sidebar" aria-label="Main">
-      <div className="ft-wordmark">FundTrail</div>
+      <div className="ft-wordmark">
+        <TrailMark />
+        FundTrail
+      </div>
       <div className="ft-sidebar__workspace">
         <span className="ft-label">Workspace</span>
         <span>{workspace?.name ?? "…"}</span>

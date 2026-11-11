@@ -31,11 +31,26 @@
   --approve-tint: #e8f1ed;
   --reject: var(--conflict);
 
-  /* Citations only: nothing else is ever yellow. */
-  --highlight: #f6dd6b;
+  /* The brand green: the sidebar, the same in both themes. */
+  --brand: #123a2d;
+  --brand-2: #1c4f3e;
+  --on-brand: #e9f0eb;
+  --on-brand-muted: #a9bdb2;
+  --brand-rule: rgba(233, 240, 235, 0.22);
+  --brand-rule-strong: rgba(233, 240, 235, 0.28);
+
+  /* Citations only: nothing else is ever yellow. --hl and --on-hl are the
+     short names for the same highlighter, the same yellow in both themes. */
+  --highlight: #ffe45c;
   --highlight-active: #efc93a;
-  --on-highlight: #1b1f24;
+  --on-highlight: #1d1a05;
   --highlight-wash: rgba(246, 221, 107, 0.4);
+  --hl: var(--highlight);
+  --on-hl: var(--on-highlight);
+
+  /* Selected text: a tint of the brand green, never the highlighter. */
+  --selection: #cfe3d8;
+  --underline-offset: 3px;
 
   /* Menus, dialogs and the viewer. Nothing else casts a shadow. */
   --shadow-float: 0 1px 2px #1b1f2414, 0 8px 24px #1b1f2424;
@@ -66,8 +81,8 @@
   --mono: var(--font-geist-mono, "Geist Mono"), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   /* Only for text quoted from evidence, so source words never look like interface words. */
   --serif: var(--font-newsreader, "Newsreader"), Georgia, "Times New Roman", serif;
-  /* Titles and big numerals. The same family as the interface for now. */
-  --display: var(--sans);
+  /* The wordmark and page titles, falling back to the interface family. */
+  --display: var(--font-bricolage, "Bricolage Grotesque"), var(--sans);
   /* The design system's own names for the same families. */
   --font-sans: var(--sans);
   --font-mono: var(--mono);
@@ -97,9 +112,8 @@
     --complete-tint: #16293a;
     --approve: #4fb294;
     --approve-tint: #18291f;
-    --highlight: #e9cf5a;
     --highlight-active: #f4dc6e;
-    --on-highlight: #1a1a12;
+    --selection: #24493c;
     --highlight-wash: rgba(233, 207, 90, 0.3);
     --shadow-float: 0 1px 2px #00000066, 0 8px 24px #00000099;
     -webkit-font-smoothing: antialiased;
@@ -142,17 +156,44 @@ p {
   outline-offset: 2px;
 }
 
+/* --- Browser surfaces: selection, caret, scrollbars, underlines, numerals --- */
+
+html {
+  caret-color: var(--ink);
+  scrollbar-color: var(--rule-strong) transparent;
+  scrollbar-width: thin;
+}
+::selection {
+  background: var(--selection);
+  color: var(--ink);
+}
+:where(a, .ft-linkbtn, .ft-btn--quiet) {
+  text-underline-offset: var(--underline-offset);
+}
+:where(table, time, .ft-id, .ft-caption) {
+  font-variant-numeric: tabular-nums;
+}
+.ft-sidebar {
+  scrollbar-color: var(--brand-rule-strong) transparent;
+}
+.ft-sidebar ::selection {
+  background: var(--brand-2);
+  color: var(--on-brand);
+}
+
 /* --- Type --- */
 
 .ft-wordmark {
+  font-family: var(--display);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 19px;
   line-height: 24px;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
 .ft-title {
   margin: var(--space-1) 0;
+  font-family: var(--display);
   font-size: 20px;
   font-weight: 600;
   line-height: 28px;
@@ -195,7 +236,7 @@ p {
 .ft-link {
   color: var(--ink);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: var(--underline-offset);
 }
 .ft-linkbtn {
   padding: 0;
@@ -204,7 +245,7 @@ p {
   color: var(--ink);
   font: inherit;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: var(--underline-offset);
   cursor: pointer;
 }
 .ft-empty {
@@ -260,8 +301,9 @@ p {
 
 /* --- App shell --- */
 
-/* The sidebar on paper, the main area beside it; panels in it sit on paper-raised.
-   Below 1280px the sidebar narrows to 208px; below 900px it stacks above the page. */
+/* The sidebar in the brand green (the same in both themes), the main area on
+   paper beside it; panels in it sit on paper-raised. Below 1280px the sidebar
+   narrows to 208px; below 900px it stacks above the page. */
 .ft-app {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
@@ -276,23 +318,40 @@ p {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-3);
-  border-right: 1px solid var(--rule);
-  background: var(--paper);
+  padding: var(--space-4) var(--space-3);
+  background: var(--brand);
+  color: var(--on-brand);
   overflow-y: auto;
 }
+/* Focus stays visible on the green. */
+.ft-sidebar :focus-visible {
+  outline-color: var(--on-brand);
+}
+.ft-sidebar .ft-label,
+.ft-sidebar .ft-caption {
+  color: var(--on-brand-muted);
+}
 .ft-sidebar > .ft-wordmark {
-  padding: var(--space-1) var(--space-2) 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 var(--space-2);
+  color: var(--on-brand);
+}
+.ft-wordmark__mark {
+  flex: none;
+}
+.ft-wordmark__diamond {
+  fill: var(--hl);
 }
 .ft-sidebar__workspace {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  padding: 6px var(--space-2);
-  border: 1px solid var(--rule);
+  padding: var(--space-2) 10px;
+  border: 1px solid var(--brand-rule);
   border-radius: var(--radius-md);
-  background: var(--paper-raised);
   font-size: 13px;
   line-height: 18px;
   font-weight: 600;
@@ -325,11 +384,20 @@ p {
   flex-direction: column;
   gap: var(--space-3);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--brand-rule);
 }
 .ft-sidebar__account .ft-btn {
   margin-top: var(--space-2);
   align-self: flex-start;
+}
+/* A neutral button on the green: an on-brand outline over the green. */
+.ft-sidebar .ft-btn {
+  border-color: var(--on-brand);
+  background: transparent;
+  color: var(--on-brand);
+}
+.ft-sidebar .ft-btn:hover {
+  background: var(--brand-2);
 }
 .ft-nav,
 .ft-nav ul {
@@ -340,12 +408,14 @@ p {
   padding: 0;
   list-style: none;
 }
-.ft-nav__grants,
-.ft-nav__children {
+.ft-nav__grants {
   padding-left: var(--space-3) !important;
 }
+/* The current grant's pages sit behind a thin vertical rule. */
 .ft-nav__children {
-  margin-top: 2px !important;
+  margin: 2px 0 2px 13px !important;
+  padding-left: 10px !important;
+  border-left: 1px solid var(--brand-rule-strong);
 }
 .ft-nav__item {
   display: flex;
@@ -353,9 +423,9 @@ p {
   justify-content: space-between;
   gap: var(--space-2);
   min-height: var(--control-sm);
-  padding: var(--space-1) var(--space-2);
+  padding: 5px var(--space-2);
   border-radius: var(--radius-sm);
-  color: var(--ink);
+  color: var(--on-brand);
   font-size: 13px;
   line-height: 18px;
   text-decoration: none;
@@ -368,7 +438,7 @@ p {
 }
 .ft-nav__item:hover,
 .ft-nav__item.is-active {
-  background: var(--paper-sunken);
+  background: var(--brand-2);
 }
 .ft-nav__item.is-active,
 .ft-nav__item--grant {
@@ -455,6 +525,13 @@ p {
   :root {
     --sidebar-width: 208px;
   }
+  /* Room for a whole email address on the narrower sidebar. */
+  .ft-sidebar {
+    padding-inline: var(--space-2);
+  }
+  .ft-sidebar__account {
+    padding-inline: var(--space-1);
+  }
 }
 /* Narrow screens: the sidebar becomes a block above the page, its links wrap
    in rows, and nothing scrolls sideways. */
@@ -470,8 +547,6 @@ p {
     flex-flow: row wrap;
     align-items: center;
     gap: var(--space-2) var(--space-4);
-    border-right: 0;
-    border-bottom: 1px solid var(--rule);
   }
   .ft-sidebar > .ft-nav {
     flex: 1 1 100%;
@@ -481,12 +556,12 @@ p {
     flex-flow: row wrap;
     align-items: flex-start;
   }
-  .ft-nav__grants,
-  .ft-nav__children {
+  .ft-nav__grants {
     padding-left: 0 !important;
   }
   .ft-nav__children {
-    margin-top: 0 !important;
+    margin: 0 0 0 var(--space-1) !important;
+    padding-left: var(--space-1) !important;
   }
   .ft-nav li {
     display: flex;
@@ -803,7 +878,7 @@ p {
   background: transparent;
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-underline-offset: var(--underline-offset);
 }
 .ft-btn--quiet:hover {
   background: var(--paper-sunken);
@@ -976,4 +1051,7 @@ input[type="file"]:disabled::file-selector-button {
   padding: 0;
   border: 0;
   background: none;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
 }
