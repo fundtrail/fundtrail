@@ -489,25 +489,33 @@ def _event(
     )
 
 
+def _ledger_charges(item: TimelineItem, charges: Sequence[Charge]) -> tuple[str, ...]:
+    """The charges a whole ledger file's event brought in: the lines that arrived with it."""
+    if item.event is None or item.event.kind is not EventKind.LEDGER:
+        return ()
+    return tuple(c.id for c in charges if c.arrived_at == item.at)
+
+
 def _agent_records(
     event: TimelineEvent,
+    charge_ids: Sequence[str],
     runs: Sequence[AgentRun],
     records: Sequence[Record],
     charges: Sequence[Charge],
 ) -> tuple[Record, ...]:
     """What the agent wrote so far from the runs an event started: a file's runs, or the
-    runs of the batch of charges a ledger line arrived with."""
+    runs of the batches of charges a ledger line or a ledger file brought in."""
     if event.file_id is not None:
         mine = [
             r for r in runs if r.trigger.kind is TriggerKind.FILE and r.trigger.id == event.file_id
         ]
-    elif event.charge_id is not None:
+    elif charge_ids:
         arrived = {c.id: c.arrived_at for c in charges}
-        at = arrived.get(event.charge_id)
+        times = {arrived.get(c) for c in charge_ids}
         mine = [
             r
             for r in runs
-            if r.trigger.kind is TriggerKind.CHARGE and arrived.get(r.trigger.id or "") == at
+            if r.trigger.kind is TriggerKind.CHARGE and arrived.get(r.trigger.id or "") in times
         ]
     else:
         return ()
@@ -547,11 +555,12 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         elif not in_move(i.at):
             continue
         event = _event(i, pack, files, charges)
+        brought = (event.charge_id,) if event.charge_id else _ledger_charges(i, charges)
         just.append(
             PlayedEvent(
                 event=event,
-                agent_records=_agent_records(event, runs, records, charges),
-                charge_ids=(event.charge_id,) if event.charge_id else (),
+                agent_records=_agent_records(event, brought, runs, records, charges),
+                charge_ids=brought,
             )
         )
     stopped = next((i for i in items if i.at == until), None) if until == now else None
