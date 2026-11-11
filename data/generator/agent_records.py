@@ -328,10 +328,33 @@ class Builder:
         return data
 
     def rate(self, name: str, f: dict) -> dict:
-        """One row of a rate agreement: its group, rate and dates, all on that row."""
+        """One rate term from a rate agreement.
+
+        A fixed row holds its group, rate and dates. A provisional term (no end) has
+        its start cited from the PROV row and its group and rate from the latest
+        fixed row for that group, which the PROV row says to keep using (PR 232).
+        """
         start = date.fromisoformat(f["effective_from"])
-        end = date.fromisoformat(f["effective_to"])
         group = f["name"]
+        if "effective_to" not in f:
+            i_start, _ = self.find(
+                name, lambda r: r.startswith("PROV.") and f"{start:%m/%d/%Y}" in r
+            )
+            fixed = [
+                (i, r)
+                for i, r in enumerate(self.docs[name].text.split("\n"))
+                if r.startswith("FIXED") and r.rstrip().endswith(group)
+            ]
+            i, line = fixed[-1]
+            return {
+                "name": self.cited(name, group, group, i),
+                "rate": self.cited(name, f["rate"], line.split()[3], i),
+                "applies_to": self.cited(name, f["applies_to"], group, i),
+                "effective_from": self.cited(
+                    name, f["effective_from"], f"{start:%m/%d/%Y}", i_start
+                ),
+            }
+        end = date.fromisoformat(f["effective_to"])
 
         def row(r: str) -> bool:
             return r.startswith("FIXED") and f"{start:%m/%d/%Y}" in r and r.rstrip().endswith(group)

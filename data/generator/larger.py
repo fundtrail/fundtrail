@@ -714,6 +714,18 @@ def rate_agreement(g: Grant) -> None:
                 effective_to=to,
                 dated="2025-05-28",
             )
+    # The provisional row: from July 1, 2026 until amended, each group at its fiscal
+    # year 2026 rate. One term per group with no end, as the agent writes it (PR 232).
+    for r, who in groups:
+        g.record(
+            "rate",
+            RATE_AGREEMENT,
+            name=who,
+            rate=str(Decimal(r) / 100),
+            applies_to=who.casefold().replace(" ", "_"),
+            effective_from="2026-07-01",
+            dated="2025-05-28",
+        )
 
 
 # ---------------------------------------------------------------- 10. the same invoice twice
