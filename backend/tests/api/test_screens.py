@@ -1033,3 +1033,17 @@ def test_a_suggestion_moving_the_accountants_link_names_that_links_file(api: Api
     detail = _get(api, f"/charges/{l1001}")
     assert mine.id in [w["record"]["id"] for w in detail["waiting"]]
     assert statement in detail["files"]
+
+
+def test_the_records_route_gives_each_record_with_its_state(api: Api) -> None:
+    """Issue 337: GET /grants/{grant_id}/records returns RecordView rows, a record and its
+    state, as the contract says and the screens read them."""
+    sample = _sample(api, APRIL_9)  # the extension's terms wait to be confirmed
+    rows = _get(api, f"/grants/{sample.grant.id}/records")
+    assert rows and all(set(row) == {"record", "state"} for row in rows)
+    states = {row["record"]["id"]: row["state"] for row in rows}
+    with transaction(api.platform.pool) as conn:
+        stored = store.list_records(conn, sample.grant.id, APRIL_9)
+    assert list(states) == [r.id for r in stored]  # the order written
+    assert states[_id(sample, "rec-period-extension")] == "waiting"
+    assert states[_id(sample, "rec-allowable-l-1001")] == "counts"
