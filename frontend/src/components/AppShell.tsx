@@ -8,11 +8,35 @@ import { signedInWith, useAuth } from "@/lib/auth";
 import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
-function NavLink({ href, children, count }: { href: string; children: ReactNode; count?: number }) {
+/** The wordmark's glyph: a trail with a dot, a ring, a dashed stretch and the highlighter's diamond. */
+function TrailMark() {
+  return (
+    <svg className="ft-wordmark__mark" width="30" height="16" viewBox="0 0 30 16" fill="none" aria-hidden="true">
+      <path d="M3 8h9" stroke="currentColor" strokeWidth="2" />
+      <path d="M15 8h6" stroke="currentColor" strokeWidth="2" strokeDasharray="2 2" />
+      <circle cx="3.5" cy="8" r="3.5" fill="currentColor" />
+      <circle cx="13" cy="8" r="2.6" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect className="ft-wordmark__diamond" x="21.2" y="4.2" width="7.6" height="7.6" transform="rotate(45 25 8)" />
+    </svg>
+  );
+}
+
+function NavLink({
+  href,
+  children,
+  count,
+  grant = false,
+}: {
+  href: string;
+  children: ReactNode;
+  count?: number;
+  grant?: boolean;
+}) {
   const pathname = usePathname();
   const active = pathname === href;
+  const className = `ft-nav__item${grant ? " ft-nav__item--grant" : ""}${active ? " is-active" : ""}`;
   return (
-    <Link href={href} className={`ft-nav__item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
+    <Link href={href} className={className} aria-current={active ? "page" : undefined}>
       <span>{children}</span>
       {count !== undefined && count > 0 && (
         <span className="ft-count ft-count--alert">
@@ -21,6 +45,42 @@ function NavLink({ href, children, count }: { href: string; children: ReactNode;
         </span>
       )}
     </Link>
+  );
+}
+
+/**
+ * One grant in the sidebar. While one of its pages is open, it is the current
+ * grant and opens to its pages, read from the path against routes.ts.
+ */
+function GrantItem({ grantId, count, children }: { grantId: Id; count: number; children: ReactNode }) {
+  const pathname = usePathname();
+  const href = routes.grant(grantId);
+  const current = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <li>
+      <NavLink href={href} count={count} grant={current}>
+        {children}
+      </NavLink>
+      {current && (
+        <ul className="ft-nav__children">
+          <li>
+            <NavLink href={routes.problemList(grantId)}>Problem list</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.evidence(grantId)}>Evidence</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.terms(grantId)}>Grant terms</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.ledger(grantId)}>Ledger</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.closeout(grantId)}>Closeout</NavLink>
+          </li>
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -35,7 +95,10 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
 
   return (
     <nav className="ft-sidebar" aria-label="Main">
-      <div className="ft-wordmark">FundTrail</div>
+      <div className="ft-wordmark">
+        <TrailMark />
+        FundTrail
+      </div>
       <div className="ft-sidebar__workspace">
         <span className="ft-label">Workspace</span>
         <span>{workspace?.name ?? "…"}</span>
@@ -45,11 +108,9 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
           <NavLink href={routes.workspace(workspaceId)}>Grants</NavLink>
           <ul className="ft-nav__grants">
             {grants.data?.map((g) => (
-              <li key={g.grant.id}>
-                <NavLink href={routes.grant(g.grant.id)} count={g.on_problem_list}>
-                  {g.grant.award_number ?? grantName(g)}
-                </NavLink>
-              </li>
+              <GrantItem key={g.grant.id} grantId={g.grant.id} count={g.on_problem_list}>
+                {g.grant.award_number ?? grantName(g)}
+              </GrantItem>
             ))}
           </ul>
           <NavLink href={routes.newGrant(workspaceId)}>Add a grant</NavLink>
