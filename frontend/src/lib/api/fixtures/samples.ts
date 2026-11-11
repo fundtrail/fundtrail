@@ -60,6 +60,16 @@ const HIGHLIGHTS: Record<string, string> = {
   "event-file-extension-notice": "An extension notice",
 };
 
+/**
+ * Ruling 77: a highlight's own step carries that highlight's label, and Next
+ * highlight leaves it for the user. Here, confirming the extension is the "An
+ * extension notice" highlight's own step. Keyed by the step: a delivery's event
+ * ID, or a decision's record ID.
+ */
+export const STEP_HIGHLIGHTS: Record<string, string> = {
+  "rec-confirm-extension": "An extension notice",
+};
+
 /** The contract's sample grant as timeline events, in date order, with placeholder highlights. */
 export function sampleEvents(): TimelineEvent[] {
   const files: TimelineEvent[] = sample.files.map((f) => ({
@@ -107,10 +117,12 @@ interface TimelineState {
   scripted: Map<Id, FtRecord[]>;
   /** Items the sample accountant delivered for the user. */
   byAccountant: Set<Id>;
+  /** The sample's own accountant decisions made so far, by record ID. */
+  decided: Set<Id>;
 }
 
 function emptyState(at: IsoDatetime): TimelineState {
-  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null, scripted: new Map(), byAccountant: new Set() };
+  return { now: at, played: new Set(), delivered: new Map(), justHappened: [], stoppedOn: null, scripted: new Map(), byAccountant: new Set(), decided: new Set() };
 }
 
 /** A sample at the start of its timeline: its first event played. */
@@ -133,6 +145,8 @@ function sampleGrantState(events: TimelineEvent[]): TimelineState {
     state.played.add(e.id);
     if (e.kind === "user_delivery") state.delivered.set(e.id, e.at);
   }
+  // The decisions the rest of the fake shows as made by FAKE_NOW (the award terms confirmed).
+  for (const r of sample.records) if (r.author === "user" && time(r.written_at) <= time(FAKE_NOW)) state.decided.add(r.id);
   const last = past.filter((e) => e.kind !== "user_delivery").at(-1);
   state.justHappened = last ? [last.id] : [];
   state.stoppedOn = last?.id ?? null;
@@ -179,22 +193,27 @@ function playTo(events: TimelineEvent[], state: TimelineState, to: IsoDatetime) 
 
 /**
  * Skipping the human steps: as the clock passes them, the sample accountant
- * delivers what was the user's to deliver. Each item it delivered is listed
- * under Just happened, marked delivered_by_sample_accountant.
+ * makes the scripted steps the user hasn't: it delivers what was the user's to
+ * deliver (each listed under Just happened, marked
+ * delivered_by_sample_accountant), and makes the sample's own accountant
+ * decisions.
  *
- * Ruling 55: each of the sample's own accountant decisions is listed once,
- * under the latest event this move played or delivered at or before the
- * decision's time (an arrival, this move's own delivery, or a checks date),
- * or else under the move's first event. Never under a delivery from an
- * earlier move. A move that played and delivered nothing lists a decision
- * under the latest arrival before it.
+ * Ruling 77: on a Next highlight move, the steps marked with that highlight's
+ * label are left for the user; a later skipping move makes them if the user
+ * hasn't. A sign-off is never made by skipping on a user's grant.
+ *
+ * Ruling 55: each decision is listed once, under the latest event this move
+ * played or delivered at or before the decision's time, or else under the
+ * move's first event; never under an earlier move's delivery. A move that
+ * played and delivered nothing lists it under the latest arrival before it.
  *
  * The fake only lists those decisions; it doesn't carry them out. It has no
  * checks, so the grant's terms, problem list and records stay as they are.
  */
-function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: IsoDatetime) {
+function skipHumanSteps(events: TimelineEvent[], state: TimelineState, marks: Record<string, string>, leaveFor?: string | null) {
+  const leftForUser = (stepId: Id) => !!leaveFor && marks[stepId] === leaveFor;
   for (const e of events) {
-    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id)) {
+    if (e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id) && !leftForUser(e.id)) {
       state.delivered.set(e.id, e.at);
       state.byAccountant.add(e.id);
       if (!state.justHappened.includes(e.id)) state.justHappened.push(e.id);
@@ -202,7 +221,14 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
   }
   // This move's events, in date order: what it played and what it delivered.
   const thisMove = events.filter((e) => state.justHappened.includes(e.id));
-  const decisions = sample.records.filter((r) => r.author === "user" && time(r.written_at) > time(from) && time(r.written_at) <= time(state.now));
+  const decisions = sample.records.filter(
+    (r) =>
+      r.author === "user" &&
+      time(r.written_at) <= time(state.now) &&
+      !state.decided.has(r.id) &&
+      r.data.kind !== "sign_off" &&
+      !leftForUser(r.id),
+  );
   for (const decision of decisions) {
     const before = (e: TimelineEvent) => time(e.at) <= time(decision.written_at);
     let on: TimelineEvent | undefined = thisMove.filter(before).at(-1) ?? thisMove[0];
@@ -212,6 +238,7 @@ function skipHumanSteps(events: TimelineEvent[], state: TimelineState, from: Iso
       if (!on) continue;
       state.justHappened.push(on.id);
     }
+    state.decided.add(decision.id);
     state.scripted.set(on.id, [...(state.scripted.get(on.id) ?? []), decision]);
   }
   // In date order, as the server sends them.
@@ -233,8 +260,11 @@ export function samplesFake(hooks: {
   summaryOf(grant: Grant): GrantSummary;
   /** How many rows the sample grant's problem list has. */
   problemRows: number;
+  /** Which scripted steps are a highlight's own (ruling 77); STEP_HIGHLIGHTS by default. */
+  stepHighlights?: Record<string, string>;
 }): Pick<ApiClient, "listSamples" | "createSample" | "getTimeline" | "moveTimeline" | "startOver" | "deliverForMe" | "deliveryFileUrl"> {
   const events = sampleEvents();
+  const stepHighlights = hooks.stepHighlights ?? STEP_HIGHLIGHTS;
   const timelines = new Map<Id, { state: TimelineState }>([[SAMPLE_GRANT_ID, { state: sampleGrantState(events) }]]);
   const notASample = () => served<TimelineView>(undefined);
   const show = (grantId: Id) => served(view(events, timelines.get(grantId)!.state, grantId === SAMPLE_GRANT_ID ? hooks.problemRows : 0));
@@ -268,12 +298,20 @@ export function samplesFake(hooks: {
       const timeline = timelines.get(grantId);
       if (!timeline) return notASample();
       const { state } = timeline;
+      if (move.next_highlight) {
+        // Ruling 77: to the next highlight, skipping the human steps on the way
+        // except that highlight's own, which are left for the user.
+        const target = events.find((e) => !state.played.has(e.id) && e.highlight);
+        if (!target) return Promise.reject(new ApiError(409, "No highlight is coming up."));
+        playTo(events, state, target.at);
+        skipHumanSteps(events, state, stepHighlights, target.highlight);
+        return show(grantId);
+      }
       const to = move.to ?? events.find((e) => !state.played.has(e.id))?.at;
       if (!to) return Promise.reject(new ApiError(409, "Nothing is coming up."));
       if (time(to) < time(state.now)) return Promise.reject(new ApiError(409, "The timeline only moves forward."));
-      const from = state.now;
       playTo(events, state, to);
-      if (move.skip_human_steps) skipHumanSteps(events, state, from);
+      if (move.skip_human_steps) skipHumanSteps(events, state, stepHighlights);
       return show(grantId);
     },
     startOver: (grantId, confirmed) => {
