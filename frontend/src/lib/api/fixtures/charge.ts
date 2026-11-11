@@ -3,6 +3,7 @@
 
 import type { ApiClient } from "../client";
 import type { AnswerView, BudgetCategory, BudgetLine, ChargeDetail, EvidenceFile, FtRecord, HistoryEntry, Id, Judgment, Link, LinkView } from "../types";
+import { duplicateFake, type DuplicateFake } from "./duplicate";
 import { chargeStatusAt } from "./statuses";
 import { sampleThreads } from "./thread";
 import { foundValues, sampleCharge, sampleFile, sampleRecord, served } from "./sample";
@@ -82,7 +83,8 @@ export function sampleChargeDetails(): Record<Id, ChargeDetail> {
   };
 }
 
-export function chargeFake(): Pick<ApiClient, "getCharge"> {
+/** The charges, with the agent's duplicate mark on L-1002 while it waits (duplicate.ts). */
+export function chargeFake(duplicate: DuplicateFake = duplicateFake()): Pick<ApiClient, "getCharge"> {
   const details = sampleChargeDetails();
-  return { getCharge: (chargeId) => served(details[chargeId]) };
+  return { getCharge: (chargeId) => served(details[chargeId] && duplicate.onCharge(details[chargeId])) };
 }

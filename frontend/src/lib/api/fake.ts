@@ -1,6 +1,7 @@
 import type { ApiClient } from "./client";
 import { chargeFake } from "./fixtures/charge";
 import { closeoutFake } from "./fixtures/closeout";
+import { duplicateFake } from "./fixtures/duplicate";
 import { evidenceFake } from "./fixtures/evidence";
 import { grantFake, newGrantDetail, sampleSummary } from "./fixtures/grant";
 import { mailFake } from "./fixtures/mail";
@@ -17,11 +18,18 @@ import { threadFake } from "./fixtures/thread";
 export function createFakeApiClient(): ApiClient {
   const { addGrant, ...grants } = grantFake();
   const setup = setupFake();
+  // The agent's waiting duplicate mark, shared by the evidence card and the charge, settled by a confirmation.
+  const duplicate = duplicateFake();
   return {
     ...grants,
-    ...chargeFake(),
+    writeRecord: async (grantId, body) => {
+      const record = await grants.writeRecord(grantId, body);
+      duplicate.wrote(grantId, body);
+      return record;
+    },
+    ...chargeFake(duplicate),
     ...threadFake(),
-    ...evidenceFake(),
+    ...evidenceFake(duplicate),
     ...setup,
     // A grant added in fake mode is then served like any other, with nothing read yet.
     createGrant: async (workspaceId, awardLetter, fileName) => {

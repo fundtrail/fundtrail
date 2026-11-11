@@ -4,6 +4,7 @@ import { date, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { pageCaption } from "@/components/viewer/placement";
 import styles from "./evidence.module.css";
+import { DecideDuplicate } from "./DecideDuplicate";
 import { confirmHref, viewerHref } from "./links";
 import { unionRanges, valueRanges } from "./quote";
 import { QuoteLink } from "./QuoteLink";
@@ -211,7 +212,8 @@ function Fact({ grantId, fileId, fact }: { grantId: Id; fileId: Id; fact: FactVi
 /**
  * One file and every fact read from it (product.md, Evidence cards). Each value
  * shows its quoted passage, its page, and whether it's confirmed. Clicking a
- * quote opens the viewer at that spot.
+ * quote opens the viewer at that spot. While the agent's duplicate mark on the
+ * file waits for the accountant, the card offers Confirm and Reject for it.
  */
 export function EvidenceCardView({
   grantId,
@@ -252,6 +254,8 @@ export function EvidenceCardView({
         </div>
         {copy && <span className="ft-tag">{copy}</span>}
       </header>
+
+      {card.duplicate?.state === "waiting" && <DecideDuplicate grantId={grantId} duplicate={card.duplicate} />}
 
       {problems.length > 0 && (
         <ul className={styles.problems} aria-label="Problems with this file">
