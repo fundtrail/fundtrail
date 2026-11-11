@@ -12,7 +12,7 @@ from app.contracts.checks import ChecklistEntry, ItemSource
 from app.contracts.fixtures import load_sample_grant
 from app.contracts.records import BudgetCategory
 from app.contracts.signoff import SignOffStateName
-from app.contracts.timeline import TimelineNow, TimelineView
+from app.contracts.timeline import TimelineMove, TimelineNow, TimelineView
 from tests.contracts.factory import agent, at, budget_line
 
 
@@ -99,3 +99,11 @@ def test_a_budget_sub_line_names_its_parent():
     assert api.BudgetLineView.model_validate_json(sub.model_dump_json()) == sub
     top = api.BudgetLineView(line=line, amount_cents=4000000, spent_cents=0)
     assert top.parent is None
+
+
+def test_next_highlight_is_a_move_the_server_aims_itself():
+    """Ruling 77: off by default; when on, the server picks the stop point."""
+    assert TimelineMove().next_highlight is False
+    move = TimelineMove(next_highlight=True)
+    assert TimelineMove.model_validate_json(move.model_dump_json()) == move
+    assert move.to is None

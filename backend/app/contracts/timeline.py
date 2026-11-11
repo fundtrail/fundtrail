@@ -41,8 +41,8 @@ class TimelineEvent(Model):
     file_id: Id | None = None  # once played or on file: the evidence file
     # Ruling 58: a short label marking the event as one of the sample's highlights,
     # shown in Coming up and Just happened. None for an ordinary event; never empty.
-    # The panel's "Next highlight" is an ordinary TimelineMove to the next highlighted
-    # event's `at` with `skip_human_steps` true. There's no route of its own.
+    # The panel's "Next highlight" is a TimelineMove with `next_highlight` true, on the
+    # same route (ruling 77).
     highlight: Text | None = None
 
 
@@ -125,6 +125,12 @@ class TimelineMove(Model):
     # accountant performs it through the ordinary write paths, as its author. A
     # scripted action whose target isn't there is left for the user.
     skip_human_steps: bool = False
+    # Ruling 77: "Next highlight". The server moves to the next highlight's stop point
+    # itself: the highlight event, or the later event it names to show at. It makes
+    # the scripted steps before that point with the sample accountant, leaves the
+    # highlight's own step for the user, and never makes a sign-off on this move.
+    # `to` is ignored when this is true.
+    next_highlight: bool = False
 
 
 class TimelineStartOver(Model):
