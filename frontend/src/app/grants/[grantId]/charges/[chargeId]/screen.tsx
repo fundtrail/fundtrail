@@ -31,10 +31,14 @@ export function ChargeScreen() {
   const line = detail.data?.charge.ledger_line_id;
 
   // The viewer is its own screen. These open the file; highlighting a link's
-  // part or a quote there is the viewer's to do.
+  // part or a quote there is the viewer's to do. An answer's quote opens at that
+  // quote (#275): the answer's record and the quote's index name the spot.
   const links: ChargeLinks = {
     link: (view) => (view.file ? routes.file(grantId, view.file.id) : undefined),
-    quote: (citation) => routes.file(grantId, citation.file_id),
+    quote: (citation, recordId, index) =>
+      recordId !== undefined && index !== undefined
+        ? routes.file(grantId, citation.file_id, { recordId, value: `quotes[${index}]` })
+        : routes.file(grantId, citation.file_id),
     file: (fileId) => routes.file(grantId, fileId),
   };
 

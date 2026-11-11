@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePings } from "@/lib/api";
+import { usePings, useRecords } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
 import { Loadable } from "@/components/Loadable";
 import { findCitation } from "@/components/evidence/findCitation";
@@ -22,6 +22,8 @@ export function FileScreen() {
   const recordId = query.get("record");
   const path = query.get("value");
   const evidence = useEvidence(grantId);
+  // Answers aren't on the evidence cards: an answer's quote is found among the grant's records.
+  const records = useRecords(grantId);
   const link = useFileLink(fileId);
   const card = evidence.data?.find((c) => c.file.id === fileId);
 
@@ -36,7 +38,7 @@ export function FileScreen() {
         {(cards) => {
           const found = cards.find((c) => c.file.id === fileId);
           if (!found) return <p className="ft-empty">This file isn&apos;t on this grant.</p>;
-          const spot = recordId && path ? findCitation(cards, recordId, path) : null;
+          const spot = recordId && path ? findCitation(cards, recordId, path, records.data?.map((r) => r.record)) : null;
           return (
             <Loadable result={link}>
               {(fileLink) => (

@@ -3,12 +3,23 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, ApiProvider, type ApiClient, type EvidenceCard, type FactView, type FtRecord, type NewRecordInput } from "@/lib/api";
+import {
+  ApiError,
+  ApiProvider,
+  type ApiClient,
+  type Citation,
+  type EvidenceCard,
+  type FactView,
+  type FtRecord,
+  type NewRecordInput,
+} from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { FakeAuthProvider } from "@/lib/auth";
 import { ConfirmValues } from "./ConfirmValues";
 import { EvidenceCardView } from "./EvidenceCardView";
 import { findCitation } from "./findCitation";
+import { excerptWindow, unionRanges, valueRanges } from "./quote";
+import { QuoteLink } from "./QuoteLink";
 import { confirmationText, MONEY_KEYS, parseTyped, valueAt, valueLabel, valueType, withValueAt } from "./values";
 
 const GRANT = "grant-sample";
@@ -99,6 +110,158 @@ describe("EvidenceCardView", () => {
     const links = screen.getByRole("list", { name: "Charges it pays for" });
     expect(within(links).getAllByRole("link")[0].getAttribute("href")).toMatch(/^\/grants\/grant-sample\/charges\//);
   });
+
+  it("puts only a passage found in the file on the highlighter", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "field_station_invoice_FS-2207.pdf")} />);
+    // Found in the file: the passage, verbatim, marked.
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total.querySelector("mark")).toHaveTextContent("Total Due: $3,400.00");
+    // Couldn't be placed: the quote shows plain.
+    expect(screen.getByRole("link", { name: "Open dated in the viewer" }).querySelector("mark")).toBeNull();
+  });
+
+  it("puts an exact quote on the highlighter, and a close match or one not found plain", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "field_station_invoice_FS-2207.pdf")} />);
+    // Exact: on the highlighter, with no note.
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total.querySelector("mark")).not.toBeNull();
+    // Close: the passage found, but not word for word, so plain, with the viewer's words beside it.
+    const description = screen.getByRole("link", { name: "Open description in the viewer" });
+    expect(description.querySelector("mark")).toBeNull();
+    expect(description.parentElement).toHaveTextContent("Close match on the page");
+    // Not found: plain, and no close-match note.
+    const dated = screen.getByRole("link", { name: "Open dated in the viewer" });
+    expect(dated.querySelector("mark")).toBeNull();
+    expect(dated.parentElement).not.toHaveTextContent("Close match on the page");
+    expect(screen.getAllByText("Close match on the page")).toHaveLength(1);
+  });
+
+  it("says a passage once when several values of a record cite it", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "award_letter.txt")} />);
+    const rule = screen.getByRole("listitem", { name: /^Approval rule/ });
+    // Four values cite the same special-conditions passage; it shows once.
+    expect(within(rule).getAllByText(/Special conditions/)).toHaveLength(1);
+    // Each value still opens its own spot in the viewer.
+    for (const path of ["applies_to", "approver", "channel", "scope"]) {
+      const label = valueLabel(path).toLowerCase();
+      expect(within(rule).getByRole("link", { name: `Open ${label} in the viewer` }).getAttribute("href")).toMatch(
+        new RegExp(`value=${path}$`),
+      );
+    }
+  });
+
+  it("never puts a photo's box on the highlighter, as it has no passage", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "boat_rental_receipt.jpg")} />);
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total).toHaveTextContent("A box on the image");
+    expect(total.querySelector("mark")).toBeNull();
+  });
+});
+
+describe("QuoteLink", () => {
+  const LINES = [
+    "Special conditions apply to every amount budgeted on this award.",
+    "Funds budgeted for one category may not be moved to another category",
+    "of expense without the prior written approval of the cognizant",
+    "Program Officer, requested through the agency's online system.",
+  ];
+  const PASSAGE = LINES.join("\n");
+  const START = 400;
+  const cite = (passage: string, value: string | null, match: "exact" | "close" = "exact") => {
+    const at = value === null ? -1 : passage.indexOf(value);
+    return {
+      file_id: "f",
+      passage,
+      location: { type: "char_location" as const, start_char_index: START, end_char_index: START + passage.length },
+      match,
+      highlight: value === null ? null : [{ start_char_index: START + at, end_char_index: START + at + value.length }],
+    };
+  };
+
+  it("shows the part of a long quote that holds the value, even on its fourth line", () => {
+    render(<QuoteLink citation={cite(PASSAGE, "Program Officer")} href="/v" ariaLabel="Open approver in the viewer" />);
+    const shown = screen.getByTestId("card-quote");
+    // The value is in view and set stronger; the cut is marked with an ellipsis.
+    expect(shown).toHaveTextContent("Program Officer");
+    expect(shown.querySelector("strong")).toHaveTextContent(/^Program Officer$/);
+    expect(shown.textContent?.startsWith("…")).toBe(true);
+    expect(shown).not.toHaveTextContent("Special conditions apply");
+    // The whole quote opens in place.
+    fireEvent.click(screen.getByRole("button", { name: "Show the whole quote" }));
+    expect(screen.getByTestId("card-quote").textContent).toBe(PASSAGE);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("never clamps a long quote when the value's place in it isn't known", () => {
+    render(<QuoteLink citation={cite(PASSAGE, null)} href="/v" ariaLabel="Open approver in the viewer" />);
+    expect(screen.getByTestId("card-quote").textContent).toBe(PASSAGE);
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).toBeNull();
+  });
+
+  it("shows a short quote whole, with the value stronger", () => {
+    const short = "Total Due: $1,240.00";
+    render(<QuoteLink citation={cite(short, "$1,240.00")} href="/v" ariaLabel="Open total in the viewer" />);
+    expect(screen.getByTestId("card-quote").textContent).toBe(short);
+    expect(screen.getByTestId("card-quote").querySelector("strong")).toHaveTextContent("$1,240.00");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  // The award letter's special-conditions passage, with each value's own
+  // characters stored as the server would store them.
+  const RULE =
+    "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.";
+  const RULE_VALUES = [
+    "Participant Support Costs",
+    "Program Officer",
+    "Research.gov",
+    "may not be diverted by the awardee to other categories of expense",
+  ];
+
+  it("shows a passage several values share whole when their places span more than one excerpt", () => {
+    const ranges = unionRanges(RULE_VALUES.map((v) => valueRanges(cite(RULE, v))));
+    render(<QuoteLink citation={cite(RULE, RULE_VALUES[0])} href="/v" ariaLabel="Open the passage" ranges={ranges} />);
+    const shown = screen.getByTestId("card-quote");
+    expect(shown.textContent).toBe(RULE);
+    for (const v of RULE_VALUES) expect(shown).toHaveTextContent(v);
+    expect([...shown.querySelectorAll("strong")].map((s) => s.textContent)).toEqual(RULE_VALUES.slice().sort((a, b) => RULE.indexOf(a) - RULE.indexOf(b)));
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).toBeNull();
+  });
+
+  it("shows a shared passage whole when one value's place isn't known", () => {
+    const ranges = unionRanges([valueRanges(cite(PASSAGE, "Program Officer")), valueRanges(cite(PASSAGE, null))]);
+    expect(ranges).toBeNull();
+    render(<QuoteLink citation={cite(PASSAGE, "Program Officer")} href="/v" ariaLabel="Open the passage" ranges={ranges} />);
+    expect(screen.getByTestId("card-quote").textContent).toBe(PASSAGE);
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).toBeNull();
+  });
+
+  it("shows a value whose characters sit far apart in the quote whole", () => {
+    const at = (s: string) => START + PASSAGE.indexOf(s);
+    const c = {
+      ...cite(PASSAGE, null),
+      highlight: [
+        { start_char_index: at("Special"), end_char_index: at("Special") + "Special".length },
+        { start_char_index: at("Program Officer"), end_char_index: at("Program Officer") + "Program Officer".length },
+      ],
+    };
+    expect(excerptWindow(PASSAGE, valueRanges(c))).toBeNull();
+    render(<QuoteLink citation={c} href="/v" ariaLabel="Open approver in the viewer" />);
+    const shown = screen.getByTestId("card-quote");
+    expect(shown.textContent).toBe(PASSAGE);
+    expect([...shown.querySelectorAll("strong")].map((s) => s.textContent)).toEqual(["Special", "Program Officer"]);
+  });
+
+  it("reads no place for the value when the passage isn't the stored characters", () => {
+    const c = cite(PASSAGE, "Program Officer");
+    expect(valueRanges(c)).not.toBeNull();
+    // A reading-text passage of a different length: stored positions don't count in it.
+    expect(valueRanges({ ...c, passage: `${PASSAGE} (forwarded)` })).toBeNull();
+    expect(excerptWindow(PASSAGE, null)).toBeNull();
+  });
 });
 
 describe("findCitation", () => {
@@ -108,6 +271,46 @@ describe("findCitation", () => {
     expect(spot?.valueText).toBe("$86.40");
     expect(spot?.citation.location.type).toBe("image_box");
     expect(findCitation(cards, "rec-missing", "total")).toBeNull();
+  });
+
+  // An answer (a judgment record) isn't on the cards; its quotes are found in the grant's records.
+  const quote = (passage: string): Citation => ({
+    file_id: "file-award-letter",
+    passage,
+    location: { type: "char_location", start_char_index: 10, end_char_index: 10 + passage.length },
+    match: "exact",
+  });
+  const answer = {
+    id: "rec-answer-1",
+    data: {
+      kind: "judgment",
+      question: "allowable",
+      text: "Is this travel allowable?",
+      answer: "supports",
+      reasoning: "The award letter allows it.",
+      quotes: [quote("Travel is allowable."), quote("Prior approval is not needed.")],
+    },
+  } as unknown as FtRecord;
+
+  it("finds an answer's quote by its index", async () => {
+    const cards = await sampleCards();
+    const spot = findCitation(cards, "rec-answer-1", "quotes[1]", [answer]);
+    expect(spot?.citation.passage).toBe("Prior approval is not needed.");
+    expect(spot?.label).toBe("Quote 2 in the answer");
+    expect(spot?.valueText).toBeNull();
+    expect(spot?.confirmation).toBeNull();
+  });
+
+  it("falls back as before for an index out of range or a record that isn't an answer", async () => {
+    const cards = await sampleCards();
+    expect(findCitation(cards, "rec-answer-1", "quotes[2]", [answer])).toBeNull();
+    expect(findCitation(cards, "rec-answer-1", "total", [answer])).toBeNull();
+    const notAnswer = { ...answer, id: "rec-note-1", data: { ...(answer.data as object), kind: "note" } } as unknown as FtRecord;
+    expect(findCitation(cards, "rec-note-1", "quotes[0]", [notAnswer])).toBeNull();
+    // Without the records, an answer's quote isn't found, as before.
+    expect(findCitation(cards, "rec-answer-1", "quotes[0]")).toBeNull();
+    // A fact on the cards is still found from the cards, records or not.
+    expect(findCitation(cards, "rec-syn-bill-boat-receipt", "total", [answer])?.valueText).toBe("$86.40");
   });
 });
 

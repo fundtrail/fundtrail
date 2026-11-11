@@ -1,67 +1,293 @@
-/* The viewer, on the design system's tokens (globals.css). */
+/*
+ * The viewer, on the design system's tokens (globals.css), after Grant's
+ * ViewerSheet: a head, a bar that says what's cited and how, the document on a
+ * sunken ground, and a side panel with the active value.
+ *
+ * Yellow is the highlighter and means one thing: a passage from the file. On
+ * the page it marks where the passage was found (highlight-active, the one
+ * active mark); in the side panel it marks an exact quote. It stays yellow
+ * with on-highlight text in both themes.
+ */
 
 .viewer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: var(--space-4);
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .viewer {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
+  /* An original PDF page is paper: white in both themes. Defined once, here. */
+  --paper-original: #ffffff;
 
-.doc {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   background: var(--paper-raised);
   overflow: hidden;
 }
 
+/* --- Head ------------------------------------------------------------------ */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.fileName {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.meta > span + span::before {
+  content: "·";
+  padding: 0 var(--space-2);
+}
+
+/* --- Bar ------------------------------------------------------------------- */
+
 .bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
+  min-height: 44px;
+  padding: var(--space-1) var(--space-5);
   border-bottom: 1px solid var(--rule);
+}
+
+.cite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.cite b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.citeLoc::before {
+  content: "·";
+  padding-right: var(--space-2);
+}
+.citeUnplaced {
+  color: var(--needs-human);
+  font-weight: 600;
 }
 
 .zoom {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+
+.zoomLevel {
+  min-width: 44px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+/* Plus and minus, drawn in CSS. */
+.zoomBtn {
+  position: relative;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.zoomBtn::before,
+.zoomBtn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+.zoomOut::after {
+  display: none;
+}
+.zoomIn::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.zoomBtn:hover:not(:disabled) {
+  background: var(--paper-sunken);
+}
+.zoomBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.zoomBtn:disabled {
+  color: var(--rule-strong);
+  cursor: default;
+}
+
+/* --- Body: the document and the side panel ---------------------------------- */
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  min-height: 0;
+}
+.bodyWhole {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 1200px) {
+  .body:not(.bodyWhole) {
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+  .body .side {
+    padding: var(--space-4);
+  }
+  .side .value {
+    font-size: 19px;
+  }
 }
 
 .scroll {
-  height: 70vh;
+  height: max(440px, calc(100vh - 300px));
   overflow: auto;
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--paper-sunken);
 }
 
+@media (max-width: 900px) {
+  .body,
+  .body:not(.bodyWhole) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scroll {
+    height: 70vh;
+    padding: var(--space-3);
+  }
+}
+
+/* A note above the sheet, such as "Shown as the agent reads it". */
+.docNote {
+  max-width: 760px;
+  margin: 0 auto var(--space-3);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Loading, error and "can't be shown here", centered on the ground. */
+.docState {
+  margin: var(--space-7) auto;
+  max-width: 48ch;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* --- Text, email, .docx: the sheet and the mark ------------------------------- */
+
+/* The document's own text keeps a monospaced face, so a plain-text file's
+   columns line up as they do in the file. The serif is for quotes. */
 .text {
-  margin: 0;
-  padding: var(--space-5);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-sm);
   background: var(--paper-raised);
-  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
   font-family: var(--mono);
-  line-height: 1.6;
+  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+@media (max-width: 900px) {
+  .text {
+    padding: var(--space-4);
+  }
+}
 
 .mark {
-  background: var(--needs-human-tint);
-  color: inherit;
-  outline: 2px solid var(--needs-human);
   border-radius: 2px;
+  background: var(--highlight-active);
+  color: var(--on-highlight);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
+
+/* Said to a screen reader at the start of a mark, never shown. */
+.mark::before,
+.quoteMark::before {
+  content: "highlighted: ";
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- PDF ------------------------------------------------------------------- */
+
+.pdfPage {
+  margin: 0 auto var(--space-5);
+  width: max-content;
+}
+/* The page is paper: white in both themes, with the one floating shadow. */
+.pdfPage :global(.react-pdf__Page) {
+  background: var(--paper-original);
+  box-shadow: var(--shadow-float);
+}
+
+.pageNum {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+/*
+ * The highlighter on a PDF page: one layer multiplied over the rendered page,
+ * so the printed words show through the yellow. The boxes inside are opaque
+ * and drawn exactly where they were stored, so overlapping boxes never stack
+ * into darker bars.
+ */
+.markLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.markBox {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--highlight-active);
+}
+
+/* --- Photo or scan: the checked box ----------------------------------------- */
 
 .page {
   position: relative;
   margin: 0 auto;
+  box-shadow: var(--shadow-float);
 }
 .page img {
   display: block;
@@ -69,42 +295,115 @@
   height: auto;
 }
 
-.pdfPage {
-  margin: 0 auto var(--space-4);
-  width: max-content;
-  box-shadow: 0 0 0 1px var(--rule);
-}
-
-.box {
+/* Multiplied over the photo, like the PDF's highlighter, so the value the box
+   marks stays dark under the wash instead of turning olive. */
+.boxLayer {
   position: absolute;
-  border: 3px solid var(--needs-human);
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--needs-human-tint) 35%, transparent);
+  inset: 0;
+  z-index: 2;
+  mix-blend-mode: multiply;
   pointer-events: none;
 }
+/* The photo keeps its own colors in both themes, so the box's edge is the
+   on-highlight ink, dark in both, over the highlight wash. */
+.box {
+  position: absolute;
+  border: 2px solid var(--on-highlight);
+  border-radius: 2px;
+  background: var(--highlight-wash);
+}
+
+/* --- Side panel ------------------------------------------------------------- */
 
 .side {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-left: 1px solid var(--rule);
   background: var(--paper-raised);
+  overflow-y: auto;
+}
+@media (max-width: 900px) {
+  .body .side {
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.active {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sideLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.value {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sideMeta {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.unconfirmed {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--needs-human);
+}
+
+.quoteFigure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
 }
 
 .quote {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--rule-strong);
-  background: var(--paper-sunken);
+  max-width: 60ch;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quoteMark {
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: var(--hl);
+  color: var(--on-hl);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 .notice {
+  margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--needs-human-tint);
   color: var(--needs-human);
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll {
+    scroll-behavior: auto;
+  }
 }
