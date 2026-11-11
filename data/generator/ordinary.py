@@ -82,6 +82,9 @@ def award_letter(
     name: str = "award_letter.txt",
     as_pdf: bool = False,
     source: str = "upload",
+    intended_cents: int | None = None,
+    instrument: str = "Standard Grant",
+    highlight: str | None = None,
 ) -> None:
     """The award notice, the accountant confirming its terms, and its records.
 
@@ -99,6 +102,8 @@ def award_letter(
         end=g.end,
         title=title,
         obligated_cents=total,
+        intended_cents=intended_cents,
+        instrument=instrument,
         personnel=[(p.name, p.role, p.email) for p in personnel],
         program_officer=(program_officer.name, program_officer.email),
         conditions=conditions,
@@ -117,6 +122,8 @@ def award_letter(
     else:
         g.doc(name, text, arrives, source, note=note)
     g.confirm(name, confirm_at, "The user confirms every term read from the award letter.")
+    if highlight:
+        g.highlights[name] = highlight
     dated = award_date.isoformat()
     g.record(
         "period_of_performance", name, start=g.start.isoformat(), end=g.end.isoformat(), dated=dated
