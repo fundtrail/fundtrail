@@ -34,12 +34,10 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 - contracts.md, section 1: "`other_term` holds anything an award letter or amendment says that no other kind holds, such as a principal investigator (PI) on leave."
 - contracts.md, section 4: `unusual_term` is asked "Once for each confirmed `other_term` in force on the charge's date."
 
-**Verdict: the key, by the contract's wording, unless the product owner rules otherwise.**
+**Verdict: the key, by the contract's wording and ruling 81.**
 
 - The sentence is something the letter says that no other kind holds, so the agent's reading follows the contract. The 12 answers follow from code's rule, not from the agent's choice.
-- If standard conditions incorporated by reference shouldn't be a term, the agent is at fault and the docs need a line saying so.
 - **Settled by ruling 81.** The sentence is one `other_term` marked as the standard conditions, and it never raises `unusual_term`. The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these items count as the key's.
-- Settling this settles 17 of the 42 wrong items.
 
 ## 2. Notes the key doesn't list: 17 wrong records
 

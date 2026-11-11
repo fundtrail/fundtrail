@@ -13,7 +13,7 @@ partial credit: a link with the wrong amount is a missing link and a wrong one.
 Run it from backend/, with a Postgres server where the user may create databases:
 
     cd backend && uv run python ../eval/run.py --cap-usd 10
-    cd backend && uv run python ../eval/run.py --case credit-memo-spaced-dash --cap-usd 2
+    cd backend && uv run python ../eval/run.py --case credit-memo-spaced-dash --cap-usd 3
     cd backend && uv run python ../eval/run.py --fake    # no model calls: a fake model
 
 The database server comes from --database-url or TEST_DATABASE_URL. The model key comes from
@@ -61,9 +61,10 @@ if str(BACKEND) not in sys.path:
 
 # claude-opus-5-5, dollars per million tokens. A cache write is the 5-minute one.
 PRICE = {"input": 4.0, "output": 20.0, "cache_read": 0.20, "cache_write": 5.0}
-# A request's input tokens, counted from its size: at most one token per this many
-# characters of its JSON, which overcounts, as a worst case should.
-CHARS_PER_TOKEN = 3
+# A request's input tokens, counted from its size: one token per this many characters of
+# its JSON. The agent's requests measured about 2.6 characters a token (75,379 characters
+# billed as 29,153 tokens), so 2 overcounts, as a worst case should.
+CHARS_PER_TOKEN = 2
 
 # The files of a case that aren't evidence.
 CASE_META = {"answer_key.json", "arrivals.json", "README.md"}
@@ -331,14 +332,20 @@ def drain(database_url: str) -> None:
 
     async def go() -> None:
         async with open_worker_app(database_url) as app:
+            # The jobs app's own registry is put back afterwards, so the app's worker
+            # process, imported in the same interpreter, keeps its periodic tasks.
+            registry = app.periodic_registry
             app.periodic_registry = PeriodicRegistry()
-            await app.run_worker_async(
-                queues=[QUEUE],
-                concurrency=1,
-                wait=False,
-                listen_notify=False,
-                install_signal_handlers=False,
-            )
+            try:
+                await app.run_worker_async(
+                    queues=[QUEUE],
+                    concurrency=1,
+                    wait=False,
+                    listen_notify=False,
+                    install_signal_handlers=False,
+                )
+            finally:
+                app.periodic_registry = registry
 
     for _ in range(50):
         asyncio.run(go())
@@ -948,9 +955,14 @@ class Run:
 
 
 def run_eval(
-    server_url: str, case_names: Sequence[str] | None, cap_usd: float, model: Callable[[Any], Any]
+    server_url: str,
+    case_names: Sequence[str] | None,
+    cap_usd: float,
+    model: Callable[[Any], Any],
+    checks: Any = None,
 ) -> Run:
-    """Play every case (or the named ones) on its own grant, in one throwaway database."""
+    """Play every case (or the named ones) on its own grant, in one throwaway database.
+    `checks` is the real checks unless a test passes its own."""
     from app.contracts.workspaces import User
     from app.db import store
     from app.db.platform import Platform, set_platform
@@ -975,7 +987,7 @@ def run_eval(
         pool = open_pool(url, max_size=4)
         p = Platform(
             pool=pool,
-            checks=ModuleChecks(),
+            checks=checks or ModuleChecks(),
             agent=EvalAgent(meter),
             storage=MemoryStorage(),
             pinger=NoPings(),

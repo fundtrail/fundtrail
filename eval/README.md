@@ -16,7 +16,7 @@ From `backend/`, with a Postgres server where the user may create databases:
 ```
 cd backend
 uv run python ../eval/run.py --cap-usd 10                 # every case, the real model
-uv run python ../eval/run.py --case trip-airfare-and-per-diem --cap-usd 2
+uv run python ../eval/run.py --case trip-airfare-and-per-diem --cap-usd 3
 uv run python ../eval/run.py --fake                       # a fake model: no calls, no cost
 ```
 
@@ -25,12 +25,18 @@ uv run python ../eval/run.py --fake                       # a fake model: no cal
 - **Nothing hosted, and no real mail.**
   - The runner refuses any database server that isn't on this machine: localhost, 127.0.0.1, ::1 or a socket. It also refuses a `hostaddr` that isn't local, a `service`, and an empty host while `PGHOST`, `PGHOSTADDR` or `PGSERVICE` points elsewhere.
   - While it runs, it drops `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GOOGLE_TOKEN_FILE` and `FUNDTRAIL_MAILBOX` from its own environment, and puts them back afterwards.
-  - Its job worker runs agent runs only, never the periodic tasks, so the Gmail and Drive checker never runs. A queued task of any other kind fails the eval. Don't source a whole `.env` to get the key. Take only the key, for example:
+  - Its job worker runs agent runs only, never the periodic tasks, so the Gmail and Drive checker never runs. A queued task of any other kind fails the eval.
+  - Don't source a whole `.env` to get the key. Take only the key, for example:
 
   ```
   export ANTHROPIC_API_KEY="$(sed -n 's/^ANTHROPIC_API_KEY=//p' ../.env)"
   ```
-- **The spend cap.** Before each model call, the runner adds the largest call so far (or $0.25 before the first) to what's been spent. If that would pass the cap, it refuses the call. That fails the run, and the eval stops there. Cost is estimated from each call's token use at claude-opus-5-5's prices: $4 per million input tokens, $20 output, $0.20 cache read, $5 cache write.
+- **The spend cap.** Before each model call, the runner works out that call's worst case from the request itself.
+  - The output side is its `max_tokens`, at $20 per million: $1.28 for the agent's usual 64,000.
+  - The input side is the larger of the last call's input and a count of one token per 2 characters of the request. It's priced as a cache write, $5 per million, the dearest input.
+  - If what's been spent plus that worst case would pass the cap, the runner refuses the call. That fails the run, and the eval stops there.
+  - So a cap needs about $1.50 of room above what the cases spend. One case takes about $3. All five take $10.
+  - Cost is estimated from each call's token use at claude-opus-5-5's prices: $4 per million input tokens, $20 output, $0.20 cache read, $5 cache write.
 - `--out results.json` saves the results.
 - CI runs the runner on every case with a fake model (`backend/tests/ev_runner/`), so no paid calls are made there. Those tests also check:
   - the scoring, one rule at a time
