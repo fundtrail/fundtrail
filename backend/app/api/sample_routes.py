@@ -102,7 +102,15 @@ def move_timeline(
     """Move the sample's timeline forward: to `to`, or with nothing, to the next item."""
     _sample_grant(grant)
     try:
-        player.move(platform, user.id, grant, body.to, skip=body.skip_human_steps)
+        player.move(
+            platform,
+            user.id,
+            grant,
+            body.to,
+            skip=body.skip_human_steps,
+            # Ruling 77: the contract's `next_highlight`, once TimelineMove has it.
+            next_highlight=bool(getattr(body, "next_highlight", False)),
+        )
     except player.GrantGone as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except MoveRefused as error:

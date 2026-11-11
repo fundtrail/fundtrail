@@ -24,6 +24,7 @@ from app.db.ports import AgentInput, AgentResult, ModuleChecks
 from app.samples import player, skipping
 from app.samples.pack import SamplePack, UserAction
 from app.samples.script import WriteRecord, resolve
+from app.samples.timeline import MoveRefused
 from tests.api.conftest import Api
 from tests.db.platform_fixtures import FakeAgent, FakePinger, run_worker_until_idle
 
@@ -640,3 +641,127 @@ def test_a_check_finding_nothing_pending_starts_the_idle_count_again(
     monkeypatch.setattr(skipping, "advance", lambda *_args: skipping.Walked())
     skipping.check_walks(api.platform)
     assert idle() == 0
+
+
+# Next highlight (ruling 77).
+
+
+def _highlight_pack(monkeypatch: pytest.MonkeyPatch) -> tuple[SamplePack, str]:
+    """The small sample with its receipt delivery marked as the receipt highlight's own
+    step, and a scripted sign-off before it: built here, not in data/. Returns the pack
+    and the receipt highlight's label."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    assert receipt.highlight is not None
+    sign = UserAction(
+        at=receipt.at - timedelta(days=1), action="sign_off", note="Signed by the script."
+    )
+    actions = [
+        replace(a, highlight=receipt.highlight) if a.action == "deliver_file" else a
+        for a in pack.actions
+    ]
+    marked = replace(pack, actions=tuple(sorted([*actions, sign], key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: marked)
+    return marked, receipt.highlight
+
+
+def _states(api: Api, pack: SamplePack, grant_id: str) -> dict[str, str]:
+    return {pack.actions[s["step"]].action: s["state"] for s in _scripted(api, grant_id)}
+
+
+def _next_highlight(api: Api, grant_id: str) -> None:
+    # Called directly until TimelineMove has `next_highlight` (the contracts builder adds it).
+    player.move(api.platform, api.user_id, _grant(api, grant_id), None, next_highlight=True)
+
+
+def test_next_highlight_leaves_its_own_step_and_never_signs_off(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)  # stands on the award letter, the first highlight
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == label
+    # The unmarked step before it is made; its own step and the sign-off wait for the user.
+    assert _states(api, pack, grant_id) == {
+        "confirm_terms": "done",
+        "sign_off": "held",
+        "deliver_file": "held",
+    }
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == [receipt.name]
+    assert _walk(api, grant_id) == (None, None)
+
+
+def test_a_later_skip_makes_the_steps_next_highlight_left(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    _skip(api, grant_id, None)  # Next event, skipping the human steps
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    states = _states(api, pack, grant_id)
+    assert states["deliver_file"] == "done" and states["sign_off"] != "held"
+    with transaction(api.platform.pool) as conn:
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+    [brought] = [f for f in files if f.sha256 == pack.sha256(receipt.name)]
+    assert brought.arrived_at == receipt.at  # at the clock when the later skip took it up
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["deliveries"] == []
+    assert _walk(api, grant_id) == (None, None)
+
+
+def test_the_user_making_a_held_step_first_is_never_made_again(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    uploaded = api.client.post(
+        f"/grants/{grant_id}/evidence",
+        files={"file": ("receipt.jpg", pack.file_bytes(receipt.name), "image/jpeg")},
+        headers=api.headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    _skip(api, grant_id, None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, pack, grant_id)["deliver_file"] == "left"  # the user brought it
+    with transaction(api.platform.pool) as conn:
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+    assert [f.id for f in files if f.sha256 == pack.sha256(receipt.name)] == [uploaded.json()["id"]]
+
+
+def test_next_highlight_stops_on_a_ledger_lines_posting(api: Api) -> None:
+    """A highlight on a ledger line: Next highlight stops where the line posts."""
+    pack = player.pack_for(LARGER)
+    items = player.items_for(LARGER)
+    line = next(i for i in items if i.line_id and i.event and i.event.highlight)
+    before = max(i.at for i in items if i.at < line.at and i.event and i.event.highlight)
+    grant_id = _open(api, "larger_live")
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(before)})
+    assert moved.status_code == 200, moved.text
+    _next_highlight(api, grant_id)
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(line.at)
+    assert timeline["now"]["stopped_on"]["name"] == line.name
+    assert line.event is not None
+    assert timeline["now"]["stopped_on"]["highlight"] == line.event.highlight
+    assert line.name in pack.ledger_line_ids()
+
+
+def test_next_highlight_with_none_left_is_refused(api: Api) -> None:
+    grant_id = _open(api)
+    last = max(i.at for i in player.items_for(SMALL) if i.event and i.event.highlight)
+    _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(last)})
+    with pytest.raises(MoveRefused, match="No highlight"):
+        _next_highlight(api, grant_id)

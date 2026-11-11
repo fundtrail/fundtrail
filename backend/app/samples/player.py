@@ -78,6 +78,7 @@ from .pack import (
 from .timeline import (
     ChecksDate,
     ItemKind,
+    MoveRefused,
     OnGrant,
     TimelineItem,
     checks_items,
@@ -441,12 +442,21 @@ def check_read_live_limit(conn: Conn, user_id: str, grant: Grant) -> None:
 
 
 def move(
-    p: Platform, user_id: str, grant: Grant, to: datetime | None, *, skip: bool = False
+    p: Platform,
+    user_id: str,
+    grant: Grant,
+    to: datetime | None,
+    *,
+    skip: bool = False,
+    next_highlight: bool = False,
 ) -> None:
     """Move a sample grant's timeline forward: to `to`, or with None, to the next item.
     With `skip`, the Sample accountant makes the script's steps the move passes (ruling
-    47, app.samples.skipping). Raises MoveRefused (timeline) for a move backwards or with
-    nothing left, and AnotherSampleWorking for the read-live limit."""
+    47, app.samples.skipping). With `next_highlight` (ruling 77), `to` is ignored: the
+    move goes to the next event carrying a highlight label, skipping the human steps on
+    the way, except the steps marked with that label and any sign-off, which are left to
+    the user. Raises MoveRefused (timeline) for a move backwards or with nothing left, and
+    AnotherSampleWorking for the read-live limit."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     with transaction(p.pool) as conn:
@@ -460,6 +470,10 @@ def move(
         walking = sample_store.walk_target(conn, grant.id)
         start = max(now, walking) if walking is not None else now
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
+        highlight: str | None = None
+        if next_highlight:
+            to, highlight = _next_highlight(items, start)
+            skip = True
         plan = plan_move(items, start, to)
         # The move plays what the clock passes from where it stands now, a walk's later
         # steps included, so every played event is under exactly one move.
@@ -468,7 +482,9 @@ def move(
         walked = skipping.Walked()
         if skip or walking is not None:
             if skip:
-                skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
+                skipping.queue_steps(
+                    conn, locked, pack, move_id, start, plan.until, highlight=highlight
+                )
             sample_store.start_walk(conn, grant.id, plan.until)
             walked = skipping.advance(p, conn, locked)
         else:
@@ -476,6 +492,15 @@ def move(
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
     skipping.ping(p, grant, walked)
+
+
+def _next_highlight(items: Sequence[TimelineItem], after: datetime) -> tuple[datetime, str]:
+    """The next item after `after` whose event carries a highlight label: its time and
+    label. A ledger line's posting can be one."""
+    for i in items:
+        if i.at > after and i.event is not None and i.event.highlight is not None:
+            return i.at, i.event.highlight
+    raise MoveRefused("No highlight is left on the timeline.")
 
 
 # The view.

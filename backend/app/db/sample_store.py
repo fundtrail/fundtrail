@@ -35,7 +35,7 @@ class Scripted:
     step: int  # its place in the pack's script
     move_id: int
     at: datetime
-    state: str  # pending, done or left
+    state: str  # pending, done, left, or held (by a Next highlight move, ruling 77)
     record_id: str | None = None
     file_id: str | None = None
 
@@ -191,6 +191,25 @@ def pending_scripted(conn: Conn, grant_id: str, before: datetime | None) -> list
         (grant_id, before, before),
     ).fetchall()
     return [Scripted(**r) for r in rows]
+
+
+def held_scripted(conn: Conn, grant_id: str) -> list[Scripted]:
+    """The steps a Next highlight move held for the user (ruling 77), in time order."""
+    rows = conn.execute(
+        f"""select {_SCRIPTED} from public.sample_scripted
+            where grant_id = %s and state = 'held' order by at, step""",
+        (grant_id,),
+    ).fetchall()
+    return [Scripted(**r) for r in rows]
+
+
+def take_up_scripted(conn: Conn, grant_id: str, step: int, move_id: int) -> None:
+    """A held step, pending again for a later skipping move's walk, under that move."""
+    conn.execute(
+        """update public.sample_scripted set state = 'pending', move_id = %s
+           where grant_id = %s and step = %s and state = 'held'""",
+        (move_id, grant_id, step),
+    )
 
 
 def move_scripted(conn: Conn, move_id: int) -> list[Scripted]:

@@ -51,7 +51,7 @@ from app.db.sample_store import Scripted
 from app.db.store import Conn
 from app.ingest.incoming import IncomingFile
 
-from .pack import SamplePack
+from .pack import SamplePack, UserAction
 from .script import DeliverFile, SignOff, WriteRecord, resolve
 
 log = logging.getLogger(__name__)
@@ -78,12 +78,32 @@ def ping(p: Platform, grant: Grant, walked: Walked) -> None:
 
 
 def queue_steps(
-    conn: Conn, grant: Grant, pack: SamplePack, move_id: int, after: datetime, until: datetime
+    conn: Conn,
+    grant: Grant,
+    pack: SamplePack,
+    move_id: int,
+    after: datetime,
+    until: datetime,
+    *,
+    highlight: str | None = None,
 ) -> None:
-    """A skipping move's scripted steps in (after, until], pending for the walk."""
+    """A skipping move's scripted steps in (after, until], pending for the walk.
+
+    On a Next highlight move to the highlight labelled `highlight` (ruling 77), a step
+    marked with that label, and any sign-off, is held for the user instead. A step an
+    earlier Next highlight move held is taken up again, at the walk's clock, unless this
+    move would hold it too: it's made then if the user hasn't made it."""
+
+    def held(a: UserAction) -> bool:
+        return highlight is not None and (a.highlight == highlight or a.action == "sign_off")
+
+    for s in sample_store.held_scripted(conn, grant.id):
+        if not held(pack.actions[s.step]):
+            sample_store.take_up_scripted(conn, grant.id, s.step, move_id)
     for n, a in enumerate(pack.actions):
         if after < a.at <= until:
-            sample_store.insert_scripted(conn, grant.id, Scripted(n, move_id, a.at, "pending"))
+            state = "held" if held(a) else "pending"
+            sample_store.insert_scripted(conn, grant.id, Scripted(n, move_id, a.at, state))
 
 
 def advance(p: Platform, conn: Conn, grant: Grant) -> Walked:
@@ -120,6 +140,13 @@ def _step(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, walked: Walke
         return False
     now = clock.grant_now(conn, grant.id)
     pending = sample_store.pending_scripted(conn, grant.id, None)
+    # A delivery whose time has passed (one a Next highlight move held) is made at once.
+    overdue = [s for s in pending if pack.actions[s.step].action == "deliver_file" and s.at < now]
+    for s in overdue:
+        _deliver(p, conn, grant, pack, s, now)
+    if overdue:
+        walked.changed = True
+        return True
     decision = next((s for s in pending if pack.actions[s.step].action != "deliver_file"), None)
     until = min(decision.at, target) if decision is not None else target
     if until > now:
@@ -134,7 +161,7 @@ def _step(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, walked: Walke
     if action.action == "sign_off":
         if store.has_pending_run(conn, grant.id):
             return False  # a sign-off waits for every run
-    elif sample_store.catch_up_runs_before(conn, grant.id, decision.at):
+    elif sample_store.catch_up_runs_before(conn, grant.id, max(decision.at, now)):
         return False  # the agent is still reading what came before it
     _make(p, conn, grant, pack, decision)
     walked.changed = True
@@ -160,7 +187,7 @@ def _play(
         store_events(p, conn, grant, pack, played)
         for s in pending:
             if pack.actions[s.step].action == "deliver_file" and s.at <= until:
-                _deliver(p, conn, grant, pack, s)
+                _deliver(p, conn, grant, pack, s, s.at)
         return clock.set_and_replay(p, conn, grant, now, until)
     except Exception as error:
         raise WalkStopped(
@@ -169,14 +196,17 @@ def _play(
         ) from error
 
 
-def _deliver(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) -> None:
-    """A file the user brings in, at its step's time, as an upload, by the Sample
-    accountant. One that can't be brought in is left for the user."""
+def _deliver(
+    p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted, at: datetime
+) -> None:
+    """A file the user brings in, at `at` (its step's time, or the walk's clock for one
+    held earlier), as an upload, by the Sample accountant. One that can't be brought in
+    is left for the user."""
     a = pack.actions[s.step]
     file_id: str | None = None
     try:
         with conn.transaction():  # a savepoint: a failed delivery brings nothing in
-            step = resolve(p, conn, grant, pack, a, a.at)
+            step = resolve(p, conn, grant, pack, a, at)
             if isinstance(step, DeliverFile):
                 media_type = mimetypes.guess_type(step.name)[0] or "application/octet-stream"
                 incoming = IncomingFile(
@@ -188,7 +218,7 @@ def _deliver(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripte
                     media_type=media_type,
                     data=pack.file_bytes(step.name),
                 )
-                [f] = arrive_files(p, conn, grant, [replace(incoming, arrived_at=a.at)])
+                [f] = arrive_files(p, conn, grant, [replace(incoming, arrived_at=at)])
                 file_id = f.id
     except Exception:  # noqa: BLE001 - a delivery that fails is the user's to make
         log.exception("scripted step %s on grant %s failed; left for the user", s.step, grant.id)
@@ -197,15 +227,15 @@ def _deliver(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripte
 
 
 def _make(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) -> None:
-    """Make one decision at its time, as the Sample accountant, or leave it for the user.
-    The grant's clock stands at the decision's time. It's listed under the grant's last
-    move, the one it was made in."""
+    """Make one decision at the grant's clock, as the Sample accountant, or leave it for
+    the user. The clock stands at the decision's time, or later for one a Next highlight
+    move held. It's listed under the grant's last move, the one it was made in."""
     action = pack.actions[s.step]
     accountant = store.sample_accountant_id(conn, grant.workspace_id)
     record_id: str | None = None
     try:
         with conn.transaction():  # a savepoint: a refused or failed step writes nothing
-            step = resolve(p, conn, grant, pack, action, s.at)
+            step = resolve(p, conn, grant, pack, action, clock.grant_now(conn, grant.id))
             if isinstance(step, WriteRecord):
                 record, _, _ = write_record(
                     p, conn, grant, accountant, step.data, step.replaces_id, catch_up=True
