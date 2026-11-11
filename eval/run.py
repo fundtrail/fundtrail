@@ -19,12 +19,16 @@ Run it from backend/, with a Postgres server where the user may create databases
 The database server comes from --database-url or TEST_DATABASE_URL. The model key comes from
 the environment as the app reads it (never printed), and ANTHROPIC_BASE_URL, when set, is where
 the calls go. The runner reads nothing else from the environment: the database server is
-only ever a local one (it refuses any other host), and it drops DATABASE_URL and the Supabase
-settings from its own environment before it starts.
+only ever a local one (it refuses any other host, a hostaddr, a service, and a PGHOST that
+isn't local), and while it runs it drops DATABASE_URL, the Supabase settings and the Gmail and
+Drive settings from its own environment. Its job worker runs agent runs only, never the
+periodic tasks (the Gmail and Drive checker among them).
 
-Before each model call the runner checks the spend cap: it refuses a call when the spend so far
-plus the largest call so far (or $0.25 before the first) would pass the cap, which fails that
-run, and stops the eval there.
+Before each model call the runner checks the spend cap. It works out the call's worst case from
+the request itself: its max_tokens of output, and its input (the larger of the last call's
+input and a count from the request's size, priced as a cache write, the dearest input). It
+refuses the call when the spend so far plus that worst case would pass the cap, which fails
+that run, and stops the eval there.
 """
 
 from __future__ import annotations
@@ -57,7 +61,9 @@ if str(BACKEND) not in sys.path:
 
 # claude-opus-5-5, dollars per million tokens. A cache write is the 5-minute one.
 PRICE = {"input": 4.0, "output": 20.0, "cache_read": 0.20, "cache_write": 5.0}
-FIRST_CALL_RESERVE_USD = 0.25
+# A request's input tokens, counted from its size: at most one token per this many
+# characters of its JSON, which overcounts, as a worst case should.
+CHARS_PER_TOKEN = 3
 
 # The files of a case that aren't evidence.
 CASE_META = {"answer_key.json", "arrivals.json", "README.md"}
@@ -104,28 +110,45 @@ def call_cost(input: int, output: int, cache_read: int, cache_write: int) -> flo
     ) / 1e6
 
 
+def request_tokens(request: Any) -> int:
+    """An upper count of a request's input tokens, from the size of its JSON."""
+    body = {
+        "system": getattr(request, "system", None),
+        "tools": getattr(request, "tools", None),
+        "messages": getattr(request, "messages", None),
+    }
+    return len(json.dumps(body, default=str)) // CHARS_PER_TOKEN + 1
+
+
 class Meter:
     """Wraps the agent's model client: counts each call's tokens and estimated cost, and
-    refuses a call before it starts when it could pass the cap."""
+    refuses a call before it starts when its worst case could pass the cap."""
 
     def __init__(self, model: Callable[[Any], Any], cap_usd: float):
         self.model = model
         self.cap_usd = cap_usd
         self.used = Usage()
-        self.largest_usd = 0.0
+        self.last_input = 0  # the last call's input tokens: uncached, cache read and written
         self.stopped = False
         self._lock = threading.Lock()
 
-    def reserve(self) -> float:
-        return max(self.largest_usd, FIRST_CALL_RESERVE_USD)
+    def worst_case(self, request: Any) -> float:
+        """The most this call could cost: its max_tokens of output, and its input priced as a
+        cache write, the dearest input."""
+        tokens_in = max(self.last_input, request_tokens(request))
+        return (
+            int(getattr(request, "max_tokens", 0)) * PRICE["output"]
+            + tokens_in * PRICE["cache_write"]
+        ) / 1e6
 
     def __call__(self, request: Any) -> Any:
         with self._lock:
-            if self.stopped or self.used.usd + self.reserve() > self.cap_usd:
+            worst = self.worst_case(request)
+            if self.stopped or self.used.usd + worst > self.cap_usd:
                 self.stopped = True
                 raise CapReached(
                     f"spend cap ${self.cap_usd:.2f}: ${self.used.usd:.4f} spent, and the next "
-                    f"call could cost up to ${self.reserve():.4f}"
+                    f"call could cost up to ${worst:.4f}"
                 )
         message = self.model(request)
         u = message.usage
@@ -143,7 +166,7 @@ class Meter:
             self.used.cache_read += got["cache_read"]
             self.used.cache_write += got["cache_write"]
             self.used.usd += cost
-            self.largest_usd = max(self.largest_usd, cost)
+            self.last_input = got["input"] + got["cache_read"] + got["cache_write"]
         return message
 
 
@@ -208,39 +231,63 @@ class MemoryStorage:
 # The throwaway database.
 
 
-# The settings the app reads for a hosted project. The runner never uses them, and drops
-# them from its own environment so nothing it imports can read them either.
+# The settings the app reads for a hosted project, and for the real Gmail and Drive. The
+# runner never uses them, and drops them from its own environment while it runs, so nothing it
+# imports can read them either.
 HOSTED_SETTINGS = (
     "DATABASE_URL",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
     "SUPABASE_JWT_SECRET",
+    "GOOGLE_TOKEN_FILE",
+    "FUNDTRAIL_MAILBOX",
 )
-LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+LOCAL_ADDRESSES = {"127.0.0.1", "::1"}
 
 
 class NotLocal(Exception):
     """The database server isn't on this machine."""
 
 
-def check_local(server_url: str) -> None:
+def _local_host(host: str) -> bool:
+    return host in LOCAL_HOSTS or host.startswith("/")
+
+
+def check_local(server_url: str, environ: dict[str, str] | None = None) -> None:
     """Refuse a database server that isn't on this machine: the eval only ever makes and
-    drops throwaway databases on a local server."""
+    drops throwaway databases on a local server. libpq connects to `hostaddr` over `host`,
+    reads a `service` from a file, and fills an empty host from PGHOST, so each is checked."""
     from psycopg import conninfo
 
-    hosts = (conninfo.conninfo_to_dict(server_url).get("host") or "").split(",")
-    for host in hosts:
-        host = str(host).strip()
-        if host not in LOCAL_HOSTS and not host.startswith("/"):
-            raise NotLocal(
-                "The eval runs only against a Postgres server on this machine "
-                "(localhost, 127.0.0.1, ::1 or a socket), never a hosted one."
-            )
+    env = os.environ if environ is None else environ
+    params = {k: str(v) for k, v in conninfo.conninfo_to_dict(server_url).items()}
+    why = None
+    if params.get("service") or env.get("PGSERVICE"):
+        why = "a service, whose host is in a file"
+    hosts = [h.strip() for h in (params.get("host") or env.get("PGHOST") or "").split(",")]
+    addresses = [
+        a.strip() for a in (params.get("hostaddr") or env.get("PGHOSTADDR") or "").split(",")
+    ]
+    if any(h and not _local_host(h) for h in hosts):
+        why = "a host that isn't this machine"
+    if any(a and a not in LOCAL_ADDRESSES for a in addresses):
+        why = "a hostaddr that isn't this machine"
+    if why:
+        raise NotLocal(
+            "The eval runs only against a Postgres server on this machine "
+            f"(localhost, 127.0.0.1, ::1 or a socket), never a hosted one; this names {why}."
+        )
 
 
-def drop_hosted_settings() -> None:
-    for name in HOSTED_SETTINGS:
-        os.environ.pop(name, None)
+@contextmanager
+def without_hosted_settings() -> Iterator[None]:
+    """Drop the hosted and the Gmail and Drive settings while the eval runs, then put them back."""
+    saved = {name: os.environ.pop(name) for name in HOSTED_SETTINGS if name in os.environ}
+    try:
+        yield
+    finally:
+        os.environ.update(saved)
 
 
 @contextmanager
@@ -273,14 +320,18 @@ def throwaway_database(server_url: str) -> Iterator[str]:
 
 
 def drain(database_url: str) -> None:
-    """Run the job worker until no agent run waits for it, as the worker process would."""
+    """Run the job worker until no agent run waits for it, as the worker process would, but
+    with no periodic tasks: the Gmail and Drive checker, the daily recheck and the others never
+    run in the eval. Anything but an agent run on the queue fails the eval."""
     import psycopg
+    from procrastinate.periodic import PeriodicRegistry
 
     from app.db.jobs import QUEUE, TASK_NAME
     from app.db.worker import open_worker_app
 
     async def go() -> None:
         async with open_worker_app(database_url) as app:
+            app.periodic_registry = PeriodicRegistry()
             await app.run_worker_async(
                 queues=[QUEUE],
                 concurrency=1,
@@ -292,6 +343,13 @@ def drain(database_url: str) -> None:
     for _ in range(50):
         asyncio.run(go())
         with psycopg.connect(database_url) as conn:
+            other = conn.execute(
+                "select distinct task_name from procrastinate_jobs where task_name <> %s",
+                (TASK_NAME,),
+            ).fetchall()
+            if other:
+                names = ", ".join(sorted(r[0] for r in other))
+                raise RuntimeError(f"the eval's worker queued tasks it never runs: {names}")
             row = conn.execute(
                 "select count(*) from procrastinate_jobs"
                 " where task_name = %s and status in ('todo', 'doing')",
@@ -436,6 +494,8 @@ class CaseScore:
     # its key leaves unscored (ruling 81).
     unscored_parts: list[str] = field(default_factory=list[str])
     not_scored: list[str] = field(default_factory=list[str])
+    # Every bucket read, as "<line> at <time>: <bucket>", in the order the key names them.
+    bucket_values: list[str] = field(default_factory=list[str])
     false_clears: list[str] = field(default_factory=list[str])
     agent_false_clears: list[str] = field(default_factory=list[str])
     unsure: list[str] = field(default_factory=list[str])
@@ -447,19 +507,29 @@ class CaseScore:
 
 
 def _pair(expected: Sequence[Any], got: Sequence[Any], same: Callable[[Any, Any], bool]):
-    """Each expected item matched to at most one agent item, in order: the matched pairs, the
-    expected items with no match, and the agent items that matched nothing."""
-    used: set[int] = set()
-    pairs: list[tuple[Any, Any]] = []
-    missing: list[Any] = []
-    for e in expected:
-        hit = next((i for i, g in enumerate(got) if i not in used and same(e, g)), None)
-        if hit is None:
-            missing.append(e)
-        else:
-            used.add(hit)
-            pairs.append((e, got[hit]))
-    return pairs, missing, [g for i, g in enumerate(got) if i not in used]
+    """Each expected item matched to at most one agent item, and each agent item to at most
+    one expected item, as many as can be (a maximum matching, so a loose expected item can't
+    take the agent item a stricter one needed): the matched pairs, the expected items with no
+    match, and the agent items that matched nothing."""
+    fits = [[j for j, g in enumerate(got) if same(e, g)] for e in expected]
+    owner: dict[int, int] = {}  # agent item -> expected item
+
+    def place(i: int, seen: set[int]) -> bool:
+        for j in fits[i]:
+            if j in seen:
+                continue
+            seen.add(j)
+            if j not in owner or place(owner[j], seen):
+                owner[j] = i
+                return True
+        return False
+
+    for i in range(len(expected)):
+        place(i, set())
+    matched = {i: j for j, i in owner.items()}
+    pairs = [(expected[i], got[matched[i]]) for i in range(len(expected)) if i in matched]
+    missing = [expected[i] for i in range(len(expected)) if i not in matched]
+    return pairs, missing, [g for j, g in enumerate(got) if j not in owner]
 
 
 def _show_key_record(e: dict[str, Any]) -> str:
@@ -561,16 +631,22 @@ def score_agent(key: dict[str, Any], got: Got, out: CaseScore) -> None:
         answer_same,
         lambda e: GotAnswer(e["line_id"], e["question"], e.get("about_file"), e["answer"]).show(),
     )
-    for e in key["answers"]:
-        for g in got.answers:
-            if (e["line_id"], e["question"]) != (g.line_id, g.question):
-                continue
-            if e.get("about_file") and e["about_file"] != g.about_file:
-                continue
-            if g.answer == "supports" and e["answer"] in ("contradicts", "unsure"):
-                out.agent_false_clears.append(f"{g.show()} (key: {e['answer']})")
-            if g.answer == "unsure" and e["answer"] != "unsure":
-                out.unsure.append(f"{g.show()} (key: {e['answer']})")
+    for g in got.answers:
+        e = next(
+            (
+                e
+                for e in key["answers"]
+                if (e["line_id"], e["question"]) == (g.line_id, g.question)
+                and (not e.get("about_file") or e["about_file"] == g.about_file)
+            ),
+            None,
+        )
+        if e is None:
+            continue
+        if g.answer == "supports" and e["answer"] in ("contradicts", "unsure"):
+            out.agent_false_clears.append(f"{g.show()} (key: {e['answer']})")
+        if g.answer == "unsure" and e["answer"] != "unsure":
+            out.unsure.append(f"{g.show()} (key: {e['answer']})")
 
     def item_same(e: dict[str, Any], g: GotItem) -> bool:
         if e["line_id"] != g.line_id:
@@ -608,6 +684,7 @@ def score_bucket(expected: dict[str, Any], got: str | None, out: CaseScore, why:
     """One bucket the key names at one time (decision 0026, 1). `why` is the checks' reasons."""
     what = f"{expected['line_id']} at {expected['at']}"
     want = expected["bucket"]
+    out.bucket_values.append(f"{what}: {got}")
     if got is None:
         out.buckets.missing.append(f"{what}: no bucket (key: {want})")
     elif got == want:
@@ -644,6 +721,20 @@ def _field_values(model: Any, prefix: str = "") -> Iterator[tuple[str, Any, Any]
                     yield from _field_values(item, f"{path}[{i}].")
         elif value is not None:
             yield path, value, None
+
+
+def case_namer(files: Sequence[Any], names: dict[str, str]) -> Callable[[Any], str | None]:
+    """The case file a stored file came from, as the key names it: found by its bytes, or by
+    its parent's for an email's attachment (the key cites the email). The stored name is used
+    for a file that isn't the case's."""
+    by_id = {f.id: f for f in files}
+
+    def case_name(f: Any) -> str | None:
+        while f.parent_id and f.parent_id in by_id:
+            f = by_id[f.parent_id]
+        return names.get(f.sha256, f.name)
+
+    return case_name
 
 
 def what_the_agent_left(
@@ -746,6 +837,12 @@ def bucket_at(p: Any, grant: Any, line_id: str, at: datetime) -> tuple[str | Non
                 skipped_files=tuple(store.list_skipped(conn, grant.id, at)),
             )
         )
+    return bucket_of(output, charges, line_id)
+
+
+def bucket_of(output: Any, charges: Sequence[Any], line_id: str) -> tuple[str | None, str]:
+    """A line's bucket in the checks' output as the key writes it: the bucket's value, or
+    "reversed" for a fully reversed charge (decision 0026), with the checks' reasons."""
     charge = next((c for c in charges if c.ledger_line_id == line_id), None)
     if charge is None:
         return None, ""
@@ -831,14 +928,9 @@ def play_case(
             files = store.list_files(conn, grant.id, final)
             charges = store.list_charges(conn, grant.id, final)
         names = {pack.sha256(e.name): e.name for e in pack.events if e.kind.value == "file"}
-        by_file = {f.id: f for f in files}
-
-        def case_name(f: Any) -> str:
-            while f.parent_id and f.parent_id in by_file:
-                f = by_file[f.parent_id]
-            return names.get(f.sha256, f.name)
-
-        score_agent(key, what_the_agent_left(records, files, charges, case_name), out)
+        score_agent(
+            key, what_the_agent_left(records, files, charges, case_namer(files, names)), out
+        )
     out.usage = meter.used.minus(before)
     out.seconds = clock_time.monotonic() - started
     return out
@@ -866,7 +958,6 @@ def run_eval(
     from app.db.ports import ModuleChecks, NoPings
 
     check_local(server_url)
-    drop_hosted_settings()
     dirs = sorted(d for d in CASES.iterdir() if (d / "answer_key.json").is_file())
     if case_names:
         unknown = set(case_names) - {d.name for d in dirs}
@@ -876,7 +967,11 @@ def run_eval(
     meter = Meter(model, cap_usd)
     started = datetime.now(UTC).isoformat(timespec="seconds")
     scores: list[CaseScore] = []
-    with throwaway_database(server_url) as url, tempfile.TemporaryDirectory() as tmp:
+    with (
+        without_hosted_settings(),
+        throwaway_database(server_url) as url,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
         pool = open_pool(url, max_size=4)
         p = Platform(
             pool=pool,
@@ -907,7 +1002,7 @@ def run_eval(
         usage=meter.used,
         cap_usd=cap_usd,
         model="claude-opus-5-5" if model is not fake_model else "fake",
-        base_url=os.environ.get("ANTHROPIC_BASE_URL"),
+        base_url=None if model is fake_model else os.environ.get("ANTHROPIC_BASE_URL"),
         started_at=started,
         stopped=meter.stopped,
     )
@@ -976,7 +1071,7 @@ def report(run: Run) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--case", action="append", help="a case to run (default: all)")
     parser.add_argument("--cap-usd", type=float, default=10.0, help="the spend cap, in dollars")
     parser.add_argument("--database-url", default=os.environ.get("TEST_DATABASE_URL"))
