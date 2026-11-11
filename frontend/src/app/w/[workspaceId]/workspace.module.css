@@ -21,19 +21,21 @@
   text-wrap: balance;
 }
 
-/* A page title with one quiet line under it (held mail). */
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding-top: var(--space-1);
+/* Before the workspace has loaded, or when it can't be shown: the title's place
+   holds Loadable's own words, smaller and quiet, or in the error color. */
+.title.titleWaiting,
+.title.titleProblem {
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
-.lede {
-  max-width: var(--measure);
+.title.titleWaiting {
   color: var(--ink-muted);
-  font-size: 13px;
-  line-height: 18px;
-  text-wrap: pretty;
+}
+.title.titleProblem {
+  color: var(--conflict);
 }
 
 /* No grants yet: the trail small, the sentence, one plain line, the action. */
@@ -48,8 +50,9 @@
 .emptyMark {
   margin-bottom: var(--space-2);
 }
+/* The one yellow here is the brand's "now" mark (--now), never the highlighter. */
 .startNow {
-  fill: var(--hl);
+  fill: var(--now, var(--hl));
 }
 .startNowRing {
   stroke: var(--ink);
