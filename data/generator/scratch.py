@@ -17,7 +17,7 @@ date. Content is a placeholder until the samples' content is decided.
 from __future__ import annotations
 
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from model import Grant, Ordinary, at
 from ordinary import GRANTS_INBOX, Person, Trip, award_letter, trip
@@ -90,6 +90,7 @@ def build() -> Grant:
         shipping: int,
         as_email: bool,
         for_user: bool = False,
+        by_gmail_at: datetime | None = None,
     ):
         text, total = invoice(
             vendor=ELECTRONICS[0] if number.startswith("EES") else "Example Scientific Supply",
@@ -109,11 +110,11 @@ def build() -> Grant:
             po=f"PO-{dated:%y}-{rng.randint(1000, 9999)}",
         )
         vendor = ELECTRONICS[0] if number.startswith("EES") else "Example Scientific Supply"
-        arrives = FOR_USER_AT if for_user else next(file_times)
+        arrives = FOR_USER_AT if for_user else by_gmail_at or next(file_times)
         deliver = "user" if for_user else None
         if as_email:
             name = f"email_invoice_{number}.eml"
-            sent = at(dated, 22, 10)
+            sent = by_gmail_at or at(dated, 22, 10)
             body = f"Invoice {number} for {g.award_number}.\n\nEmery\n\n" + forwarded(
                 sender=(
                     f"{vendor} Billing",
@@ -137,8 +138,11 @@ def build() -> Grant:
                     body=body,
                 ),
                 arrives,
-                "upload",
-                note=f"Invoice {number}, an email saved as a file.",
+                "gmail" if by_gmail_at else "upload",
+                sender=EMERY.email if by_gmail_at else None,
+                note=f"Invoice {number}, forwarded by email before its ledger line posts."
+                if by_gmail_at
+                else f"Invoice {number}, an email saved as a file.",
                 deliver=deliver,
             )
         else:
@@ -293,7 +297,6 @@ def build() -> Grant:
             [("Sensor circuit board, assembled", 10, 18500)],
             2400,
             False,
-            for_user=True,
         )
     )
     lines.append(
@@ -304,9 +307,12 @@ def build() -> Grant:
             [("Nitrate standard solution, 1000 ppm", 4, 8950)],
             1250,
             True,
-            for_user=True,
+            by_gmail_at=at(date(2026, 11, 19), 17, 20),
         )
     )
+    g.highlights["award_letter.pdf"] = "Terms tied to their passages"
+    g.highlights["email_invoice_ESS-32410.eml"] = "Invoice before its line"
+    g.highlights[photo_name] = "Receipt photo you deliver"
 
     for name in sorted(for_the_user):
         g.deliver_file(

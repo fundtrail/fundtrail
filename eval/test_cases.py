@@ -64,7 +64,8 @@ ODC_SUBLINE_CATEGORIES = {
 QUESTIONS = {"allowable", "covers", "unusual_term", "flag"}
 QUESTIONS_WITH_FILE = {"covers", "unusual_term"}
 ANSWERS = {"supports", "contradicts", "unsure"}
-BUCKETS = {"evidence_complete", "possible_conflict", "missing_evidence", "needs_human"}
+# Decision 0026: a fully reversed charge is expected as "reversed".
+BUCKETS = {"evidence_complete", "possible_conflict", "missing_evidence", "needs_human", "reversed"}
 
 # Section 13: ledger file columns.
 LEDGER_REQUIRED = {"line_id", "transaction_date", "posting_date", "amount", "description", "account"}

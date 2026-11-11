@@ -19,6 +19,7 @@ opened from (`grants.sample`) and its pack's timeline. Nothing else about it is 
 from __future__ import annotations
 
 import mimetypes
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, time
@@ -37,7 +38,9 @@ from app.contracts.api import GrantSummary, SampleOption
 from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput
 from app.contracts.evidence import EvidenceFile
+from app.contracts.mail import HeldFile, HoldReason
 from app.contracts.records import Author, Record
+from app.contracts.rules import RecordState
 from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.timeline import (
     PlayedEvent,
@@ -50,15 +53,16 @@ from app.contracts.timeline import (
 from app.contracts.workspaces import Grant, GrantSample, SampleChoice
 from app.db import clock, sample_store, store
 from app.db.actions import Upload, arrive_upload
+from app.db.held_mail import known_senders
 from app.db.jobs import grant_catching_up
-from app.db.mail_sink import arrive_files
+from app.db.mail_sink import arrive_files, held_storage_path
 from app.db.pings import ping_changed, ping_run
 from app.db.platform import Platform
 from app.db.pool import transaction
 from app.db.recheck import recheck_grant
 from app.db.store import Conn
-from app.ingest.email_files import email_parts
-from app.ingest.incoming import IncomingFile
+from app.ingest.email_files import email_parts, parse_headers
+from app.ingest.incoming import IncomingFile, PendingHold, to_held_mail
 from app.ingest.ledger import read_ledger_file
 
 from . import prerun, skipping
@@ -198,6 +202,65 @@ def _incoming(grant: Grant, pack: SamplePack, event_id: str) -> list[IncomingFil
     return [replace(f, arrived_at=e.at) for f in files]
 
 
+def _hold_reason(
+    conn: Conn, grant: Grant, pack: SamplePack, name: str, at: datetime
+) -> HoldReason | None:
+    """Ruling 58: a scheduled email goes through the known-sender hold as live mail does.
+    It's held when its From line isn't exactly one address, or the address isn't one of
+    the grant's known senders at its time. A scheduled email has no authentication
+    results to verify, so that part of the live check doesn't apply."""
+    sender = parse_headers(pack.file_bytes(name)).sender
+    if sender is None:
+        return HoldReason.UNVERIFIED_SENDER
+    state = RecordState(
+        store.list_records(conn, grant.id, at), store.list_files(conn, grant.id, at)
+    )
+    return None if sender in known_senders(conn, grant, state) else HoldReason.UNKNOWN_SENDER
+
+
+def _hold(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    pack: SamplePack,
+    event_id: str,
+    files: Sequence[IncomingFile],
+) -> None:
+    """Hold a scheduled email as the mail sink holds live mail: its files stored apart, and
+    a held message the accountant lets in or dismisses. Its dates stay as written."""
+    e = pack.event(event_id)
+    assert e is not None
+    parsed = parse_headers(pack.file_bytes(e.name))
+    reason = _hold_reason(conn, grant, pack, e.name, e.at)
+    assert reason is not None
+    pending = PendingHold(
+        workspace_id=grant.workspace_id,
+        grant_id=grant.id,
+        sender=parsed.sender,
+        from_header=parsed.from_header,
+        gmail_message_id=f"sample-{e.id}",
+        subject=parsed.subject or None,
+        files=tuple(files),
+        held_at=e.at,
+        reason=reason,
+    )
+    held_id = str(uuid.uuid4())
+    stored: list[HeldFile] = []
+    for index, f in enumerate(files):
+        path = held_storage_path(pending, held_id, index, f.name)
+        p.storage.put(path, f.data, f.media_type)
+        stored.append(
+            HeldFile(
+                name=f.name,
+                media_type=f.media_type,
+                storage_path=path,
+                sha256=f.sha256,
+                document_date=f.document_date,
+            )
+        )
+    store.insert_held_mail(conn, to_held_mail(pending, held_id=held_id, files=tuple(stored)))
+
+
 def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime) -> None:
     """Read the ledger as an upload reads it, at the event's time: a line already on file,
     such as one the user uploaded early, is skipped (decision 0027: nothing is blocked)."""
@@ -214,13 +277,17 @@ def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime)
     store.insert_charges(conn, read.charges)
 
 
-def _store_events(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, played: Sequence[str]):
+def store_events(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, played: Sequence[str]):
     """Store each played event at its own time, in order, as its channel would."""
     for event_id in played:
         e = pack.event(event_id)
         assert e is not None
         if e.kind is EventKind.FILE:
-            arrive_files(p, conn, grant, _incoming(grant, pack, e.id))
+            files = _incoming(grant, pack, e.id)
+            if e.source.value == "gmail" and _hold_reason(conn, grant, pack, e.name, e.at):
+                _hold(p, conn, grant, pack, e.id, files)
+            else:
+                arrive_files(p, conn, grant, files)
         elif e.kind is EventKind.LEDGER:
             _ledger(p, conn, grant, pack.ledger_bytes(), e.at)
         else:
@@ -247,7 +314,7 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
         prerun.start_run_through(conn, grant.id, saved.id)
         _load(p, conn, grant, saved, None, start.until)
         return []
-    _store_events(p, conn, grant, pack, [e.id for e in start.play])
+    store_events(p, conn, grant, pack, [e.id for e in start.play])
     runs = clock.set_and_replay(p, conn, grant, None, start.until)
     sample_store.insert_move(conn, grant.id, None, start.until)
     return runs
@@ -413,21 +480,29 @@ def move(
         locked = _lock_grant(conn, grant.id)
         check_read_live_limit(conn, user_id, locked)
         now = clock.grant_now(conn, grant.id)
+        # A skipping move's walk may still be under way: the move goes on from its end.
+        walking = sample_store.walk_target(conn, grant.id)
+        start = max(now, walking) if walking is not None else now
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
-        plan = plan_move(items, now, to)
+        plan = plan_move(items, start, to)
         saved = prerun.run_through(conn, locked)
-        if saved is not None and not skip and any(now < a.at <= plan.until for a in pack.actions):
+        if saved is not None and not skip and any(start < a.at <= plan.until for a in pack.actions):
             # A scripted step passed without skipping is missed: off the run-through.
             prerun.take_off(conn, grant.id)
             saved = None
         runs: list[AgentRun] = []
         if saved is not None:
-            _load(p, conn, locked, saved, now, plan.until)
-        else:
-            move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
-            _store_events(p, conn, locked, pack, [e.id for e in plan.play])
+            # On the run-through: the saved result, loaded at once. Nothing runs.
+            _load(p, conn, locked, saved, start, plan.until)
+        elif skip or walking is not None:
+            move_id = sample_store.insert_move(conn, grant.id, start, plan.until)
             if skip:
-                skipping.deliver_and_queue(p, conn, locked, pack, move_id, now, plan.until)
+                skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
+            sample_store.start_walk(conn, grant.id, plan.until)
+            skipping.advance(p, conn, locked)
+        else:
+            sample_store.insert_move(conn, grant.id, start, plan.until)
+            store_events(p, conn, locked, pack, [e.id for e in plan.play])
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
 

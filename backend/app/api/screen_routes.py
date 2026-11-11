@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -198,7 +199,14 @@ def get_signed_report(record_id: str, user: UserDep, platform: PlatformDep) -> R
         grant = store.get_grant(conn, record.grant_id) if record else None
     if record is None or grant is None or not isinstance(record.data, SignOff):
         raise _not_found()
-    return _pdf(platform.storage.get(record.data.report_path), grant, f"-signed-{record.id[:8]}")
+    pdf = platform.storage.get(record.data.report_path)
+    # The signed file, and only that: it's checked against the checksum the sign-off holds.
+    if hashlib.sha256(pdf).hexdigest() != record.data.report_sha256:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            ["The stored report doesn't match the checksum on its sign-off, so it isn't served."],
+        )
+    return _pdf(pdf, grant, f"-signed-{record.id[:8]}")
 
 
 def _slug(grant: Grant) -> str:

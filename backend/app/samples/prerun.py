@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -53,9 +54,15 @@ from .pack import DATA_DIR, LARGER_SAMPLE
 
 AGENT_DIR = Path(__file__).resolve().parents[1] / "agent"
 
-# claude-opus-5-5's first-party list prices, dollars per million tokens: input $4, output
-# $20, cache reads $0.20; cache writes taken at 1.25 times input (five-minute writes).
-# The command takes others with --prices.
+# Dollars per million tokens for claude-opus-5-5, for an estimate only. Input $4, output $20
+# and cache reads $0.20 are the first-party list prices in Anthropic's model table (as of
+# 2026-11-03); cache writes aren't in that table and are taken at 1.25 times input (the
+# five-minute write rate). Check the published pricing page before quoting the figure;
+# the command takes other prices with --prices.
+PRICES_SOURCE = (
+    "estimate at claude-opus-5-5 list prices per million tokens (Anthropic's model table, "
+    "2026-11-03): input $4, output $20, cache reads $0.20; cache writes assumed 1.25x input"
+)
 PRICES = {
     "input_tokens": 4.00,
     "output_tokens": 20.00,
@@ -180,6 +187,8 @@ def release(p: Platform, prerun_id: str) -> Prerun:
             raise NotReleasable(f"There's no prerun {prerun_id}.")
         if found.version != version(found.sample):
             raise NotReleasable("It was made at another version: make it again.")
+        if found.usage.get("stopped_at_cap"):
+            raise NotReleasable("It stopped at the spend cap before the sample's end.")
         if found.wrong or not found.checked:
             raise NotReleasable(f"It doesn't match the expected results: {found.wrong}")
         conn.execute("update public.sample_preruns set released = true where id = %s", (found.id,))
@@ -187,6 +196,56 @@ def release(p: Platform, prerun_id: str) -> Prerun:
 
 
 # Making one.
+
+
+class SpendCapReached(Exception):
+    """The prerun's spend cap: no further run may start. Not worth retrying."""
+
+    retryable = False
+    log = None
+
+
+class CappedAgent:
+    """The agent with a spend cap (`cap`, dollars): it adds up what each run spent, from the
+    usage in the run's debug log, and starts no run once what's spent plus `reserve` (what
+    one more run might cost) would pass the cap. Each refused run fails at once, with no
+    model call, so the walk still reaches its end and nothing is left half done."""
+
+    def __init__(
+        self, inner: Any, cap: float, reserve: float, prices: dict[str, float] | None = None
+    ) -> None:
+        self.inner = inner
+        self.cap = cap
+        self.reserve = reserve
+        self.prices = prices or PRICES
+        self.spent = 0.0
+        self.stopped = False
+
+    def _add(self, log: Any) -> None:
+        if not isinstance(log, bytes):
+            return
+        try:
+            usage = json.loads(log).get("usage", {})
+        except ValueError:
+            return
+        self.spent += sum(
+            int(usage.get(name, 0) or 0) * price / 1_000_000 for name, price in self.prices.items()
+        )
+
+    def run(self, agent_input: Any) -> Any:
+        if self.spent + self.reserve > self.cap:
+            self.stopped = True
+            raise SpendCapReached(
+                f"the prerun's spend cap: ${self.spent:.2f} spent, "
+                f"and another run could pass ${self.cap:.2f}"
+            )
+        try:
+            result = self.inner.run(agent_input)
+        except Exception as error:
+            self._add(getattr(error, "log", None))  # a failed try's calls count too
+            raise
+        self._add(result.log)
+        return result
 
 
 def usage_of(p: Platform, grant_id: str, prices: dict[str, float] | None = None) -> dict[str, Any]:
@@ -219,6 +278,7 @@ def make(
     *,
     drain: Callable[[], None],
     prices: dict[str, float] | None = None,
+    capped: CappedAgent | None = None,
 ) -> Prerun:
     """Play the sample's whole timeline in a new seeding workspace, the sample accountant
     making every scripted step, the agent's runs drained by `drain`; then check it against
@@ -233,8 +293,14 @@ def make(
     end = max(i.at for i in items_for(sample)) + timedelta(days=1)
     move(p, owner_id, grant, end, skip=True)
     drain()
+    with transaction(p.pool) as conn:
+        walking = sample_store.walk_target(conn, grant.id) is not None
     checked, wrong = key_check(p, grant.id, sample)
     usage = usage_of(p, grant.id, prices)
+    if capped is not None and capped.stopped:
+        usage["stopped_at_cap"] = True
+    if walking:
+        wrong = [*wrong, "the walk didn't reach the sample's end: a step is still waiting"]
     with transaction(p.pool) as conn:
         row = conn.execute(
             f"""insert into public.sample_preruns
@@ -515,10 +581,11 @@ def _report(prerun: Prerun) -> str:
     lines = [
         f"prerun {prerun.id} of {prerun.sample} at version {prerun.version[:12]}",
         f"expected buckets: {prerun.checked} checked, {len(prerun.wrong)} not matched",
+        *(["stopped at the spend cap: nothing after it ran"] if u.get("stopped_at_cap") else []),
         *(f"  {w}" for w in prerun.wrong),
         f"agent runs: {u.get('runs', 0)}, model calls: {u.get('calls', 0)}",
         "tokens: " + ", ".join(f"{k} {u.get(k, 0)}" for k in PRICES),
-        f"cost: ${u.get('cost_dollars', 0):.2f}",
+        f"cost: ${u.get('cost_dollars', 0):.2f} ({PRICES_SOURCE})",
         "released" if prerun.released else "not released",
     ]
     return "\n".join(lines)
@@ -536,6 +603,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--owner", required=True, help="the user ID that owns the seeding workspace"
     )
     make_cmd.add_argument("--release", action="store_true", help="release it if it matches")
+    make_cmd.add_argument(
+        "--cap", type=float, required=True, help="the spend cap, in dollars (estimated)"
+    )
+    make_cmd.add_argument(
+        "--reserve",
+        type=float,
+        default=1.50,
+        help="dollars kept back for the next run: none starts once spent + reserve > cap",
+    )
     make_cmd.add_argument("--prices", help="JSON of dollars per million tokens, by usage field")
     release_cmd = sub.add_parser("release", help="release a prerun that matches")
     release_cmd.add_argument("prerun_id")
@@ -554,8 +630,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(_report(release(p, args.prerun_id)))
         return 0
     prices = {**PRICES, **json.loads(args.prices)} if args.prices else PRICES
+    # The agent's model calls go to ANTHROPIC_BASE_URL when it's set (the SDK reads it).
+    print(f"model calls go to {os.environ.get('ANTHROPIC_BASE_URL') or 'api.anthropic.com'}")
+    capped = CappedAgent(p.agent, args.cap, args.reserve, prices)
+    p.agent = capped
     made = make(
-        p, args.sample, args.owner, drain=lambda: drain_jobs(settings.database_url), prices=prices
+        p,
+        args.sample,
+        args.owner,
+        drain=lambda: drain_jobs(settings.database_url),
+        prices=prices,
+        capped=capped,
     )
     if args.release:
         try:
@@ -563,7 +648,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         except NotReleasable as error:
             print(f"not released: {error}")
     print(_report(made))
-    return 0
+    return 0 if made.released or not args.release else 1
 
 
 if __name__ == "__main__":

@@ -132,7 +132,35 @@ def test_a_prerun_is_made_checked_and_released(setup: Api) -> None:
     with transaction(api.platform.pool) as conn:
         found = prerun.current(conn, SMALL)
     assert found is not None and found.id == made.id
-    assert "cost: $" in prerun._report(released)  # pyright: ignore[reportPrivateUsage]
+    report = prerun._report(released)  # pyright: ignore[reportPrivateUsage]
+    assert "cost: $" in report and "estimate" in report and "model calls" in report
+
+
+def test_the_spend_cap_stops_runs_before_going_over(setup: Api) -> None:
+    """Each faked run spends $0.009 at the list prices; with a $0.03 cap and $0.009 kept
+    back, the third run doesn't start, and the prerun can't be released."""
+    api = setup
+    _reading_agent(api)
+    _logged(api)
+    capped = prerun.CappedAgent(api.platform.agent, cap=0.03, reserve=0.009)
+    api.platform.agent = capped
+    made = prerun.make(
+        api.platform,
+        SMALL,
+        api.user_id,
+        drain=lambda: run_worker_until_idle(str(api.platform.pool.conninfo)),
+        capped=capped,
+    )
+    assert capped.stopped and made.usage["stopped_at_cap"] is True
+    assert made.usage["cost_dollars"] <= 0.03
+    assert capped.spent <= 0.03
+    with transaction(api.platform.pool) as conn:
+        runs = store.list_runs(conn, made.grant_id)
+    assert any("spend cap" in (r.error or "") for r in runs)
+    with pytest.raises(prerun.NotReleasable, match="spend cap"):
+        prerun.release(api.platform, made.id)
+    report = prerun._report(made)  # pyright: ignore[reportPrivateUsage]
+    assert "stopped at the spend cap" in report and "not released" in report
 
 
 def test_a_prerun_that_doesnt_match_isnt_released(setup: Api) -> None:

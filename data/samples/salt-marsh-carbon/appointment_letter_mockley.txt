@@ -2,7 +2,7 @@ UNIVERSITY OF EXAMPLE
 Department of Earth and Ocean Sciences
 100 Example Hall, Example City, CA 94000
 
-January 8, 2024
+June 9, 2025
 
 Rowan Mockley
 rowan.mockley@university.example
@@ -14,16 +14,16 @@ Dear Rowan,
 I am pleased to confirm your appointment as a Postdoctoral Scholar in the
 Department of Earth and Ocean Sciences, working in the laboratory of Professor Harper Fixture.
 
-Appointment period: February 1, 2024 through December 31, 2026
+Appointment period: July 1, 2025 through December 31, 2025
 Title: Postdoctoral Scholar
-Monthly salary charged to award SYN-2401835: $5,200.00
+Monthly salary charged to award SYN-2401835: $6,500.00
 
 Funding for this appointment:
   Award SYN-2401835, Salt Marsh Carbon Burial at Example Point:
-  100 percent of salary, $5,200.00 per month
+  100 percent of salary, $6,500.00 per month
 
-Your work on award SYN-2401835 is the analysis of salt marsh sediment
-cores for carbon burial rates.
+Your work on award SYN-2401835 is the carbon analysis of the marsh cores
+collected under this award.
 
 Effort on sponsored awards is certified twice a year, for January to June
 and for July to December.
@@ -34,4 +34,4 @@ Harper Fixture
 Professor and Principal Investigator
 harper.fixture@university.example
 
-Accepted: Rowan Mockley, January 12, 2024
+Accepted: Rowan Mockley, June 12, 2025
