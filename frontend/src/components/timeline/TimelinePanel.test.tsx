@@ -73,8 +73,32 @@ describe("TimelinePanel", () => {
     expect(input.min).toBe("2023-01-13");
     fireEvent.change(input, { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
-    await waitFor(() => expect(within(part("Just happened")).getByText("L-1001")).toBeInTheDocument());
+    await waitFor(() => expect(within(part("Just happened")).getByText("L-1001", { selector: ".ft-tl__name" })).toBeInTheDocument());
     expect(within(part("Just happened")).getByRole("link", { name: "Open the charge from L-1001" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
+  });
+});
+
+describe("a played charge's link (issue 275)", () => {
+  async function playL1001(client: ApiClient) {
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    await client.moveTimeline(SAMPLE_GRANT_ID, { to: "2025-11-15T00:00:00Z" });
+  }
+
+  it("reads the charge's ledger line ID once the charges are loaded", async () => {
+    const { client, Wrapper } = harness();
+    await playL1001(client);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    const link = await screen.findByRole("link", { name: "Open the charge from L-1001" });
+    await waitFor(() => expect(link).toHaveTextContent("L-1001"));
+    expect(link).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
+  });
+
+  it("reads \"Open the charge\" while the charges aren't loaded", async () => {
+    const { client, Wrapper } = harness();
+    await playL1001(client);
+    vi.spyOn(client, "listCharges").mockReturnValue(new Promise(() => {}));
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    expect(await screen.findByRole("link", { name: "Open the charge from L-1001" })).toHaveTextContent("Open the charge");
   });
 });
 

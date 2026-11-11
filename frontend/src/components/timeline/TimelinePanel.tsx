@@ -12,6 +12,7 @@ import {
   describeError,
   SampleRefusalError,
   useApi,
+  useCharges,
   useRefresh,
   useTimeline,
   type ArrivalSource,
@@ -106,6 +107,8 @@ function ShowAll({ open, count, controls, onToggle }: { open: boolean; count: nu
 }
 
 function JustHappened({ grantId, played, waiting }: { grantId: Id; played: PlayedEvent[]; waiting: Set<Id> }) {
+  // The grant's charges, to name each charge link by its ledger line. The page loads the same list.
+  const charges = useCharges(grantId).data;
   const [open, setOpen] = useState(false);
   const listId = useId();
   // The last few sit on the trail; earlier ones open in place.
@@ -148,7 +151,7 @@ function JustHappened({ grantId, played, waiting }: { grantId: Id; played: Playe
                   href={routes.charge(grantId, chargeId)}
                   aria-label={`Open the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`}
                 >
-                  Open the charge
+                  {charges?.find((r) => r.charge.id === chargeId)?.charge.ledger_line_id ?? "Open the charge"}
                 </Link>
               ))}
             </li>
