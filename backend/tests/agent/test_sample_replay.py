@@ -3,8 +3,8 @@
 The fake model reads each document the way the API would cite it (a paragraph at a time), writes
 its label lines in a message of their own, then the records. Every record passes the write check
 as it's staged and again before it's handed back, and the agent's records come out equal to the
-sample's own. Each citation keeps the paragraph the API cited as its passage, and its highlight is
-the line where the value stands on its own, which is exactly the sample's one-line passage.
+sample's own. The API cites a paragraph; each citation keeps the line where the value stands on
+its own as its passage and highlight, which is exactly the sample's one-line passage.
 """
 
 from datetime import datetime
@@ -190,12 +190,12 @@ def test_sample_grant_replays_through_the_agent():
     for got, want in zip(produced, expected, strict=True):
         assert as_highlighted(got.model_dump(mode="json")) == want.model_dump(mode="json"), got.id
 
-    # The citations keep the API's paragraph: the invoice number's is the invoice's header block.
+    # The citations keep the line that holds the value, not the API's paragraph: the invoice
+    # number's is its own line, not the invoice's header block.
     bill = next(r for r in produced if r.id == "rec-bill-inv-1001")
-    assert any(
-        p.startswith("Example Lab Supply Co.\nINVOICE\nInvoice Number: INV-1001\n")
-        for p in api_passages(bill)
-    )
+    passages = api_passages(bill)
+    assert "Invoice Number: INV-1001" in passages
+    assert not any("\nINVOICE\n" in p for p in passages)
 
     # Every record passes the write check when the whole grant is replayed in order.
     for i, r in enumerate(db):
@@ -212,7 +212,7 @@ def test_sample_grant_replays_through_the_agent():
 
 
 def api_passages(r: Record) -> list[str]:
-    """The passages the agent's citations keep: the paragraphs the fake API cited."""
+    """The passages the agent's citations keep."""
     out: list[str] = []
 
     def walk(node: Any) -> None:
@@ -232,8 +232,8 @@ def api_passages(r: Record) -> list[str]:
 def as_highlighted(node: Any) -> Any:
     """A record's dump with each text citation replaced by its one highlighted line.
 
-    The sample cites each value by the one line that holds it; the agent keeps the API's
-    paragraph and highlights that line. Swapping the highlight in should give the sample.
+    The sample cites each value by the one line that holds it, with no highlight; the agent
+    keeps that line and highlights it. Dropping the highlight should give the sample.
     """
     if isinstance(node, list):
         return [as_highlighted(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
