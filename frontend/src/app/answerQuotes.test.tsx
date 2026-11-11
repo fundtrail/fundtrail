@@ -38,6 +38,8 @@ describe("an answer's quote (#275)", () => {
       const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
       expect(hrefs).toContain("/grants/grant-sample/files/file-invoice-1001?record=rec-allowable-l-1001&value=quotes%5B0%5D");
     });
+    // From a charge, back goes to the problem list, not the grant's overview.
+    expect(screen.getByRole("link", { name: "Back to the problem list" })).toHaveAttribute("href", "/grants/grant-sample/problems");
   });
 
   it("is found by the viewer among the grant's records, since answers aren't on the evidence cards", async () => {

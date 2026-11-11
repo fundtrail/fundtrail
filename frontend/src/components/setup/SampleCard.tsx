@@ -130,7 +130,7 @@ export function SampleCard({
 
       {state.status === "confirming" && option ? (
         <div className="ft-sample-confirm" role="group" aria-label="Confirm the sample">
-          <p>{option.name} is read live by the agent from the start. Start it?</p>
+          <p>The agent reads this sample live from the start. Start it?</p>
           <div className="ft-actions">
             <button type="button" className={`ft-btn${main ? " ft-btn--main" : ""}`} onClick={() => void open(true)}>
               Start it
