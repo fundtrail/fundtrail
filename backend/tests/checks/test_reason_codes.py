@@ -281,3 +281,56 @@ def test_a_reusable_note_on_a_second_flag_reaches_a_later_charges_flag() -> None
     assert same_family("flag", "flag:refund:r16", "flag", "flag:refund")
     assert same_family("flag", "flag:refund", "flag", "flag:refund:r40")
     assert not same_family("flag", "flag:refund", "flag", "flag:late")
+
+
+def test_an_old_acceptance_or_snooze_of_an_answered_flag_still_holds() -> None:
+    """Before issue 307 the accountant's answer to a flag had the code flag:{root} (the
+    answer form sends no rule). It now takes its flag's rule, and a stored flag:{root}
+    still names it."""
+    from datetime import date as d
+
+    g, f1, _ = _two_flags()
+    answer = g.answer(
+        "c1", "contradicts", at(2024, 3, 3), question="flag", author="user", replaces=f1
+    )
+    row = next(
+        r
+        for r in g.status("c1", at(2024, 3, 4)).reasons
+        if r.check == "flag" and r.record_ids[0] == answer
+    )
+    assert row.problem == "flag:refund"
+    g.user(
+        {
+            "kind": "accepted_reason",
+            "charge_id": "c1",
+            "reason": {"check": "flag", "problem": f"flag:{f1}"},
+            "note": "Stored before issue 307.",
+            "rests_on": list(row.record_ids),
+        },
+        at(2024, 3, 5),
+    )
+    after = next(
+        r
+        for r in g.status("c1", at(2024, 3, 6)).reasons
+        if r.check == "flag" and r.record_ids[0] == answer
+    )
+    assert after.accepted_by is not None
+
+    s2, a1, a2 = _two_flags()
+    reply = s2.answer(
+        "c1", "contradicts", at(2024, 3, 3), question="flag", author="user", replaces=a1
+    )
+    s2.user(
+        {
+            "kind": "snooze",
+            "charge_id": "c1",
+            "until": d(2024, 9, 1),
+            "note": "Stored before issue 307.",
+            "reasons": [
+                {"check": "flag", "problem": f"flag:{a1}"},
+                {"check": "flag", "problem": f"flag:refund:{a2}"},
+            ],
+        },
+        at(2024, 3, 4),
+    )
+    assert reply and s2.status("c1", at(2024, 3, 5)).snoozed
