@@ -104,9 +104,10 @@ export function EvidenceChecklist({
         {checklist.map((entry) => {
           const fillers = links.filter((l) => (entry.link_ids ?? []).includes(l.link.id));
           const removal = entry.removal_waiting_id ? waiting.find((w) => w.record.id === entry.removal_waiting_id) : undefined;
+          const partly = partlyFilledText(entry);
           return (
-            <li key={entryKey(entry)} className={styles.item} data-filled={entry.filled}>
-              <span className={`${styles.mark} ${entry.filled ? styles.filled : styles.missing}`} aria-hidden="true" />
+            <li key={entryKey(entry)} className={styles.item} data-filled={entry.filled} data-partly={partly ? true : undefined}>
+              <span className={`${styles.mark} ${entry.filled ? styles.filled : partly ? styles.partly : styles.missing}`} aria-hidden="true" />
               <div className={styles.itemBody}>
                 <p className={styles.itemHead}>
                   <span className={styles.label}>{entry.needed}</span>
@@ -114,8 +115,8 @@ export function EvidenceChecklist({
                     {entry.amount_cents !== null && entry.amount_cents !== undefined && (
                       <span className="ft-num">{money(entry.amount_cents)}</span>
                     )}
-                    <span className={styles.itemState} data-filled={entry.filled}>
-                      {entry.filled ? "Filled" : "Missing"}
+                    <span className={styles.itemState} data-filled={entry.filled} data-partly={partly ? true : undefined}>
+                      {entry.filled ? "Filled" : (partly ?? "Missing")}
                     </span>
                   </span>
                 </p>
@@ -154,22 +155,39 @@ export function EvidenceChecklist({
 
 /**
  * The checklist items still missing, as nodes on the evidence trail: each a
- * dashed ring where the evidence should be, in the checklist's own words.
+ * dashed ring where the evidence should be, in the checklist's own words. An
+ * item the server says is partly filled gets the half-filled ring and the
+ * server's words for it instead; it is still not filled, so the trail stays
+ * dashed from it.
  */
 export function MissingItems({ checklist }: { checklist: ChecklistEntry[] }) {
   const missing = checklist.filter((e) => !e.filled);
   if (missing.length === 0) return null;
   return (
     <TrailGroup label="Missing from the checklist">
-      {missing.map((entry) => (
-        <TrailNode
-          key={entryKey(entry)}
-          mark="missing"
-          broken
-          title={<span className={styles.label}>{entry.needed}</span>}
-          status="Missing"
-        />
-      ))}
+      {missing.map((entry) => {
+        const partly = partlyFilledText(entry);
+        return (
+          <TrailNode
+            key={entryKey(entry)}
+            testId="missing-item"
+            mark={partly ? "partly" : "missing"}
+            broken
+            title={<span className={styles.label}>{entry.needed}</span>}
+            status={partly ?? "Missing"}
+          />
+        );
+      })}
     </TrailGroup>
   );
+}
+
+/**
+ * The server's words for an item that is partly filled (ruling 73), or null.
+ * Only an item that isn't filled can be partly filled, and text of only
+ * spaces counts as none. The screen works out nothing from `covered_cents`.
+ */
+function partlyFilledText(entry: ChecklistEntry): string | null {
+  const text = entry.partly_filled_text?.trim();
+  return !entry.filled && text ? text : null;
 }
