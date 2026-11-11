@@ -52,7 +52,14 @@ def test_doing_nothing_plays_every_event_without_an_error(
         runs = store.list_runs(conn, grant.id)
     assert now is not None and now.clock_now == max(i.at for i in player.items_for(sample))
     scheduled = {e.name for e in pack.events if e.kind.value == "file" and not e.deliver_by_user}
-    assert {pack.sha256(n) for n in scheduled} <= {f.sha256 for f in files}
+    # Every scheduled file arrives, or, for an email from a sender who isn't known, is held
+    # (ruling 58): with nobody confirming terms, nobody named in them is known.
+    with transaction(api.platform.pool) as conn:
+        held = {
+            h.files[0].sha256
+            for h in store.list_held_mail(conn, grant.workspace_id, store.END_OF_TIME)
+        }
+    assert {pack.sha256(n) for n in scheduled} <= {f.sha256 for f in files} | held
     # The user's marked files never arrive: the clock never delivers them (ruling 44).
     marked = {pack.sha256(e.name) for e in pack.events if e.deliver_by_user}
     assert not marked & {f.sha256 for f in files}
