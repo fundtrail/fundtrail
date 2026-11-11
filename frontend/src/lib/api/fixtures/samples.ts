@@ -220,6 +220,7 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     // The fake's samples are read live, so there's no run-through.
     on_run_through: null,
     expected_prerun: null,
+    leaves_run_through_at: null,
     // Ruling 86 only; the fake has never given a reason for no highlight being left.
     next_highlight_unavailable_reason: ownStepWaiting(events, state, marks),
   };

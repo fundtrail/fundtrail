@@ -392,6 +392,36 @@ function GoToDate({ now, busy, onGo, reason }: { now: string; busy: boolean; onG
   );
 }
 
+/**
+ * Asked before a move without skipping that would take a prerun grant off its
+ * run-through: staying is the default, and leaving makes the move.
+ */
+function LeaveConfirm({ busy, onLeave, onStay }: { busy: boolean; onLeave: () => void; onStay: () => void }) {
+  const stay = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    stay.current?.focus();
+  }, []);
+  return (
+    <div className="ft-tl__startover" role="group" aria-label="Leave the prerun?">
+      <div>
+        <p className="ft-strong">Leave the prerun?</p>
+        <p className="ft-caption">
+          This move passes a step of the sample&apos;s script that hasn&apos;t been made, so it differs from the script. The grant leaves the
+          prerun, and from here the agent works live, which takes minutes for each file. Skip the human steps to stay on it.
+        </p>
+      </div>
+      <span className="ft-tl__actions">
+        <button ref={stay} type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={onStay}>
+          Stay on the prerun
+        </button>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={busy} onClick={onLeave}>
+          Leave the prerun
+        </button>
+      </span>
+    </div>
+  );
+}
+
 /** Start over's confirm step, under the controls while it's asked. */
 function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onStartOver: () => Promise<boolean>; onCancel: () => void }) {
   const cancel = useRef<HTMLButtonElement>(null);
@@ -440,6 +470,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const [skip, setSkip] = useState(false);
   // Start over asks first, under the controls.
   const [asking, setAsking] = useState(false);
+  // A move that would take a prerun grant off its run-through asks first, and waits here.
+  const [leaving, setLeaving] = useState<(() => Promise<unknown>) | null>(null);
   // Everything but Next event stays folded until More.
   const [trailOpen, setTrailOpen] = useState(false);
   const trailId = useId();
@@ -479,6 +511,16 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const moveReason = view?.move_unavailable_reason || null;
   const highlightReason = view?.next_highlight_unavailable_reason || null;
 
+  /** A plain move to `to` on a grant on its run-through that would leave it asks first; any other move goes. */
+  function move(to: string | undefined, run: () => Promise<unknown>) {
+    const leavesAt = view?.on_run_through ? view.leaves_run_through_at : null;
+    if (!skip && leavesAt && to && Date.parse(to) >= Date.parse(leavesAt)) {
+      setLeaving(() => run);
+      return;
+    }
+    void act(run);
+  }
+
   const nextEvent = view && (
     <button
       type="button"
@@ -488,13 +530,15 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
       aria-describedby={moveReason ? moveReasonId : undefined}
       onClick={() => {
         if (moveReason) return;
-        void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}));
+        move((view.coming_up ?? [])[0]?.at, () => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}));
       }}
     >
       Next event
     </button>
   );
-  const otherControls = view && (
+  // A grant loaded from a prerun has Next highlight beside Next event; any other keeps it under More.
+  const prerunGrant = view?.on_run_through === true || view?.on_run_through === false;
+  const nextHighlight = view && (
     <>
       {/* Ruling 77: the server finds the next highlight, does the steps before it, and leaves the highlight's own step to the user. */}
       <span className="ft-tl__hinted">
@@ -520,11 +564,16 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           </span>
         )}
       </span>
+    </>
+  );
+  const otherControls = view && (
+    <>
+      {!prerunGrant && nextHighlight}
       <GoToDate
         now={view.now.now}
         busy={busy}
         reason={moveReason ? { id: goReasonId, text: moveReason } : undefined}
-        onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
+        onGo={(to) => move(to, () => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
       />
       <span className="ft-tl__skip">
         <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
@@ -590,6 +639,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
         {view && (
           <span className="ft-tl__lineActions">
             {nextEvent}
+            {prerunGrant && nextHighlight}
             <button
               type="button"
               className="ft-btn ft-btn--sm"
@@ -607,6 +657,17 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           </p>
         )}
       </div>
+      {leaving && (
+        <LeaveConfirm
+          busy={busy}
+          onStay={() => setLeaving(null)}
+          onLeave={() => {
+            const run = leaving;
+            setLeaving(null);
+            void act(run);
+          }}
+        />
+      )}
       {/* Folded, the stop's marks and what comes next, on a second quiet line. */}
       {view && !trailOpen && (stop?.loaded || decisions.length > 0 || next || view.finished) && (
         <ul className="ft-tl__also" aria-label="About the stop and what comes next">

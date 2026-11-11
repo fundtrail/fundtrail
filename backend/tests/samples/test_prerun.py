@@ -1345,3 +1345,38 @@ def test_letting_in_the_held_email_next_highlight_holds_keeps_it_on(
     assert _counts(api, grant_id) == (files, charges, records - 1)  # no sign-off
     checked, wrong = prerun.key_check(api.platform, grant_id, LARGER_SAMPLE)
     assert checked and wrong == []
+
+
+# Asking before a move leaves the run-through.
+
+
+def test_the_view_says_where_a_plain_move_would_leave_the_run_through(setup: Api) -> None:
+    """At the opening: the award letter's confirmation, unmade. A plain move short of it
+    stays on and still says so; a plain move to it leaves, and then there's nothing to ask."""
+    api = setup
+    _released(api)
+    confirm = next(a for a in player.pack_for(SMALL).actions if a.action == "confirm_terms")
+    grant_id = _open(api, "larger_prerun")
+    assert _get(api, f"/grants/{grant_id}/timeline")["leaves_run_through_at"] == _iso(confirm.at)
+    short = _post(
+        api, f"/grants/{grant_id}/timeline", {"to": _iso(confirm.at - timedelta(minutes=1))}
+    ).json()
+    assert short["on_run_through"] is True
+    assert short["leaves_run_through_at"] == _iso(confirm.at)
+    past = _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(confirm.at)}).json()
+    assert past["on_run_through"] is False and past["leaves_run_through_at"] is None
+    live = _open(api, "small_live")
+    assert _get(api, f"/grants/{live}/timeline")["leaves_run_through_at"] is None
+
+
+def test_after_a_skip_it_names_the_next_unmade_step(setup: Api) -> None:
+    api = setup
+    _released(api)
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    deliver = next(a for a in pack.actions if a.action == "deliver_file")
+    grant_id = _open(api, "larger_prerun")
+    body = {"to": _iso(confirm.at + timedelta(minutes=1)), "skip_human_steps": True}
+    moved = _post(api, f"/grants/{grant_id}/timeline", body).json()
+    assert moved["on_run_through"] is True
+    assert moved["leaves_run_through_at"] == _iso(deliver.at)
