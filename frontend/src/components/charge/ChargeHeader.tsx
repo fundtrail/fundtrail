@@ -10,7 +10,9 @@ import styles from "./charge.module.css";
  * the bucket at its end; the name with the amount; then the account and the
  * budget line, and any corrections netted into it.
  */
-export function ChargeHeader({ detail }: { detail: ChargeDetail }) {
+export function ChargeHeader({ detail, headingLevel = 1 }: { detail: ChargeDetail; headingLevel?: 1 | 2 }) {
+  // The charge's own page titles it h1; a page that shows it inside another passes 2. The look is the class's.
+  const Title = headingLevel === 2 ? "h2" : "h1";
   const { charge, status, budget_line } = detail;
   const account_categories = detail.account_categories ?? [];
   const corrections = detail.corrections ?? [];
@@ -33,7 +35,7 @@ export function ChargeHeader({ detail }: { detail: ChargeDetail }) {
         <ChargeStatusBadge status={status ?? null} />
       </div>
       <div className={styles.nameRow}>
-        <h1 id="charge-name" className={styles.name}>{charge.description}</h1>
+        <Title id="charge-name" className={styles.name}>{charge.description}</Title>
         <span className={`ft-num ${styles.amount}`}>{money(charge.amount_cents)}</span>
       </div>
       <p className={styles.meta}>

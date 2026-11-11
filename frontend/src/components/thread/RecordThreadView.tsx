@@ -29,6 +29,7 @@ export function RecordThreadView({
   quoteHref,
   onDecide,
   onAsk,
+  headingLevel = 1,
 }: {
   recordId: Id;
   record: FtRecord | null;
@@ -40,7 +41,10 @@ export function RecordThreadView({
   quoteHref?: (citation: Citation) => string | undefined;
   onDecide: OnDecide;
   onAsk: (text: string) => Promise<void>;
+  /** The record's title: h1 on its own page, h2 inside another page. The look is the class's. */
+  headingLevel?: 1 | 2;
 }) {
+  const Title = headingLevel === 2 ? "h2" : "h1";
   const fileId = record ? citationFileId(record) : (status?.file_id ?? null);
   const file = fileId ? files[fileId] : undefined;
   const name = record ? recordKindLabel(record.data.kind) : "Record";
@@ -55,7 +59,7 @@ export function RecordThreadView({
               <span className="ft-id">{recordId}</span>
               {record && <> · Written by {record.author === "agent" ? "the agent" : "the accountant"}, {date(record.written_at)}</>}
             </p>
-            <h1 className={styles.recordName}>{name}</h1>
+            <Title className={styles.recordName}>{name}</Title>
             {file && (
               <p className="ft-caption">
                 From{" "}

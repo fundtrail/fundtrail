@@ -91,6 +91,7 @@ from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
+from app.db.actions import AGENT_WORKING
 from app.db.clock import grant_now
 from app.db.held_mail import still_held_mail
 from app.db.platform import Platform
@@ -437,9 +438,14 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
     """Decision 0022: not signed, signed, or changed since, comparing the snapshot the
     sign-off stored with one taken now (each charge's bucket, accepted and reversed state,
     the problem list row by row, and the totals)."""
+    # Ruling 72: why signing off can't be done now, the same words the refusal uses. Only a
+    # run queued or running blocks it; anything open asks for a note instead.
+    unavailable = AGENT_WORKING if snap.pending else None
     signed = [r for r in snap.state.current() if isinstance(r.data, SignOff)]
     if not signed:
-        return SignOffState(state=signed_state(None, snapshot_now(snap)))
+        return SignOffState(
+            state=signed_state(None, snapshot_now(snap)), unavailable_reason=unavailable
+        )
     sign_off = signed[-1]
     assert isinstance(sign_off.data, SignOff)
     now = snapshot_now(snap)
@@ -447,6 +453,7 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
         state=signed_state(sign_off.data.snapshot, now),
         sign_off=sign_off,
         changes=changes_since(sign_off.data.snapshot, now),
+        unavailable_reason=unavailable,
     )
 
 

@@ -1,122 +1,567 @@
-/* The sample timeline panel. Neutral, like every panel: color only on the one destructive confirm. */
+/*
+ * The sample timeline: one quiet line, and under More the controls and one
+ * trail. What happened is a solid line with filled dots, now is the now dot,
+ * and what's coming is a dashed line with hollow dots. Neutral like every
+ * panel: color only on now and on the one destructive confirm.
+ */
+
+.ft-tl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+}
+
+/* --- The controls under More --- */
 
 .ft-tl__controls {
   display: flex;
   flex-wrap: wrap;
-  /* Tops line up, so a control with a hint under it doesn't push the others down. */
+  /* Tops line up, so the hint under Next highlight doesn't push the others down. */
   align-items: flex-start;
-  gap: var(--space-4);
-  padding: 0 var(--space-4) var(--space-3);
+  justify-content: flex-end;
+  gap: var(--space-2) 10px;
+}
+.ft-tl__hinted {
+  display: inline-flex;
+  flex-direction: column;
+  /* The button keeps its own width instead of stretching to its hint's. */
+  align-items: flex-start;
+  gap: 1px;
+}
+.ft-tl__hinted .ft-caption {
+  /* The hint wraps under its button instead of widening the row. */
+  max-width: 110px;
+  font-size: 11px;
+  line-height: 1.3;
 }
 .ft-tl__goto {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-2);
 }
 .ft-tl__goto label {
-  align-self: center;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
 }
 .ft-tl__goto input {
   min-height: var(--control-sm);
+  padding: 0 var(--space-2);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
   color: var(--ink);
   font: inherit;
-  padding: 0 var(--space-2);
+  width: 128px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
-.ft-tl__parts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--rule);
+.ft-tl__skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-sm);
+  font-size: 13px;
 }
-@media (max-width: 900px) {
-  .ft-tl__parts {
-    grid-template-columns: 1fr;
-  }
-}
-.ft-tl__part {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.ft-tl__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.ft-tl__skip input {
+  width: 15px;
+  height: 15px;
   margin: 0;
-  padding: 0;
+  accent-color: var(--ink);
+}
+/* Start over: quiet, at the end, apart from the controls that play the timeline. */
+.ft-btn.ft-tl__quiet {
+  padding: 0 var(--space-1);
+  border-color: transparent;
+  background: none;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ft-btn.ft-tl__quiet:hover {
+  background: var(--paper-sunken);
+}
+.ft-tl .ft-btn.ft-tl__quiet:disabled {
+  border-color: transparent;
+}
+
+/* --- The compact form: one quiet line, everything else under More --- */
+
+.ft-tl[data-compact] {
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  border: 0;
+  border-radius: 10px;
+  background: var(--paper-sunken);
+}
+.ft-tl__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.ft-tl__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--now);
+}
+.ft-tl__where {
+  display: flex;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+}
+.ft-tl__sep {
+  color: var(--ink-muted);
+}
+.ft-tl__where-stop {
+  overflow-wrap: anywhere;
+}
+.ft-tl__where .ft-id {
+  font-size: 12px;
+}
+.ft-tl__flag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--ink);
+  color: var(--paper-raised);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* The stop's marks and what comes next, a second quiet line under the first. */
+.ft-tl__also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  margin: calc(-1 * var(--space-1)) 0 0;
+  padding: 0 0 0 26px;
+  font-size: 13px;
   list-style: none;
 }
-.ft-tl__item {
+.ft-tl__also .ft-label {
+  margin-right: 4px;
+}
+.ft-tl__also .ft-tl__loaded {
+  margin: 0;
+}
+.ft-tl__flag--next {
+  outline: 1px dashed var(--rule-strong);
+  outline-offset: -1px;
+  background: none;
+  color: var(--ink);
+}
+.ft-tl__lineActions {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+}
+.ft-tl__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-4);
+}
+.ft-tl[data-compact] .ft-tl__body {
+  padding: var(--space-3) 0 var(--space-1);
+  border-top: 1px solid var(--rule);
+}
+.ft-tl[data-compact] .ft-tl__controls {
+  justify-content: flex-start;
+}
+.ft-tl[data-compact] .ft-tl__ev--next::after,
+.ft-tl[data-compact] .ft-tl__ev--more::after {
+  background: var(--paper-sunken);
+}
+
+/* --- Notes, errors and Start over's confirm, between the header and the trail --- */
+
+.ft-tl__note {
+  margin: 0;
+}
+.ft-tl__startover {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: 10px var(--space-3);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius-md);
 }
 .ft-tl__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-/* Start over sits apart from the controls that play the timeline. */
-.ft-tl__startover {
-  margin-top: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px dashed var(--rule-strong);
 }
 .ft-btn--reject {
   border-color: var(--conflict);
   color: var(--conflict);
   background: var(--conflict-tint);
 }
-.ft-tl__skip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  align-self: center;
+.ft-btn--reject:hover {
+  background: var(--conflict-tint);
 }
-.ft-tl__note {
-  padding: 0 var(--space-4) var(--space-2);
+
+/* --- The trail --- */
+
+.ft-tl__track {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.ft-tl__part {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 0;
+}
+.ft-tl__part--now {
+  flex: 1.35 0 0;
+}
+.ft-tl__label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 18px;
+  margin-bottom: 6px;
+}
+.ft-tl__label .ft-label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ft-tl__toggle,
+.ft-tl__more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+.ft-tl__toggle {
+  font-size: 12px;
+}
+.ft-tl__toggle:hover,
+.ft-tl__more:hover {
+  text-decoration-color: currentColor;
+}
+.ft-tl__more {
+  align-self: flex-start;
+  font-weight: 600;
+  text-align: left;
+}
+/* Rows keep their stops' widths, so a long trail scrolls inside the strip instead of squeezing. */
+.ft-tl__row {
+  display: flex;
+  flex: 1 1 auto;
+}
+.ft-tl__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One stop on the trail: its stretch of line, its dot, then what it is. */
+.ft-tl__ev {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 148px;
+  margin: 0;
+  padding: 18px var(--space-3) 0 0;
+  font-size: 13px;
+}
+.ft-tl__ev::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--ink);
+}
+.ft-tl__ev::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--ink);
+}
+.ft-tl__ev--next::before,
+.ft-tl__ev--now::before {
+  border-top-style: dashed;
+  border-top-color: var(--rule-strong);
+}
+.ft-tl__ev--next::after {
+  border-color: var(--rule-strong);
+  background: var(--paper-raised);
+}
+.ft-tl__ev--now {
+  min-width: 200px;
+}
+.ft-tl__ev--now::after {
+  top: -2px;
+  width: 16px;
+  height: 16px;
+  border-color: var(--ink);
+  background: var(--now);
+}
+/* An empty side of the trail: the line continues, without a stop. */
+.ft-tl__ev--empty::after {
+  display: none;
+}
+.ft-tl__ev--past.ft-tl__ev--empty::before {
+  border-top-style: dashed;
+  border-top-color: var(--rule-strong);
+}
+/* The closing item: the rest of the line, ending at its last stop. */
+.ft-tl__ev--more {
+  flex-grow: 1;
+}
+.ft-tl__ev--more::before {
+  right: auto;
+  width: 12px;
+}
+/* Kept off the trail until Show all. */
+.ft-tl__ev.ft-tl__tail {
+  display: none;
+}
+
+.ft-tl__date {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.ft-tl__name {
+  overflow-wrap: anywhere;
+}
+.ft-tl__ev--next .ft-tl__name {
+  font-weight: 500;
+}
+.ft-tl__ev .ft-caption {
+  overflow-wrap: anywhere;
+}
+.ft-tl__wrote {
+  font-size: 12px;
 }
 .ft-tl__decisions {
-  margin: 0;
-  padding-left: var(--space-4);
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-tl__open {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.ft-tl__nowline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+.ft-tl__nowtag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ft-tl__stopped {
+  overflow-wrap: anywhere;
+}
+.ft-tl__waiting {
+  margin-top: 2px;
+  font-size: 13px;
+}
+.ft-tl__deliveries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--rule);
+}
+.ft-tl__item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ft-tl__deliveries .ft-tl__actions {
+  margin-top: var(--space-1);
+}
+
+/* --- Tags on the trail --- */
+
+/* A highlight: a small inverted flag (yellow is kept for exact quotes). On what's still coming up it's a dashed outline. */
+.ft-tag.ft-tl__highlight {
+  align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  max-width: 100%;
+  margin: 2px 0;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--ink);
+  color: var(--paper-raised);
+  font-size: 11px;
+  white-space: normal;
+}
+.ft-tl__ev--next .ft-tag.ft-tl__highlight {
+  outline: 1px dashed var(--rule-strong);
+  outline-offset: -1px;
+  background: none;
+  color: var(--ink);
 }
 /* Loaded from the prerun: dashed, like other marks about where a result came from. */
-.ft-tl__loaded {
+.ft-tag.ft-tl__loaded,
+.ft-tag.ft-tl__delivered {
   align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  max-width: 100%;
+  margin: 2px 0;
+  padding: 1px 6px;
+  font-size: 11px;
+  white-space: normal;
+}
+.ft-tag.ft-tl__loaded {
   border-style: dashed;
 }
 /* Delivered for the user by the sample accountant: solid, on a sunken fill, so it never reads as loaded. */
-.ft-tl__delivered {
-  align-self: flex-start;
+.ft-tag.ft-tl__delivered {
   border-color: var(--ink);
   background: var(--paper-sunken);
 }
-/* The panel's tags wrap inside their column instead of running past it. */
-.ft-tl__loaded,
-.ft-tl__delivered,
-.ft-tl__highlight {
-  height: auto;
-  min-height: 20px;
-  max-width: 100%;
-  padding: 2px 6px;
-  white-space: normal;
+
+/* --- Narrow screens: the trail runs down the page --- */
+
+@media (max-width: 720px) {
+  .ft-tl__controls {
+    justify-content: flex-start;
+  }
+  /* The quiet line wraps: what it says, then its two buttons. */
+  .ft-tl__line {
+    align-items: flex-start;
+  }
+  .ft-tl__dot {
+    margin-top: 4px;
+  }
+  .ft-tl__where {
+    flex-basis: calc(100% - 26px);
+  }
+  /* The stop's marks and what comes next, a second quiet line under the first. */
+.ft-tl__also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  margin: calc(-1 * var(--space-1)) 0 0;
+  padding: 0 0 0 26px;
+  font-size: 13px;
+  list-style: none;
 }
-/* A highlight: solid ink outline, the same in Coming up and Just happened. */
-.ft-tl__highlight {
-  align-self: flex-start;
-  border-color: var(--ink);
+.ft-tl__also .ft-label {
+  margin-right: 4px;
 }
-/* A control with its hint underneath. */
-.ft-tl__hinted {
-  display: inline-flex;
-  flex-direction: column;
-  /* The button keeps its own width instead of stretching to its hint's. */
-  align-items: flex-start;
-  gap: 2px;
+.ft-tl__also .ft-tl__loaded {
+  margin: 0;
+}
+.ft-tl__flag--next {
+  outline: 1px dashed var(--rule-strong);
+  outline-offset: -1px;
+  background: none;
+  color: var(--ink);
+}
+.ft-tl__lineActions {
+    margin-left: 26px;
+  }
+  .ft-tl__track,
+  .ft-tl__part,
+  .ft-tl__row {
+    flex-direction: column;
+  }
+  .ft-tl__track {
+    overflow-x: visible;
+  }
+  .ft-tl__part,
+  .ft-tl__part--now {
+    flex: none;
+  }
+  /* The line runs on past each part's label, so the trail stays one line. */
+  .ft-tl__label {
+    position: relative;
+    margin: 0;
+    padding: 0 0 6px 24px;
+  }
+  .ft-tl__label::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 5px;
+    border-left: 2px solid var(--ink);
+  }
+  .ft-tl__part--next .ft-tl__label::before {
+    border-left: 2px dashed var(--rule-strong);
+  }
+  .ft-tl__part:first-child .ft-tl__label::before {
+    top: 50%;
+  }
+  .ft-tl__part--now .ft-tl__label {
+    display: none;
+  }
+  .ft-tl__ev,
+  .ft-tl__ev--now {
+    flex: none;
+    min-width: 0;
+    padding: 0 0 14px 24px;
+  }
+  .ft-tl__ev::before {
+    top: 0;
+    bottom: 0;
+    left: 5px;
+    right: auto;
+    border-top: 0;
+    border-left: 2px solid var(--ink);
+  }
+  .ft-tl__ev--next::before,
+  .ft-tl__ev--now::before,
+  .ft-tl__ev--past.ft-tl__ev--empty::before {
+    border-left-style: dashed;
+    border-left-color: var(--rule-strong);
+  }
+  .ft-tl__ev::after {
+    top: 2px;
+  }
+  .ft-tl__ev--now::after {
+    top: 0;
+    left: -2px;
+  }
+  .ft-tl__ev--more::before {
+    bottom: auto;
+    width: auto;
+    height: 12px;
+  }
 }

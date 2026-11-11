@@ -53,6 +53,20 @@ const icons = {
       <path d="m2.5 4.5 5.5 4 5.5-4" />
     </Icon>
   ),
+  overview: (
+    <Icon>
+      <rect x="2" y="2" width="5" height="5" rx="1" />
+      <rect x="9" y="2" width="5" height="5" rx="1" />
+      <rect x="2" y="9" width="5" height="5" rx="1" />
+      <rect x="9" y="9" width="5" height="5" rx="1" />
+    </Icon>
+  ),
+  charges: (
+    <Icon>
+      <path d="M3.5 1.8h9v12.4l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1-1.5 1z" />
+      <path d="M6 5.2h4M6 8.2h4" />
+    </Icon>
+  ),
   problems: (
     <Icon>
       <path d="M6 4h8M6 8h8M6 12h8" />
@@ -159,9 +173,10 @@ function isInside(pathname: string, grantId: Id): boolean {
 
 /**
  * The open grant's pages, under a quiet label with its name. The open page is
- * marked, or the page above it: the grant page is the problem list, and a
- * charge or a record sits under it. All of it is read from the path against
- * routes.ts.
+ * marked, or the page above it: a charge sits under Charges, a record under
+ * the Problem list, a file under Evidence. The grant's own page is its
+ * Overview, marked only there. All of it is read from the path against
+ * routes.ts, and exactly one item is marked.
  */
 function GrantPages({ grantId, name, count }: { grantId: Id; name: string; count: number }) {
   const pathname = usePathname();
@@ -174,13 +189,23 @@ function GrantPages({ grantId, name, count }: { grantId: Id; name: string; count
       </span>
       <ul>
         <li>
+          <NavLink href={grant} icon={icons.overview} current={standing(pathname, grant, [])}>
+            Overview
+          </NavLink>
+        </li>
+        <li>
           <NavLink
             href={routes.problemList(grantId)}
             icon={icons.problems}
             count={count}
-            current={standing(pathname, routes.problemList(grantId), [`${grant}/charges`, `${grant}/records`])}
+            current={standing(pathname, routes.problemList(grantId), [pathOf(routes.problemList(grantId)), `${grant}/records`])}
           >
             Problem list
+          </NavLink>
+        </li>
+        <li>
+          <NavLink href={routes.charges(grantId)} icon={icons.charges} current={page(routes.charges(grantId))}>
+            Charges
           </NavLink>
         </li>
         <li>

@@ -22,6 +22,11 @@ function harness() {
 
 const part = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
+/** The panel shows folded; More opens the controls and the trail these tests read. */
+async function openMore() {
+  fireEvent.click(await screen.findByRole("button", { name: "More" }));
+}
+
 describe("skipping the human steps (ruling 47)", () => {
   it("lets the sample accountant deliver and decide in the fake, listing its decisions", async () => {
     const api = createFakeApiClient();
@@ -77,6 +82,7 @@ describe("skipping the human steps (ruling 47)", () => {
     };
     vi.spyOn(client, "getTimeline").mockResolvedValue(view);
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     const just = await waitFor(() => part("Just happened"));
     const items = await within(just).findAllByRole("listitem");
     expect(within(items[0]).queryByText("Delivered by you.")).toBeNull();
@@ -90,6 +96,7 @@ describe("skipping the human steps (ruling 47)", () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     const deliver = await screen.findByRole("button", { name: "Deliver for me" });
     await waitFor(() => expect(deliver).toBeEnabled());
     fireEvent.click(deliver);
@@ -102,6 +109,7 @@ describe("skipping the human steps (ruling 47)", () => {
     await client.startOver(SAMPLE_GRANT_ID, true);
     const move = vi.spyOn(client, "moveTimeline");
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     const next = await screen.findByRole("button", { name: "Next event" });
     fireEvent.click(screen.getByLabelText("Skip the human steps"));
     fireEvent.click(next);
@@ -127,6 +135,7 @@ describe("skipping the human steps (ruling 47)", () => {
     };
     vi.spyOn(client, "getTimeline").mockResolvedValue(view);
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     const just = await waitFor(() => part("Just happened"));
     expect(await within(just).findByText("Loaded from the prerun")).toBeInTheDocument();
     expect(within(within(just).getByRole("list", { name: "The sample accountant's decisions" })).getByText(/confirmed 1 record/)).toBeInTheDocument();
