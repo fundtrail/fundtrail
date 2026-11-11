@@ -39,14 +39,16 @@ import mimetypes
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
-from app.contracts.runs import AgentRun
+from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.workspaces import Grant
 from app.db import clock, sample_store, store
 from app.db.actions import WriteRejected, write_record, write_sign_off
+from app.db.jobs import queue_run
 from app.db.mail_sink import arrive_files
 from app.db.pings import ping_changed, ping_run
 from app.db.platform import Platform
 from app.db.pool import transaction
+from app.db.recheck import recheck_grant
 from app.db.sample_store import Scripted
 from app.db.store import Conn
 from app.ingest.incoming import IncomingFile
@@ -86,16 +88,20 @@ def queue_steps(
     until: datetime,
     *,
     highlight: str | None = None,
+    sign_off: bool = False,
 ) -> None:
     """A skipping move's scripted steps in (after, until], pending for the walk.
 
-    On a Next highlight move to the highlight labelled `highlight` (ruling 77), a step
-    marked with that label, and any sign-off, is held for the user instead. A step an
-    earlier Next highlight move held is taken up again, at the walk's clock, unless this
-    move would hold it too: it's made then if the user hasn't made it."""
+    Held for the user instead (ruling 77): on a Next highlight move to the highlight
+    labelled `highlight`, a step marked with that label; and a sign-off, always, unless
+    `sign_off` (set only where no user is present: the do-everything play and making a
+    prerun). A step an earlier move held is taken up again, at the walk's clock, unless
+    this move would hold it too: it's made then if the user hasn't made it."""
 
     def held(a: UserAction) -> bool:
-        return highlight is not None and (a.highlight == highlight or a.action == "sign_off")
+        if a.action == "sign_off":
+            return not sign_off
+        return highlight is not None and a.highlight == highlight
 
     for s in sample_store.held_scripted(conn, grant.id):
         if not held(pack.actions[s.step]):
@@ -140,14 +146,18 @@ def _step(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, walked: Walke
         return False
     now = clock.grant_now(conn, grant.id)
     pending = sample_store.pending_scripted(conn, grant.id, None)
-    # A delivery whose time has passed (one a Next highlight move held) is made at once.
-    overdue = [s for s in pending if pack.actions[s.step].action == "deliver_file" and s.at < now]
+    # A delivery whose time has come (one an earlier move held) is made at once, at the
+    # clock, with its agent run, as a delivery played in time order is.
+    overdue = [s for s in pending if pack.actions[s.step].action == "deliver_file" and s.at <= now]
     for s in overdue:
-        _deliver(p, conn, grant, pack, s, now)
+        walked.runs.extend(_deliver(p, conn, grant, pack, s, now, now=True))
     if overdue:
         walked.changed = True
         return True
-    decision = next((s for s in pending if pack.actions[s.step].action != "deliver_file"), None)
+    decisions = [s for s in pending if pack.actions[s.step].action != "deliver_file"]
+    # A sign-off taken up goes after every other step whose time has come.
+    due = [s for s in decisions if s.at <= now and pack.actions[s.step].action != "sign_off"]
+    decision = due[0] if due else next(iter(decisions), None)
     until = min(decision.at, target) if decision is not None else target
     if until > now:
         walked.runs.extend(_play(p, conn, grant, pack, pending, now, until))
@@ -187,7 +197,7 @@ def _play(
         store_events(p, conn, grant, pack, played)
         for s in pending:
             if pack.actions[s.step].action == "deliver_file" and s.at <= until:
-                _deliver(p, conn, grant, pack, s, s.at)
+                _deliver(p, conn, grant, pack, s, s.at)  # its run comes with the clock
         return clock.set_and_replay(p, conn, grant, now, until)
     except Exception as error:
         raise WalkStopped(
@@ -197,13 +207,22 @@ def _play(
 
 
 def _deliver(
-    p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted, at: datetime
-) -> None:
-    """A file the user brings in, at `at` (its step's time, or the walk's clock for one
-    held earlier), as an upload, by the Sample accountant. One that can't be brought in
-    is left for the user."""
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    pack: SamplePack,
+    s: Scripted,
+    at: datetime,
+    *,
+    now: bool = False,
+) -> list[AgentRun]:
+    """A file the user brings in, at `at` (its step's time, or with `now`, the walk's clock
+    for one held earlier), as an upload, by the Sample accountant. One that can't be
+    brought in is left for the user. One brought in at the clock gets its agent run here
+    (one played ahead of the clock gets it from the clock's move); returns the runs."""
     a = pack.actions[s.step]
     file_id: str | None = None
+    runs: list[AgentRun] = []
     try:
         with conn.transaction():  # a savepoint: a failed delivery brings nothing in
             step = resolve(p, conn, grant, pack, a, at)
@@ -219,11 +238,20 @@ def _deliver(
                     data=pack.file_bytes(step.name),
                 )
                 [f] = arrive_files(p, conn, grant, [replace(incoming, arrived_at=at)])
+                if now:
+                    trigger = Trigger(kind=TriggerKind.FILE, id=f.id)
+                    recheck_grant(conn, p.checks, grant, at, trigger, file_triggers={f.id: trigger})
+                    runs.append(queue_run(conn, grant, trigger, at, catch_up=True))
                 file_id = f.id
     except Exception:  # noqa: BLE001 - a delivery that fails is the user's to make
         log.exception("scripted step %s on grant %s failed; left for the user", s.step, grant.id)
+        runs = []
     state = "done" if file_id is not None else "left"
-    sample_store.finish_scripted(conn, grant.id, s.step, state, file_id=file_id)
+    last = sample_store.last_move(conn, grant.id)
+    sample_store.finish_scripted(
+        conn, grant.id, s.step, state, file_id=file_id, move_id=last.id if last else None
+    )
+    return runs
 
 
 def _make(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) -> None:

@@ -454,6 +454,7 @@ def move(
     *,
     skip: bool = False,
     next_highlight: bool = False,
+    sign_off: bool = False,
 ) -> None:
     """Move a sample grant's timeline forward: to `to`, or with None, to the next item.
     With `skip`, the Sample accountant makes the script's steps the move passes (ruling
@@ -461,7 +462,11 @@ def move(
     move goes to the next event carrying a highlight label, skipping the human steps on
     the way, except the steps marked with that label and any sign-off, which are left to
     the user. Raises MoveRefused (timeline) for a move backwards or with nothing left, and
-    AnotherSampleWorking for the read-live limit."""
+    AnotherSampleWorking for the read-live limit.
+
+    Skipping never makes the scripted sign-off: it waits for the user, unless `sign_off`,
+    which only the do-everything play and making a prerun set, where no user is present.
+    No route sets it."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     with transaction(p.pool) as conn:
@@ -488,7 +493,14 @@ def move(
         if skip or walking is not None:
             if skip:
                 skipping.queue_steps(
-                    conn, locked, pack, move_id, start, plan.until, highlight=highlight
+                    conn,
+                    locked,
+                    pack,
+                    move_id,
+                    start,
+                    plan.until,
+                    highlight=highlight,
+                    sign_off=sign_off,
                 )
             sample_store.start_walk(conn, grant.id, plan.until)
             walked = skipping.advance(p, conn, locked)
@@ -671,15 +683,22 @@ def view(
     played: list[tuple[datetime, PlayedEvent]] = []
     for i in items:
         at = i.at
+        event = _event(i, pack, files, charges)
         if i.kind is ItemKind.USER_DELIVERY and i.event is not None:
-            # A user's item shows here for the move that brought it, by any channel.
+            # A user's item shows here for the move that brought it, by any channel; one
+            # the Sample accountant brought, under the move it's listed under (it may
+            # come in at the clock the move started from, for one an earlier move held).
             brought = delivered_at(pack, i.event, on_grant)
-            if brought is None or not in_move(brought):
+            if brought is None:
+                continue
+            listed = by_sample.get(event.file_id or "")
+            if listed is not None and (last is None or listed != last.id):
+                continue
+            if listed is None and not in_move(brought):
                 continue
             at = brought
         elif not in_move(i.at):
             continue
-        event = _event(i, pack, files, charges)
         brought = (event.charge_id,) if event.charge_id else _ledger_charges(i, charges)
         played.append(
             (
