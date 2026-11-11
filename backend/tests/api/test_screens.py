@@ -858,3 +858,105 @@ def test_the_charge_page_names_every_file_its_records_cite(api: Api) -> None:
     detail = _get(api, f"/charges/{l1001}")
     assert letter in detail["files"]
     assert detail["files"][letter]["name"] == "award_letter.txt"
+
+
+def _agent_record(sample: SampleGrant, data: dict[str, Any], at: datetime) -> Record:
+    return Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "agent",
+            "written_at": at,
+            "read_through_seq": 1,
+            "data": data,
+        }
+    )
+
+
+def _store(api: Api, *records: Record) -> None:
+    with transaction(api.platform.pool) as conn:
+        store.insert_records(conn, list(records))
+
+
+def test_a_waiting_duplicate_mark_names_both_its_files(api: Api) -> None:
+    """Highlight 10: the likely duplicate. A waiting duplicate mark on L-1001's invoice
+    names its copy and its original on the charge page."""
+    sample = _sample(api)
+    invoice, statement = _id(sample, "file-invoice-1001"), _id(sample, "file-sequencing-statement")
+    mark = _agent_record(
+        sample,
+        {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": statement},
+        APRIL_10,
+    )
+    _store(api, mark)
+    detail = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}")
+    assert [w["record"]["id"] for w in detail["waiting"]] == [mark.id]
+    assert {invoice, statement} <= set(detail["files"])
+
+
+def test_a_waiting_suggestion_names_the_file_of_the_link_it_replaces(api: Api) -> None:
+    """An agent's link always has a part (the contract refuses one without), so a link with
+    no part is the accountant's, which never waits. Its file is its target's, as the link
+    view shows it, and it stays named while an agent's link waits to replace it."""
+    sample = _sample(api)
+    l1001 = _id(sample, "chg-l-1001")
+    statement = _id(sample, "file-sequencing-statement")
+    theirs = Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "user",
+            "author_user_id": api.user_id,
+            "written_at": APRIL_10,
+            "data": {
+                "kind": "link",
+                "charge_id": l1001,
+                "record_id": _id(sample, "rec-bill-seq-0207"),
+                "amount_cents": 124000,
+            },
+        }
+    )
+    quote = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(quote.data, Judgment)
+    mine = _agent_record(
+        sample,
+        {
+            "kind": "link",
+            "charge_id": l1001,
+            "record_id": _id(sample, "rec-bill-inv-1001"),
+            "amount_cents": 124000,
+            "part": quote.data.quotes[0].model_dump(mode="json"),
+        },
+        APRIL_10,
+    ).model_copy(update={"replaces_id": theirs.id})
+    _store(api, theirs, mine)
+    detail = _get(api, f"/charges/{l1001}")
+    assert mine.id in [w["record"]["id"] for w in detail["waiting"]]
+    assert statement in detail["files"]
+
+
+def test_a_file_from_another_grant_or_not_yet_arrived_stays_out(api: Api) -> None:
+    march = datetime(2026, 3, 1, tzinfo=UTC)
+    sample = _sample(api, march)  # the extension notice arrives on April 9
+    other = sample_into_db(api.platform, api.user_id, march)
+    notice = _id(sample, "file-extension-notice")
+    elsewhere = _id(other, "file-invoice-1001")
+    invoice = _id(sample, "file-invoice-1001")
+    _store(
+        api,
+        _agent_record(
+            sample,
+            {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": notice},
+            march,
+        ),
+        _agent_record(
+            sample,
+            {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": elsewhere},
+            march,
+        ),
+    )
+    files = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}")["files"]
+    assert invoice in files
+    assert notice not in files and elsewhere not in files

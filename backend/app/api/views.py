@@ -71,6 +71,7 @@ from app.contracts.records import (
     AcceptedReason,
     Author,
     BudgetAssignment,
+    BudgetLine,
     Confirmation,
     Decision,
     Duplicate,
@@ -647,18 +648,20 @@ def record_chain(snap: GrantSnapshot, record_id: str) -> list[str]:
     return chain
 
 
-def _cited_file_ids(value: object) -> list[str]:
-    """Every file a record's data points at: its citations' and quotes' file IDs."""
-    found: list[str] = []
-    if isinstance(value, dict):
-        for k, v in value.items():  # pyright: ignore[reportUnknownVariableType]
-            if k == "file_id" and isinstance(v, str):
-                found.append(v)
-            else:
-                found += _cited_file_ids(v)
-    elif isinstance(value, list):
-        for v in value:  # pyright: ignore[reportUnknownVariableType]
-            found += _cited_file_ids(v)
+def _record_file_ids(snap: GrantSnapshot, record: Record) -> list[str]:
+    """Every file a record names: its citations' (values, a link's part, an answer's
+    quotes), a duplicate mark's two files, a budget line's notice, and for a link with no
+    part, its target's file as the link view shows it."""
+    data = record.data
+    found = [c.file_id for c in citations(data)]
+    if isinstance(data, Duplicate):
+        found += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id:
+        found.append(data.notice_file_id)
+    if isinstance(data, Link) and data.part is None:
+        target = snap.state.current_version(data.record_id)
+        if target is not None:
+            found += [c.file_id for c in citations(target.data)][:1]
     return found
 
 
@@ -707,7 +710,7 @@ def charge_detail(
     citing = [a.judgment for a in answers] + list(records.values())
     citing += [r for w in waiting for r in (w.record, w.replaces) if r is not None]
     for r in citing:
-        for file_id in _cited_file_ids(r.data.model_dump(mode="json")):
+        for file_id in _record_file_ids(snap, r):
             if file_id in snap.files_by_id:
                 files.setdefault(file_id, snap.files_by_id[file_id])
     corrections = [
