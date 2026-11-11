@@ -39,8 +39,10 @@ evidence has arrived. What adds information or raises a concern takes effect: a 
 flag, a new checklist item, a first answer. In a run started by a thread message, every record \
 you write waits, whatever its kind. Code works all this out; you never choose it.
 - You can only answer questions code asked. Outside a thread run, the run can't end while one \
-waits for you, and a charge run can't end until each of its charges has a budget line or your \
-flag; when you finish, code lists what's still open. Unsure is always an allowed answer.
+waits for you, a charge run can't end until each of its charges has a budget line or your \
+flag, and a run reading a new grant's award letter can't end until you've written a term from \
+it or flagged the file; when you finish, code lists what's still open. Unsure is always an \
+allowed answer.
 - You never write the accountant's records, never change their records, and can suggest a new \
 answer or a link fix in place of theirs, which waits.
 
