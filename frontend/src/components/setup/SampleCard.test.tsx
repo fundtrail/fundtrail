@@ -89,6 +89,20 @@ describe("SampleCard", () => {
   });
 });
 
+describe("SampleCard's main button", () => {
+  it("is Open once a sample is chosen, and only while this side is the one in use", () => {
+    const onUse = vi.fn();
+    const { rerender } = render(<SampleCard options={OPTIONS} openSample={vi.fn()} onOpened={vi.fn()} main={false} onUse={onUse} />);
+    const open = screen.getByRole("button", { name: "Open" });
+    expect(open).not.toHaveClass("ft-btn--main");
+    fireEvent.change(screen.getByLabelText("Which sample"), { target: { value: "small_live" } });
+    expect(onUse).toHaveBeenCalled();
+    expect(open).not.toHaveClass("ft-btn--main");
+    rerender(<SampleCard options={OPTIONS} openSample={vi.fn()} onOpened={vi.fn()} main onUse={onUse} />);
+    expect(open).toHaveClass("ft-btn--main");
+  });
+});
+
 describe("readRefusal", () => {
   it("reads a SampleRefusal, and nothing else", () => {
     const grant = { grant: { id: "g", title: null, award_number: "SYN-2" } } as GrantSummary;
