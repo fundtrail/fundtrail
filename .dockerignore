@@ -1,0 +1,13 @@
+# Only the backend and the sample packs go into the backend's image (Dockerfile.backend).
+*
+!backend/
+!data/samples/
+
+# Never secrets or local state, even inside those folders.
+**/.env
+**/.env.*
+backend/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/node_modules/
