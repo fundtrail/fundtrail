@@ -114,6 +114,41 @@ def test_an_unusual_term_in_force_on_the_charges_date_is_asked_about() -> None:
     assert [(q.question, q.record_id) for q in out.questions] == [("unusual_term", leave)]
 
 
+def test_a_term_that_only_names_the_standard_conditions_asks_nothing() -> None:
+    """Ruling 81: confirmed like any term, never the unusual-term question; an ordinary
+    other_term beside it still asks."""
+    g = Grant()
+    t = g.standard_terms()
+    b = _charge(g, t)
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
+    gc1 = g.agent(
+        {
+            "kind": "other_term",
+            "dated": cited(date(2024, 1, 1)),
+            "label": "NSF Grant General Conditions",
+            "statement": cited("Subject to the NSF Grant General Conditions (GC-1)."),
+            "standard_conditions": True,
+        },
+        at(2024, 3, 2),
+    )
+    g.confirm(gc1, when=at(2024, 3, 3))
+    out = g.run(at(2024, 3, 4))
+    assert out.questions == ()
+    assert out.charges[0].bucket == Bucket.EVIDENCE_COMPLETE
+    leave = g.agent(
+        {
+            "kind": "other_term",
+            "dated": cited(date(2024, 1, 1)),
+            "label": "PI on leave",
+            "statement": cited("The PI is on leave from January 2024."),
+        },
+        at(2024, 3, 5),
+    )
+    g.confirm(leave, when=at(2024, 3, 6))
+    out = g.run(at(2024, 3, 7))
+    assert [(q.question, q.record_id) for q in out.questions] == [("unusual_term", leave)]
+
+
 def test_the_agents_flag_is_needs_a_human_until_the_accountant_settles_it() -> None:
     g = Grant()
     t = g.standard_terms()

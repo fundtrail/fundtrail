@@ -1,7 +1,10 @@
 """Builds the two sample grants, and keeps the two unused seed grants.
 
-    python3 data/generator/build.py                         # standard library only
-    uv run --with pillow python data/generator/build.py     # also redraws the photos
+Run it from `backend/`, whose environment has reportlab and pypdfium2 for the
+typeset PDFs, and Pillow for the photos:
+
+    uv run python ../data/generator/build.py             # keeps the images on disk
+    uv run python ../data/generator/build.py --photos    # also redraws the images
 
 Writes `data/samples/<sample>/` for the larger sample (salt-marsh-carbon, the
 grant that reaches closeout) and the small sample (nitrate-sensors, whose
@@ -11,8 +14,11 @@ The two other seed grants, coastal-microbial-genomics and river-delta-sediment,
 stay in `data/demo/` in the same format, unused for now. The samples' people,
 amounts and dates are placeholders until the product owner settles them.
 
-The output is deterministic: running it again gives the same files, except the
-photos, which depend on the fonts on the machine.
+The output is deterministic: running it again gives the same files, byte for
+byte. The samples' images (two receipt photos and a scan) depend on the fonts on
+the machine, so they're redrawn only with `--photos`, which also saves the box of
+every string drawn on them to `image_boxes.json`. After redrawing them, update
+their hashes in `data/test_seed.py`.
 """
 
 from __future__ import annotations
@@ -105,8 +111,14 @@ def built() -> tuple[dict[str, object], list[object]]:
 
 
 def main() -> None:
+    import images
+
+    images.REDRAW = "--photos" in sys.argv[1:]
     samples, unused = built()
-    # Read every photo before the folders are cleared.
+    if images.REDRAW:
+        boxes = {name: images.DRAWN[name] for name in sorted(images.DRAWN)}
+        images.BOXES_FILE.write_text(json.dumps(boxes, indent=1) + "\n", encoding="utf-8")
+    # Every image is in memory before the folders are cleared.
     for g in [*samples.values(), *unused]:
         for d in g.docs:
             d.data = bytes(d.data)

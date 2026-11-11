@@ -276,6 +276,8 @@ export interface OtherTerm {
   dated: CitedDate;
   label: string;
   statement: CitedText;
+  /** Only names the funder's standard conditions; the checks never ask the unusual-term question about it (ruling 81). */
+  standard_conditions?: boolean;
 }
 
 export interface BillItem {
