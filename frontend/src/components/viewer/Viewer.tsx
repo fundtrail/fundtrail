@@ -139,6 +139,7 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
 
       <div className={styles.bar}>
         <div className={styles.cite}>
+          {!citation && <span>Whole file, nothing highlighted</span>}
           {citation && (
             <>
               <b>{label ?? "Quote"}</b>
@@ -196,13 +197,43 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
             )}
             {quote && (
               <blockquote className={styles.quote} data-testid="side-quote">
-                {verbatim ? <mark className={styles.quoteMark}>{quote}</mark> : quote}
+                {verbatim && placement?.kind === "text" ? (
+                  <SideQuoteText placement={placement} reading={reading} />
+                ) : verbatim ? (
+                  <mark className={styles.quoteMark}>{quote}</mark>
+                ) : (
+                  quote
+                )}
               </blockquote>
             )}
           </aside>
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The side panel's quote for text, email and .docx: the passage, with only the
+ * value's own characters on the highlighter, carried into the reading text the
+ * same way the document's marks are.
+ */
+function SideQuoteText({ placement, reading }: { placement: Extract<Placement, { kind: "text" }>; reading: ReadingView | null }) {
+  const { spans, offset } = reading
+    ? passageInReading(placement.spans, placement.passageStart, reading.segments, reading.text)
+    : { spans: placement.spans, offset: placement.passageStart };
+  return (
+    <>
+      {splitBySpans(placement.passage, spans, offset).map((p, i) =>
+        p.marked ? (
+          <mark key={i} className={styles.quoteMark}>
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
   );
 }
 

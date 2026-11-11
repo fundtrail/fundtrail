@@ -145,6 +145,17 @@ describe("Viewer: text and email", () => {
     expect(text.querySelectorAll("mark")).toHaveLength(0);
     expect(screen.getByRole("note")).toHaveTextContent("Nothing is highlighted");
     expect(screen.getByTestId("side-quote")).toHaveTextContent("Total Due: $1,240.00");
+    expect(screen.getByTestId("side-quote").querySelectorAll("mark")).toHaveLength(0);
+  });
+
+  it("marks only the value's own characters in the side quote", async () => {
+    const passage = "Sediment core liners, 50 count: $1,240.00";
+    const c = charCitation(passage, INVOICE, [[32, 41]]);
+    render(<Viewer file={{ name: "invoice.txt", media_type: "text/plain" }} url={textUrl(INVOICE)} citation={c} />);
+    await screen.findByTestId("viewer-text");
+    const side = screen.getByTestId("side-quote");
+    expect(side.textContent).toBe(passage);
+    expect([...side.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["$1,240.00"]);
   });
 });
 
@@ -168,6 +179,8 @@ describe("Viewer: PDF with real text", () => {
     expect(boxes).toHaveLength(2);
     expect(boxes[0]).toHaveStyle({ left: "10%", top: "40%", width: "50%" });
     expect(boxes[0]).toHaveAttribute("data-scroll-target", "true");
+    // A passage with real text is a highlighter over the page, not an outlined box.
+    expect(boxes[0].parentElement).toHaveAttribute("data-variant", "mark");
     expect(within(screen.getByTestId("pdf-page-1")).queryAllByTestId("highlight-box")).toHaveLength(0);
     expect(screen.getByText("Close match on the page")).toBeInTheDocument();
   });
@@ -225,6 +238,7 @@ describe("Viewer: photos and scans", () => {
     render(<Viewer file={{ name: "scan.pdf", media_type: "application/pdf" }} url="https://storage.example/scan.pdf" citation={box("exact", 2)} />);
     const page2 = await screen.findByTestId("pdf-page-2");
     expect(within(page2).getAllByTestId("highlight-box")).toHaveLength(1);
+    expect(within(page2).getByTestId("highlight-box").parentElement).toHaveAttribute("data-variant", "box");
   });
 
   it("draws no box when the second look didn't see the same value", () => {
