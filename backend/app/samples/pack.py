@@ -103,6 +103,7 @@ class ScheduledEvent:
     note: str | None = None
     sender: str | None = None  # for Gmail
     deliver_by_user: bool = False  # the user is expected to bring it in, from `at` on
+    highlight: str | None = None  # ruling 58: the label of one of the sample's highlights
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,9 @@ class UserAction:
     problem: str | None = None  # accept_reason: the reason's problem, when the check has several
     # A comment on the step; for accept_reason and sign_off, the accountant's note.
     note: str | None = None
+    # Ruling 77: the label of the highlight this step is the user's own step for, as its
+    # timeline event carries it. Next highlight leaves the step to the user.
+    highlight: str | None = None
 
 
 # The record kinds an agent's suggestion can be: the ones that wait for the accountant.
@@ -266,9 +270,20 @@ def _event(raw: dict[str, Any], where: str) -> ScheduledEvent:
     return replace(e, id=event_id(e.kind, e.name))
 
 
+def _highlight(raw: dict[str, Any], where: str) -> str | None:
+    """An event's highlight label (ruling 58): left out, or text that isn't blank."""
+    label = raw.get("highlight")
+    if label is None:
+        return None
+    if not isinstance(label, str) or not label.strip():
+        raise PackError(f"{where}: a highlight is a label, or left out.")
+    return label
+
+
 def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
     at = _time(raw.get("at"), where)
     note = raw.get("note")
+    highlight = _highlight(raw, where)
     match raw.get("kind"):
         case "file":
             source = _FILE_SOURCES.get(raw.get("source", ""))
@@ -286,18 +301,27 @@ def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
                 note=note,
                 sender=raw.get("sender"),
                 deliver_by_user=deliver == "user",
+                highlight=highlight,
             )
         case "ledger":
             name = str(raw.get("file") or LEDGER_FILE)
             if name != LEDGER_FILE:
                 raise PackError(f"{where}: the ledger file is {LEDGER_FILE}.")
-            return ScheduledEvent("", at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note)
+            return ScheduledEvent(
+                "", at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note, highlight=highlight
+            )
         case "ledger_line":
             line_id = raw.get("line_id")
             if not isinstance(line_id, str) or not line_id:
                 raise PackError(f"{where}: a ledger line needs its line_id.")
             return ScheduledEvent(
-                "", at, EventKind.LEDGER_LINE, ArrivalSource.LEDGER, line_id, note
+                "",
+                at,
+                EventKind.LEDGER_LINE,
+                ArrivalSource.LEDGER,
+                line_id,
+                note,
+                highlight=highlight,
             )
         case kind:
             raise PackError(f"{where}: {kind!r} isn't a scheduled event.")
@@ -319,7 +343,8 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
     if action not in ACTION_FIELDS:
         raise PackError(f"{where}: {action!r} isn't one of {sorted(ACTION_FIELDS)}.")
     required, optional = ACTION_FIELDS[action]
-    given = set(raw) - {"at", "action"}
+    given = set(raw) - {"at", "action", "highlight"}
+    highlight = _highlight(raw, where)
     if action not in NOTE_IS_THE_ACCOUNTANTS:
         given -= {"note"}
     if not required <= given or given - required - optional:
@@ -366,6 +391,7 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
         check=raw.get("check"),
         problem=raw.get("problem"),
         note=raw.get("note"),
+        highlight=highlight,
     )
 
 
@@ -482,10 +508,13 @@ def _check_script(pack: SamplePack, where: str) -> None:
     files = {e.name: e for e in pack.events if e.kind is EventKind.FILE}
     lines = _line_arrivals(pack)
     brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
+    labels = {e.highlight for e in pack.events if e.highlight is not None}
     let_in = {a.file: a.at for a in pack.actions if a.action == "let_in_mail"}
     attachments: dict[str, ScheduledEvent] | None = None
     for a in pack.actions:
         what = f"{where}: {a.action} at {a.at.isoformat()}"
+        if a.highlight is not None and a.highlight not in labels:
+            raise PackError(f"{what}: no timeline event is the highlight {a.highlight!r}.")
         if a.line_id is not None:
             if a.line_id not in lines:
                 raise PackError(f"{what}: {LEDGER_FILE} has no line {a.line_id}.")
