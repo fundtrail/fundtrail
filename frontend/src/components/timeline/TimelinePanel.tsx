@@ -475,6 +475,7 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
   const [leaving, setLeaving] = useState<(() => Promise<unknown>) | null>(null);
   // Everything but Next event stays folded until More.
   const [trailOpen, setTrailOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const trailId = useId();
   const skipId = useId();
   const highlightHintId = useId();
@@ -600,6 +601,7 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
   // folded line's place on a sample with highlights; More opens everything else.
   const moreButton = view && (
     <button
+      ref={moreRef}
       type="button"
       className="ft-btn ft-btn--sm"
       aria-expanded={trailOpen}
@@ -680,6 +682,7 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
             {nextEvent}
             {prerunGrant && nextHighlight}
             <button
+              ref={moreRef}
               type="button"
               className="ft-btn ft-btn--sm"
               aria-expanded={trailOpen}
@@ -760,7 +763,17 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
           )}
           {view.on_run_through === false && <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>}
           {trailOpen && (
-            <div id={trailId} className="ft-tl__body">
+            <div
+              id={trailId}
+              className="ft-tl__body"
+              onKeyDown={(e) => {
+                // Escape folds it again and returns focus to More.
+                if (e.key === "Escape") {
+                  setTrailOpen(false);
+                  moreRef.current?.focus();
+                }
+              }}
+            >
               <div className="ft-tl__controls">{otherControls}</div>
               {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
               <div className="ft-tl__track">

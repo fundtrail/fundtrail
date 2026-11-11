@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { GuideStep, Id, TimelineView } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
@@ -108,6 +108,7 @@ export function Guide({
   onGetFile: (eventId: Id) => void;
   onCloseoutMove: (to: string) => void;
 }) {
+  const noteId = useId();
   const total = view.highlight_total ?? 0;
   const index = view.highlight_index ?? 0;
   const label = view.highlight_event?.highlight ?? null;
@@ -119,7 +120,7 @@ export function Guide({
   const outlined = "ft-btn ft-btn--sm";
 
   let nextNote: string | null = null;
-  if (step) nextNote = "Do your step first";
+  if (step) nextNote = "Do your step first.";
   else if (reading) nextNote = "The agent is still reading what arrived.";
   else if (view.next_highlight_unavailable_reason) nextNote = view.next_highlight_unavailable_reason;
 
@@ -190,15 +191,24 @@ export function Guide({
               </>
             )}
             <span className="ft-guide__next">
+              {/* Ruling 79's pattern: unavailable while it waits, saying why, but still focusable. */}
               <button
                 type="button"
                 className={step || reading ? outlined : filled}
-                disabled={busy || !!nextNote}
-                onClick={onNextHighlight}
+                disabled={busy}
+                aria-disabled={nextNote ? true : undefined}
+                aria-describedby={nextNote ? noteId : undefined}
+                onClick={() => {
+                  if (!nextNote) onNextHighlight();
+                }}
               >
                 Next highlight
               </button>
-              {nextNote && <span className="ft-caption">{nextNote}</span>}
+              {nextNote && (
+                <span id={noteId} className="ft-caption">
+                  {nextNote}
+                </span>
+              )}
             </span>
           </span>
         </div>

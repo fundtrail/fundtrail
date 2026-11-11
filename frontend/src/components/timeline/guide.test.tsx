@@ -65,9 +65,9 @@ describe("the timeline guide", () => {
     const step = screen.getByRole("button", { name: "Deliver for me" });
     expect(step).toHaveClass("ft-btn--main");
     expect(screen.getByRole("button", { name: "Get the file" })).toBeInTheDocument();
-    expect(next()).toBeDisabled();
+    expect(next()).toHaveAttribute("aria-disabled", "true");
     expect(next()).not.toHaveClass("ft-btn--main");
-    expect(screen.getByText("Do your step first")).toBeInTheDocument();
+    expect(next()).toHaveAccessibleDescription("Do your step first.");
     fireEvent.click(step);
     await waitFor(() => expect(deliver).toHaveBeenCalledWith(SAMPLE_GRANT_ID, "event-receipt"));
   });
@@ -85,8 +85,10 @@ describe("the timeline guide", () => {
   });
 
   it("while the agent is still reading, Next highlight waits and says so", async () => {
-    await guide(2, null, { catching_up: true });
-    expect(next()).toBeDisabled();
+    const { move } = await guide(2, null, { catching_up: true });
+    expect(next()).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(next());
+    expect(move).not.toHaveBeenCalled();
     expect(screen.getByText("The agent is still reading what arrived.")).toBeInTheDocument();
   });
 
@@ -96,6 +98,16 @@ describe("the timeline guide", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move to Mar 9, 2027" }));
     await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { to: "2027-03-09T00:00:00Z", skip_human_steps: true }));
     expect(screen.getByRole("link", { name: "Go to Closeout" })).toBeInTheDocument();
+  });
+
+  it("Escape folds More again and returns focus to it", async () => {
+    await guide(2, null);
+    const more = screen.getByRole("button", { name: "More" });
+    fireEvent.click(more);
+    const goTo = await screen.findByLabelText("Go to a date");
+    fireEvent.keyDown(goTo, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.getByRole("button", { name: "More" })).toHaveFocus();
   });
 
   it("keeps the other controls under More", async () => {
