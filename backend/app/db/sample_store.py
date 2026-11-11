@@ -26,6 +26,7 @@ class SampleMove:
     moved_to: datetime
     id: int = 0
     walk_stopped: str | None = None  # why its walk stopped short of moved_to
+    reached: str | None = None  # a Next highlight move: the highlight it went to (ruling 85)
 
 
 @dataclass(frozen=True)
@@ -59,13 +60,20 @@ def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to
 
 def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     row = conn.execute(
-        """select id, moved_from, moved_to, walk_stopped from public.sample_moves
+        """select id, moved_from, moved_to, walk_stopped, reached from public.sample_moves
            where grant_id = %s order by id desc limit 1""",
         (grant_id,),
     ).fetchone()
     if row is None:
         return None
-    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"]), row["walk_stopped"])
+    return SampleMove(
+        row["moved_from"], row["moved_to"], int(row["id"]), row["walk_stopped"], row["reached"]
+    )
+
+
+def set_reached(conn: Conn, move_id: int, highlight: str) -> None:
+    """The highlight a Next highlight move went to (ruling 85)."""
+    conn.execute("update public.sample_moves set reached = %s where id = %s", (highlight, move_id))
 
 
 _SCRIPTED = "step, move_id, at, state, record_id, file_id"

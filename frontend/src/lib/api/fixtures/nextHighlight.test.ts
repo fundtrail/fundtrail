@@ -62,6 +62,10 @@ describe("Next highlight in the fake (ruling 77)", () => {
     const atExtension = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
     expect(atExtension.now.now).toBe("2026-04-10T16:00:00Z");
     expect(decided(atExtension)).not.toContain("rec-confirm-extension");
+    // Ruling 85: Now names the highlight reached, though the clock stopped later.
+    const reached = atExtension.now.stopped_on;
+    expect(reached?.highlight).toBeTruthy();
+    expect(reached ? Date.parse(reached.at) : NaN).toBeLessThan(Date.parse(atExtension.now.now));
 
     await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({
       status: 409,

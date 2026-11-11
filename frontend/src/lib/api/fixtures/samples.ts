@@ -348,11 +348,19 @@ export function samplesFake(hooks: {
         // later of H's event and the due times of H's own steps.
         const target = events.find((e) => !state.played.has(e.id) && e.highlight);
         if (!target) return Promise.reject(new ApiError(409, "No highlight is left to play."));
+        // A sign-off never moves the stop: it's held, and Closeout stops on its own event.
         const ownDue = scriptedSteps(events)
-          .filter((step) => stepHighlights[step.id] === target.highlight && !isDone(step, state))
+          .filter(
+            (step) =>
+              stepHighlights[step.id] === target.highlight &&
+              step.decision?.data.kind !== "sign_off" &&
+              !isDone(step, state),
+          )
           .map((step) => step.at);
         const stop = [target.at, ...ownDue].reduce((a, b) => (time(b) > time(a) ? b : a));
         playTo(events, state, stop);
+        // Ruling 85: Now names the highlight the move reached, even where it stopped later.
+        state.stoppedOn = target.id;
         skipHumanSteps(events, state, stepHighlights, from, target.highlight);
         return show(grantId);
       }

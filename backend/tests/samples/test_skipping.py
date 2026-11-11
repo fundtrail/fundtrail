@@ -876,6 +876,9 @@ def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
     run_worker_until_idle(str(api.platform.pool.conninfo))
     timeline = _get(api, f"/grants/{grant_id}/timeline")
     assert timeline["now"]["now"] == _iso(due)
+    # Ruling 85: Now names the highlight reached, though the clock stopped later.
+    assert timeline["now"]["stopped_on"]["name"] == receipt.name
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
     assert _states(api, late, grant_id)["deliver_file"] == "held"
     assert _next_highlight(api, grant_id).status_code == 200
     run_worker_until_idle(str(api.platform.pool.conninfo))
@@ -883,3 +886,30 @@ def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
     _skip(api, grant_id, None)
     run_worker_until_idle(str(api.platform.pool.conninfo))
     assert _states(api, late, grant_id)["deliver_file"] == "done"
+
+
+def test_a_marked_sign_off_never_moves_the_stop(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sign-off marked as the receipt highlight's own, dated days later: Next highlight
+    still stops on the receipt's event, Now names it, and the sign-off stays held."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    sign = UserAction(
+        at=receipt.at + timedelta(days=3),
+        action="sign_off",
+        note="Signed by the script.",
+        highlight=receipt.highlight,
+    )
+    marked = replace(pack, actions=tuple(sorted([*pack.actions, sign], key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: marked)
+    grant_id = _open(api)
+    _records_agent(api, marked, grant_id)
+    assert _next_highlight(api, grant_id).status_code == 200
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+    assert _states(api, marked, grant_id).get("sign_off") in (None, "held")  # not made
+    with transaction(api.platform.pool) as conn:
+        assert all(r.kind.value != "sign_off" for r in store.list_records(conn, grant_id))

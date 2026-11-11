@@ -484,12 +484,16 @@ def move(
         if next_highlight:
             to, highlight = _next_highlight(items, start)
             # It stops where the highlight's own steps are due, if that's later than its
-            # event, and holds them there for the user (ruling 77, amended).
+            # event, and holds them there for the user (ruling 77, amended). A sign-off
+            # never moves the stop: it's held, and Closeout stops on its own event.
             made = {s.step for s in sample_store.grant_scripted(conn, grant.id)}
             due = [
                 a.at
                 for n, a in enumerate(pack.actions)
-                if a.highlight == highlight and n not in made and a.at > start
+                if a.highlight == highlight
+                and a.action != "sign_off"
+                and n not in made
+                and a.at > start
             ]
             to = max([to, *due])
             skip = True
@@ -497,6 +501,8 @@ def move(
         # The move plays what the clock passes from where it stands now, a walk's later
         # steps included, so every played event is under exactly one move.
         move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
+        if highlight is not None:
+            sample_store.set_reached(conn, move_id, highlight)
         runs: list[AgentRun] = []
         walked = skipping.Walked()
         if skip or walking is not None:
@@ -729,6 +735,20 @@ def view(
     )
     until = last.moved_to if last else now
     stopped = next((i for i in items if i.at == until), None) if until == now else None
+    if last is not None and last.reached is not None:
+        # Ruling 85: after Next highlight, the highlight's event it reached, even where the
+        # clock stopped later to hold the highlight's own steps.
+        stopped = next(
+            (
+                i
+                for i in reversed(items)
+                if i.event is not None
+                and i.event.highlight == last.reached
+                and (after is None or i.at > after)
+                and i.at <= now
+            ),
+            None,
+        )
     move_reason, highlight_reason = _unavailable(conn, grant, items, now, user_id)
     return TimelineView(
         just_happened=tuple(just),
