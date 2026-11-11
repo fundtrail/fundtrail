@@ -53,7 +53,7 @@ endobj
 endobj
 10 0 obj
 <<
-/Length 4545
+/Length 4507
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -115,31 +115,31 @@ BT /F3 8.5 Tf 10.2 TL ET
 BT 1 0 0 1 101.3595 631.5 Tm (installing sensors in Tolliver Valley wells) Tj T* ET
 .72549 .741176 .756863 RG
 .5 w
-n 42 603 528 21 re S
+n 42 603 264 21 re S
 .372549 .388235 .407843 rg
 BT /F1 7.5 Tf 9 TL ET
 BT 1 0 0 1 48 610.5 Tm (Destination:) Tj T* ET
 .066667 .066667 .066667 rg
 BT /F3 8.5 Tf 10.2 TL ET
-BT 1 0 0 1 90.102 610.5 Tm (Halden Tolliver Valley Research Farm, Tolliver Valley, CA) Tj T* ET
+BT 1 0 0 1 90.102 610.5 Tm (Tolliver Valley, CA) Tj T* ET
 .72549 .741176 .756863 RG
 .5 w
-n 42 582 264 21 re S
+n 306 603 264 21 re S
 .372549 .388235 .407843 rg
 BT /F1 7.5 Tf 9 TL ET
-BT 1 0 0 1 48 589.5 Tm (Departure:) Tj T* ET
+BT 1 0 0 1 312 610.5 Tm (Departure:) Tj T* ET
 .066667 .066667 .066667 rg
 BT /F3 8.5 Tf 10.2 TL ET
-BT 1 0 0 1 85.932 589.5 Tm (June 8, 2026) Tj T* ET
+BT 1 0 0 1 349.932 610.5 Tm (June 8, 2026) Tj T* ET
 .72549 .741176 .756863 RG
 .5 w
-n 306 582 264 21 re S
+n 42 582 528 21 re S
 .372549 .388235 .407843 rg
 BT /F1 7.5 Tf 9 TL ET
-BT 1 0 0 1 312 589.5 Tm (Return:) Tj T* ET
+BT 1 0 0 1 48 589.5 Tm (Return:) Tj T* ET
 .066667 .066667 .066667 rg
 BT /F3 8.5 Tf 10.2 TL ET
-BT 1 0 0 1 339.0945 589.5 Tm (June 11, 2026) Tj T* ET
+BT 1 0 0 1 75.0945 589.5 Tm (June 11, 2026) Tj T* ET
 .909804 .913725 .921569 rg
 n 42 551 528 17 re f*
 .066667 .066667 .066667 rg
@@ -235,5 +235,5 @@ trailer
 /Size 11
 >>
 startxref
-5757
+5719
 %%EOF
