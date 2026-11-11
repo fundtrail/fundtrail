@@ -328,6 +328,7 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
             f"What arrived: file {f.id}. Read it fully, once, and record every value a check or a "
             "later match could need.",
             AWARD_NOTICE_GUIDANCE,
+            RATE_AGREEMENT_GUIDANCE,
             "Checklist items still missing on the grant. Which of these does this file fill?",
             *(missing_items(ctx) or ["- none"]),
         ]
@@ -501,4 +502,21 @@ AWARD_NOTICE_GUIDANCE = (
     "total against the one before. Write each budget line and sub-line it prints as its own "
     "budget_line, with its NSF category from the fixed list. Totals such as Total Direct Costs "
     "are sums, not terms."
+)
+
+RATE_AGREEMENT_GUIDANCE = (
+    "If this is a fringe benefit rate agreement: write a rate term for each employee group in "
+    "each period it prints, every row, past years included, because code recalculates a "
+    "benefit charge with the rate for the year its salary falls in. Each term's applies_to is "
+    "the row's group, named from the agreement's own words for it (such as \"No Benefit "
+    'Eligibility" for no_benefit_eligibility) and cited; its effective_from and effective_to '
+    "are the row's From and To dates; its rate is the row's rate as printed (a bare number in "
+    "the agreement's percent column, such as 15.00, is read as 15%); its name is the group as "
+    "printed; and dated is the agreement's date. A row with no end date, such as one in effect "
+    '"Until Amended", has no effective_to. A provisional row that points back to another '
+    'year\'s rates ("Use same rates and conditions as those cited for fiscal year ending ...") '
+    "gets a term for each group too: its effective_from cited from the provisional row, and its "
+    "rate, group and name cited from the rows it points to. Keep the agreement's own wording: "
+    "the provisional row's citation shows the term is provisional, so don't mark it yourself. "
+    "A group that isn't one of the five: leave applies_to out and flag the term."
 )

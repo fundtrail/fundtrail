@@ -7,6 +7,7 @@ they were written, including replaced, waiting and rejected ones.
     from app.checks.run import run_checks
 """
 
+from app.checks.benefits import benefit_group, salary_done
 from app.checks.charge_checks import evaluate_charge, suggestions_by_charge
 from app.checks.checklist import default_items
 from app.checks.decisions import Decisions, Marked, SubjectKey
@@ -42,6 +43,7 @@ def _reason(m: Marked) -> Reason:
         accepted_by=m.accepted_by,
         offered_note_id=m.offered_note_id,
         dispute_id=f.dispute_id,
+        expected_cents=f.expected_cents,
     )
 
 
@@ -54,6 +56,7 @@ def _problem(m: Marked) -> Problem:
         record_ids=tuple(dict.fromkeys(f.record_ids)),
         accepted_by=m.accepted_by,
         amount_cents=f.amount_cents,
+        expected_cents=f.expected_cents,
     )
 
 
@@ -78,9 +81,16 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
     suggestions = {g: suggestions_by_charge(v) for g, v in views.items()}
     over_linked = {g: over_linked_bills(v) for g, v in views.items()}
 
-    charges: list[ChargeStatus] = []
-    questions: list[OpenQuestion] = []
-    for charge in ci.charges:
+    statuses: dict[str, ChargeStatus] = {}
+    questions_of: dict[str, list[OpenQuestion]] = {}
+    # Ruling 61: a benefit charge waits on its salary lines, so every other charge is
+    # checked first and the benefit charges after, with the salary lines' statuses.
+    others = [c for c in ci.charges if benefit_group(c) is None]
+    benefit_charges = [c for c in ci.charges if benefit_group(c) is not None]
+    salary: dict[str, bool] | None = None
+    for charge in others + benefit_charges:
+        if salary is None and benefit_group(charge) is not None:
+            salary = {i: salary_done(s) for i, s in statuses.items()}
         view, dec = views[charge.grant_id], decisions[charge.grant_id]
         found = evaluate_charge(
             charge,
@@ -88,6 +98,7 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
             suggestions[charge.grant_id].get(charge.id, []),
             list(ci.failed_runs),
             over_linked[charge.grant_id],
+            salary,
         )
         marked = dec.mark_charge(charge, found.findings)
         failing = [m for m in marked if m.finding.failing]
@@ -96,25 +107,25 @@ def run_checks(checks_input: ChecksInput) -> ChecksOutput:
         ]
         snoozed = dec.snoozed(SubjectKey(charge_id=charge.id), flagging)
         net = view.nets.get(charge.id)
-        charges.append(
-            ChargeStatus(
-                grant_id=charge.grant_id,
-                charge_id=charge.id,
-                bucket=most_serious([m.finding.bucket for m in marked]),
-                reasons=tuple(_reason(m) for m in marked),
-                checklist=tuple(found.entries),
-                # Decision 0020: a fully reversed charge leaves the problem list and stays
-                # visible, keeping the bucket the checks give it.
-                flagged=bool(flagging) and not snoozed and not (net is not None and net.reversed),
-                rechecking=found.rechecking,
-                accepted=bool(failing) and all(m.accepted_by is not None for m in failing),
-                snoozed=snoozed,
-                net_cents=net.net_cents if net is not None and net.corrections else None,
-                corrections=net.corrections if net is not None else (),
-                reversed=net is not None and net.reversed,
-            )
+        statuses[charge.id] = ChargeStatus(
+            grant_id=charge.grant_id,
+            charge_id=charge.id,
+            bucket=most_serious([m.finding.bucket for m in marked]),
+            reasons=tuple(_reason(m) for m in marked),
+            checklist=tuple(found.entries),
+            # Decision 0020: a fully reversed charge leaves the problem list and stays
+            # visible, keeping the bucket the checks give it.
+            flagged=bool(flagging) and not snoozed and not (net is not None and net.reversed),
+            rechecking=found.rechecking,
+            accepted=bool(failing) and all(m.accepted_by is not None for m in failing),
+            snoozed=snoozed,
+            net_cents=net.net_cents if net is not None and net.corrections else None,
+            corrections=net.corrections if net is not None else (),
+            reversed=net is not None and net.reversed,
         )
-        questions += found.questions
+        questions_of[charge.id] = found.questions
+    charges = [statuses[c.id] for c in ci.charges]
+    questions = [q for c in ci.charges for q in questions_of[c.id]]
 
     records: list[RecordStatus] = []
     grants: list[GrantStatus] = []

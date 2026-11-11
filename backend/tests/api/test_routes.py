@@ -43,7 +43,9 @@ def test_workspaces_are_created_and_listed(api: Api) -> None:
     workspace = _workspace(api)
     assert workspace["name"] == "Lab" and "clock_now" not in workspace
     assert workspace["owner_id"] == api.user_id
-    assert api.client.get("/workspaces", headers=api.headers).json() == [workspace]
+    # The user's own first workspace (ruling 64), then the one just made.
+    listed = api.client.get("/workspaces", headers=api.headers).json()
+    assert workspace in listed and len(listed) == 2
 
 
 def test_a_grant_from_its_award_letter_stores_the_letter_and_queues_a_run(api: Api) -> None:

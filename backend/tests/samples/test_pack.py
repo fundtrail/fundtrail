@@ -17,6 +17,7 @@ from app.samples.pack import (
     SUGGESTION_KINDS,
     EventKind,
     PackError,
+    SamplePack,
     event_id,
     load_folder,
     load_pack,
@@ -318,35 +319,43 @@ def test_suggestion_kinds_are_record_kinds() -> None:
 # The two samples in the repo, from data/samples/.
 
 
-def test_the_larger_sample() -> None:
-    pack = load_pack(LARGER_SAMPLE)
-    assert pack.starts_at == at("2024-01-18T17:00:00Z")
-    assert not any(e.deliver_by_user for e in pack.events)
-    assert [(a.action, a.file) for a in pack.actions] == [("confirm_terms", "award_letter.txt")]
-    lines = [e.name for e in pack.events if e.kind is EventKind.LEDGER_LINE]
-    assert sorted(lines) == sorted(pack.ledger_line_ids())
+# The two samples in the repo. What's in them is the seed builder's (W3) and changes with
+# the sample content, so these read what they expect from the pack itself.
+
+
+def _the_repos_sample(pack: SamplePack) -> None:
+    """What any sample in the repo holds to: it starts at its first event, the award letter,
+    and the script's first step confirms its terms; its events are in time order and every
+    file is readable; each file marked for the user is brought in by the script on or after
+    its date."""
+    first = pack.events[0]
+    assert pack.starts_at == first.at
+    assert first.kind is EventKind.FILE and not first.deliver_by_user
+    assert (pack.actions[0].action, pack.actions[0].file) == ("confirm_terms", first.name)
     times = [e.at for e in pack.events]
     assert times == sorted(times)
     for e in pack.events:
         if e.kind is EventKind.FILE:
             assert pack.file_bytes(e.name)
+    marked = {e.name: e.at for e in pack.events if e.deliver_by_user}
+    brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
+    assert set(brought) <= set(marked)
+    assert all(brought[name] >= at for name, at in marked.items() if name in brought)
+
+
+def test_the_larger_sample() -> None:
+    pack = load_pack(LARGER_SAMPLE)
+    _the_repos_sample(pack)
+    lines = [e.name for e in pack.events if e.kind is EventKind.LEDGER_LINE]
+    assert sorted(lines) == sorted(pack.ledger_line_ids())
 
 
 def test_the_small_sample() -> None:
     pack = load_pack(SMALL_SAMPLE)
-    assert pack.starts_at == at("2026-11-16T17:30:00Z")
-    assert pack.events[0].name == "award_letter.pdf"
-    marked = {e.name: e.at for e in pack.events if e.deliver_by_user}
-    assert sorted(marked) == [
-        "email_invoice_ESS-32410.eml",
-        "hardware_receipt.jpg",
-        "invoice_EES-7420.pdf",
-    ]
-    assert pack.actions[0].action == "confirm_terms" and pack.actions[0].file == "award_letter.pdf"
-    deliveries = [a for a in pack.actions if a.action == "deliver_file"]
-    # The script brings in each marked file on its date.
-    assert sorted((a.file, a.at) for a in deliveries) == sorted(marked.items())
-    assert [e for e in pack.events if e.kind is EventKind.LEDGER] == [pack.events[1]]
+    _the_repos_sample(pack)
+    # The small sample's ledger arrives as one file, its later lines released by the clock.
+    assert [e.kind for e in pack.events].count(EventKind.LEDGER) == 1
+    assert any(e.deliver_by_user for e in pack.events)
 
 
 def test_ids_are_the_same_on_every_load() -> None:

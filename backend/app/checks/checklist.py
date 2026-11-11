@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.checks import benefits
 from app.checks.findings import APPROVAL, CHECKLIST, Finding, passed
 from app.checks.ledger_accounts import group_items
 from app.checks.rules_match import rules_for
@@ -90,6 +91,10 @@ class ItemResult:
     filled: bool
     removal_waiting_id: str | None
     findings: list[Finding] = field(default_factory=list[Finding])
+    # Ruling 61: an item code fills by recalculating (a benefit charge's "Benefit rate")
+    # names the rate term and the salary lines it was recalculated from.
+    rate_id: str | None = None
+    charge_ids: tuple[str, ...] = ()
 
 
 @dataclass
@@ -312,6 +317,19 @@ def _rate_value(spec: ItemSpec, view: GrantView) -> tuple[Decimal | None, Findin
 def evaluate_item(
     spec: ItemSpec, charge: Charge, view: GrantView, waiting_removal: str | None
 ) -> ItemResult:
+    if spec.default_key == benefits.BENEFIT_RATE:
+        found = benefits.recalculate(charge, view, spec.needed)
+        if found is not None:
+            # Ruling 61: filled by the recalculation, never by links.
+            return ItemResult(
+                spec,
+                [],
+                filled=found.filled,
+                removal_waiting_id=waiting_removal,
+                findings=found.findings,
+                rate_id=found.rate_id,
+                charge_ids=found.charge_ids,
+            )
     links = [lk for lk in view.links[charge.id] if _names(lk, spec, view)]
     result = ItemResult(spec, links, filled=False, removal_waiting_id=waiting_removal)
     facts = [lk.fact.id for lk in links]
@@ -509,6 +527,8 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
             link_ids=tuple(lk.link.id for lk in item.links),
             removal_waiting_id=item.removal_waiting_id,
             rule_id=item.spec.rule.id if item.spec.rule is not None else None,
+            rate_id=item.rate_id,
+            charge_ids=item.charge_ids,
         )
         for item in items
     ]

@@ -9,6 +9,8 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 from app.contracts.charges import Charge
 from app.contracts.corrections import NetAmount, net_amounts
@@ -16,6 +18,7 @@ from app.contracts.evidence import EvidenceFile
 from app.contracts.records import (
     FACT_KINDS,
     TERM_KINDS,
+    BenefitGroup,
     BudgetAssignment,
     BudgetLine,
     ChecklistItem,
@@ -35,6 +38,9 @@ from app.contracts.records import (
     citations,
 )
 from app.contracts.rules import RecordState
+
+if TYPE_CHECKING:
+    from app.checks.benefits import Cell
 
 
 @dataclass(frozen=True)
@@ -119,6 +125,14 @@ class GrantView:
         self.period = _period_in_force(self.terms[RecordKind.PERIOD_OF_PERFORMANCE])
         # Decision 0020: each charge netted with the lines that correct it.
         self.nets: dict[str, NetAmount] = net_amounts(self.charges, state)
+
+    @cached_property
+    def benefit_cells(self) -> dict[tuple[BenefitGroup, date], "Cell"]:
+        """Ruling 61: the benefit charges and salary lines by group and month, worked out
+        once per view (benefits.cells)."""
+        from app.checks.benefits import cells  # benefits reads this module
+
+        return cells(self)
 
     # Small helpers every check uses.
 
