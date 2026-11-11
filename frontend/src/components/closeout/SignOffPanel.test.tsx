@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, ApiProvider, type ApiClient, type FtRecord, type SignOff, type SignOffState } from "@/lib/api";
 import { StaticAuthProvider, type Auth } from "@/lib/auth";
@@ -155,36 +155,24 @@ describe("why sign-off is unavailable (ruling 72)", () => {
     expect(write).toHaveBeenCalledTimes(1);
   });
 
-  it("is a polite live region that announces again on a press, and not on a refetch", () => {
-    vi.useFakeTimers();
-    try {
-      const signOff: SignOffState = { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason };
-      const view = (state: SignOffState) => (
-        <StaticAuthProvider value={auth}>
-          <ApiProvider client={{ writeRecord: vi.fn() } as unknown as ApiClient}>
-            <SignOffPanel grantId="g-1" signOff={state} onSigned={vi.fn()} />
-          </ApiProvider>
-        </StaticAuthProvider>
-      );
-      const { rerender } = render(view(signOff));
-      const status = screen.getByRole("status");
-      expect(status).toHaveTextContent(reason);
-      expect(status).toHaveAttribute("id", screen.getByRole("button", { name: "Sign off" }).getAttribute("aria-describedby"));
+  it("is a status region named as the button's description, and a refetch with the same reason changes nothing", () => {
+    const signOff: SignOffState = { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason };
+    const view = (state: SignOffState) => (
+      <StaticAuthProvider value={auth}>
+        <ApiProvider client={{ writeRecord: vi.fn() } as unknown as ApiClient}>
+          <SignOffPanel grantId="g-1" signOff={state} onSigned={vi.fn()} />
+        </ApiProvider>
+      </StaticAuthProvider>
+    );
+    const { rerender } = render(view(signOff));
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(reason);
+    expect(status).toHaveAttribute("id", screen.getByRole("button", { name: "Sign off" }).getAttribute("aria-describedby"));
 
-      // A refetch with the same reason leaves the text untouched, so nothing is announced.
-      const text = status.firstChild;
-      rerender(view({ ...signOff }));
-      expect(screen.getByRole("status").firstChild).toBe(text);
-
-      // A press withdraws the text from screen readers for a moment, then brings it back.
-      fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
-      expect(status.querySelector('[aria-hidden="true"]')).toHaveTextContent(reason);
-      act(() => vi.advanceTimersByTime(150));
-      expect(status.querySelector('[aria-hidden="true"]')).toBeNull();
-      expect(status).toHaveTextContent(reason);
-    } finally {
-      vi.useRealTimers();
-    }
+    // A refetch with the same reason leaves the text untouched, so nothing is announced.
+    const text = status.firstChild;
+    rerender(view({ ...signOff }));
+    expect(screen.getByRole("status").firstChild).toBe(text);
   });
 });
 
@@ -272,6 +260,24 @@ describe("once signed, signing again is quiet", () => {
     expect(write).not.toHaveBeenCalled();
     // The stored sign-off is untouched.
     expect(screen.getByTestId("sign-off-state")).toHaveTextContent("L-1002 waits on the extension.");
+  });
+
+  it("drops a refusal on Cancel, so reopening the form doesn't show it again; the typed note stays", async () => {
+    setup(vi.fn(async () => Promise.reject(new ApiError(422, ["A note is required."]))), {
+      state: "signed",
+      sign_off: signedRecord,
+      changes: [],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign off again" }));
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Half a note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign off again" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("A note is required.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign off again" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Note")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Note")).toHaveValue("Half a note");
   });
 
   it("offers no Cancel before anything is signed", () => {

@@ -145,21 +145,17 @@ function WithdrawSignOff({
   );
 }
 
-/** How long a reason is withdrawn from screen readers on a press, so it's announced again. */
-const REANNOUNCE_MS = 150;
-
 /**
  * Rulings 72 and 79: why signing off can't be done now, in the server's words,
- * under the control it blocks and named as that control's description. A polite
- * live region: a new or changed reason is announced, and a refetch that brings
- * the same reason changes no text, so it announces nothing. A press on the
- * unavailable control hides the text from screen readers for a moment and
- * brings it back, which announces it again; on screen it never moves or blinks.
+ * under the control it blocks and named as that control's description, so it's
+ * read when the control gets focus. A polite status region: a changed reason is
+ * announced, and a refetch that brings the same reason changes no text, so it
+ * announces nothing.
  */
-function UnavailableReason({ id, reason, blank }: { id: string; reason: string; blank: boolean }) {
+function UnavailableReason({ id, reason }: { id: string; reason: string }) {
   return (
     <p className="ft-co-unavailable" id={id} role="status">
-      {blank ? <span aria-hidden="true">{reason}</span> : reason}
+      {reason}
     </p>
   );
 }
@@ -194,24 +190,6 @@ export function SignOffPanel({
   const returnFocus = useRef(false);
   // Rulings 72 and 79: the server says, in its own words, when signing off can't be done now.
   const unavailable = signOff.unavailable_reason?.trim() || null;
-  // Pressing an unavailable control blanks its reason for a moment, so it's announced again.
-  const [reasonBlank, setReasonBlank] = useState(false);
-  const reannounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (reannounce.current) clearTimeout(reannounce.current);
-    },
-    [],
-  );
-
-  function announceUnavailable() {
-    if (reannounce.current) clearTimeout(reannounce.current);
-    setReasonBlank(true);
-    reannounce.current = setTimeout(() => {
-      reannounce.current = null;
-      setReasonBlank(false);
-    }, REANNOUNCE_MS);
-  }
 
   // Opening the form to sign again puts the cursor in the note, the first thing to
   // fill in; closing it with Cancel puts focus back on "Sign off again".
@@ -224,18 +202,16 @@ export function SignOffPanel({
     }
   }, [formOpen]);
 
+  // Cancel closes the form and drops a refusal shown in it; a half-typed note stays.
   function cancel() {
     returnFocus.current = true;
+    setRefusal(null);
     setFormOpen(false);
   }
 
   async function signOffNow(event: FormEvent) {
     event.preventDefault();
-    if (unavailable) {
-      announceUnavailable();
-      return;
-    }
-    if (busy) return;
+    if (busy || unavailable) return;
     setBusy(true);
     setRefusal(null);
     setSigned(null);
@@ -328,7 +304,7 @@ export function SignOffPanel({
                 </button>
               )}
             </div>
-            {unavailable && <UnavailableReason id={reasonId} reason={unavailable} blank={reasonBlank} />}
+            {unavailable && <UnavailableReason id={reasonId} reason={unavailable} />}
           </div>
         </form>
       ) : (
@@ -339,11 +315,13 @@ export function SignOffPanel({
             className="ft-btn ft-btn--sm"
             aria-disabled={unavailable ? true : undefined}
             aria-describedby={unavailable ? reasonId : undefined}
-            onClick={() => (unavailable ? announceUnavailable() : setFormOpen(true))}
+            onClick={() => {
+              if (!unavailable) setFormOpen(true);
+            }}
           >
             Sign off again
           </button>
-          {unavailable && <UnavailableReason id={reasonId} reason={unavailable} blank={reasonBlank} />}
+          {unavailable && <UnavailableReason id={reasonId} reason={unavailable} />}
         </div>
       )}
 
