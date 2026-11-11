@@ -245,21 +245,31 @@ def run_worker_until_idle(database_url: str, concurrency: int = 1) -> None:
 
     A worker that isn't told to wait stops as soon as it finds no job it may start, which
     happens while a grant's lock holds its other jobs back, so it's started again.
+
+    The app's periodic tasks (the mail checker, the daily recheck, the walk check) don't
+    run here: whether one fell due would depend on the minute the test ran in, and on
+    whether an earlier test's worker had already taken that minute. A test that wants one
+    calls it.
     """
     import psycopg
+    from procrastinate.periodic import PeriodicRegistry
 
     from app.db.jobs import QUEUE, TASK_NAME
     from app.db.worker import open_worker_app
 
     async def go() -> None:
         async with open_worker_app(database_url) as app:
-            await app.run_worker_async(
-                queues=[QUEUE],
-                concurrency=concurrency,
-                wait=False,
-                listen_notify=False,
-                install_signal_handlers=False,
-            )
+            periodic, app.periodic_registry = app.periodic_registry, PeriodicRegistry()
+            try:
+                await app.run_worker_async(
+                    queues=[QUEUE],
+                    concurrency=concurrency,
+                    wait=False,
+                    listen_notify=False,
+                    install_signal_handlers=False,
+                )
+            finally:
+                app.periodic_registry = periodic
 
     for _ in range(20):
         asyncio.run(go())
