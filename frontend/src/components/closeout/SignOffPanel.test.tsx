@@ -125,15 +125,31 @@ describe("why sign-off is unavailable (ruling 72)", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it("shows nothing new when the server gives no reason", async () => {
+  it("sends nothing with a reason present, by click, by Enter in the note, or by submitting the form", () => {
+    const write = vi.fn();
+    setup(write, { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason });
+    const note = screen.getByLabelText("Note");
+    fireEvent.change(note, { target: { value: "L-1002 waits on the extension." } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+    fireEvent.keyDown(note, { key: "Enter", code: "Enter" });
+    // Enter in a textarea adds a line; the form's own submit covers any other way of sending it.
+    fireEvent.submit(screen.getByRole("form", { name: "Sign off" }));
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["null", { unavailable_reason: null }],
+    ["absent", {}],
+  ])("leaves Sign off working when the reason is %s, and sends the request", async (_, extra) => {
     const write = vi.fn(async () => signedRecord as FtRecord);
-    setup(write, { state: "not_signed", sign_off: null, changes: [], unavailable_reason: null });
+    setup(write, { state: "not_signed", sign_off: null, changes: [], ...extra });
     const button = screen.getByRole("button", { name: "Sign off" });
     expect(button).not.toHaveAttribute("aria-disabled");
     expect(button).not.toHaveAttribute("aria-describedby");
     expect(button).toHaveAccessibleDescription("");
     fireEvent.click(button);
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(write).toHaveBeenCalledWith("g-1", { data: { kind: "sign_off", note: null } }));
+    expect(write).toHaveBeenCalledTimes(1);
   });
 });
 
