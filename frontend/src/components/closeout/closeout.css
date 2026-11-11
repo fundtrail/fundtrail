@@ -1,0 +1,510 @@
+/*
+ * The closeout page (issue 249), after Grant's closeout card: the university's
+ * steps as one trail, then what's still open beside the evidence report and the
+ * sign-off. Styles are ft-co-*, scoped to this page. Colors, buttons and form
+ * controls come from the foundation in globals.css (issue 238).
+ */
+
+.ft-co {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* No one-word last lines in the step descriptions and the panels' sentences. */
+.ft-co p,
+.ft-co-step {
+  text-wrap: pretty;
+}
+
+/* A panel's inside: every line sits within the panel's padding. */
+.ft-co-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+.ft-co-quiet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ft-co-quiet .ft-link {
+  color: var(--ink-muted);
+}
+
+/* --- The steps, as one trail --- */
+
+.ft-co-steps-panel {
+  container-type: inline-size;
+  overflow: visible;
+}
+.ft-co-steps-panel .ft-panel__head {
+  flex-wrap: wrap;
+}
+/* What's next leads the panel, in the server's words; the end date in force follows. */
+.ft-co-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: var(--measure);
+}
+.ft-co-next {
+  font-family: var(--display, var(--sans));
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--ink);
+}
+.ft-co-next__label {
+  font-weight: 600;
+}
+.ft-co-end {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+/* Every step is drawn the same: one dot and one line, nothing passed or current. */
+.ft-co-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: var(--space-4);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ft-co-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 22px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+/* The line from this step's dot to the next one. */
+.ft-co-step::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 12px;
+  right: calc(-1 * var(--space-4));
+  border-top: 2px solid var(--rule-strong);
+}
+.ft-co-step:last-child::after {
+  display: none;
+}
+.ft-co-step__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink-muted);
+  border-radius: 50%;
+  background: var(--paper-raised);
+}
+.ft-co-step__date {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ft-co-step__name {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Narrower than five readable columns: a list with the line down the left. */
+@container (max-width: 800px) {
+  .ft-co-steps {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-3);
+  }
+  .ft-co-step {
+    max-width: var(--measure);
+    padding-top: 0;
+    padding-left: 26px;
+  }
+  .ft-co-step::after {
+    top: 16px;
+    left: 5px;
+    right: auto;
+    bottom: calc(-1 * var(--space-3) - 2px);
+    border-top: 0;
+    border-left: 2px solid var(--rule-strong);
+  }
+  .ft-co-step__dot {
+    top: 3px;
+  }
+}
+
+/* --- Two columns: what's open on the left, the report and sign-off on the right --- */
+
+.ft-co-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.ft-co-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+/* The report and sign-off stay in view; a tall sign-off scrolls inside its own column. */
+.ft-co-side {
+  position: sticky;
+  top: var(--space-4);
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  min-width: 0;
+  border-radius: var(--radius-md);
+}
+.ft-fake-banner ~ .ft-app .ft-co-side {
+  top: calc(var(--fake-banner-height) + var(--space-4));
+  max-height: calc(100vh - var(--fake-banner-height) - 2 * var(--space-4));
+}
+@media (max-width: 1099px) {
+  .ft-co-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ft-co-side,
+  .ft-fake-banner ~ .ft-app .ft-co-side {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Still open: the problem list rows sit flush in the panel. */
+.ft-co-open .ft-empty {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* Snoozed charges, under the open rows. */
+.ft-co-snoozed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.ft-co-snoozed__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Same columns as a problem list row: date and ID, the charge, amount over bucket. */
+.ft-co-snoozed__row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .ft-co-snoozed__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ft-co-snoozed__row .ft-co-snoozed__side {
+    align-items: flex-start;
+  }
+}
+.ft-co-snoozed__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+/* Every expense: a dense table. */
+.ft-co-table th,
+.ft-co-table td {
+  padding: 6px var(--space-3);
+}
+.ft-co-table th:first-child,
+.ft-co-table td:first-child {
+  padding-left: var(--space-4);
+}
+.ft-co-table th:last-child,
+.ft-co-table td:last-child {
+  padding-right: var(--space-4);
+}
+.ft-co-table td {
+  vertical-align: middle;
+}
+.ft-co-table .ft-co-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ft-co-table .ft-co-date {
+  white-space: nowrap;
+}
+.ft-co-table tr.ft-co-detail td {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--paper-sunken);
+}
+.ft-co-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--measure);
+}
+.ft-co-evidence ul,
+.ft-co-evidence ol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+/* Phone width: each expense becomes a small block instead of a sideways scroll. */
+@media (max-width: 640px) {
+  .ft-co-table,
+  .ft-co-table tbody {
+    display: block;
+  }
+  .ft-co-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ft-co-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "date amount" "charge charge" "bucket show";
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--rule);
+  }
+  .ft-co-table tr.ft-co-detail {
+    display: block;
+    padding: 0;
+    border-top: 0;
+  }
+  .ft-co-table tr.ft-co-detail td {
+    display: block;
+  }
+  .ft-co-table tr:not(.ft-co-detail) td {
+    padding: 0;
+    border-top: 0;
+  }
+  .ft-co-table td:nth-child(1) {
+    grid-area: date;
+  }
+  .ft-co-table td:nth-child(2) {
+    grid-area: charge;
+  }
+  .ft-co-table td:nth-child(3) {
+    grid-area: amount;
+  }
+  .ft-co-table td:nth-child(4) {
+    grid-area: bucket;
+  }
+  .ft-co-table td:nth-child(5) {
+    grid-area: show;
+  }
+}
+
+/* --- The report and the sign-off, one panel --- */
+
+.ft-co-side {
+  container-type: inline-size;
+}
+/* Stacked under the left column, the report and the sign-off sit side by side. */
+@container (min-width: 680px) {
+  .ft-co-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ft-co-pair .ft-co-sign {
+    border-top: 0;
+    border-left: 1px solid var(--rule);
+  }
+}
+.ft-co-report > p,
+.ft-co-sign > p,
+.ft-co-state {
+  max-width: var(--measure);
+}
+
+.ft-co-side .ft-panel {
+  overflow: visible;
+}
+.ft-co-report,
+.ft-co-sign {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.ft-co-sign {
+  border-top: 1px solid var(--rule);
+}
+.ft-co-report__head,
+.ft-co-sign__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.ft-co-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.ft-co-foot {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.ft-co-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+/* The signed state reads top down: who signed and when, then their note as quoted text. */
+.ft-co-state__head {
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--ink);
+}
+.ft-co-quote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ft-co-note {
+  margin: 0;
+  padding: 2px 0 2px var(--space-3);
+  border-left: 1px solid var(--rule-strong);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ft-co-state .ft-id {
+  overflow-wrap: anywhere;
+}
+.ft-co-changes {
+  font-size: 13px;
+}
+.ft-co-changes th,
+.ft-co-changes td {
+  padding: var(--space-1) var(--space-2);
+}
+.ft-co-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Fields: a label, the control, a hint under it. The controls are the foundation's. */
+.ft-co .ft-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ft-co .ft-field__label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ft-co .ft-field__hint {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.ft-co .ft-textarea {
+  width: 100%;
+  min-height: 84px;
+}
+.ft-co .ft-textarea[aria-invalid="true"] {
+  border-color: var(--conflict);
+}
+/* The server's refusal, as a field error: a diamond mark and the reason. */
+.ft-co-report .ft-error,
+.ft-co-sign .ft-error {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-1));
+  padding: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+.ft-co-report .ft-error::before,
+.ft-co-sign .ft-error::before {
+  content: "";
+  flex: none;
+  position: relative;
+  top: -1px;
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+.ft-co-sign .ft-error ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+/* Withdrawing is a different act from signing again, so a rule sets it apart. */
+.ft-co-withdraw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+.ft-co-withdraw__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ft-co-withdraw__row .ft-input {
+  flex: 1 1 180px;
+  width: auto;
+  min-height: var(--control-sm);
+}
+
+.ft-co-done {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunken);
+}
+/* Signing off again sits behind the same rule and spacing as withdrawing. */
+.ft-co-form.is-again {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+
+.ft-co-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-co * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
