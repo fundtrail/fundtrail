@@ -263,6 +263,38 @@ def test_text_is_compared_as_written_ignoring_only_case_and_spacing():
     assert match_of(bill, "document_number") == "exact"
 
 
+def test_a_leading_colon_from_the_label_is_dropped_and_nothing_else():
+    """A crop's margin can take in the label's colon: ": March 3, 2026" reads the same as the
+    date, ": 004417" as the number, ": Example Taxi Co." as the vendor. Only the colon and the
+    spaces around it go; a minus sign stays, so ": -$45.00" isn't $45.00."""
+    boxes: Boxes = {**BOXES, "document_number": (600, 50, 800, 110)}
+    readings = [":$45.00", " : Example Taxi Co.", ": March 3, 2026", ":  004417"]
+    bill, _, _ = run_bill(readings, boxes=boxes)
+    fields = ("total", "vendor", "dated", "document_number")
+    assert [match_of(bill, f) for f in fields] == ["exact"] * 4
+    bill, _, _ = run_bill(
+        [": -$45.00", ":: Example Taxi Co.", "March 3, 2026:", "(004417)"], boxes=boxes
+    )
+    assert [match_of(bill, f) for f in fields] == [
+        "not_found",
+        "not_found",
+        "not_found",
+        "not_found",
+    ]
+
+
+def test_only_a_leading_colon_is_dropped_from_a_reading():
+    drop = second_look_module.without_label_colon
+    assert drop(": March 12, 2024") == "March 12, 2024"
+    assert drop(": INV-12655") == "INV-12655"
+    assert (
+        drop(": SYN-2401835, salt marsh carbon burial") == "SYN-2401835, salt marsh carbon burial"
+    )
+    for kept in ("-12.00", "$12.00", "(12.00)", "12.00:", "INV-12655"):
+        assert drop(kept) == kept
+    assert drop(": -12.00") == "-12.00"
+
+
 def test_a_number_field_is_compared_by_value():
     """A rate term's rate is a number: "15%" reads the same as "15.00%"; its name is text."""
     f = evidence("file-rates", "rates.png", "image/png")
