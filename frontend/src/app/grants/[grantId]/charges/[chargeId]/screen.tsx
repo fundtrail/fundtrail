@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppShell, Loadable } from "@/components/AppShell";
 import { ChargeDetailView, type ChargeLinks } from "@/components/charge/ChargeDetailView";
-import { grantName } from "@/components/GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { useThreadActions } from "@/components/thread/useThreadActions";
 import { useCharge, useChargeThread, useGrant, usePings } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -15,6 +15,7 @@ import { routes } from "@/lib/routes";
  * history, and its review thread. First version; the screens may change.
  */
 export function ChargeScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId, chargeId } = useParams<{ grantId: string; chargeId: string }>();
   // Refetches when the backend pings this grant's channel, such as the agent replying in a thread.
   usePings(`grant:${grantId}`);
