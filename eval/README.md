@@ -63,6 +63,8 @@ So far, the trip case expects its per diem item, at 5 days of $100.00 cited from
 
 `test_cases.py` checks both fields, including that the quantity times the rate is the amount, and that the rate is written in its file.
 
+Ruling 81 also gives an `other_term` record the field `standard_conditions`, as "true" or "false". It's true for the award letter's sentence naming the funder's standard conditions (GC-1). Every case's key expects that term once, and no `unusual_term` answer about it.
+
 ## What it does
 
 Each case gets its own grant, played through the app's ordinary paths, the way a sample grant's timeline is played:
@@ -137,7 +139,7 @@ None of the keys lists that term.
 
 - **At fault: the key.** contracts.md says an `other_term` holds "anything an award letter or amendment says that no other kind holds", and that wording covers this sentence.
 - Ruling 81 settles it. The sentence is recorded once, as an `other_term` marked as the standard conditions, and code never asks `unusual_term` about it.
-- The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these 17 items count as the key's.
+- Every key now expects it: one `other_term` from the award letter with `standard_conditions` true and its date, and no `unusual_term` answer about it. In this first run, which predates that, these 17 items count as the key's.
 
 **effort-report-six-months: 7 other wrong records.**
 

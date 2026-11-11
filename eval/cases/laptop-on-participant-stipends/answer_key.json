@@ -4,6 +4,7 @@
   "records": [
     {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2025-08-01", "end": "2028-07-31", "dated": "2025-07-15"}},
     {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "7500000", "obligated_to_date": "7500000", "dated": "2025-07-15"}},
+    {"kind": "other_term", "file": "award_letter.txt", "fields": {"standard_conditions": "true", "dated": "2025-07-15"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Participant Support Costs", "category": "participant_support", "amount": "4000000", "dated": "2025-07-15"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Stipends", "category": "participant_support", "amount": "4000000", "dated": "2025-07-15"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "3500000", "dated": "2025-07-15"}},

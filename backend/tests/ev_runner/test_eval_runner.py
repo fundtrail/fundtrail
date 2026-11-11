@@ -82,6 +82,29 @@ def test_records_compare_listed_fields_ignoring_case_and_spaces() -> None:
     assert (out.records.right, len(out.records.missing), len(out.records.wrong)) == (2, 0, 1)
 
 
+def test_the_standard_conditions_mark_compares_as_true_or_false() -> None:
+    key = _key(
+        records=[
+            {
+                "kind": "other_term",
+                "file": "award_letter.txt",
+                "fields": {"standard_conditions": "true", "dated": "2026-01-06"},
+            }
+        ]
+    )
+    mark = ev.norm(True)
+    got = ev.GotRecord(
+        "other_term", "award_letter.txt", {"standard_conditions": mark, "dated": "2026-01-06"}
+    )
+    assert _score(key, ev.Got(records=[got])).records.right == 1
+    unmarked = ev.GotRecord(
+        "other_term",
+        "award_letter.txt",
+        {"standard_conditions": ev.norm(False), "dated": "2026-01-06"},
+    )
+    assert _score(key, ev.Got(records=[unmarked])).records.right == 0
+
+
 def test_a_record_with_a_different_field_or_file_or_kind_is_wrong() -> None:
     key = _key(records=[{"kind": "bill", "file": "a.txt", "fields": {"total": "120000"}}])
     for got in (

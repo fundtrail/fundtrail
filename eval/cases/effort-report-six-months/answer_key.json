@@ -4,6 +4,7 @@
   "records": [
     {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2025-09-01", "end": "2028-08-31", "dated": "2025-08-20"}},
     {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "15000000", "obligated_to_date": "15000000", "dated": "2025-08-20"}},
+    {"kind": "other_term", "file": "award_letter.txt", "fields": {"standard_conditions": "true", "dated": "2025-08-20"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Personnel", "category": "other_personnel", "amount": "9600000", "dated": "2025-08-20"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Post Doctoral Scholars", "category": "other_personnel", "amount": "9600000", "dated": "2025-08-20"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Fringe Benefits", "category": "fringe_benefits", "amount": "2400000", "dated": "2025-08-20"}},

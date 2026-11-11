@@ -4,6 +4,7 @@
   "records": [
     {"kind": "period_of_performance", "file": "award_letter.txt", "fields": {"start": "2026-02-01", "end": "2029-01-31", "dated": "2026-01-12"}},
     {"kind": "notice", "file": "award_letter.txt", "fields": {"amendment_number": "000", "amendment_type": "New Project", "obligated_by_amendment": "6000000", "obligated_to_date": "6000000", "dated": "2026-01-12"}},
+    {"kind": "other_term", "file": "award_letter.txt", "fields": {"standard_conditions": "true", "dated": "2026-01-12"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Travel", "category": "travel", "amount": "2000000", "dated": "2026-01-12"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Domestic", "category": "travel", "amount": "2000000", "dated": "2026-01-12"}},
     {"kind": "budget_line", "file": "award_letter.txt", "fields": {"name": "Other Direct Costs", "category": "other_direct_costs", "amount": "4000000", "dated": "2026-01-12"}},

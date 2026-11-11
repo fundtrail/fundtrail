@@ -59,15 +59,17 @@ RECORD_FIELDS = {
     "budget_line": {"name", "category", "amount", "dated"},
     "person": {"name", "email", "role", "dated"},
     "approval_rule": {"applies_to", "approver", "channel", "dated"},
-    "other_term": {"label", "statement", "dated"},
+    "other_term": {"label", "statement", "dated", "standard_conditions"},
     "bill": {"total", "vendor", "dated", "description", "items[].description", "items[].amount"},
     "approval": {"approver_email", "covers", "approver_name", "approved_on", "channel"},
     "note": {"label", "statement"},
 }
 DATE_FIELDS = {"start", "end", "dated", "approved_on"}
 MONEY_FIELDS = {"amount", "total", "items[].amount", "obligated_by_amendment", "obligated_to_date"}
-# A label is the agent's own short name, not a value read from the file.
-UNCITED_FIELDS = {"label"}
+# A label is the agent's own short name, not a value read from the file. Ruling 81: an
+# other_term's standard_conditions is the agent's mark, "true" or "false".
+UNCITED_FIELDS = {"label", "standard_conditions"}
+BOOL_FIELDS = {"standard_conditions"}
 # NSF's standard categories and Other Direct Costs' six sub-lines, spelled as
 # the contract code's BudgetCategory spells them. The sixth sub-line is
 # other_direct_costs_other, so it can't be read as participant support's Other.
@@ -362,7 +364,10 @@ def check_record(rec: object, i: int, case: Path, problems: list[str]) -> None:
         if not isinstance(value, str):
             problems.append(f"{where}: {field} must be a string")
             continue
-        if ftype == "category":
+        if ftype in BOOL_FIELDS:
+            if value not in ("true", "false"):
+                problems.append(f'{where}: {field} must be "true" or "false"')
+        elif ftype == "category":
             if value not in CATEGORIES:
                 problems.append(f"{where}: category {value!r} isn't one of {sorted(CATEGORIES)}")
         elif ftype in DATE_FIELDS:
@@ -959,6 +964,23 @@ def test_a_checklist_item_rate_must_add_up_and_be_written() -> None:
         problems,
     )
     assert len(problems) == 2, problems
+
+
+def test_standard_conditions_is_true_or_false() -> None:
+    """Ruling 81: an other_term's standard_conditions mark is "true" or "false"."""
+    case = CASES_DIR / "credit-memo-spaced-dash"
+    rec = {
+        "kind": "other_term",
+        "file": "award_letter.txt",
+        "fields": {"standard_conditions": "true", "dated": "2026-01-06"},
+    }
+    problems: list[str] = []
+    check_record(rec, 0, case, problems)
+    assert problems == []
+    check_record(
+        {**rec, "fields": {"standard_conditions": "yes", "dated": "2026-01-06"}}, 0, case, problems
+    )
+    assert len(problems) == 1, problems
 
 
 def test_not_scored_needs_a_part_and_a_selector() -> None:
