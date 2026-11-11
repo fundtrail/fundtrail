@@ -7,8 +7,16 @@ import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
 import { TimelinePanel } from "./TimelinePanel";
 
+/** These tests read the folded line, so the fake's view goes without the guide's fields (the guide has its own tests). */
+function unguided(client: ApiClient): ApiClient {
+  const getTimeline = client.getTimeline.bind(client);
+  client.getTimeline = async (grantId) => ({ ...(await getTimeline(grantId)), highlight_total: null });
+  return client;
+}
+
+
 function harness() {
-  const client: ApiClient = createFakeApiClient();
+  const client: ApiClient = unguided(createFakeApiClient());
   const auth = { state: { status: "signed_in" as const, user: FAKE_USER }, fake: true, signIn: async () => {}, signOut: async () => {}, getAccessToken: async () => null };
   function Wrapper({ children }: { children: ReactNode }) {
     return (

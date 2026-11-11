@@ -7,9 +7,17 @@ import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
 import { TimelinePanel } from "./TimelinePanel";
 
+/** These tests read the folded line, so the fake's view goes without the guide's fields (the guide has its own tests). */
+function unguided(client: ApiClient): ApiClient {
+  const getTimeline = client.getTimeline.bind(client);
+  client.getTimeline = async (grantId) => ({ ...(await getTimeline(grantId)), highlight_total: null });
+  return client;
+}
+
+
 /** The panel on a grant on a prerun's run-through, where a plain move to `leavesAt` or later would leave it. */
 async function onTheRunThrough(leavesAt: (view: TimelineView) => string | null) {
-  const client: ApiClient = createFakeApiClient();
+  const client: ApiClient = unguided(createFakeApiClient());
   await client.startOver(SAMPLE_GRANT_ID, true);
   const base = await client.getTimeline(SAMPLE_GRANT_ID);
   const view: TimelineView = { ...base, on_run_through: true, leaves_run_through_at: leavesAt(base) };

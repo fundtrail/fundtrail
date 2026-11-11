@@ -7,12 +7,20 @@ import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
 import { TimelinePanel } from "./TimelinePanel";
 
+/** These tests read the folded line, so the fake's view goes without the guide's fields (the guide has its own tests). */
+function unguided(client: ApiClient): ApiClient {
+  const getTimeline = client.getTimeline.bind(client);
+  client.getTimeline = async (grantId) => ({ ...(await getTimeline(grantId)), highlight_total: null });
+  return client;
+}
+
+
 const MOVE_REASON = "Another sample is still working: Grant B.";
 const HIGHLIGHT_REASON = "No highlight is coming up.";
 
 /** The panel at the sample's start, with the server's view adjusted as given. */
 async function renderAt(adjust: Partial<TimelineView>) {
-  const client: ApiClient = createFakeApiClient();
+  const client: ApiClient = unguided(createFakeApiClient());
   await client.startOver(SAMPLE_GRANT_ID, true);
   const base = await client.getTimeline(SAMPLE_GRANT_ID);
   vi.spyOn(client, "getTimeline").mockResolvedValue({ ...base, ...adjust });

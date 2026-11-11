@@ -100,6 +100,16 @@ describe("Next highlight in the fake (ruling 77)", () => {
     expect(names(skipping.now.deliveries)).toEqual(["award_letter.txt", "invoice_1001.txt"]);
   });
 
+  it("gives the timeline guide's fields as the backend does", async () => {
+    const api = timeline({ "event-file-invoice-1001": "A bill by email" });
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    const view = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
+    expect(view.highlight_total).toBeGreaterThan(0);
+    expect(view.highlight_index).toBe(1);
+    expect(view.highlight_event?.highlight).toBe("A bill by email");
+    expect(view.your_step).toEqual({ action: "deliver_file", open: "delivery", id: "event-file-invoice-1001" });
+  });
+
   it("words its 409s as the backend does", async () => {
     const api = createFakeApiClient();
     await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({
