@@ -384,6 +384,11 @@ def test_a_larger_live_sample_still_reading_holds_another_ones_clock(api: Api) -
     detail = refused.json()["detail"]
     assert detail["reason"] == "another_sample_working"
     assert detail["grant"]["grant"]["id"] == working
+    # Ruling 72: the panel says so before the user tries.
+    held = _get(api, f"/grants/{other}/timeline")
+    assert held["move_unavailable_reason"] == detail["message"]
+    assert held["next_highlight_unavailable_reason"] == detail["message"]
+    assert _get(api, f"/grants/{small}/timeline")["move_unavailable_reason"] is None
     # A small sample is never held.
     assert _post(api, f"/grants/{small}/timeline", {}).status_code == 200
     # Opening is never refused for it.
@@ -454,3 +459,39 @@ def test_one_move_at_a_time_per_user(api: Api) -> None:
         assert _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
         assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, "someone-else"))
     assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
+
+
+def test_next_highlight_on_the_route_goes_to_the_next_highlight(api: Api) -> None:
+    """Ruling 77: {next_highlight: true} goes to the next highlighted event; `to` is
+    ignored. (Which steps it leaves to the user: test_skipping.)"""
+    pack = player.pack_for("nitrate-sensors")
+    receipt = next(e for e in pack.events if e.deliver_by_user and e.highlight)
+    grant_id = _open(api)  # on the award letter, the first highlight
+    response = _post(
+        api,
+        f"/grants/{grant_id}/timeline",
+        {"next_highlight": True, "to": "2027-06-01T00:00:00Z"},
+    )
+    assert response.status_code == 200, response.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))  # the walk waits on the agent
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+
+
+def test_the_move_controls_say_why_they_cant_move(api: Api) -> None:
+    """Ruling 72, in plain words; None while a control can move."""
+    items = player.items_for("nitrate-sensors")
+    grant_id = _open(api)
+    opened = _get(api, f"/grants/{grant_id}/timeline")
+    assert opened["move_unavailable_reason"] is None
+    assert opened["next_highlight_unavailable_reason"] is None
+    last_highlight = max(i.at for i in items if i.event and i.event.highlight)
+    at_last = _move(api, grant_id, _iso(last_highlight))
+    assert at_last["next_highlight_unavailable_reason"] == "No highlight is left to play."
+    refused = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "No highlight is left to play."
+    end = _move(api, grant_id, "2030-01-01T00:00:00Z")
+    assert end["move_unavailable_reason"] == "Nothing is left to play."
+    assert end["next_highlight_unavailable_reason"] == "No highlight is left to play."

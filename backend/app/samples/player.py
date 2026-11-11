@@ -126,6 +126,11 @@ class AnotherSampleWorking(Exception):
         super().__init__(grant.id)
         self.grant = grant
 
+    def reason(self) -> str:
+        """Why, in plain words, for the panel."""
+        name = self.grant.award_number or "another larger sample"
+        return f"The agent is still reading {name}. Its clock can move again once it's done."
+
 
 @cache
 def pack_for(sample: str) -> SamplePack:
@@ -500,7 +505,7 @@ def _next_highlight(items: Sequence[TimelineItem], after: datetime) -> tuple[dat
     for i in items:
         if i.at > after and i.event is not None and i.event.highlight is not None:
             return i.at, i.event.highlight
-    raise MoveRefused("No highlight is left on the timeline.")
+    raise MoveRefused(NO_HIGHLIGHT_LEFT)
 
 
 # The view.
@@ -639,9 +644,12 @@ def _agent_records(
     )
 
 
-def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> TimelineView:
+def view(
+    p: Platform, conn: Conn, grant: Grant, summary: GrantSummary, user_id: str | None = None
+) -> TimelineView:
     """The timeline panel: Just happened, Now and Coming up (issue 165). `summary` is the
-    grant's summary at its now, for the problem list's count."""
+    grant's summary at its now, for the problem list's count. With `user_id`, the viewer,
+    the move controls' reasons include the read-live limit (ruling 72)."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     now = clock.grant_now(conn, grant.id)
@@ -693,6 +701,7 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
     )
     until = last.moved_to if last else now
     stopped = next((i for i in items if i.at == until), None) if until == now else None
+    move_reason, highlight_reason = _unavailable(conn, grant, items, now, user_id)
     return TimelineView(
         just_happened=tuple(just),
         now=TimelineNow(
@@ -709,7 +718,35 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         ),
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
+        move_unavailable_reason=move_reason,
+        next_highlight_unavailable_reason=highlight_reason,
     )
+
+
+NOTHING_LEFT = "Nothing is left to play."
+NO_HIGHLIGHT_LEFT = "No highlight is left to play."
+
+
+def _unavailable(
+    conn: Conn, grant: Grant, items: Sequence[TimelineItem], now: datetime, user_id: str | None
+) -> tuple[str | None, str | None]:
+    """Ruling 72: why the move controls can't move the clock now, in plain words, as `move`
+    would refuse them; None for a control that can. Returns the reasons for the move
+    controls and for Next highlight."""
+    walking = sample_store.walk_target(conn, grant.id)
+    start = max(now, walking) if walking is not None else now
+    move: str | None = None
+    if not any(i.at > start for i in items):
+        move = NOTHING_LEFT
+    elif user_id is not None:
+        try:
+            check_read_live_limit(conn, user_id, grant)
+        except AnotherSampleWorking as busy:
+            move = busy.reason()
+    highlight = move
+    if not any(i.at > start and i.event is not None and i.event.highlight for i in items):
+        highlight = NO_HIGHLIGHT_LEFT
+    return move, highlight
 
 
 def _decisions(conn: Conn, last: Any, records: Sequence[Record]) -> list[Record]:

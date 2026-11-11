@@ -24,7 +24,6 @@ from app.db.ports import AgentInput, AgentResult, ModuleChecks
 from app.samples import player, skipping
 from app.samples.pack import SamplePack, UserAction
 from app.samples.script import WriteRecord, resolve
-from app.samples.timeline import MoveRefused
 from tests.api.conftest import Api
 from tests.db.platform_fixtures import FakeAgent, FakePinger, run_worker_until_idle
 
@@ -669,9 +668,8 @@ def _states(api: Api, pack: SamplePack, grant_id: str) -> dict[str, str]:
     return {pack.actions[s["step"]].action: s["state"] for s in _scripted(api, grant_id)}
 
 
-def _next_highlight(api: Api, grant_id: str) -> None:
-    # Called directly until TimelineMove has `next_highlight` (the contracts builder adds it).
-    player.move(api.platform, api.user_id, _grant(api, grant_id), None, next_highlight=True)
+def _next_highlight(api: Api, grant_id: str) -> Any:
+    return _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
 
 
 def test_next_highlight_leaves_its_own_step_and_never_signs_off(
@@ -763,5 +761,5 @@ def test_next_highlight_with_none_left_is_refused(api: Api) -> None:
     grant_id = _open(api)
     last = max(i.at for i in player.items_for(SMALL) if i.event and i.event.highlight)
     _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(last)})
-    with pytest.raises(MoveRefused, match="No highlight"):
-        _next_highlight(api, grant_id)
+    refused = _next_highlight(api, grant_id)
+    assert refused.status_code == 409 and "No highlight" in refused.json()["detail"]
