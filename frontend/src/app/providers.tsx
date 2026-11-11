@@ -59,7 +59,7 @@ export function Providers({ config = appConfig, children }: { config?: AppConfig
       );
     case "real":
       return (
-        <SupabaseAuthProvider url={config.supabaseUrl} anonKey={config.supabaseAnonKey}>
+        <SupabaseAuthProvider url={config.supabaseUrl} anonKey={config.supabaseAnonKey} devEmailSignIn={config.devEmailSignIn}>
           <RealApi apiUrl={config.apiUrl}>{children}</RealApi>
         </SupabaseAuthProvider>
       );

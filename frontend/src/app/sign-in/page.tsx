@@ -1,8 +1,52 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth";
+
+/**
+ * Local development only (ruling 63): an emailed sign-in link through Supabase,
+ * shown when the build offers it.
+ */
+function EmailSignIn({ send }: { send: (email: string) => Promise<void> }) {
+  const id = useId();
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!email.trim() || state === "sending") return;
+    setState("sending");
+    try {
+      await send(email.trim());
+      setState("sent");
+    } catch {
+      setState("failed");
+    }
+  }
+
+  return (
+    <form className="ft-si__email" onSubmit={(e) => void submit(e)} aria-label="Sign in with an email link">
+      <label htmlFor={id} className="ft-label">
+        Or, for local development, email me a sign-in link
+      </label>
+      <input id={id} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      <button type="submit" className="ft-btn" aria-disabled={state === "sending"}>
+        {state === "sending" ? "Sending…" : "Email me a link"}
+      </button>
+      {state === "sent" && (
+        <p className="ft-caption" role="status">
+          Check your email for the sign-in link.
+        </p>
+      )}
+      {state === "failed" && (
+        <p className="ft-error" role="alert">
+          The link wasn&apos;t sent. Try again.
+        </p>
+      )}
+    </form>
+  );
+}
 
 /** The only page a signed-out user sees: the wordmark, one line, one button. */
 export default function SignIn() {
@@ -45,6 +89,7 @@ export default function SignIn() {
         >
           {busy ? "Signing in…" : "Continue with Google"}
         </button>
+        {auth.signInWithEmail && <EmailSignIn send={auth.signInWithEmail} />}
         {auth.fake && (
           <p className="ft-caption">Fake sign-in: no Supabase project is configured, so this signs in a synthetic demo user.</p>
         )}

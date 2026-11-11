@@ -29,7 +29,7 @@ describe("Providers", () => {
   it("shows no fake label in real mode", () => {
     render(
       <Providers
-        config={{ mode: "real", apiUrl: "https://api.example", supabaseUrl: "https://project.supabase.example", supabaseAnonKey: "k" }}
+        config={{ mode: "real", apiUrl: "https://api.example", supabaseUrl: "https://project.supabase.example", supabaseAnonKey: "k", devEmailSignIn: false }}
       >
         <p>the app</p>
       </Providers>,

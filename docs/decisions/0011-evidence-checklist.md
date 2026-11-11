@@ -1,6 +1,6 @@
 # 0011. Each charge has an evidence checklist
 
-**Date:** 2026-11-09 · **Status:** accepted. Amends [0009](0009-agent-judges-code-checks.md). Amended by [0016](0016-default-checklists-by-account-group.md) (defaults hang on groups of accounts, and Berkeley's effort reports come twice a year, not every quarter).
+**Date:** 2026-11-09 · **Status:** accepted. Amends [0009](0009-agent-judges-code-checks.md). Amended by [0016](0016-default-checklists-by-account-group.md) (defaults hang on groups of accounts, and Berkeley's effort reports come twice a year, not every quarter) and [0030](0030-benefit-charges.md) (code recalculates a benefit charge from its rate and its salary lines).
 
 ## Context
 

@@ -8,7 +8,7 @@ import { GrantHeader } from "@/components/GrantHeader";
 import { grantName } from "@/components/GrantList";
 import { ProblemList } from "@/components/ProblemList";
 import { SampleTimeline } from "@/components/timeline/TimelinePanel";
-import { useCharges, useGrant, useProblemList } from "@/lib/api";
+import { useCharges, useGrant, useProblemList, usePings } from "@/lib/api";
 
 /**
  * A grant's page: where it stands, a sample grant's timeline, its problem list,
@@ -20,6 +20,8 @@ export function GrantScreen() {
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
   const charges = useCharges(grantId);
+  // Everything on the page refetches when the backend pings this grant's channel.
+  usePings(`grant:${grantId}`);
   const summary = grant.data?.summary;
 
   return (
