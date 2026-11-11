@@ -123,12 +123,6 @@
 .ft-sample-about.is-empty {
   color: var(--ink-muted);
 }
-.ft-sample-about__name {
-  font-weight: 600;
-}
-.ft-sample-about.is-unavailable .ft-sample-about__name {
-  color: var(--ink-muted);
-}
 .ft-sample-about__reason {
   font-size: 13px;
   line-height: 18px;
@@ -195,6 +189,15 @@
   line-height: 18px;
   font-weight: 600;
   color: var(--needs-human);
+}
+/* A file with a problem, such as an upload that isn't an award letter: the
+   same needs-human header, with the server's words for each problem. */
+.ft-fileproblem__text {
+  margin-top: 2px;
+  color: var(--needs-human);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
 }
 .ft-waiting__done {
   font-size: 13px;
@@ -349,7 +352,9 @@
 .ft-ts__line > span {
   min-width: 0;
 }
-.ft-ts__line > span + span::before {
+/* The separator belongs to the value before it, so when the row wraps it ends
+   a line and never begins one. */
+.ft-ts__line > span:not(:last-child)::after {
   content: "·";
   margin: 0 var(--space-2);
   color: var(--ink-muted);
@@ -540,11 +545,13 @@
 .ft-tq__foot .ft-linkbtn:hover {
   color: var(--ink);
 }
-/* On the dark page the full yellow under light text reads as a block; the
-   band takes the wash there. */
+/* On the dark page the full yellow under light text reads as a block. The band
+   mixes its own value from the highlighter and the panel, tokens that don't
+   change with the wash, so light ink on it stays above 4.5:1 (about 5.9:1). */
 @media (prefers-color-scheme: dark) {
-  .ft-tq__text mark {
-    --tq-band: var(--highlight-wash);
+  .ft-tq__text mark,
+  .ft-trow.is-muted .ft-tq__text mark {
+    --tq-band: color-mix(in srgb, var(--highlight) 25%, var(--paper-raised));
   }
 }
 
@@ -677,19 +684,9 @@
   white-space: nowrap;
 }
 .ft-notes-empty {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
   padding: var(--space-4);
   border-top: 1px solid var(--rule);
   color: var(--ink-muted);
-}
-.ft-notes-empty__mark {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border: 1.5px dashed var(--missing);
-  border-radius: 50%;
 }
 @container (max-width: 640px) {
   .ft-note {
@@ -753,8 +750,9 @@
 .ft-upload__result .ft-heading {
   overflow-wrap: anywhere;
 }
-/* What the file produced: a solid dot for lines added, the dashed ring of
-   missing evidence for lines held back. Never red: a skipped row isn't a conflict. */
+/* What the file produced, in neutral marks so they never read as a bucket: an
+   ink check for lines added, a muted dash for lines held back, and no mark
+   beside a count of zero (its space kept, so the lines stay aligned). */
 .ft-found {
   display: flex;
   flex-direction: column;
@@ -772,14 +770,20 @@
 .ft-found li::before {
   content: "";
   flex: none;
-  width: 9px;
-  height: 9px;
-  border: 1.5px dashed var(--missing);
-  border-radius: 50%;
+  width: 10px;
+  height: 10px;
 }
-.ft-found li.is-done::before {
-  border: 0;
-  background: var(--complete);
+.ft-found li.is-added::before {
+  width: 9px;
+  height: 5px;
+  margin: 0 0.5px 3px;
+  border-bottom: 1.5px solid var(--ink);
+  border-left: 1.5px solid var(--ink);
+  transform: rotate(-45deg);
+}
+.ft-found li.is-other::before {
+  height: 1.5px;
+  background: var(--ink-muted);
 }
 .ft-upload__rows {
   border: 1px solid var(--rule);

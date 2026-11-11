@@ -96,9 +96,12 @@ export function LedgerUpload({ grantId }: { grantId: Id }) {
         <section className="ft-upload__result" aria-label="Upload result" role="status">
           <p className="ft-heading">{result.fileName}</p>
           <ul className="ft-found">
-            <li className={added > 0 ? "is-done" : undefined}>{plural(added, "line added", "lines added")}</li>
-            <li>{plural(present, "line already on file, skipped", "lines already on file, skipped")}</li>
-            <li>{plural(rejected.length, "row rejected", "rows rejected")}</li>
+            {/* Neutral marks, never a bucket's sign: a check for lines added, a dash for the rest, nothing beside a zero. */}
+            <li className={added > 0 ? "is-added" : undefined}>{plural(added, "line added", "lines added")}</li>
+            <li className={present > 0 ? "is-other" : undefined}>
+              {plural(present, "line already on file, skipped", "lines already on file, skipped")}
+            </li>
+            <li className={rejected.length > 0 ? "is-other" : undefined}>{plural(rejected.length, "row rejected", "rows rejected")}</li>
           </ul>
           {rejected.length > 0 && (
             <>

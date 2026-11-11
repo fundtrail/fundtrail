@@ -122,7 +122,6 @@ export function SampleCard({
       </div>
 
       <div className={`ft-sample-about${option ? "" : " is-empty"}${option && !option.available ? " is-unavailable" : ""}`}>
-        {option && <p className="ft-sample-about__name">{option.name}</p>}
         <p aria-live="polite">{option ? option.description : "A sample grant to try FundTrail on, added to this workspace."}</p>
         {option && !option.available && (
           <p className="ft-sample-about__reason">{option.unavailable_reason ?? "This sample isn't available right now."}</p>

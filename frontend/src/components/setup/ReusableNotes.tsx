@@ -13,7 +13,6 @@ export function ReusableNotes({ notes }: { notes: ReusableNoteView[] }) {
   if (notes.length === 0) {
     return (
       <div className="ft-notes-empty">
-        <span className="ft-notes-empty__mark" aria-hidden="true" />
         <p>No reusable notes. A note the accountant chooses to reuse when accepting a problem shows here.</p>
       </div>
     );

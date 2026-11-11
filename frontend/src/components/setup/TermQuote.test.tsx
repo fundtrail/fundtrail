@@ -53,6 +53,18 @@ describe("TermQuote's highlighter", () => {
     expect(container.querySelector("mark")).toBeNull();
     expect(container.querySelector("blockquote")).toHaveClass("is-plain");
   });
+
+  it("never highlights a box on an image, even as an exact match", () => {
+    const box: Citation & { passage: string } = {
+      file_id: "file-2",
+      passage: "Total $38.50",
+      location: { type: "image_box", left: 0.1, top: 0.2, width: 0.3, height: 0.05 },
+      match: "exact",
+    };
+    const { container } = show(box);
+    expect(container.querySelector("mark")).toBeNull();
+    expect(container.querySelector("blockquote")).toHaveClass("is-plain");
+  });
 });
 
 describe("TermQuote's excerpt", () => {
@@ -80,6 +92,29 @@ describe("TermQuote's excerpt", () => {
     const { container } = show(cite(LONG, "exact"));
     expect(container.querySelector("blockquote")!.textContent).toBe(LONG);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows the whole quote when the values' ranges together spread wider than the window", () => {
+    // Two values, one near the start and one near the end of the long passage.
+    const spans = [
+      { start: 0, end: 18 },
+      { start: LONG.indexOf("Research.gov"), end: LONG.indexOf("Research.gov") + 12 },
+    ];
+    expect(quoteExcerpt(LONG, spans)).toBeNull();
+  });
+
+  it("shows the whole quote for a single value whose ranges are far apart", () => {
+    const at = BEFORE.length;
+    const far: Citation & { passage: string } = {
+      ...cite(LONG, "exact"),
+      highlight: [
+        { start_char_index: at + 20, end_char_index: at + 29 },
+        { start_char_index: at + LONG.length - 30, end_char_index: at + LONG.length - 20 },
+      ],
+    };
+    const { container } = show(far);
+    expect(container.querySelector("blockquote")!.textContent).toBe(LONG);
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).not.toBeInTheDocument();
   });
 
   it("doesn't cut a short quote", () => {

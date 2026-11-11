@@ -33,16 +33,21 @@ export function valueSpans(citation: Citation): Span[] | null {
 /** Characters of the passage kept around the value when a quote is cut short. */
 const BEFORE = 60;
 const AFTER = 100;
+/** The most characters the value's ranges may cover, first to last, for the quote to be cut short. */
+const WINDOW = 120;
 
 /**
  * The part of a long passage to show: the value's characters with some words
- * either side, cut at word breaks. Null when the whole passage shows anyway,
- * because it is short or the value's place in it isn't known.
+ * either side, cut at word breaks. A quote is cut short only when every value
+ * it stands for is inside the part shown, so this is null, and the whole
+ * passage shows, when the passage is short, when any value's place in it isn't
+ * known (null spans), or when the values' ranges spread wider than the window.
  */
 export function quoteExcerpt(passage: string, spans: Span[] | null): Span | null {
   if (!spans || spans.length === 0) return null;
   const first = Math.min(...spans.map((s) => s.start));
   const last = Math.max(...spans.map((s) => s.end));
+  if (last - first > WINDOW) return null;
   let start = Math.max(0, first - BEFORE);
   let end = Math.min(passage.length, last + AFTER);
   if (start > 0) {
@@ -86,7 +91,9 @@ export function TermQuote({ citation, spans }: { citation: Citation & { passage:
   const cut = quoteExcerpt(passage, spans);
   const shown = open || !cut ? { start: 0, end: passage.length } : cut;
   const words = withValue(passage, shown, spans);
-  const match = citation.match === "exact" ? "exact" : citation.match === "close" ? "close" : "plain";
+  // The highlighter needs an exact match of a passage that is text: a box on an image is never highlighted.
+  const isText = citation.location.type !== "image_box";
+  const match = !isText ? "plain" : citation.match === "exact" ? "exact" : citation.match === "close" ? "close" : "plain";
 
   return (
     <div className="ft-tq">

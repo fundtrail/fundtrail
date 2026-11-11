@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ApiError, type ProblemRow } from "@/lib/api";
+import { ApiError, type EvidenceFile, type ProblemRow } from "@/lib/api";
 import { extensionWithUnfoundEnd, SAMPLE_REUSABLE_NOTE } from "@/lib/api/fixtures/setup";
 import { GrantTerms } from "./GrantTerms";
 import { ReusableNotes } from "./ReusableNotes";
@@ -94,9 +94,6 @@ describe("GrantTerms", () => {
     const { detail, Wrapper } = await sampleTerms();
     const rejected = detail.terms.filter((t) => t.record.id === "rec-period-extension").map((t) => ({ ...t, state: "rejected" as const }));
     render(<GrantTerms terms={rejected} rows={[]} />, { wrapper: Wrapper });
-    // A rejected term sits closed in the last group: open the group, then the term.
-    fireEvent.click(screen.getByRole("button", { name: /Not in force/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Jan 31, 2027/, expanded: false }));
     expect(screen.getByRole("button", { name: "Type the right value" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the term's thread" })).toHaveAttribute("href", "/grants/grant-sample/records/rec-period-extension");
   });
@@ -158,6 +155,64 @@ describe("issue 274: Open the source opens the value's spot", () => {
       "href",
       "/grants/grant-sample/files/file-extension-notice?record=rec-period-extension&value=end",
     );
+  });
+});
+
+describe("a shared quote never hides a value", () => {
+  it("shows the whole passage when one value sharing it has no known place in it", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const filler = "lorem ipsum dolor sit amet ".repeat(8);
+    const passage = `Principal Investigator: ${filler}Dr. Robin Example, robin.example@university.example`;
+    const at = 1000;
+    const location = { type: "char_location" as const, start_char_index: at, end_char_index: at + passage.length };
+    const nameAt = at + passage.indexOf("Dr. Robin Example");
+    const terms = detail.terms.map((t) => {
+      if (t.record.id !== "rec-person-pi") return t;
+      const data = t.record.data as unknown as Record<string, { value: unknown; citation: unknown }>;
+      const cite = (highlight: unknown) => ({ file_id: "file-award-letter", passage, location, match: "exact", highlight });
+      return {
+        ...t,
+        record: {
+          ...t.record,
+          data: {
+            ...t.record.data,
+            // The name has a stored range; the role and the email have none.
+            name: { ...data.name, citation: cite([{ start_char_index: nameAt, end_char_index: nameAt + 17 }]) },
+            role: { ...data.role, citation: cite(null) },
+            email: { ...data.email, citation: cite(null) },
+          },
+        },
+      } as typeof t;
+    });
+    render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByRole("button", { name: /Dr\. Robin Example/ }));
+    const person = screen.getByRole("button", { name: /Dr\. Robin Example/ }).closest("article") as HTMLElement;
+    const quote = within(person).getAllByRole("blockquote")[0]!;
+    expect(quote.textContent).toBe(passage);
+    expect(within(person).queryByRole("button", { name: "Show the whole quote" })).not.toBeInTheDocument();
+  });
+});
+
+describe("issue 278: a file that isn't an award letter", () => {
+  it("shows a notice for the file with the server's words, above the waiting terms", async () => {
+    const { rows, Wrapper } = await sampleTerms();
+    const file = { ...(rows.find((r) => r.kind === "terms_waiting") as { file: EvidenceFile }).file, id: "file-not-a-letter", name: "lunch_menu.pdf" };
+    const fileRow: ProblemRow = {
+      kind: "record",
+      status: {
+        grant_id: "grant-sample",
+        file_id: file.id,
+        problems: [{ check: "award_letter", problem: "not_an_award_letter", text: "This file doesn't read as an award letter." }],
+        flagged: true,
+      },
+      file,
+    };
+    render(<GrantTerms terms={[]} rows={[fileRow]} />, { wrapper: Wrapper });
+    const notice = screen.getByRole("region", { name: "Problem with lunch_menu.pdf" });
+    expect(within(notice).getByRole("link", { name: "lunch_menu.pdf" })).toHaveAttribute("href", "/grants/grant-sample/files/file-not-a-letter");
+    expect(within(notice).getByText("This file doesn't read as an award letter.")).toBeInTheDocument();
+    expect(notice.compareDocumentPosition(screen.getByRole("heading", { name: "Waiting for you" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("No terms yet.")).toBeInTheDocument();
   });
 });
 
@@ -246,11 +301,61 @@ describe("which terms open by themselves", () => {
     expect(screen.getByText("Replaced")).toBeInTheDocument();
   });
 
+  it("opens the closed group when a term in it has a problem", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const problem = { check: "check-x", problem: "problem-x", text: "A problem with the replaced term." };
+    const terms = detail.terms.map((t) =>
+      t.record.id === "rec-period"
+        ? { ...t, state: "replaced" as const, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [problem], flagged: true } }
+        : t,
+    );
+    render(<GrantTerms terms={terms} rows={[]} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: /Not in force/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("A problem with the replaced term.")).toBeInTheDocument();
+  });
+
+  it("puts a rejected term first in the Terms panel, open, with Type the right value and its thread in reach", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const terms = detail.terms.map((t) => (t.record.id === "rec-period-extension" ? { ...t, state: "rejected" as const } : t));
+    render(<GrantTerms terms={terms} rows={[]} />, { wrapper: Wrapper });
+    const panel = screen.getByRole("region", { name: "Terms" });
+    const groups = within(panel).getAllByRole("group");
+    expect(groups[0]).toHaveAccessibleName("Rejected");
+    expect(within(groups[0]!).getByRole("button", { name: /Jan 31, 2027/ })).toHaveAttribute("aria-expanded", "true");
+    expect(within(groups[0]!).getByText("Rejected", { selector: ".ft-tag" })).toBeInTheDocument();
+    expect(within(groups[0]!).getByRole("button", { name: "Type the right value" })).toBeInTheDocument();
+    expect(within(groups[0]!).getByRole("link", { name: "Open the term's thread" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Not in force/ })).not.toBeInTheDocument();
+  });
+
+  it("opens a row when a problem arrives after it was first shown", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const { rerender } = render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    expect(rowOf(/Dr\. Jesse Sample/)).toHaveAttribute("aria-expanded", "false");
+    const problem = { check: "check-x", problem: "problem-x", text: "A problem that came later." };
+    const later = detail.terms.map((t) =>
+      t.record.id === "rec-person-program-officer"
+        ? { ...t, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [problem], flagged: true } }
+        : t,
+    );
+    rerender(<GrantTerms terms={later} rows={rows} />);
+    expect(rowOf(/Dr\. Jesse Sample/)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("A problem that came later.")).toBeInTheDocument();
+  });
+
+  it("remembers the accountant's own click on a row", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    const row = within(waitingGroup()).getByRole("button", { name: /Jan 31, 2027/ });
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("groups terms in force by kind, with a count where there is more than one", async () => {
     const { detail, Wrapper } = await sampleTerms();
     render(<GrantTerms terms={detail.terms} rows={[]} />, { wrapper: Wrapper });
     const budget = screen.getByRole("group", { name: "Budget lines" });
-    expect(within(budget).getByRole("heading")).toHaveTextContent("Budget lines4");
+    expect(within(budget).getByRole("heading")).toHaveTextContent(/^Budget lines 4 terms$/);
     expect(within(screen.getByRole("group", { name: "Approval rules" })).getByRole("heading")).toHaveTextContent(/^Approval rules$/);
   });
 
