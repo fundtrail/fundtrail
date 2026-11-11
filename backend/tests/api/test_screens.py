@@ -729,12 +729,14 @@ class _BenefitChecks(FakeChecks):
                     }
                 )
             elif st.charge_id == self.benefit_id:
+                # As the real checks give it: Missing evidence, unflagged, under the
+                # checklist's Benefit rate item.
                 reasons = [
                     Reason(
-                        check="benefits",
+                        check="checklist",
                         problem=WAITS_ON_SALARY,
                         text="Waits on its salary line.",
-                        bucket=Bucket.NEEDS_HUMAN,
+                        bucket=Bucket.MISSING_EVIDENCE,
                     )
                 ]
                 if self.also_missing:
@@ -749,8 +751,8 @@ class _BenefitChecks(FakeChecks):
                 st = ChargeStatus.model_validate(
                     st.model_dump()
                     | {
-                        "bucket": Bucket.NEEDS_HUMAN,
-                        "flagged": True,
+                        "bucket": Bucket.MISSING_EVIDENCE,
+                        "flagged": self.also_missing,
                         "reasons": tuple(r.model_dump() for r in reasons),
                         "checklist": (
                             ChecklistEntry(
