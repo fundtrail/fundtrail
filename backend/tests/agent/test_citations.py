@@ -194,8 +194,11 @@ def test_a_pixel_box_becomes_fractions_of_the_page():
         "width": 0.2,
         "height": 0.2,
     }
-    with pytest.raises(CitationProblem):
-        image_box(SentImage("file-photo", 1, 1000, 500), 100, 50, 1300, 150)
+    # A box running off the image is cut to it; one with nothing on the image is no box.
+    cut = image_box(SentImage("file-photo", 1, 1000, 500), 900, 50, 1300, 150)
+    assert cut is not None and cut["left"] == 0.9 and abs(cut["width"] - 0.1) < 1e-9
+    assert image_box(SentImage("file-photo", 1, 1000, 500), 1100, 50, 1300, 150) is None
+    assert image_box(SentImage("file-photo", 1, 1000, 500), 100, 50, 100, 150) is None
 
 
 @pytest.mark.parametrize(
