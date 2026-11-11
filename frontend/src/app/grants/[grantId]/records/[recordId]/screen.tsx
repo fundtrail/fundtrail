@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { RecordThreadView } from "@/components/thread/RecordThreadView";
 import { useThreadActions } from "@/components/thread/useThreadActions";

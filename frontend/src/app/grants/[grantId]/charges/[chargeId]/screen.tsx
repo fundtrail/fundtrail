@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { ChargeDetailView, type ChargeLinks } from "@/components/charge/ChargeDetailView";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { useThreadActions } from "@/components/thread/useThreadActions";

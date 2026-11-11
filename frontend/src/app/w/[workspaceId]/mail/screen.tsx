@@ -2,7 +2,8 @@
 
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { HeldMailList } from "@/components/mail/HeldMailList";
 import { useApi, useGrants, useWorkspaces } from "@/lib/api";

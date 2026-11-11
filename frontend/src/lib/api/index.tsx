@@ -12,6 +12,7 @@ import type { Id, TimelineView } from "./types";
 
 export * from "./types";
 export { ApiError, HttpApiClient, SampleRefusalError, type ApiClient } from "./client";
+export { describeError, type DescribedError, type ErrorKind } from "./errors";
 
 const ApiContext = createContext<ApiClient | null>(null);
 
