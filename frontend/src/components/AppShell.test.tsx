@@ -184,7 +184,9 @@ describe("the top bar while the agent reads (ruling 71)", () => {
     const client = createFakeApiClient();
     reading(client, { files_read: 3, files_total: 8, lines_read: 12, lines_total: 40 });
     renderShell("/grants/grant-sample/charges/chg-l-1002", client);
-    const indicator = await screen.findByRole("link", { name: "Reading 3 of 8 files" });
+    // What it says aloud starts with what it shows, and carries the full counts.
+    const indicator = await screen.findByRole("link", { name: "Reading 3 of 8 files, 12 of 40 ledger lines. Open the grant's overview." });
+    expect(indicator).toHaveTextContent("Reading 3 of 8 files");
     expect(indicator).toHaveAttribute("href", "/grants/grant-sample");
     expect(indicator).toHaveAttribute("title", "The agent is reading: 3 of 8 files, 12 of 40 ledger lines.");
     expect(within(nav()).queryByRole("link", { name: /Reading/ })).toBeNull();
@@ -194,13 +196,21 @@ describe("the top bar while the agent reads (ruling 71)", () => {
     const client = createFakeApiClient();
     reading(client, { files_read: 0, files_total: 0, lines_read: 2, lines_total: 5 });
     renderShell("/grants/grant-sample", client);
-    expect(await screen.findByRole("link", { name: "Reading 2 of 5 ledger lines" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Reading 2 of 5 ledger lines. Open the grant's overview." })).toBeInTheDocument();
   });
 
   it("shows nothing outside the grant", async () => {
     const client = createFakeApiClient();
     reading(client, { files_read: 3, files_total: 8, lines_read: 0, lines_total: 0 });
     renderShell("/w/ws-sample", client);
+    await within(nav()).findByText("SYN-2300117");
+    expect(screen.queryByRole("link", { name: /Reading/ })).toBeNull();
+  });
+
+  it("shows nothing while the runs cover no file or ledger line", async () => {
+    const client = createFakeApiClient();
+    reading(client, { files_read: 0, files_total: 0, lines_read: 0, lines_total: 0 });
+    renderShell("/grants/grant-sample", client);
     await within(nav()).findByText("SYN-2300117");
     expect(screen.queryByRole("link", { name: /Reading/ })).toBeNull();
   });

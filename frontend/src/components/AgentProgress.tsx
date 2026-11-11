@@ -32,9 +32,10 @@ export function WorkingDot() {
 }
 
 /**
- * The grant overview's quiet line about the agent's work: while it reads, how
- * far it is, in the server's numbers ("The agent is reading: 3 of 8 files,
- * 12 of 40 ledger lines."); otherwise the last run's summary in the server's
+ * The grant overview's quiet line about the agent's work: while it reads files
+ * or ledger lines, how far it is, in the server's numbers ("The agent is
+ * reading: 3 of 8 files, 12 of 40 ledger lines."); otherwise, including runs
+ * that cover no file or ledger line, the last run's summary in the server's
  * words, muted; otherwise nothing. The status region stays in place, so a
  * change is announced politely and a refetch with the same numbers changes
  * nothing.
@@ -51,7 +52,6 @@ export function AgentProgressLine({ summary }: { summary: GrantSummary }) {
           <span>The agent is reading: {parts.join(", ")}.</span>
         </p>
       ) : (
-        !reading &&
         last && (
           <p className={`${styles.line} ${styles.last}`}>
             <span>{last}</span>
@@ -64,15 +64,21 @@ export function AgentProgressLine({ summary }: { summary: GrantSummary }) {
 
 /**
  * The top bar's working indicator for the grant the page is inside, while the
- * agent reads it: the dot and a short count, linking to the grant's overview.
- * The full counts are its title.
+ * agent reads its files or ledger lines: the dot and a short count, linking to
+ * the grant's overview. Its accessible name starts with what it shows and
+ * carries the full counts; so does its title.
  */
 export function WorkingIndicator({ grantId, summary }: { grantId: Id; summary: GrantSummary }) {
   const reading = readingNow(summary);
   const parts = reading ? readingParts(reading) : [];
   if (parts.length === 0) return null;
   return (
-    <Link className={styles.indicator} href={routes.grant(grantId)} title={`The agent is reading: ${parts.join(", ")}.`}>
+    <Link
+      className={styles.indicator}
+      href={routes.grant(grantId)}
+      title={`The agent is reading: ${parts.join(", ")}.`}
+      aria-label={`Reading ${parts.join(", ")}. Open the grant's overview.`}
+    >
       <WorkingDot />
       <span>Reading {parts[0]}</span>
     </Link>

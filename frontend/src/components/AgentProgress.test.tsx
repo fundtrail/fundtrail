@@ -25,9 +25,14 @@ describe("the agent's progress line (ruling 71)", () => {
     expect(screen.queryByText("Read invoice_1001.txt.")).toBeNull();
   });
 
-  it("says nothing of reading when neither total is above zero", async () => {
-    render(<AgentProgressLine summary={await summaryWith({ reading: progress(0, 0, 0, 0) })} />);
+  it("says nothing of reading when neither total is above zero, and shows the last run's summary as when not reading", async () => {
+    const { unmount } = render(<AgentProgressLine summary={await summaryWith({ reading: progress(0, 0, 0, 0) })} />);
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    unmount();
+    render(<AgentProgressLine summary={await summaryWith({ reading: progress(0, 0, 0, 0), last_run_summary: "Answered the thread on L-1002." })} />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Answered the thread on L-1002.");
+    expect(status).not.toHaveTextContent("The agent is reading");
   });
 
   it("shows the last run's summary in the server's words when nothing is being read", async () => {
