@@ -63,14 +63,23 @@ def first_workspace_name(user: User) -> str:
 
 def ensure_first_workspace(conn: Conn, user: User) -> Workspace | None:
     """Ruling 64: a user in no workspace gets one, named after them, with its Sample
-    accountant (the workspace trigger). The user's row is locked first, so two first
-    requests at once make one workspace: the second waits, then finds the first's.
-    Returns the new workspace, or None when the user already had one."""
+    accountant (the workspace trigger). Returns the new workspace, or None when the user
+    already had one.
+
+    Membership is read first without a lock, so an ordinary request takes none. Only when
+    the user has no workspace is their row locked and membership read again, so two first
+    requests at once make one workspace: the second waits, then finds the first's."""
+
+    def has_one() -> bool:
+        row = conn.execute(
+            "select 1 from public.workspace_members where user_id = %s limit 1", (user.id,)
+        ).fetchone()
+        return row is not None
+
+    if has_one():
+        return None
     conn.execute("select 1 from public.users where id = %s for update", (user.id,))
-    member = conn.execute(
-        "select 1 from public.workspace_members where user_id = %s limit 1", (user.id,)
-    ).fetchone()
-    if member is not None:
+    if has_one():
         return None
     return create_workspace(conn, user.id, first_workspace_name(user))
 
