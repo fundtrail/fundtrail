@@ -8,7 +8,7 @@ import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
 import { TimelinePanel } from "./TimelinePanel";
 
 /** The panel showing the guide, at highlight `index` of 14 with `step` waiting (or none). */
-async function guide(index: number, step: GuideStep | null, extra: Partial<TimelineView> = {}) {
+async function guide(index: number, step: GuideStep | null, extra: Partial<TimelineView> = {}, sample = "salt-marsh-carbon") {
   const client: ApiClient = createFakeApiClient();
   await client.startOver(SAMPLE_GRANT_ID, true);
   const base = await client.getTimeline(SAMPLE_GRANT_ID);
@@ -33,7 +33,7 @@ async function guide(index: number, step: GuideStep | null, extra: Partial<Timel
       </StaticAuthProvider>
     );
   }
-  render(<TimelinePanel grantId={SAMPLE_GRANT_ID} workspaceId="ws-sample" />, { wrapper: Wrapper });
+  render(<TimelinePanel grantId={SAMPLE_GRANT_ID} workspaceId="ws-sample" sample={sample} />, { wrapper: Wrapper });
   await screen.findByText(`Highlight ${index} of 14`);
   return { move, deliver };
 }
@@ -70,6 +70,18 @@ describe("the timeline guide", () => {
     expect(next()).toHaveAccessibleDescription("Do your step first.");
     fireEvent.click(step);
     await waitFor(() => expect(deliver).toHaveBeenCalledWith(SAMPLE_GRANT_ID, "event-receipt"));
+  });
+
+  it("takes a suggestion about a file to its evidence card, where it's decided", async () => {
+    await guide(7, { action: "decide_suggestion", open: "file", id: "file-scan" });
+    const link = screen.getByRole("link", { name: "Open the suggestion" });
+    expect(link).toHaveAttribute("href", "/grants/grant-sample/files?file=file-scan");
+  });
+
+  it("shows a highlight's sentence only for its own sample", async () => {
+    await guide(2, null, {}, "nitrate-sensors");
+    expect(screen.getByText("Receipt photo you deliver")).toBeInTheDocument();
+    expect(screen.queryByText(/phone photo of a taxi receipt/)).toBeNull();
   });
 
   it.each([

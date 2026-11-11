@@ -460,7 +460,7 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
  * place: the other controls and the trail with every mark. A refused move, a
  * load error, catching up and the run-through note show while folded too.
  */
-export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspaceId?: Id }) {
+export function TimelinePanel({ grantId, workspaceId, sample }: { grantId: Id; workspaceId?: Id; sample?: string }) {
   const grantName = useGrantDisplayName();
   const api = useApi();
   const refresh = useRefresh();
@@ -622,6 +622,7 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
           <Guide
             grantId={grantId}
             workspaceId={workspaceId}
+            sample={sample}
             view={view}
             busy={busy}
             menu={<span className="ft-guide__menu">{moreButton}</span>}
@@ -796,5 +797,7 @@ export function TimelinePanel({ grantId, workspaceId }: { grantId: Id; workspace
 
 /** The timeline panel when the grant is a sample grant; nothing for any other grant. */
 export function SampleTimeline({ summary }: { summary: GrantSummary }) {
-  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} workspaceId={summary.grant.workspace_id} /> : null;
+  return summary.grant.sample ? (
+    <TimelinePanel grantId={summary.grant.id} workspaceId={summary.grant.workspace_id} sample={summary.grant.sample.sample} />
+  ) : null;
 }

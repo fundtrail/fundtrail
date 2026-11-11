@@ -6,17 +6,24 @@ import type { GuideStep, Id, TimelineView } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
 /**
- * What happened at each highlight of the larger sample, in plain words, keyed by the
- * highlight's label. A highlight without a sentence shows none.
+ * What happened at each highlight, in plain words, keyed by the sample and then the
+ * highlight's label (the small sample reuses some of the larger one's labels). A
+ * highlight without a sentence shows none. The sentences stay true whether a prerun was
+ * played or expected: they never say the agent made a record.
  */
-export const HIGHLIGHT_SAYS: Record<string, string> = {
+export const HIGHLIGHT_SAYS: Record<string, Record<string, string>> = {
+  "salt-marsh-carbon": LARGER_SAYS(),
+};
+
+function LARGER_SAYS(): Record<string, string> {
+  return {
   "Terms tied to their passages": "Every term of the award is tied to the sentence it came from in the award notice.",
   "Receipt photo you deliver": "Some evidence only exists on paper, like the professor's phone photo of a taxi receipt.",
-  "Invoice before its line": "An invoice that arrived before its charge waited, and now links to it on its own.",
+  "Invoice before its line": "An invoice arrived before its charge. Now that the charge has posted, the invoice is linked to it.",
   "Shared invoice, 56 of 96": "One kit served two labs. The professor's email gives the split, 56 of 96 samples.",
   "Own fee, own approval": "A professor approving her own conference fee is flagged, not cleared.",
   "Bill under its charge": "The bills linked to this charge add up to sixty dollars less than the charge.",
-  "Same invoice twice": "The same invoice came in twice, by email and as a scan. The agent marked the copy.",
+  "Same invoice twice": "The same invoice came in twice, by email and as a scan. The copy is marked as a possible duplicate, waiting for you.",
   "Held vendor email": "Mail from an address nobody on the grant uses waits, unread, until someone lets it in.",
   "One report, six salary lines": "One effort report clears six months of salary.",
   "Moved off the grant": "A correcting line moves the dinner with wine off the grant.",
@@ -24,7 +31,8 @@ export const HIGHLIGHT_SAYS: Record<string, string> = {
   "More money, a higher limit": "A funding notice arrives; once it's confirmed, the limit rises.",
   "Extension found in Drive": "An extension turns up in Drive; once it's confirmed, every check reruns against the new end date.",
   "Closeout": "The university's 90-day notice: the closeout window opens.",
-};
+  };
+}
 
 /** The step the highlight waits for, in the guide's words. */
 const STEP_WORDS: Record<string, string> = {
@@ -68,7 +76,21 @@ function StepButton({
     case "charge":
       return <Link className={className} href={step.id ? routes.charge(grantId, step.id) : routes.charges(grantId)}>{step.action === "accept_reason" ? "Open the problem" : "Open the suggestion"}</Link>;
     case "file":
-      return <Link className={className} href={step.id ? routes.file(grantId, step.id) : routes.evidence(grantId)}>{step.action === "accept_reason" ? "Open the problem" : "Open the suggestion"}</Link>;
+      // A suggestion about a file (a possible duplicate) is decided on its evidence card.
+      return (
+        <Link
+          className={className}
+          href={
+            step.id
+              ? step.action === "decide_suggestion"
+                ? `${routes.evidence(grantId)}?file=${encodeURIComponent(step.id)}`
+                : routes.file(grantId, step.id)
+              : routes.evidence(grantId)
+          }
+        >
+          {step.action === "accept_reason" ? "Open the problem" : "Open the suggestion"}
+        </Link>
+      );
     case "problems":
       return <Link className={className} href={routes.problemList(grantId)}>Open the problem</Link>;
     case "closeout":
@@ -90,6 +112,7 @@ function StepButton({
 export function Guide({
   grantId,
   workspaceId,
+  sample,
   view,
   busy,
   menu,
@@ -100,6 +123,8 @@ export function Guide({
 }: {
   grantId: Id;
   workspaceId?: Id;
+  /** The sample's pack, for its sentences. */
+  sample?: string;
   view: TimelineView;
   busy: boolean;
   menu: ReactNode;
@@ -112,7 +137,7 @@ export function Guide({
   const total = view.highlight_total ?? 0;
   const index = view.highlight_index ?? 0;
   const label = view.highlight_event?.highlight ?? null;
-  const says = label ? HIGHLIGHT_SAYS[label] : undefined;
+  const says = label && sample ? HIGHLIGHT_SAYS[sample]?.[label] : undefined;
   const step = view.your_step ?? null;
   const allPlayed = index >= total && !step;
   const reading = view.catching_up;

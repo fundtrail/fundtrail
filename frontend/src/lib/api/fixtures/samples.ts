@@ -179,6 +179,11 @@ function guideStep(step: Step | undefined): GuideStep | null {
   if (!step) return null;
   if (step.delivery) return { action: "deliver_file", open: "delivery", id: step.id };
   if (step.decision?.data.kind === "confirmation") return { action: "confirm_terms", open: "terms", id: null };
+  // As the backend does: the charge the decision is about, else its file, else the problem list.
+  const data = (step.decision?.data ?? {}) as { charge_id?: Id | null; file_id?: Id | null; copy_file_id?: Id | null };
+  if (data.charge_id) return { action: "decide_suggestion", open: "charge", id: data.charge_id };
+  const file = data.copy_file_id ?? data.file_id;
+  if (file) return { action: "decide_suggestion", open: "file", id: file };
   return { action: "decide_suggestion", open: "problems", id: null };
 }
 
