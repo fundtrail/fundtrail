@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.cors import LOCAL_ORIGINS, AllowedOriginsRefused, add_cors, allowed_origins
+from app.api.errors import add_error_catch
 
 APP_ORIGIN = "https://fundtrail.example"
 
@@ -67,3 +68,20 @@ def test_any_origin_is_refused() -> None:
     for value in ("*", "https://a.example, *"):
         with pytest.raises(AllowedOriginsRefused):
             allowed_origins({"FUNDTRAIL_ALLOWED_ORIGINS": value})
+
+
+def test_a_server_bug_is_a_json_500_with_the_origins_headers() -> None:
+    app = FastAPI()
+
+    @app.get("/boom")
+    def boom() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+        raise RuntimeError("a bug")
+
+    add_error_catch(app)
+    add_cors(app, [APP_ORIGIN])
+    response = TestClient(app, raise_server_exceptions=False).get(
+        "/boom", headers={"Origin": APP_ORIGIN}
+    )
+    assert response.status_code == 500
+    assert response.json() == {"detail": ["Something went wrong on the server."]}
+    assert response.headers["access-control-allow-origin"] == APP_ORIGIN
