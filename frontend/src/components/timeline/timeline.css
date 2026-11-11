@@ -84,13 +84,6 @@
 .ft-btn.ft-tl__quiet:hover {
   background: var(--paper-sunken);
 }
-.ft-tl .ft-btn:disabled {
-  border-style: dashed;
-  border-color: var(--rule-strong);
-  color: var(--ink-muted);
-  background: none;
-  cursor: default;
-}
 .ft-tl .ft-btn.ft-tl__quiet:disabled {
   border-color: transparent;
 }
@@ -174,15 +167,6 @@
   display: inline-flex;
   flex: none;
   gap: var(--space-2);
-}
-.ft-tl[data-compact] .ft-btn {
-  border-color: var(--rule-strong);
-}
-.ft-tl[data-compact] .ft-btn:disabled {
-  border-color: var(--rule-strong);
-}
-.ft-tl[data-compact] .ft-btn.ft-tl__quiet {
-  border-color: transparent;
 }
 .ft-tl__body {
   display: flex;
