@@ -58,6 +58,17 @@
 .ft-tl__goto .ft-tl__hint {
   flex-basis: 100%;
 }
+/*
+ * Its own line under the field, as wide as the form already is: showing it
+ * never widens the form or moves the controls beside it. Width 0 keeps its
+ * text out of the form's width, and the negative end margin cancels the gap
+ * the form would otherwise add for it.
+ */
+.ft-tl__goto .ft-tl__hint {
+  width: 0;
+  min-width: 100%;
+  margin-inline-end: calc(-1 * var(--space-2));
+}
 /* The screen's own check on the date field: quieter than a reason from the server. */
 .ft-tl__hint {
   margin: 0;
@@ -511,29 +522,6 @@
   .ft-tl__where {
     flex-basis: calc(100% - 26px);
   }
-  /* The stop's marks and what comes next, a second quiet line under the first. */
-.ft-tl__also {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px var(--space-4);
-  margin: calc(-1 * var(--space-1)) 0 0;
-  padding: 0 0 0 26px;
-  font-size: 13px;
-  list-style: none;
-}
-.ft-tl__also .ft-label {
-  margin-right: 4px;
-}
-.ft-tl__also .ft-tl__loaded {
-  margin: 0;
-}
-.ft-tl__flag--next {
-  outline: 1px dashed var(--rule-strong);
-  outline-offset: -1px;
-  background: none;
-  color: var(--ink);
-}
 .ft-tl__lineActions {
     margin-left: 26px;
   }
