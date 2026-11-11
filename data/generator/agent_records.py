@@ -11,22 +11,20 @@ bill, and an Allowable answer written again each time something new is linked.
 IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the
 grant `grant-<sample>`, a file `file-<name>`, a charge `chg-<line ID>`, and each
 record `rec-...`. Citations are counted, not typed: a text or email file gets a
-`char_location`, a PDF a `page_location`, and a photo an `image_box` around the
-value's line. Confirmations aren't here: they're the accountant's, in
-`user_actions.json`.
+`char_location`, a PDF a `page_location` (the row as the page gives it, with the
+pages the typeset PDF puts it on), and an image an `image_box`: the box of the
+string drawn on it that holds the value. Confirmations aren't here: they're the
+accountant's, in `user_actions.json`.
 """
 
 from __future__ import annotations
 
 import re
-import struct
 from datetime import date, datetime
 
 from model import Grant, iso
-from photo import SCAN_LINE, SCAN_MARGIN, SCAN_TOP
 
 ALLOWABLE = "Is this cost necessary and reasonable, and is it for this project?"
-PDF_LINES_PER_PAGE = 60  # render.pdf's default
 PHOTO_SUFFIXES = (".jpg", ".jpeg", ".png")
 WORKSPACE = "ws-sample"
 
@@ -77,16 +75,10 @@ def standalone(number: int, line: str) -> bool:
     return re.search(rf"(?<![\w$.,-]){number}(?![\w.,-])", line) is not None
 
 
-def jpeg_size(data: bytes) -> tuple[int, int]:
-    """Width and height from a JPEG's start-of-frame marker."""
-    i = 2
-    while i < len(data):
-        marker, length = data[i + 1], struct.unpack(">H", data[i + 2 : i + 4])[0]
-        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-            h, w = struct.unpack(">HH", data[i + 5 : i + 9])
-            return w, h
-        i += 2 + length
-    raise ValueError("no frame in the JPEG")
+def spaced(text: str) -> str:
+    """Text as a PDF's page gives it: runs of spaces as one. The text renderers pad a
+    table's cells with spaces, and a typeset page sets them in columns."""
+    return " ".join(text.split())
 
 
 class Builder:
@@ -127,25 +119,33 @@ class Builder:
         row = rows[index]
         passage = row.strip()
         if name.endswith(".pdf"):
-            page = index // PDF_LINES_PER_PAGE + 1
-            # Pages count from 1, and the end is exclusive.
+            # The pages the typeset PDF puts the row on (typeset.locate). Pages count
+            # from 1, and the end is exclusive.
+            assert doc.pages is not None, f"{name}: a cited PDF has to be a typeset one"
+            first, last = doc.pages[index] or (1, 1)
             location = {
                 "type": "page_location",
-                "start_page_number": page,
-                "end_page_number": page + 1,
+                "start_page_number": first,
+                "end_page_number": last + 1,
             }
             return {
                 "file_id": self.file_id(name),
-                "passage": passage,
+                "passage": spaced(passage),
                 "location": location,
                 "match": "exact",
             }
         if name.endswith(PHOTO_SUFFIXES):
-            box = (
-                self.scan_box(doc.data, index)
-                if name.startswith("scan_")
-                else self.photo_box(doc.data, len(rows), index)
-            )
+            # The box of the drawn string, which is this row of the image's text.
+            assert doc.boxes is not None, f"{name}: a cited image has to be a drawn one"
+            left, top, width, height = doc.boxes[index]
+            box = {
+                "type": "image_box",
+                "page": 1,
+                "left": left,
+                "top": top,
+                "width": width,
+                "height": height,
+            }
             return {
                 "file_id": self.file_id(name),
                 "passage": None,
@@ -165,43 +165,11 @@ class Builder:
             "match": "exact",
         }
 
-    def photo_box(self, data: bytes, n_lines: int, index: int) -> dict:
-        """A box around one line of a receipt photo, from photo.py's layout.
-
-        The paper is 620 pixels wide with lines 38 pixels apart from 60 down,
-        turned a few degrees and pasted at (130, 110) on a desk 260 by 220 pixels
-        larger, then scaled to two thirds. The box is wide and tall enough to hold
-        the line at any of those small turns.
-        """
-        w, h = jpeg_size(data)
-        desk_w, desk_h = w * 3 / 2, h * 3 / 2
-        paper_h = 80 + 38 * n_lines + 60
-        rot_w, rot_h = desk_w - 260, desk_h - 220
-        left = 130 + (rot_w - 620) / 2 + 20
-        center = 110 + (rot_h - paper_h) / 2 + 60 + index * 38 + 17
-        box = {
-            "type": "image_box",
-            "page": 1,
-            "left": round(left / desk_w, 4),
-            "top": round(max(0.0, center - 40) / desk_h, 4),
-            "width": round(580 / desk_w, 4),
-            "height": round(80 / desk_h, 4),
-        }
-        return box
-
-    def scan_box(self, data: bytes, index: int) -> dict:
-        """A box around one line of a scanned page, from photo.py's scan layout."""
-        w, h = jpeg_size(data)
-        return {
-            "type": "image_box",
-            "page": 1,
-            "left": round(SCAN_MARGIN / w, 4),
-            "top": round(max(0, SCAN_TOP + index * SCAN_LINE - 6) / h, 4),
-            "width": round((w - 2 * SCAN_MARGIN) / w, 4),
-            "height": round((SCAN_LINE + 12) / h, 4),
-        }
-
     def cited(self, name: str, value, text: str, index: int) -> dict:
+        if name.endswith(".pdf"):
+            # A PDF's passage has single spaces, and the value's text has to be in it.
+            value = spaced(value) if value == text else value
+            text = spaced(text)
         return {"value": value, "text": text, "citation": self.citation(name, index)}
 
     def cited_text(self, name: str, value: str, prefer: str | None = None) -> dict:
@@ -320,7 +288,7 @@ class Builder:
         """The participant support condition: what it applies to, who approves, and
         its scope, each cited to the clause's words."""
         data = {
-            "applies_to": self.cited_text(name, "participant support", "funds budgeted"),
+            "applies_to": self.cited_text(name, "participant support", "may not be diverted"),
             "approver": self.cited_text(name, "Program Officer", "cognizant"),
         }
         if "scope" in f:
