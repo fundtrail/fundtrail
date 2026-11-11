@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
 import type { EvidenceFile, ReadingView } from "@/lib/api/types";
@@ -71,6 +72,95 @@ export interface ViewerProps {
    * carries each highlight into it; the original stays downloadable from `url`.
    */
   reading?: ReadingView | null;
+  /**
+   * Every fact read from the file, in its card's order, listed in the side
+   * panel as "In this file". Built from the file's card; absent, no list.
+   */
+  facts?: FileFactGroup[];
+  /** The level of the file's name: 1 when the viewer is the page, 2 (the default) inside one. */
+  headingLevel?: 1 | 2;
+}
+
+/** One value in "In this file": its words, where it is, and the link to its spot. */
+export interface FileFact {
+  key: string;
+  label: string;
+  /** The value as the card shows it; null when nothing was read. */
+  value: string | null;
+  /** Its page ("p. 2"), when the citation names one. */
+  location: string | null;
+  /** The card's words for its state when it isn't confirmed; null when it is. */
+  note: string | null;
+  /** The viewer at this value's spot; null when it has no citation to open. */
+  href: string | null;
+  /** The value the viewer is open at. */
+  current: boolean;
+}
+
+/** One fact of the file in "In this file": its title and its values. */
+export interface FileFactGroup {
+  key: string;
+  title: string;
+  values: FileFact[];
+}
+
+/**
+ * Scrolls the document area, and only it, so the target is in view: a whole
+ * page at its top, a highlight in the middle. scrollIntoView would also scroll
+ * the window, moving the page's heading and the viewer's head away.
+ */
+function scrollAreaTo(area: HTMLElement, target: HTMLElement, whole: boolean) {
+  if (typeof area.scrollTo !== "function") return;
+  const a = area.getBoundingClientRect();
+  const t = target.getBoundingClientRect();
+  const top = area.scrollTop + (t.top - a.top) - (whole ? 0 : (area.clientHeight - t.height) / 2);
+  const left = area.scrollLeft + (t.left - a.left) - (whole ? 0 : (area.clientWidth - t.width) / 2);
+  area.scrollTo({ top: Math.max(0, top), left: Math.max(0, left) });
+}
+
+/** "In this file": every fact read from the file, each value a link to its spot, the open one marked. */
+function InThisFile({ groups }: { groups: FileFactGroup[] }) {
+  const titled = groups.length > 1;
+  return (
+    <nav className={styles.inFile} aria-label="In this file">
+      <h2 className={styles.sideLabel}>In this file</h2>
+      {groups.map((g) => (
+        <div key={g.key} className={styles.inFileGroup}>
+          {titled && <p className={styles.inFileTitle}>{g.title}</p>}
+          <ul className={styles.inFileList}>
+            {g.values.map((v) => {
+              const body = (
+                <>
+                  <span className={styles.inFileLabel}>{v.label}</span>
+                  <span className={styles.inFileValue}>{v.value ?? "Nothing read"}</span>
+                  {(v.location || v.note) && (
+                    <span className={styles.inFileMeta}>
+                      {v.location}
+                      {v.location && v.note && " · "}
+                      {v.note && <span className={styles.unconfirmed}>{v.note}</span>}
+                    </span>
+                  )}
+                </>
+              );
+              return (
+                <li key={v.key}>
+                  {v.href ? (
+                    <Link className={styles.inFileItem} href={v.href} aria-current={v.current ? "true" : undefined}>
+                      {body}
+                    </Link>
+                  ) : (
+                    <span className={styles.inFileItem} aria-current={v.current ? "true" : undefined}>
+                      {body}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
 }
 
 /**
@@ -80,7 +170,17 @@ export interface ViewerProps {
  * quote beside it and nothing highlighted. It draws only what the server
  * stored, and guesses nothing.
  */
-export function Viewer({ file, url, citation, valueText = null, label = null, confirmation = null, reading = null }: ViewerProps) {
+export function Viewer({
+  file,
+  url,
+  citation,
+  valueText = null,
+  label = null,
+  confirmation = null,
+  reading = null,
+  facts,
+  headingLevel = 2,
+}: ViewerProps) {
   const kind = fileKind(file.media_type, file.name);
   const placement = useMemo(() => (citation ? placeCitation(citation, valueText) : null), [citation, valueText]);
   const boxes = placement?.kind === "boxes" ? placement.boxes : [];
@@ -104,10 +204,10 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
 
   // Scroll to the spot once something has drawn, and again after a zoom.
   useEffect(() => {
-    const target = scrollRef.current?.querySelector<HTMLElement>('[data-scroll-target="true"]');
+    const area = scrollRef.current;
+    const target = area?.querySelector<HTMLElement>('[data-scroll-target="true"]');
     // A whole page opens at its top; a highlight opens in the middle of the view.
-    const whole = target?.hasAttribute("data-page");
-    target?.scrollIntoView?.(whole ? { block: "start", inline: "start" } : { block: "center", inline: "center" });
+    if (area && target) scrollAreaTo(area, target, target.hasAttribute("data-page"));
   }, [readyTick, zoom]);
 
   let body: ReactNode;
@@ -144,11 +244,14 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   const close = !!citation && citation.match === "close" && placement?.kind !== "unplaced";
   const location = citation ? pageCaption(citation) : null;
   const source = file.source ? ((SOURCE_LABELS as Record<string, string>)[file.source] ?? file.source) : null;
+  const FileHeading = headingLevel === 1 ? "h1" : "h2";
+  const listed = (facts ?? []).some((g) => g.values.length > 0);
+  const side = !!citation || listed;
 
   return (
     <section className={styles.viewer} aria-label={`Viewer: ${file.name}`}>
       <header className={styles.head}>
-        <h2 className={styles.fileName}>{file.name}</h2>
+        <FileHeading className={styles.fileName}>{file.name}</FileHeading>
         {(source || file.arrived_at || file.sender) && (
           <p className={styles.meta}>
             {source && <span>{source}</span>}
@@ -192,48 +295,53 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
         </div>
       </div>
 
-      <div className={citation ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
+      <div className={side ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
         <div className={styles.scroll} ref={scrollRef} data-testid="viewer-scroll">
           {body}
         </div>
 
-        {citation && (
-          <aside className={styles.side} aria-label="The quote">
-            <div className={styles.active}>
-              <span className={styles.sideLabel}>{label ?? "Quote"}</span>
-              {valueText && (
-                <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
-                  {valueText}
-                </span>
-              )}
-              {location && <span className={styles.sideMeta}>{location}</span>}
-              {confirmation && (
-                <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
-                  {confirmation.text}
-                </span>
-              )}
-            </div>
-            {placement?.kind === "unplaced" && (
-              <p className={styles.notice} role="note">
-                Nothing is highlighted: this value couldn&apos;t be placed in the file
-                {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
-                {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
-              </p>
-            )}
-            {quote && (
-              <figure className={styles.quoteFigure}>
-                <blockquote className={styles.quote} data-testid="side-quote">
-                  {exact && placement?.kind === "text" ? (
-                    <SideQuoteText placement={placement} reading={reading} />
-                  ) : exact ? (
-                    <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
-                  ) : (
-                    collapseSpaces(quote)
+        {side && (
+          <aside className={styles.side} aria-label={citation ? "The quote" : "In this file"}>
+            {citation && (
+              <>
+                <div className={styles.active}>
+                  <span className={styles.sideLabel}>{label ?? "Quote"}</span>
+                  {valueText && (
+                    <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
+                      {valueText}
+                    </span>
                   )}
-                </blockquote>
-                {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
-              </figure>
+                  {location && <span className={styles.sideMeta}>{location}</span>}
+                  {confirmation && (
+                    <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
+                      {confirmation.text}
+                    </span>
+                  )}
+                </div>
+                {placement?.kind === "unplaced" && (
+                  <p className={styles.notice} role="note">
+                    Nothing is highlighted: this value couldn&apos;t be placed in the file
+                    {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
+                    {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
+                  </p>
+                )}
+                {quote && (
+                  <figure className={styles.quoteFigure}>
+                    <blockquote className={styles.quote} data-testid="side-quote">
+                      {exact && placement?.kind === "text" ? (
+                        <SideQuoteText placement={placement} reading={reading} />
+                      ) : exact ? (
+                        <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
+                      ) : (
+                        collapseSpaces(quote)
+                      )}
+                    </blockquote>
+                    {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
+                  </figure>
+                )}
+              </>
             )}
+            {listed && <InThisFile groups={facts ?? []} />}
           </aside>
         )}
       </div>

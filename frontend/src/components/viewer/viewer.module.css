@@ -319,6 +319,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  /* As tall as the document area beside it; a long "In this file" scrolls on its own. */
+  max-height: max(440px, calc(100vh - 300px));
   padding: var(--space-5);
   border-left: 1px solid var(--rule);
   background: var(--paper-raised);
@@ -326,9 +328,87 @@
 }
 @media (max-width: 900px) {
   .body .side {
+    max-height: none;
     border-left: 0;
     border-top: 1px solid var(--rule);
   }
+}
+
+/* --- In this file: every fact read from the file, the open one marked --- */
+
+.inFile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+.inFile:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.inFile h2 {
+  margin: 0;
+}
+.inFileGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.inFileTitle {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.inFileList {
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 0;
+  list-style: none;
+}
+.inFileItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--space-3);
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  text-decoration: none;
+}
+a.inFileItem:hover {
+  background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
+}
+a.inFileItem:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* The value the viewer is open at: the sunken fill and a bar on its left. */
+.inFileItem[aria-current="true"],
+a.inFileItem[aria-current="true"]:hover {
+  background: var(--paper-sunken);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.inFileLabel {
+  grid-column: 1;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.inFileValue {
+  grid-column: 1;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.inFileMeta {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--ink-muted);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .active {

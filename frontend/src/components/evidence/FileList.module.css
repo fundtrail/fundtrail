@@ -1,0 +1,235 @@
+/*
+ * The Evidence page's list of files, beside the picked file's card: the same
+ * rows as the problem list's pick column. A file's name in mono, a muted line
+ * for where it came from and when, then any quiet tags. No quotes here.
+ */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px var(--space-4);
+  border-top: 1px solid var(--rule);
+  cursor: pointer;
+}
+.row:first-child {
+  border-top: 0;
+}
+.row:hover {
+  background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
+}
+/* The file shown beside the list: the sunken fill and a heavier name. */
+.row[data-selected],
+.row[data-selected]:hover {
+  background: var(--paper-sunken);
+}
+
+.name {
+  max-width: 100%;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.name:hover,
+.name:focus-visible {
+  text-decoration-color: currentColor;
+}
+.row[data-selected] .name {
+  font-weight: 700;
+}
+
+.meta {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+/* A quiet label, not a bordered badge, as the problem list's kinds are. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.row[data-selected] .tag {
+  background: var(--paper-raised);
+}
+/* Waiting for the accountant: the needs-human words, as the card's tinted head says it. */
+.tag[data-tone="waiting"] {
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+  font-weight: 600;
+}
+
+/* --- The filter as pills, in the page's head, as the problem list's --- */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pill:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+.pill:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.pill[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper-raised);
+}
+.count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.pill[aria-pressed="true"] .count {
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* --- The page: a quiet head, then the list and the picked card side by side --- */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 1240px;
+  padding: var(--space-1) var(--space-5) var(--space-6);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-5);
+}
+.crumb {
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+.crumb:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.title {
+  margin: 2px 0 0;
+  font: 700 28px/1.15 var(--display);
+  letter-spacing: -0.02em;
+}
+.fileCount {
+  color: var(--ink-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+/* The list is the one bordered block; the picked card sits beside it as itself. */
+.listBox {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper-raised);
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.paneBar {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 13px;
+}
+.paneBar :global(.ft-link) {
+  color: var(--ink-muted);
+  text-underline-offset: 3px;
+}
+.paneBar :global(.ft-link:hover) {
+  color: var(--ink);
+}
+
+.empty {
+  margin: 0;
+  padding: 28px 22px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+
+@media (max-width: 980px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 0;
+  }
+}

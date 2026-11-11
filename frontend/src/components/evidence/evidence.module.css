@@ -49,6 +49,13 @@
   border-bottom: 1px solid var(--rule);
 }
 
+/* The file's name as the page's heading for the card: the same size, no heading margins. */
+.fileHeading {
+  margin: 0;
+  font-size: inherit;
+  line-height: 1.35;
+}
+
 .fileName {
   font-family: var(--mono);
   font-size: 14px;

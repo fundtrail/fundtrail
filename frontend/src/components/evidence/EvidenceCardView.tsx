@@ -199,7 +199,16 @@ function Fact({ grantId, fileId, fact }: { grantId: Id; fileId: Id; fact: FactVi
  * shows its quoted passage, its page, and whether it's confirmed. Clicking a
  * quote opens the viewer at that spot.
  */
-export function EvidenceCardView({ grantId, card }: { grantId: Id; card: EvidenceCard }) {
+export function EvidenceCardView({
+  grantId,
+  card,
+  headingLevel,
+}: {
+  grantId: Id;
+  card: EvidenceCard;
+  /** Sets the file's name as a heading of this level, for a page where the card is the main item. None by default. */
+  headingLevel?: 2 | 3;
+}) {
   const { file } = card;
   const facts = card.facts ?? [];
   const parent = file.parent_id ? card.files?.[file.parent_id] : undefined;
@@ -207,14 +216,18 @@ export function EvidenceCardView({ grantId, card }: { grantId: Id; card: Evidenc
   const problems = card.status?.problems ?? [];
   const duplicate = card.duplicate;
   const original = duplicate ? card.files?.[(duplicate.mark.data as { original_file_id: Id }).original_file_id] : undefined;
+  const name = (
+    <Link className={styles.fileName} href={viewerHref(grantId, file.id)}>
+      {file.name}
+    </Link>
+  );
+  const Heading = headingLevel ? (`h${headingLevel}` as const) : null;
 
   return (
     <article className={styles.card} aria-label={file.name}>
       <header className={styles.head}>
         <div>
-          <Link className={styles.fileName} href={viewerHref(grantId, file.id)}>
-            {file.name}
-          </Link>
+          {Heading ? <Heading className={styles.fileHeading}>{name}</Heading> : name}
           <div className={styles.meta}>
             <span>{SOURCE_LABELS[file.source] ?? file.source}</span>
             <span>Arrived {date(file.arrived_at)}</span>
