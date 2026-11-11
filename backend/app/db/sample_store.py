@@ -131,14 +131,21 @@ def end_walk(conn: Conn, grant_id: str) -> None:
     conn.execute("delete from public.sample_walks where grant_id = %s", (grant_id,))
 
 
-def stop_walk(conn: Conn, grant_id: str, reason: str) -> None:
-    """End the walk short of its date: its steps not yet made are left for the user, and
-    the grant's last move keeps the reason."""
+def stop_walk(conn: Conn, grant_id: str, now: datetime, reason: str) -> None:
+    """End the walk short of its date at `now`, the grant's clock: its steps not yet made
+    whose time has come are left for the user; later ones are dropped, as no move has
+    passed them, so a later skipping move queues them again. The grant's last move keeps
+    the reason."""
     end_walk(conn, grant_id)
     conn.execute(
         """update public.sample_scripted set state = 'left'
-           where grant_id = %s and state = 'pending'""",
-        (grant_id,),
+           where grant_id = %s and state = 'pending' and at <= %s""",
+        (grant_id, now),
+    )
+    conn.execute(
+        """delete from public.sample_scripted
+           where grant_id = %s and state = 'pending' and at > %s""",
+        (grant_id, now),
     )
     conn.execute(
         """update public.sample_moves set walk_stopped = %s

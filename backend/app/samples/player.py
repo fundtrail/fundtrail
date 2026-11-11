@@ -491,6 +491,7 @@ def move(
             prerun.take_off(conn, grant.id)
             saved = None
         runs: list[AgentRun] = []
+        walked = skipping.Walked()
         if saved is not None:
             # On the run-through: the saved result, loaded at once. Nothing runs.
             _load(p, conn, locked, saved, start, plan.until)
@@ -501,12 +502,13 @@ def move(
             if skip:
                 skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
             sample_store.start_walk(conn, grant.id, plan.until)
-            skipping.advance(p, conn, locked)
+            walked = skipping.advance(p, conn, locked)
         else:
             sample_store.insert_move(conn, grant.id, now, plan.until)
             store_events(p, conn, locked, pack, [e.id for e in plan.play])
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
+    skipping.ping(p, grant, walked)
 
 
 # The view.
