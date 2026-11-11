@@ -91,6 +91,13 @@
   border: 2px dashed var(--missing);
 }
 
+/* Partly filled: a solid ink ring with its left half filled. Not the check
+   (it isn't filled) and not the dashed ring (something covers part of it). */
+.node[data-mark="partly"] .mark {
+  border: 2px solid var(--ink);
+  background: linear-gradient(90deg, var(--ink) 50%, var(--paper-raised) 50%);
+}
+
 .node[data-mark="plain"] .mark {
   width: 10px;
   height: 10px;

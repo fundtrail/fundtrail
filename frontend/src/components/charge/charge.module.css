@@ -371,6 +371,11 @@
   font-weight: 600;
 }
 
+/* Partly filled: the server's words in ink, since they may name amounts. */
+.itemState[data-partly] {
+  color: var(--ink);
+}
+
 .mark {
   display: inline-block;
   position: relative;
@@ -400,6 +405,13 @@
 
 .missing {
   border: 2px dashed var(--missing);
+}
+
+/* Partly filled: a solid ink ring with its left half filled, the trail's
+   same mark. */
+.partly {
+  border: 2px solid var(--ink);
+  background: linear-gradient(90deg, var(--ink) 50%, transparent 50%);
 }
 
 .addItem {
@@ -488,6 +500,12 @@
   max-width: 480px;
   padding: var(--space-3) 0 var(--space-1);
   border-top: 1px solid var(--rule);
+}
+
+/* The Snooze form opens under the charge row's own rule: one line, not two. */
+.chargeActions > .form {
+  border-top: none;
+  padding-top: 0;
 }
 
 .form input:not([type="radio"]):not([type="checkbox"]),

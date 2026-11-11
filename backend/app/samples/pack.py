@@ -459,11 +459,31 @@ def _line_arrivals(pack: SamplePack) -> dict[str, datetime]:
     return out
 
 
+def _attachments(pack: SamplePack) -> dict[str, ScheduledEvent]:
+    """The scheduled Gmail events' attachments, as the player takes them in (email_parts),
+    by the sha256 of their bytes: the event each first comes with."""
+    from app.ingest.email_files import email_parts
+
+    found: dict[str, ScheduledEvent] = {}
+    for e in pack.events:
+        if e.kind is not EventKind.FILE or e.source is not ArrivalSource.GMAIL:
+            continue
+        parts = email_parts(pack.file_bytes(e.name), message_id=e.id, grant_id="", workspace_id="")
+        for f in parts.files[1:]:  # the message itself first, then its attachments
+            found.setdefault(_sha256(f.data), e)
+    return found
+
+
 def _check_script(pack: SamplePack, where: str) -> None:
-    """Each scripted action is possible at its time (ruling 51)."""
+    """Each scripted action is possible at its time (ruling 51). A step's file is a
+    scheduled file, or a file in the folder with the same bytes as an attachment of a
+    scheduled Gmail event: that arrives with its email (when it's let in, if it's held),
+    and it's never delivered or let in on its own."""
     files = {e.name: e for e in pack.events if e.kind is EventKind.FILE}
     lines = _line_arrivals(pack)
     brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
+    let_in = {a.file: a.at for a in pack.actions if a.action == "let_in_mail"}
+    attachments: dict[str, ScheduledEvent] | None = None
     for a in pack.actions:
         what = f"{where}: {a.action} at {a.at.isoformat()}"
         if a.line_id is not None:
@@ -475,7 +495,22 @@ def _check_script(pack: SamplePack, where: str) -> None:
             continue
         event = files.get(a.file)
         if event is None:
-            raise PackError(f"{what}: {a.file} isn't on the timeline.")
+            if not _inside(pack.files_folder, a.file).is_file():
+                raise PackError(f"{what}: {a.file} isn't on the timeline.")
+            if attachments is None:
+                attachments = _attachments(pack)
+            email = attachments.get(pack.sha256(a.file))
+            if email is None:
+                raise PackError(f"{what}: {a.file} isn't on the timeline.")
+            if a.action in ("deliver_file", "let_in_mail"):
+                raise PackError(f"{what}: {a.file} is an attachment of {email.name}.")
+            if email.deliver_by_user:
+                arrived = brought.get(email.name)
+            else:
+                arrived = let_in.get(email.name, email.at)
+            if arrived is None or a.at <= arrived:
+                raise PackError(f"{what}: comes before {a.file} arrives with {email.name}.")
+            continue
         if a.action == "let_in_mail" and event.source.value != "gmail":
             raise PackError(f"{what}: {a.file} isn't a Gmail file, so it's never held.")
         if a.action == "deliver_file":
