@@ -21,7 +21,7 @@ from .adapter import (
     ThreadMessage,
     Trigger,
 )
-from .citations import SecondLook
+from .model import ModelClient
 
 # Charges that arrive together on one grant are handled in one run, or in batches of this many on
 # a large upload, each batch its own run saved on its own (answer 8, and the coordinator's
@@ -55,7 +55,8 @@ class RunInputs:
     thread_messages: Sequence[ThreadMessage] = ()
     funder: str = "NSF"
     likely_duplicates: LikelyDuplicates | None = None
-    second_look: SecondLook | None = None
+    # The model the second look on photos and scans calls; None uses the run's own model.
+    second_look: ModelClient | None = None
     new_id: Callable[[], str] = field(default_factory=lambda: lambda: f"rec-{uuid.uuid4()}")
     # The run's read point (AgentRun.read_through_seq, call 40): every record it
     # writes carries it, and the write check refuses an agent record without one.

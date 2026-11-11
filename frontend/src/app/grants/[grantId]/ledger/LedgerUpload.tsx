@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
+import { DropWell } from "@/components/setup/DropWell";
 import { ApiError, useApi, useRefresh, type Id, type LedgerUploadResult } from "@/lib/api";
 
 function errorText(error: unknown): string {
@@ -46,69 +47,84 @@ export function LedgerUpload({ grantId }: { grantId: Id }) {
     }
   }
 
+  const { added, already_present: present, rejected } = result?.body ?? { added: 0, already_present: 0, rejected: [] };
+
   return (
-    <div className="ft-panel">
-      <form onSubmit={upload} aria-label="Upload the ledger file">
-        <p>
-          <label htmlFor={inputId} className="ft-strong">
+    <div className="ft-panel ft-upload">
+      <form className="ft-upload__form" onSubmit={upload} aria-label="Upload the ledger file">
+        <div className="ft-field">
+          <label htmlFor={inputId} className="ft-label">
             Ledger file
           </label>
-          <br />
-          <span className="ft-caption">
-            CSV or Excel, one file for this grant. The first row names the columns: line_id, transaction_date,
-            posting_date, amount, description and account, with vendor, reference and original_line_id if you have
-            them.
-          </span>
-        </p>
-        <p>
-          <input
-            id={inputId}
-            type="file"
-            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />{" "}
+          <DropWell file={file} what="the ledger file">
+            <input
+              id={inputId}
+              type="file"
+              aria-describedby={`${inputId}-columns`}
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </DropWell>
+        </div>
+        <div id={`${inputId}-columns`} className="ft-upload__columns">
+          <p>CSV or Excel, one file for this grant. The first row names the columns:</p>
+          <ul className="ft-upload__cols">
+            {["line_id", "transaction_date", "posting_date", "amount", "description", "account"].map((c) => (
+              <li key={c}>
+                <code>{c}</code>
+              </li>
+            ))}
+          </ul>
+          <p>
+            with <code>vendor</code>, <code>reference</code> and <code>original_line_id</code> if you have them.
+          </p>
+        </div>
+        <div className="ft-upload__actions">
           <button type="submit" className={`ft-btn ft-btn--main${busy ? " is-busy" : ""}`} disabled={!file || busy}>
             {busy ? "Uploading…" : "Upload"}
           </button>
-        </p>
+        </div>
       </form>
 
       {error && (
-        <p className="ft-error" role="alert">
+        <p className="ft-error ft-upload__error" role="alert">
           {error}
         </p>
       )}
 
       {result && (
-        <section aria-label="Upload result" role="status">
-          <p>
-            <span className="ft-strong">{result.fileName}</span>
-          </p>
-          <ul>
-            <li>{plural(result.body.added, "line added", "lines added")}</li>
-            <li>{plural(result.body.already_present, "line already on file, skipped", "lines already on file, skipped")}</li>
-            <li>{plural(result.body.rejected.length, "row rejected", "rows rejected")}</li>
+        <section className="ft-upload__result" aria-label="Upload result" role="status">
+          <p className="ft-heading">{result.fileName}</p>
+          <ul className="ft-found">
+            {/* Neutral marks, never a bucket's sign: a check for lines added, a dash for the rest, nothing beside a zero. */}
+            <li className={added > 0 ? "is-added" : undefined}>{plural(added, "line added", "lines added")}</li>
+            <li className={present > 0 ? "is-other" : undefined}>
+              {plural(present, "line already on file, skipped", "lines already on file, skipped")}
+            </li>
+            <li className={rejected.length > 0 ? "is-other" : undefined}>{plural(rejected.length, "row rejected", "rows rejected")}</li>
           </ul>
-          {result.body.rejected.length > 0 && (
+          {rejected.length > 0 && (
             <>
-              <table className="ft-ledger">
-                <thead>
-                  <tr>
-                    <th scope="col">Row</th>
-                    <th scope="col">Why it was rejected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.body.rejected.map((r) => (
-                    <tr key={`${r.row}-${r.message}`}>
-                      <td className="ft-num">
-                        <span className="ft-id">{r.row}</span>
-                      </td>
-                      <td>{r.message}</td>
+              <div className="ft-upload__rows">
+                <table className="ft-ledger">
+                  <thead>
+                    <tr>
+                      <th scope="col">Row</th>
+                      <th scope="col">Why it was rejected</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rejected.map((r) => (
+                      <tr key={`${r.row}-${r.message}`}>
+                        <td className="ft-num">
+                          <span className="ft-id">{r.row}</span>
+                        </td>
+                        <td>{r.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <p className="ft-caption">
                 Row 1 is the first row after the header. Fix the rows and upload the file again. Lines already on file
                 are skipped.

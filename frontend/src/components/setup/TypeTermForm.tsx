@@ -207,17 +207,19 @@ export function TypeTermForm({
 
   return (
     <form className="ft-typeterm" onSubmit={submit} aria-label="Type the right value">
-      {TERM_FIELDS[kind].map((field) => (
-        <FieldInput
-          key={field.path}
-          field={field}
-          value={values[field.path] ?? ""}
-          onChange={(v) => setValues((prev) => ({ ...prev, [field.path]: v }))}
-        />
-      ))}
-      {kind === "budget_line" && (
-        <NoticeInput notices={notices} value={notice} onChange={(v) => setValues((prev) => ({ ...prev, [NOTICE]: v }))} />
-      )}
+      <div className="ft-typeterm__fields">
+        {TERM_FIELDS[kind].map((field) => (
+          <FieldInput
+            key={field.path}
+            field={field}
+            value={values[field.path] ?? ""}
+            onChange={(v) => setValues((prev) => ({ ...prev, [field.path]: v }))}
+          />
+        ))}
+        {kind === "budget_line" && (
+          <NoticeInput notices={notices} value={notice} onChange={(v) => setValues((prev) => ({ ...prev, [NOTICE]: v }))} />
+        )}
+      </div>
       {problems.length > 0 && (
         <ul className="ft-error" role="alert">
           {problems.map((p) => (
@@ -226,10 +228,11 @@ export function TypeTermForm({
         </ul>
       )}
       <div className="ft-actions">
-        <button type="submit" className="ft-btn ft-btn--main ft-btn--sm" disabled={saving}>
+        {/* Outlined, not main: the page's one main button stays the set's Confirm. */}
+        <button type="submit" className="ft-btn ft-btn--sm" disabled={saving}>
           Save typed value
         </button>
-        <button type="button" className="ft-btn ft-btn--sm" onClick={onCancel} disabled={saving}>
+        <button type="button" className="ft-btn ft-btn--quiet ft-btn--sm" onClick={onCancel} disabled={saving}>
           Cancel
         </button>
       </div>

@@ -11,7 +11,7 @@ import { SignOffPanel } from "@/components/closeout/SignOffPanel";
 import { SnoozedCharges } from "@/components/closeout/SnoozedCharges";
 import { GrantHeader } from "@/components/GrantHeader";
 import { ProblemList } from "@/components/ProblemList";
-import { useCharges, useGrant, useProblemList, useRefresh } from "@/lib/api";
+import { useCharges, useGrant, usePings, useProblemList, useRefresh } from "@/lib/api";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
 
@@ -23,6 +23,9 @@ import { routes } from "@/lib/routes";
 export function CloseoutScreen() {
   const grantName = useGrantDisplayName();
   const { grantId } = useParams<{ grantId: string }>();
+  // Everything on the page refetches when the backend pings this grant's channel,
+  // so a reason sign-off is unavailable clears as soon as the run finishes (ruling 79).
+  usePings(`grant:${grantId}`);
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
   const charges = useCharges(grantId);
