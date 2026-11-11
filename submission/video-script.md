@@ -6,12 +6,11 @@ Target length: 2:50. The narration is about 400 words, read at a calm pace. Ever
 
 ## Before recording
 
-These have to be true first. Each is open on GitHub tonight.
+Everything the script needs is on main as of Nov 10 (PRs 218 to 223 merged), except one thing:
 
-- **The larger sample's content and its twelve highlights** are in PR 218 (it merges after PR 219). Main's samples are placeholders, so "Next highlight" stays disabled until it merges.
-- **Running locally** needs PR 220 (cross-origin settings), PR 221 (email sign-in, and the screen refreshing on its own) and PR 222 (a first workspace at sign-in), or Alex's local run notes.
 - **The prerun isn't built.** The choice is marked unavailable, so the recording uses "the larger sample, read live". The agent reads every arrival for real, so each jump waits on the model, and playing the whole sample costs model spend. **Ask Alex before playing it in full.**
-- **Benefit lines** (highlight 11) show their recalculation only after PR 219 and PR 223.
+- **Running locally:** follow CLAUDE.md's "Running things", with Docker running for the local database.
+- **Rehearse first:** do one full run before recording, and note any beat that doesn't show what the script says.
 
 How to record and edit: see [Recording and editing](#recording-and-editing) below.
 
