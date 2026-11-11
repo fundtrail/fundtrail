@@ -212,8 +212,30 @@
 }
 
 /* A quote opens the viewer at its spot, so it reads as a link before hover:
-   a quiet underline in the rule color that darkens on hover. */
-.quote,
+   a small arrow at its end (the band under it is the highlighter, so an
+   underline would read as a second band), and an underline on hover. A value
+   that links on its own has a quiet underline in the rule color. */
+.quote {
+  color: var(--ink);
+  text-decoration: none;
+}
+.quote:hover .quoteText {
+  text-decoration-line: underline;
+  text-decoration-color: var(--ink-muted);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.opens {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-left: 5px;
+  vertical-align: 0;
+  color: var(--ink-muted);
+}
+.quote:hover .opens {
+  color: var(--ink);
+}
 .valueLink {
   color: var(--ink);
   text-decoration-line: underline;
@@ -221,7 +243,6 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
-.quote:hover,
 .valueLink:hover {
   text-decoration-color: var(--ink);
 }
@@ -246,6 +267,9 @@
   font-size: 13px;
   color: var(--ink-muted);
 }
+.quoteBox:hover {
+  color: var(--ink);
+}
 
 .quoteText {
   white-space: pre-wrap;
@@ -268,7 +292,7 @@
 /* The quiet highlighter: a band behind the lower part of the line. */
 .hl {
   padding: 0 1px;
-  background: linear-gradient(to bottom, transparent 58%, var(--e-band) 58%);
+  background: linear-gradient(to bottom, transparent 55%, var(--e-band) 55%);
   color: inherit;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;

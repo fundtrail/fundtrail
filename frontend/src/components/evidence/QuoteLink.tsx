@@ -7,6 +7,15 @@ import { CLOSE_MATCH } from "@/components/viewer/words";
 import styles from "./evidence.module.css";
 import { excerptWindow, isExact, segments, valueRanges, type Range } from "./quote";
 
+/** A small arrow at the end of a quote: it opens the file at that spot. */
+function OpensIcon() {
+  return (
+    <svg className={styles.opens} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M4 2.5h5.5V8M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
  * A value's quote on a card, linking to the viewer at its spot.
  *
@@ -40,7 +49,8 @@ export function QuoteLink({
   if (passage === null) {
     return (
       <Link className={`${styles.quote} ${styles.quoteBox}`} href={href} aria-label={ariaLabel}>
-        A box on the image
+        <span className={styles.quoteText}>A box on the image</span>
+        <OpensIcon />
       </Link>
     );
   }
@@ -67,6 +77,7 @@ export function QuoteLink({
           {exact ? <mark className={styles.hl}>{text}</mark> : text}
           {shown.end < passage.length && <span className={styles.ellipsis}>…</span>}
         </span>
+        <OpensIcon />
       </Link>
       {citation.match === "close" && <span className={styles.matchNote}>{CLOSE_MATCH}</span>}
       {excerpt && (
