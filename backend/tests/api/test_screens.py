@@ -831,3 +831,5 @@ def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None
     storage.objects[first["data"]["report_path"]] = (b"%PDF changed", "application/pdf")
     tampered = api.client.get(f"/records/{first['id']}/report", headers=api.headers)
     assert tampered.status_code == 409
+    assert b"%PDF changed" not in tampered.content
+    assert tampered.json()["detail"].startswith("The stored report doesn't match the checksum")
