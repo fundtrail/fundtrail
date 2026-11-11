@@ -44,9 +44,9 @@ export function StatusHistory({
   charges: Record<Id, Charge>;
   fileHref?: (fileId: Id) => string | undefined;
 }) {
-  if (history.length === 0) return <p className="ft-empty">No status changes yet.</p>;
+  if (history.length === 0) return <p className={styles.empty}>No status changes yet.</p>;
   return (
-    <ol className={styles.list} aria-label="Status history">
+    <ol className={styles.history} aria-label="Status history">
       {history.map((_, j) => {
         // Newest first: walk the server's order from the end.
         const i = history.length - 1 - j;
@@ -56,10 +56,10 @@ export function StatusHistory({
         const name = triggerName(entry, records, files, charges);
         const href = entry.entry.trigger.kind === "file" && entry.entry.trigger.id ? fileHref?.(entry.entry.trigger.id) : undefined;
         return (
-          <li key={`${entry.entry.changed_at}:${i}`} className={styles.row}>
-            <p className={styles.line}>
-              <span className="ft-num">{date(entry.entry.changed_at)}</span>
-              <span>· {entry.text}</span>
+          <li key={`${entry.entry.changed_at}:${i}`} className={styles.historyRow}>
+            <span className={`ft-num ${styles.historyDate}`}>{date(entry.entry.changed_at)}</span>
+            <p className={styles.historyText}>
+              <span>{entry.text}</span>
               {name &&
                 (href ? (
                   <Link className="ft-link" href={href}>
@@ -70,11 +70,11 @@ export function StatusHistory({
                 ))}
             </p>
             {after && (
-              <p className={styles.line}>
+              <p className={styles.historyBuckets}>
                 {before && before !== after && (
                   <>
                     <BucketBadge bucket={before} />
-                    <span aria-label="to">→</span>
+                    <span className={styles.arrow} role="img" aria-label="to" />
                   </>
                 )}
                 <BucketBadge bucket={after} />

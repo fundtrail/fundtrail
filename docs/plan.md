@@ -28,13 +28,10 @@ Each area gets a link to its decision file here once the file is written. Whoeve
 
 | Provisional area | Its open items are in | Decision file |
 |---|---|---|
-| Reversals and cost transfers, beyond their default checklist | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0020](decisions/0020-reversals-and-cost-transfers.md) |
-| A cost shared by two grants | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0021](decisions/0021-a-cost-shared-by-two-grants.md) |
-| The evidence report and the closeout sign-off | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0022](decisions/0022-evidence-report-and-sign-off.md) |
+| The evidence report and the closeout sign-off. Reviewed and accepted, except how the PDF is made, which is the builder's choice, and withdrawing a sign-off, which isn't decided. | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0022](decisions/0022-evidence-report-and-sign-off.md) |
 | The clock. One clock per grant is decided ([0028](decisions/0028-one-clock-per-grant.md)). Still provisional: the rest of 0023, such as playing a jump's arrivals one run at a time, a status that time alone changes, and when a ledger line arrives. | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0023](decisions/0023-the-clock.md), amended by [0028](decisions/0028-one-clock-per-grant.md) |
-| Sample grants. What a sample is, how it's chosen, that every sample opens at the start of its timeline, read live or prerun, and the sample accountant are decided ([0027](decisions/0027-sample-grants.md)). Still provisional, as first versions: skipping the human steps, how the prerun is made and when its saved results are loaded, the small sample read live only, the limit on larger samples read live, the timeline panel, start over, and the two timeline tests. What goes in each sample isn't decided. | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet), and below | [0027](decisions/0027-sample-grants.md), which supersedes [0024](decisions/0024-the-seeded-demo-workspace.md) |
-| Gmail and Drive details | [architecture.md](architecture.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0025](decisions/0025-gmail-and-drive.md) |
-| The eval's blind test and scoring | [eval.md](eval.md#not-decided-yet) | [0026](decisions/0026-eval-scoring-and-the-blind-test.md) |
+| Benefit charges. The recalculation is decided ([0030](decisions/0030-benefit-charges.md)). Still provisional, as first versions: a confirmed rate in force until a later confirmed one replaces it, and how a benefit charge waiting on its salary shows. | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet) | [0030](decisions/0030-benefit-charges.md) |
+| Sample grants. What a sample is, how it's chosen, that every sample opens at the start of its timeline, read live or prerun, and the sample accountant are decided ([0027](decisions/0027-sample-grants.md)). Still provisional, as first versions: skipping the human steps, how the prerun is made and when its saved results are loaded, the small sample read live only, the limit on larger samples read live, the timeline panel, start over, and the two timeline tests. What goes in the samples is decided, except the grants' people, amounts and dates. Its first versions: the twelfth highlight, the next highlight control, and the small sample holding highlights 1 to 3. | [product.md](product.md#not-decided-yet), [contracts.md](contracts.md#not-decided-yet), and below | [0027](decisions/0027-sample-grants.md), which supersedes [0024](decisions/0024-the-seeded-demo-workspace.md) |
 
 ### Work in parallel
 
@@ -116,5 +113,5 @@ A small correction inside one area doesn't need a decision file. The PR descript
 |---|---|
 | How to demo | product |
 | Issues for the work in decisions 0010 to 0019. Review threads are core. | whoever runs the build |
-| What goes in each sample grant ([0027](decisions/0027-sample-grants.md)) | product, built by W3 |
+| The sample grants' people, amounts and dates. What the samples show is decided ([0027](decisions/0027-sample-grants.md)). | product, built by W3 |
 | The agent's exact actions and the wording of its prompts: a W1 task of its own. Using the eval to tune them is optional. See [architecture.md](architecture.md#the-agent). | builder (W1), discussed with Alex before building |

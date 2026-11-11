@@ -1,7 +1,8 @@
 "use client";
 
+import { usePings } from "@/lib/api";
 import { useParams } from "next/navigation";
-import { Loadable } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { EvidenceCardView } from "@/components/evidence/EvidenceCardView";
 import styles from "@/components/evidence/evidence.module.css";
 import { GrantFrame } from "@/components/evidence/GrantFrame";
@@ -10,6 +11,8 @@ import { useEvidence } from "@/components/evidence/hooks";
 /** The grant's evidence: one card per file, in the server's order (first version, may change). */
 export function EvidenceScreen() {
   const { grantId } = useParams<{ grantId: string }>();
+  // Refetches when the backend pings this grant's channel, such as the agent replying in a thread.
+  usePings(`grant:${grantId}`);
   const evidence = useEvidence(grantId);
   return (
     <GrantFrame grantId={grantId} crumbs={["Evidence"]}>

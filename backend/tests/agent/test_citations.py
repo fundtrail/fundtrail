@@ -62,11 +62,11 @@ def highlighted(c: dict[str, Any]) -> list[str]:
     return [INVOICE[r["start_char_index"] : r["end_char_index"]] for r in ranges]
 
 
-def test_a_text_citation_keeps_the_apis_passage_and_highlights_the_line_with_the_value():
+def test_a_text_citation_keeps_the_line_with_its_value_not_the_apis_whole_chunk():
     c = resolve_citation("INV-1001", [char(HEAD)], [DOC])
-    assert c["passage"] == HEAD
+    assert c["passage"] == "Invoice Number: INV-1001"
     loc = c["location"]
-    assert INVOICE[loc["start_char_index"] : loc["end_char_index"]] == HEAD
+    assert INVOICE[loc["start_char_index"] : loc["end_char_index"]] == c["passage"]
     assert highlighted(c) == ["Invoice Number: INV-1001"]
     assert c["match"] == "exact"
 
@@ -137,7 +137,8 @@ def test_narrowing_stays_inside_the_passage():
 def test_the_citation_whose_passage_holds_the_text_is_picked():
     other = char("Total Due: $1,240.00")
     c = resolve_citation("INV-1001", [other, char(HEAD)], [DOC])
-    assert c["passage"] == HEAD and highlighted(c) == ["Invoice Number: INV-1001"]
+    assert c["passage"] == "Invoice Number: INV-1001"
+    assert highlighted(c) == ["Invoice Number: INV-1001"]
     with pytest.raises(CitationProblem):
         resolve_citation("INV-9999", [other, char(HEAD)], [DOC])
 
@@ -193,8 +194,11 @@ def test_a_pixel_box_becomes_fractions_of_the_page():
         "width": 0.2,
         "height": 0.2,
     }
-    with pytest.raises(CitationProblem):
-        image_box(SentImage("file-photo", 1, 1000, 500), 100, 50, 1300, 150)
+    # A box running off the image is cut to it; one with nothing on the image is no box.
+    cut = image_box(SentImage("file-photo", 1, 1000, 500), 900, 50, 1300, 150)
+    assert cut is not None and cut["left"] == 0.9 and abs(cut["width"] - 0.1) < 1e-9
+    assert image_box(SentImage("file-photo", 1, 1000, 500), 1100, 50, 1300, 150) is None
+    assert image_box(SentImage("file-photo", 1, 1000, 500), 100, 50, 100, 150) is None
 
 
 @pytest.mark.parametrize(

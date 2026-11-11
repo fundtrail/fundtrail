@@ -56,8 +56,20 @@ def test_requests_without_a_good_token_get_401(api: Api) -> None:
     assert response.status_code == 401
 
 
-def test_the_first_request_adds_the_user(api: Api) -> None:
-    assert api.client.get("/workspaces", headers=api.headers).json() == []
+def test_the_first_request_adds_the_user_and_their_workspace(api: Api) -> None:
+    """Ruling 64: the first request makes the user's workspace, named after them, with its
+    Sample accountant; a second request makes nothing more."""
+    [workspace] = api.client.get("/workspaces", headers=api.headers).json()
+    assert workspace["name"] == "Pat Example's workspace"
+    assert workspace["owner_id"] == api.user_id
+    assert api.client.get("/workspaces", headers=api.headers).json() == [workspace]
+    with api.platform.pool.connection() as conn:
+        roles = conn.execute(
+            """select role from public.workspace_members where workspace_id = %s
+               order by role""",
+            (workspace["id"],),
+        ).fetchall()
+        assert [r["role"] for r in roles] == ["owner", "sample"]
     with api.platform.pool.connection() as conn:
         row = conn.execute("select email, name from public.users where id = %s", (api.user_id,))
         assert row.fetchone() == {"email": "pat@university.example", "name": "Pat Example"}
@@ -71,7 +83,8 @@ def test_anything_outside_the_users_workspaces_is_404(api: Api, signer: Signer) 
         headers=api.headers,
     ).json()
     other = api.as_other_user(signer)
-    assert api.client.get("/workspaces", headers=other).json() == []
+    theirs = api.client.get("/workspaces", headers=other).json()
+    assert [w["id"] for w in theirs if w["id"] == workspace["id"]] == []
     assert (
         api.client.post(
             f"/workspaces/{workspace['id']}/grants",

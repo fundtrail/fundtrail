@@ -26,6 +26,7 @@ from app.contracts.records import (
     Answer,
     ApprovalScope,
     Author,
+    BenefitGroup,
     Bill,
     BudgetAssignment,
     BudgetCategory,
@@ -33,6 +34,7 @@ from app.contracts.records import (
     Cited,
     Decision,
     DefaultItems,
+    ImageBox,
     Judgment,
     Link,
     PeriodOfPerformance,
@@ -49,6 +51,7 @@ from app.contracts.workspaces import Grant
 __all__ = [
     "likely_duplicates",
     "ApprovalScope",
+    "BenefitGroup",
     "Bill",
     "BudgetAssignment",
     "Link",
@@ -66,6 +69,7 @@ __all__ = [
     "Cited",
     "Decision",
     "DefaultItems",
+    "ImageBox",
     "EvidenceFile",
     "Grant",
     "Judgment",
@@ -221,9 +225,10 @@ def char_citation(
 ) -> dict[str, Any]:
     """A plain-text citation, highlighted on the lines where its value stands on its own.
 
-    The passage and its location stay exactly what the API returned; `lines` become the
-    highlight, one character range per line inside the passage (#39). With no such line, the
-    citation has no highlight and the viewer shows the whole passage.
+    The passage and location are the lines of the API's chunk that hold the value (citations
+    `_char_citation`); `lines` become the highlight, one character range per line inside the
+    passage (#39). With no such line, the citation keeps the API's chunk, has no highlight, and
+    the viewer shows the whole passage.
     """
     location = {"type": "char_location", "start_char_index": start, "end_char_index": end}
     citation: dict[str, Any] = {

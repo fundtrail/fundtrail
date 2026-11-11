@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.checks import benefits
 from app.checks.findings import APPROVAL, CHECKLIST, Finding, passed
 from app.checks.ledger_accounts import group_items
 from app.checks.rules_match import rules_for
@@ -90,6 +91,12 @@ class ItemResult:
     filled: bool
     removal_waiting_id: str | None
     findings: list[Finding] = field(default_factory=list[Finding])
+    # Ruling 61: an item code fills by recalculating (a benefit charge's "Benefit rate")
+    # names the rate term and the salary lines it was recalculated from.
+    rate_id: str | None = None
+    charge_ids: tuple[str, ...] = ()
+    # Ruling 73: what the links cover so far on an item with an amount they don't reach.
+    covered_cents: int | None = None
 
 
 @dataclass
@@ -312,6 +319,19 @@ def _rate_value(spec: ItemSpec, view: GrantView) -> tuple[Decimal | None, Findin
 def evaluate_item(
     spec: ItemSpec, charge: Charge, view: GrantView, waiting_removal: str | None
 ) -> ItemResult:
+    if spec.default_key == benefits.BENEFIT_RATE:
+        found = benefits.recalculate(charge, view, spec.needed)
+        if found is not None:
+            # Ruling 61: filled by the recalculation, never by links.
+            return ItemResult(
+                spec,
+                [],
+                filled=found.filled,
+                removal_waiting_id=waiting_removal,
+                findings=found.findings,
+                rate_id=found.rate_id,
+                charge_ids=found.charge_ids,
+            )
     links = [lk for lk in view.links[charge.id] if _names(lk, spec, view)]
     result = ItemResult(spec, links, filled=False, removal_waiting_id=waiting_removal)
     facts = [lk.fact.id for lk in links]
@@ -390,6 +410,8 @@ def evaluate_item(
                 ok = False
             elif side < 0:
                 ok = False
+                if links and total != 0 and (total > 0) == (spec.amount_cents > 0):
+                    result.covered_cents = total  # ruling 73: partly filled
                 if links:
                     missing_text = (
                         f"{spec.needed}: the bills linked add up to {money(total)} "
@@ -509,7 +531,23 @@ def evaluate(charge: Charge, view: GrantView) -> ChecklistResult:
             link_ids=tuple(lk.link.id for lk in item.links),
             removal_waiting_id=item.removal_waiting_id,
             rule_id=item.spec.rule.id if item.spec.rule is not None else None,
+            rate_id=item.rate_id,
+            charge_ids=item.charge_ids,
+            # Ruling 73: words only; the item stays not filled and the bucket is the same.
+            covered_cents=_partly(item),
+            partly_filled_text=(
+                f"Partly filled, {money(covered)} of {money(item.spec.amount_cents or 0)}"
+                if (covered := _partly(item)) is not None
+                else None
+            ),
         )
         for item in items
     ]
     return ChecklistResult(items, entries, findings)
+
+
+def _partly(item: ItemResult) -> int | None:
+    """Ruling 73: what the links cover on an item with an amount that isn't filled."""
+    if item.filled or item.spec.amount_cents is None:
+        return None
+    return item.covered_cents

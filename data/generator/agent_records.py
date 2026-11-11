@@ -23,6 +23,7 @@ import struct
 from datetime import date, datetime
 
 from model import Grant, iso
+from photo import SCAN_LINE, SCAN_MARGIN, SCAN_TOP
 
 ALLOWABLE = "Is this cost necessary and reasonable, and is it for this project?"
 PDF_LINES_PER_PAGE = 60  # render.pdf's default
@@ -35,10 +36,14 @@ DEFAULT_ITEMS: list[tuple[str, str, str]] = [
     # (account prefix, kind of document, default item key)
     ("50", "appointment", "appointment_letter"),
     ("50", "effort", "effort_report"),
+    ("51", "appointment", "appointment_letter"),
+    ("51", "effort", "effort_report"),
     ("550", "bill", "bill"),
+    ("5671", "bill", "payment_record"),
     ("5721", "expense", "expense_report"),
     ("5721", "bill", "bills"),
     ("590", "bill", "usage_statement"),
+    ("53", "rate", "benefit_rate"),
 ]
 
 
@@ -136,10 +141,15 @@ class Builder:
                 "match": "exact",
             }
         if name.endswith(PHOTO_SUFFIXES):
+            box = (
+                self.scan_box(doc.data, index)
+                if name.startswith("scan_")
+                else self.photo_box(doc.data, len(rows), index)
+            )
             return {
                 "file_id": self.file_id(name),
                 "passage": None,
-                "location": self.photo_box(doc.data, len(rows), index),
+                "location": box,
                 "match": "exact",
             }
         start = sum(len(r) + 1 for r in rows[:index]) + (len(row) - len(row.lstrip()))
@@ -179,6 +189,18 @@ class Builder:
         }
         return box
 
+    def scan_box(self, data: bytes, index: int) -> dict:
+        """A box around one line of a scanned page, from photo.py's scan layout."""
+        w, h = jpeg_size(data)
+        return {
+            "type": "image_box",
+            "page": 1,
+            "left": round(SCAN_MARGIN / w, 4),
+            "top": round(max(0, SCAN_TOP + index * SCAN_LINE - 6) / h, 4),
+            "width": round((w - 2 * SCAN_MARGIN) / w, 4),
+            "height": round((SCAN_LINE + 12) / h, 4),
+        }
+
     def cited(self, name: str, value, text: str, index: int) -> dict:
         return {"value": value, "text": text, "citation": self.citation(name, index)}
 
@@ -217,7 +239,7 @@ class Builder:
         letter_dated = {}
         for n, r in enumerate(self.key["records"]):
             kind, name, f = r["kind"], r["file"], r["fields"]
-            at = self.docs[name].at
+            at = self.g.file_arrival(name)
             data: dict = {"kind": kind}
             if "dated" in f and kind != "bill":
                 data["dated"] = self.cited_date(name, f["dated"], "Amendment Date")
@@ -245,7 +267,8 @@ class Builder:
                     name, int(f["amount"]), money_in(row, int(f["amount"])), i
                 )
                 data["category"] = f["category"]
-                self.budget_rec[f["name"]] = f"rec-budget-line-{n}"
+                # The first notice's line: the one a charge is assigned to.
+                self.budget_rec.setdefault(f["name"], f"rec-budget-line-{n}")
             elif kind == "person":
                 data["name"] = self.cited_text(name, f["name"])
                 if "email" in f:
@@ -273,15 +296,83 @@ class Builder:
                         for j in items
                     ]
                 self.part_by_file[name] = data["total"]["citation"]
+            elif kind == "rate":
+                data.update(self.rate(name, f))
+            elif kind == "approval_rule":
+                data.update(self.approval_rule(name, f))
+            elif kind == "approval":
+                data["approver_email"] = self.cited_text(name, f["approver_email"], "From:")
+                data["covers"] = self.cited_text(name, self.approved_line(name))
+                if "approved_on" in f:
+                    data["approved_on"] = self.cited_date(name, f["approved_on"], "Date:")
+                self.part_by_file[name] = data["covers"]["citation"]
             elif kind == "note":
                 data.update(self.note(name))
                 self.part_by_file[name] = data["statement"]["citation"]
             else:
                 raise ValueError(f"no expected record of kind {kind} in a sample")
             rec_id = f"rec-budget-line-{n}" if kind == "budget_line" else f"rec-{kind}-{n}"
-            if kind in ("bill", "note"):
+            if kind in ("bill", "note", "approval"):
                 self.rec_by_file[name] = rec_id
             self.add(rec_id, at, data)
+
+    def approval_rule(self, name: str, f: dict) -> dict:
+        """The participant support condition: what it applies to, who approves, and
+        its scope, each cited to the clause's words."""
+        data = {
+            "applies_to": self.cited_text(name, "participant support", "funds budgeted"),
+            "approver": self.cited_text(name, "Program Officer", "cognizant"),
+        }
+        if "scope" in f:
+            i, row = self.find(name, lambda r: "diverted" in r)
+            data["scope"] = self.cited(name, f["scope"], "diverted", i)
+        return data
+
+    def rate(self, name: str, f: dict) -> dict:
+        """One rate term from a rate agreement.
+
+        A fixed row holds its group, rate and dates. A provisional term (no end) has
+        its start cited from the PROV row and its group and rate from the latest
+        fixed row for that group, which the PROV row says to keep using (PR 232).
+        """
+        start = date.fromisoformat(f["effective_from"])
+        group = f["name"]
+        if "effective_to" not in f:
+            i_start, _ = self.find(
+                name, lambda r: r.startswith("PROV.") and f"{start:%m/%d/%Y}" in r
+            )
+            fixed = [
+                (i, r)
+                for i, r in enumerate(self.docs[name].text.split("\n"))
+                if r.startswith("FIXED") and r.rstrip().endswith(group)
+            ]
+            i, line = fixed[-1]
+            return {
+                "name": self.cited(name, group, group, i),
+                "rate": self.cited(name, f["rate"], line.split()[3], i),
+                "applies_to": self.cited(name, f["applies_to"], group, i),
+                "effective_from": self.cited(
+                    name, f["effective_from"], f"{start:%m/%d/%Y}", i_start
+                ),
+            }
+        end = date.fromisoformat(f["effective_to"])
+
+        def row(r: str) -> bool:
+            return r.startswith("FIXED") and f"{start:%m/%d/%Y}" in r and r.rstrip().endswith(group)
+
+        i, line = self.find(name, row)
+        percent = line.split()[3]
+        return {
+            "name": self.cited(name, group, group, i),
+            "rate": self.cited(name, f["rate"], percent, i),
+            "applies_to": self.cited(name, f["applies_to"], group, i),
+            "effective_from": self.cited(name, f["effective_from"], f"{start:%m/%d/%Y}", i),
+            "effective_to": self.cited(name, f["effective_to"], f"{end:%m/%d/%Y}", i),
+        }
+
+    def approved_line(self, name: str) -> str:
+        _, row = self.find(name, lambda r: r.strip().startswith("Approved."))
+        return row.strip()
 
     def budget_row(self, name: str, line_name: str) -> tuple[int, str]:
         rows = self.docs[name].text.split("\n")
@@ -318,6 +409,20 @@ class Builder:
                 "label": "Travel expense report",
                 "statement": self.cited(name, row.strip(), row.strip(), i),
             }
+        if name.startswith("rate_agreement"):
+            i, row = self.find(
+                name, lambda r: r.startswith("FIXED") and "7/1/2025" in r and "Limited" in r
+            )
+            return {
+                "label": "Fringe benefit rate agreement",
+                "statement": self.cited(name, row.strip(), row.strip(), i),
+            }
+        if name.startswith("cost_transfer_justification"):
+            i, row = self.find(name, lambda r: r.startswith("Why the transfer is needed:"))
+            return {
+                "label": "Cost transfer justification",
+                "statement": self.cited(name, row.strip(), row.strip(), i),
+            }
         if re.search(r"\b\d+ of (the )?\d+\b", text):
             i, row = self.find(name, lambda r: re.search(r"\b\d+ of (the )?\d+\b", r) is not None)
             return {
@@ -336,10 +441,14 @@ class Builder:
         }
 
     def default_item(self, line_id: str, name: str) -> str | None:
+        if self.lines[line_id].original_line_id and name.startswith("cost_transfer_justification"):
+            return "justification"
         account = self.lines[line_id].account.split(" ")[0]
         record = self.rec_by_file[name]
         kind = (
-            "appointment"
+            "rate"
+            if name.startswith("rate_agreement")
+            else "appointment"
             if name.startswith("appointment_letter")
             else "effort"
             if name.startswith("effort_report")
@@ -396,7 +505,7 @@ class Builder:
             written: list[tuple[datetime, str, str]] = []
             for n, lk in enumerate(links):
                 name = lk["file"]
-                at = max(arrival[line_id], self.docs[name].at)
+                at = max(arrival[line_id], self.g.file_arrival(name))
                 data: dict = {
                     "kind": "link",
                     "record_id": self.rec_by_file[name],
@@ -440,6 +549,10 @@ class Builder:
                     "quotes": [self.part_by_file[w[2]] for w in linked],
                     "rests_on": [w[1] for w in linked],
                 }
+                rule = self.g.agent_extras.get("rules", {}).get(line_id)
+                if rule:
+                    data["rule"] = rule
+                    data["reasoning"] = f"The evidence shows a cost that rule {rule} doesn't allow."
                 previous = self.add(f"rec-allowable-{line_id}-{k}", at, data, previous)
         for b in self.key["budget_lines"]:
             line_id = b["line_id"]
@@ -454,12 +567,62 @@ class Builder:
                 },
             )
 
+    def suggestions(self) -> None:
+        extras = self.g.agent_extras
+        for n, (bill, note, other) in enumerate(extras.get("remainders", [])):
+            other_award = self.cited_text(note, other)
+            self.add(
+                f"rec-remainder-{n}",
+                max(self.g.file_arrival(bill), self.g.file_arrival(note)),
+                {
+                    "kind": "remainder",
+                    "record_id": self.rec_by_file[bill],
+                    "other_award": other_award,
+                    "reason": f"The rest of the bill is for {other}, as the email says.",
+                    "quotes": [other_award["citation"]],
+                },
+            )
+        for n, (copy, original) in enumerate(extras.get("duplicates", [])):
+            self.add(
+                f"rec-duplicate-{n}",
+                max(self.g.file_arrival(copy), self.g.file_arrival(original)),
+                {
+                    "kind": "duplicate",
+                    "copy_file_id": self.file_id(copy),
+                    "original_file_id": self.file_id(original),
+                    "reason": "The same invoice number, date, items and total.",
+                },
+            )
+
+
+# Within one moment a run writes what's pointed to first: terms, then facts, then
+# links and assignments, then answers and suggestions (the order a run writes them).
+KIND_ORDER = {
+    "period_of_performance": 0,
+    "notice": 0,
+    "budget_line": 0,
+    "person": 0,
+    "approval_rule": 0,
+    "rate": 0,
+    "bill": 1,
+    "note": 1,
+    "approval": 1,
+    "link": 2,
+    "budget_assignment": 3,
+    "judgment": 4,
+    "remainder": 5,
+    "duplicate": 5,
+}
+
 
 def build(g: Grant, key: dict) -> dict:
     b = Builder(g, key)
     b.terms_and_facts()
     b.links_budgets_answers()
-    records = sorted(b.records, key=lambda r: (r["written_at"], r["id"]))
+    b.suggestions()
+    records = sorted(
+        b.records, key=lambda r: (r["written_at"], KIND_ORDER[r["data"]["kind"]], r["id"])
+    )
     return {
         "sample": g.slug,
         "ids": {

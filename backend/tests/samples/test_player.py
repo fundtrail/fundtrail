@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pytest
 
 from app.contracts.evidence import Source
 from app.contracts.runs import TriggerKind
@@ -65,7 +67,7 @@ def test_the_choices_come_from_the_packs(api: Api) -> None:
     assert [o["needs_confirm"] for o in options] == [False, True, False]
     assert [o["available"] for o in options] == [True, True, False]
     assert options[2]["unavailable_reason"]
-    assert options[0]["name"].startswith("Placeholder")
+    assert options[0]["name"] == "Small sample, read live"
 
 
 def test_the_larger_live_sample_needs_a_confirm(api: Api) -> None:
@@ -113,6 +115,25 @@ def test_a_sample_opens_at_its_first_event(api: Api) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("choice", "sample"), [("small_live", "nitrate-sensors"), ("larger_live", "salt-marsh-carbon")]
+)
+def test_every_timeline_event_carries_its_highlight(api: Api, choice: str, sample: str) -> None:
+    """Ruling 58: Just happened, Now and Coming up carry each event's highlight label, so
+    the panel's Next highlight can find the next one."""
+    from .test_pack import _labels
+
+    labels = _labels(sample)
+    timeline = _get(api, f"/grants/{_open(api, choice)}/timeline")
+    played = [p["event"] for p in timeline["just_happened"]]
+    shown = {e["name"]: e["highlight"] for e in [*played, *timeline["coming_up"]]}
+    assert {n: h for n, h in shown.items() if h is not None} == labels
+    first = timeline["now"]["stopped_on"]
+    assert first["highlight"] == labels[first["name"]]
+    coming = [e for e in timeline["coming_up"] if e["highlight"] is not None]
+    assert [e["name"] for e in coming] == [n for n in labels if n != first["name"]]
+
+
 def test_next_plays_the_ledger_and_its_later_lines_wait(api: Api) -> None:
     grant_id = _open(api)
     timeline = _move(api, grant_id)
@@ -127,6 +148,45 @@ def test_next_plays_the_ledger_and_its_later_lines_wait(api: Api) -> None:
     assert arrived["L-1958-0007"] == datetime(2026, 12, 7, tzinfo=UTC)
     upcoming = _names(timeline["coming_up"])
     assert "L-1958-0006" in upcoming and "ledger.csv" not in upcoming
+
+
+def test_a_ledger_files_event_shows_what_the_agent_wrote_for_its_charges(api: Api) -> None:
+    """A whole ledger file names no single charge: its event carries the charges it brought
+    in, and what the agent wrote from their runs."""
+    from app.contracts.records import Answer, Author, Judgment, Question, Record
+
+    grant_id = _open(api)
+    timeline = _move(api, grant_id)
+    [ledger] = timeline["just_happened"]
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        brought = [
+            c.id
+            for c in store.list_charges(conn, grant_id, store.END_OF_TIME)
+            if c.arrived_at == datetime(2026, 11, 16, 17, 45, tzinfo=UTC)
+        ]
+        [run] = [r for r in store.list_runs(conn, grant_id) if r.trigger.kind.value == "charge"]
+        record = Record(
+            id=f"rec-allowable-{grant_id[-6:]}",
+            workspace_id=grant.workspace_id,
+            grant_id=grant_id,
+            author=Author.AGENT,
+            written_at=run.clock_now,
+            read_through_seq=run.read_through_seq,
+            data=Judgment(
+                charge_id=brought[0],
+                question=Question.ALLOWABLE,
+                text="Is this cost allowable?",
+                answer=Answer.SUPPORTS,
+                reasoning="Sensor parts for the project.",
+            ),
+        )
+        store.insert_records(conn, [record])
+    assert sorted(ledger["charge_ids"]) == sorted(brought)
+    [ledger] = _get(api, f"/grants/{grant_id}/timeline")["just_happened"]
+    assert [r["id"] for r in ledger["agent_records"]] == [record.id]
 
 
 def test_a_jump_stores_each_event_at_its_own_time_and_replays_in_order(api: Api) -> None:
@@ -151,41 +211,48 @@ def test_a_jump_stores_each_event_at_its_own_time_and_replays_in_order(api: Api)
     assert _get(api, f"/grants/{grant_id}/timeline")["catching_up"] is False
 
 
-def test_the_users_items_wait_under_now_until_delivered(api: Api) -> None:
-    grant_id = _open(api)
-    timeline = _move(api, grant_id, "2026-11-18T16:00:00Z")
-    assert timeline["now"]["deliveries"] == []
-    marked = ["email_invoice_ESS-32410.eml", "hardware_receipt.jpg", "invoice_EES-7420.pdf"]
-    assert [e["name"] for e in timeline["coming_up"][:3]] == marked
-    assert {e["kind"] for e in timeline["coming_up"][:3]} == {"user_delivery"}
+def _iso(at: datetime) -> str:
+    return at.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
-    # The clock stops on them once and never delivers them.
+
+def test_the_users_items_wait_under_now_until_delivered(api: Api) -> None:
+    pack = player.pack_for("nitrate-sensors")
+    marked = [e for e in pack.events if e.deliver_by_user]  # in time order
+    first, last = marked[0].at, max(i.at for i in player.items_for("nitrate-sensors"))
+    names = [e.name for e in marked]
+    grant_id = _open(api)
+    timeline = _move(api, grant_id, _iso(first - timedelta(minutes=1)))
+    assert timeline["now"]["deliveries"] == []
+    upcoming = {e["name"]: e["kind"] for e in timeline["coming_up"]}
+    assert all(upcoming[n] == "user_delivery" for n in names)
+
+    # The clock stops on them and never delivers them.
     timeline = _move(api, grant_id)
-    assert timeline["now"]["now"] == "2026-11-18T17:00:00Z"
-    assert timeline["now"]["stopped_on"]["name"] == marked[0]
-    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == marked
-    assert not {f.name for f in _files(api, grant_id)} & set(marked)
-    timeline = _move(api, grant_id, "2026-12-31T00:00:00Z")
-    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == marked
+    assert timeline["now"]["now"] == _iso(first)
+    assert timeline["now"]["stopped_on"]["name"] in [e.name for e in pack.events if e.at == first]
+    due = [e.name for e in marked if e.at <= first]
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == due
+    assert not {pack.sha256(n) for n in names} & {f.sha256 for f in _files(api, grant_id)}
+    end = last + timedelta(days=1)
+    timeline = _move(api, grant_id, _iso(end))
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == names
     assert timeline["finished"] is True
 
     # The user uploads one the ordinary way: it leaves Now and shows under Just happened.
-    from app.samples.player import pack_for
-
-    receipt = pack_for("nitrate-sensors").file_bytes("hardware_receipt.jpg")
+    item = marked[0]
     uploaded = api.client.post(
         f"/grants/{grant_id}/evidence",
-        files={"file": ("my_photo.jpg", receipt, "image/jpeg")},
+        files={"file": ("my_copy", pack.file_bytes(item.name), "application/octet-stream")},
         headers=api.headers,
     )
     assert uploaded.status_code == 201, uploaded.text
     timeline = _get(api, f"/grants/{grant_id}/timeline")
-    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == [marked[0], marked[2]]
-    delivered = [p for p in timeline["just_happened"] if p["event"]["name"] == marked[1]]
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == names[1:]
+    delivered = [p for p in timeline["just_happened"] if p["event"]["name"] == item.name]
     assert delivered and delivered[0]["event"]["file_id"] == uploaded.json()["id"]
     # Only under the move that brought it: never again under a later one.
-    later = _move(api, grant_id, "2027-01-02T00:00:00Z")
-    assert marked[1] not in _names(later["just_happened"])
+    later = _move(api, grant_id, _iso(end + timedelta(days=1)))
+    assert item.name not in _names(later["just_happened"])
 
 
 def test_the_timeline_only_moves_forward(api: Api) -> None:
@@ -202,16 +269,73 @@ def test_the_timeline_only_moves_forward(api: Api) -> None:
     assert done.status_code == 409 and "Nothing" in done.json()["detail"]
 
 
+def _known_sender(api: Api, grant_id: str, email: str) -> None:
+    """The accountant adds a known sender: a person term with the address."""
+    response = _post(
+        api,
+        f"/grants/{grant_id}/records",
+        {
+            "data": {
+                "kind": "person",
+                "name": {"value": "A sender", "text": "A sender"},
+                "email": {"value": email, "text": email},
+                "role": {"value": "Known sender", "text": "Known sender"},
+            }
+        },
+    )
+    assert response.status_code == 201, response.text
+
+
 def test_gmail_and_drive_events_arrive_as_those_channels_bring_them(api: Api) -> None:
+    from app.ingest.email_files import parse_headers
+
+    pack = player.pack_for("salt-marsh-carbon")
+    gmail = next(e for e in pack.events if e.source.value == "gmail")
+    drive = next(e for e in pack.events if e.source.value == "drive")
+    raw = pack.file_bytes(gmail.name)
+    sender = parse_headers(raw).sender
+    assert sender is not None
     grant_id = _open(api, "larger_live")
-    _move(api, grant_id, "2024-09-06T00:00:00Z")
-    files = {f.name: f for f in _files(api, grant_id)}
-    email = next(f for f in files.values() if f.source is Source.GMAIL)
-    assert email.sender == "harper.fixture@university.example"
-    assert email.document_date == date(2024, 5, 14)  # its Date header, as written
-    assert email.arrived_at == datetime(2024, 5, 14, 20, 5, tzinfo=UTC)
-    drive = files["usage_statement_SIF-2408-77.txt"]
-    assert drive.source is Source.DRIVE and drive.source_ref
+    _known_sender(api, grant_id, sender)
+    _move(api, grant_id, _iso(max(gmail.at, drive.at)))
+    by_sha = {f.sha256: f for f in _files(api, grant_id)}
+    email = by_sha[pack.sha256(gmail.name)]
+    assert email.source is Source.GMAIL and email.sender == sender
+    assert email.document_date is not None
+    assert email.document_date == parse_headers(raw).sent_on  # its Date header, as written
+    assert email.arrived_at == gmail.at
+    stored = by_sha[pack.sha256(drive.name)]
+    assert stored.source is Source.DRIVE and stored.source_ref and stored.arrived_at == drive.at
+
+
+def test_an_email_from_a_sender_who_isnt_known_is_held(api: Api) -> None:
+    """Ruling 58: a scheduled email goes through the known-sender hold as live mail does,
+    and arrives once it's let in."""
+    from app.ingest.email_files import parse_headers
+
+    pack = player.pack_for("salt-marsh-carbon")
+    gmail = next(e for e in pack.events if e.source.value == "gmail")
+    grant_id = _open(api, "larger_live")  # nobody named in confirmed terms yet
+    _move(api, grant_id, _iso(gmail.at))
+    assert pack.sha256(gmail.name) not in {f.sha256 for f in _files(api, grant_id)}
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        [held] = [
+            h
+            for h in store.list_held_mail(conn, grant.workspace_id, gmail.at)
+            if h.grant_id == grant_id
+        ]
+    assert held.files[0].sha256 == pack.sha256(gmail.name)
+    assert held.sender == parse_headers(pack.file_bytes(gmail.name)).sender
+    assert held.held_at == gmail.at and held.reason.value == "unknown_sender"
+    let_in = _post(
+        api,
+        f"/grants/{grant_id}/records",
+        {"data": {"kind": "mail_action", "held_mail_id": held.id, "action": "let_in"}},
+    )
+    assert let_in.status_code == 201, let_in.text
+    assert pack.sha256(gmail.name) in {f.sha256 for f in _files(api, grant_id)}
 
 
 def test_a_grant_that_isnt_a_sample_has_no_timeline(api: Api) -> None:
@@ -260,6 +384,11 @@ def test_a_larger_live_sample_still_reading_holds_another_ones_clock(api: Api) -
     detail = refused.json()["detail"]
     assert detail["reason"] == "another_sample_working"
     assert detail["grant"]["grant"]["id"] == working
+    # Ruling 72: the panel says so before the user tries.
+    held = _get(api, f"/grants/{other}/timeline")
+    assert held["move_unavailable_reason"] == detail["message"]
+    assert held["next_highlight_unavailable_reason"] == detail["message"]
+    assert _get(api, f"/grants/{small}/timeline")["move_unavailable_reason"] is None
     # A small sample is never held.
     assert _post(api, f"/grants/{small}/timeline", {}).status_code == 200
     # Opening is never refused for it.
@@ -330,3 +459,39 @@ def test_one_move_at_a_time_per_user(api: Api) -> None:
         assert _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
         assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, "someone-else"))
     assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
+
+
+def test_next_highlight_on_the_route_goes_to_the_next_highlight(api: Api) -> None:
+    """Ruling 77: {next_highlight: true} goes to the next highlighted event; `to` is
+    ignored. (Which steps it leaves to the user: test_skipping.)"""
+    pack = player.pack_for("nitrate-sensors")
+    receipt = next(e for e in pack.events if e.deliver_by_user and e.highlight)
+    grant_id = _open(api)  # on the award letter, the first highlight
+    response = _post(
+        api,
+        f"/grants/{grant_id}/timeline",
+        {"next_highlight": True, "to": "2027-06-01T00:00:00Z"},
+    )
+    assert response.status_code == 200, response.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))  # the walk waits on the agent
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+
+
+def test_the_move_controls_say_why_they_cant_move(api: Api) -> None:
+    """Ruling 72, in plain words; None while a control can move."""
+    items = player.items_for("nitrate-sensors")
+    grant_id = _open(api)
+    opened = _get(api, f"/grants/{grant_id}/timeline")
+    assert opened["move_unavailable_reason"] is None
+    assert opened["next_highlight_unavailable_reason"] is None
+    last_highlight = max(i.at for i in items if i.event and i.event.highlight)
+    at_last = _move(api, grant_id, _iso(last_highlight))
+    assert at_last["next_highlight_unavailable_reason"] == "No highlight is left to play."
+    refused = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "No highlight is left to play."
+    end = _move(api, grant_id, "2030-01-01T00:00:00Z")
+    assert end["move_unavailable_reason"] == "Nothing is left to play."
+    assert end["next_highlight_unavailable_reason"] == "No highlight is left to play."

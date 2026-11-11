@@ -11,6 +11,7 @@ own reason stays on the record.
 
 from collections.abc import Iterable
 
+from app.checks.benefits import GROUP_NAMES
 from app.checks.text import day, money
 from app.contracts.api import SuggestionChange
 from app.contracts.charges import Charge
@@ -136,7 +137,14 @@ def _summary(record: Record, look: _Lookup) -> str:
         via = f", through {data.channel.value}" if data.channel else ""
         return f"{data.applies_to.value}: approved by {data.approver.value}{via}"
     if isinstance(data, Rate):
-        return f"{data.name.value}: {data.rate.text or data.rate.value}"
+        text = f"{data.name.value}: {data.rate.text or data.rate.value}"
+        if data.applies_to is not None:  # ruling 61: a benefit rate's group and dates
+            text += f", {GROUP_NAMES[data.applies_to.value]} group"
+        if data.effective_from is not None:
+            text += f", from {day(data.effective_from.value)}"
+            if data.effective_to is not None:
+                text += f" to {day(data.effective_to.value)}"
+        return text
     if isinstance(data, Notice):
         parts = [f"amendment {data.amendment_number.value}, {data.amendment_type.value}"]
         if data.obligated_to_date:

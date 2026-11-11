@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { grantName } from "@/components/GrantList";
+import { grantDisplayName } from "@/lib/grantName";
 import { ApiError, SampleRefusalError, type GrantSummary, type Id, type SampleChoice, type SampleCreate, type SampleOption, type SampleRefusal } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import "./setup.css";
@@ -21,12 +21,12 @@ interface BlockingGrant {
  * is refused only for needs_confirm, but any refusal shows the same way.
  * Null when the body isn't a refusal.
  */
-export function readRefusal(detail: unknown): { message: string; blocking: BlockingGrant | null } | null {
+export function readRefusal(detail: unknown, samples?: SampleOption[]): { message: string; blocking: BlockingGrant | null } | null {
   if (typeof detail !== "object" || detail === null) return null;
   const refusal = detail as Partial<SampleRefusal>;
   if (typeof refusal.message !== "string") return null;
   const grant = refusal.grant?.grant;
-  const blocking = grant && typeof grant.id === "string" ? { id: grant.id, name: grantName(refusal.grant!) } : null;
+  const blocking = grant && typeof grant.id === "string" ? { id: grant.id, name: grantDisplayName(refusal.grant!, samples) } : null;
   return { message: refusal.message, blocking };
 }
 
@@ -41,15 +41,23 @@ type OpenState =
  * chosen at first, with the chosen one's description, and Open. An option that
  * needs a confirm step asks for it first; an unavailable one shows its reason.
  * A sample opens as one grant in the user's own workspace.
+ *
+ * `main` says whether this side carries the page's one main button, which
+ * goes to the side the accountant used last; `onUse` says a sample was chosen.
+ * Alone, the card carries it once a sample is chosen.
  */
 export function SampleCard({
   options,
   openSample,
   onOpened,
+  main = true,
+  onUse,
 }: {
   options: SampleOption[];
   openSample: (body: SampleCreate) => Promise<GrantSummary>;
   onOpened: (grantId: Id) => void;
+  main?: boolean;
+  onUse?: () => void;
 }) {
   const selectId = useId();
   const [choice, setChoice] = useState<SampleChoice | "">("");
@@ -66,7 +74,7 @@ export function SampleCard({
       onOpened(summary.grant.id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        const refusal = readRefusal(error instanceof SampleRefusalError ? error.refusal : error.detail);
+        const refusal = readRefusal(error instanceof SampleRefusalError ? error.refusal : error.detail, options);
         setState({ status: "refused", message: refusal?.message ?? error.message, blocking: refusal?.blocking ?? null });
       } else {
         setState({ status: "refused", message: error instanceof ApiError ? error.message : "Couldn't open the sample. Try again.", blocking: null });
@@ -86,7 +94,7 @@ export function SampleCard({
   const busy = state.status === "opening";
 
   return (
-    <section className="ft-panel ft-pad" aria-labelledby={`${selectId}-heading`}>
+    <section className="ft-panel ft-choice-card" aria-labelledby={`${selectId}-heading`}>
       <h2 id={`${selectId}-heading`} className="ft-heading">
         Sample
       </h2>
@@ -99,6 +107,7 @@ export function SampleCard({
           value={choice}
           onChange={(e) => {
             setChoice(e.target.value as SampleChoice | "");
+            if (e.target.value !== "") onUse?.();
             setNudge(false);
             setState({ status: "idle" });
           }}
@@ -112,26 +121,33 @@ export function SampleCard({
         </select>
       </div>
 
-      <p aria-live="polite">{option ? option.description : "A sample grant to try FundTrail on, added to this workspace."}</p>
-      {option && !option.available && (
-        <p className="ft-error">{option.unavailable_reason ?? "This sample isn't available right now."}</p>
-      )}
+      <div className={`ft-sample-about${option ? "" : " is-empty"}${option && !option.available ? " is-unavailable" : ""}`}>
+        <p aria-live="polite">{option ? option.description : "A sample grant to try FundTrail on, added to this workspace."}</p>
+        {option && !option.available && (
+          <p className="ft-sample-about__reason">{option.unavailable_reason ?? "This sample isn't available right now."}</p>
+        )}
+      </div>
 
       {state.status === "confirming" && option ? (
-        <div className="ft-typeterm" role="group" aria-label="Confirm the sample">
-          <p>{option.name} is read live by the agent from the start. Start it?</p>
+        <div className="ft-sample-confirm" role="group" aria-label="Confirm the sample">
+          <p>The agent reads this sample live from the start. Start it?</p>
           <div className="ft-actions">
-            <button type="button" className="ft-btn ft-btn--main ft-btn--sm" onClick={() => void open(true)}>
+            <button type="button" className={`ft-btn${main ? " ft-btn--main" : ""}`} onClick={() => void open(true)}>
               Start it
             </button>
-            <button type="button" className="ft-btn ft-btn--sm" onClick={() => setState({ status: "idle" })}>
+            <button type="button" className="ft-btn ft-btn--quiet" onClick={() => setState({ status: "idle" })}>
               Cancel
             </button>
           </div>
         </div>
       ) : (
-        <div className="ft-actions">
-          <button type="button" className="ft-btn ft-btn--main" disabled={busy || (option !== null && !option.available)} onClick={clickOpen}>
+        <div className="ft-choice-card__actions">
+          <button
+            type="button"
+            className={`ft-btn${option && main ? " ft-btn--main" : ""}${busy ? " is-busy" : ""}`}
+            disabled={busy || (option !== null && !option.available)}
+            onClick={clickOpen}
+          >
             Open
           </button>
         </div>

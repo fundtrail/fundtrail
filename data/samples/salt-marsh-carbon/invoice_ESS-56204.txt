@@ -1,0 +1,24 @@
+EXAMPLE SCIENTIFIC SUPPLY
+55 Example Road, Example Town, CA 94010
+billing@scisupply.example
+
+INVOICE
+
+Invoice number: ESS-56204
+Invoice date: November 3, 2025
+Customer PO: PO-25-4511
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Harper Fixture
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2401835, salt marsh carbon burial
+
+Item  Description                                   Qty   Unit price      Amount
+1     Sediment trap frames, stainless                 4      $300.00   $1,200.00
+
+Subtotal                                                               $1,200.00
+Shipping                                                                   $0.00
+Total due                                                              $1,200.00
+
+Terms: net 30. Freight billed separately.

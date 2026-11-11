@@ -119,6 +119,45 @@ def files_of(r: Record) -> set[str]:
     return {v.citation.file_id for _, v in cited_values(r.data) if v.citation is not None}
 
 
+def award_letter_file(ctx: RunContext) -> EvidenceFile | None:
+    """The file this run reads when it's the grant's award letter (issue 278): the grant's
+    first file, arriving on a grant with no terms yet. A new grant is added from its award
+    letter, so that file is meant to be one, whatever it turns out to be."""
+    i = ctx.inputs
+    if i.trigger.kind != TRIGGER_FILE:
+        return None
+    f = next((x for x in i.files if x.id == i.trigger.id), None)
+    if f is None or any(x.arrived_at < f.arrived_at for x in i.files if x.id != f.id):
+        return None
+    if any(r.kind in TERM_KINDS for r in i.records):
+        return None
+    return f
+
+
+def award_letter_unread(ctx: RunContext) -> EvidenceFile | None:
+    """The award letter this run reads, while the run has written neither a term from it nor
+    a flag on it. A file that isn't an award notice gets the agent's flag, which the
+    accountant sees as a problem on that file."""
+    f = award_letter_file(ctx)
+    if f is None:
+        return None
+    for s in ctx.staged:
+        r = s.record
+        if r.kind in TERM_KINDS and f.id in files_of(r):
+            return None
+        if isinstance(r.data, JudgmentData) and r.data.file_id == f.id:
+            return None
+    return f
+
+
+AWARD_LETTER_NOTE = (
+    "This file was uploaded as the grant's award letter, and the grant has no terms yet. If it "
+    "isn't an award notice, flag the file (flag with its file_id), saying what the file is, so "
+    "the accountant uploads the right one; the flag shows on the file as a problem. The run "
+    "can't end until you've written a term from this file or flagged it."
+)
+
+
 def charge_line(ctx: RunContext, c: Charge) -> str:
     state = ctx.state()
     status = next((s for s in ctx.checks().charges if s.charge_id == c.id), None)
@@ -327,7 +366,9 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         text = [
             f"What arrived: file {f.id}. Read it fully, once, and record every value a check or a "
             "later match could need.",
+            *([AWARD_LETTER_NOTE] if award_letter_file(ctx) is not None else []),
             AWARD_NOTICE_GUIDANCE,
+            RATE_AGREEMENT_GUIDANCE,
             "Checklist items still missing on the grant. Which of these does this file fill?",
             *(missing_items(ctx) or ["- none"]),
         ]
@@ -339,8 +380,8 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         else:
             if opened.document is not None:
                 ctx.documents.append(opened.document)
-            if opened.image is not None:
-                ctx.images[f.id] = opened.image
+            for image in opened.images or []:
+                ctx.images[(f.id, image.page)] = image
             blocks += opened.blocks
             if f.parent_id or any(x.parent_id == f.id for x in i.files):
                 related = [x for x in i.files if x.id == f.parent_id or x.parent_id == f.id]
@@ -501,4 +542,21 @@ AWARD_NOTICE_GUIDANCE = (
     "total against the one before. Write each budget line and sub-line it prints as its own "
     "budget_line, with its NSF category from the fixed list. Totals such as Total Direct Costs "
     "are sums, not terms."
+)
+
+RATE_AGREEMENT_GUIDANCE = (
+    "If this is a fringe benefit rate agreement: write a rate term for each employee group in "
+    "each period it prints, every row, past years included, because code recalculates a "
+    "benefit charge with the rate for the year its salary falls in. Each term's applies_to is "
+    "the row's group, named from the agreement's own words for it (such as \"No Benefit "
+    'Eligibility" for no_benefit_eligibility) and cited; its effective_from and effective_to '
+    "are the row's From and To dates; its rate is the row's rate as printed (a bare number in "
+    "the agreement's percent column, such as 15.00, is read as 15%); its name is the group as "
+    "printed; and dated is the agreement's date. A row with no end date, such as one in effect "
+    '"Until Amended", has no effective_to. A provisional row that points back to another '
+    'year\'s rates ("Use same rates and conditions as those cited for fiscal year ending ...") '
+    "gets a term for each group too: its effective_from cited from the provisional row, and its "
+    "rate, group and name cited from the rows it points to. Keep the agreement's own wording: "
+    "the provisional row's citation shows the term is provisional, so don't mark it yourself. "
+    "A group that isn't one of the five: leave applies_to out and flag the term."
 )

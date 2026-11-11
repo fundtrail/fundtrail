@@ -8,8 +8,8 @@ grant that reaches closeout) and the small sample (nitrate-sensors, whose
 timeline starts with its award letter): the documents, `ledger.csv`,
 `timeline.json`, `user_actions.json`, `answer_key.json` and `sample.json`.
 The two other seed grants, coastal-microbial-genomics and river-delta-sediment,
-stay in `data/demo/` in the same format, unused for now. The samples' content is
-a placeholder until it's decided.
+stay in `data/demo/` in the same format, unused for now. The samples' people,
+amounts and dates are placeholders until the product owner settles them.
 
 The output is deterministic: running it again gives the same files, except the
 photos, which depend on the fonts on the machine.
@@ -32,32 +32,35 @@ sys.path.insert(0, str(HERE))
 LARGER = "salt-marsh-carbon"
 SMALL = "nitrate-sensors"
 
-# The Add-a-grant dropdown's options each sample serves (SampleChoice), with
-# placeholder words until the docs give them.
+# The Add-a-grant dropdown's options each sample serves (SampleChoice). The names
+# follow decision 0027's three choices. The docs give no description text, so the
+# descriptions are plain words drawn from 0027 and product.md.
 OPTIONS = {
     SMALL: [
         {
             "choice": "small_live",
-            "name": "Placeholder: a new grant from its award letter",
-            "description": "Placeholder until the docs give the words. A small grant that "
-            "starts with its award letter and ledger, with a few files for you to bring in.",
-            "placeholder": True,
+            "name": "Small sample, read live",
+            "description": "A small grant with an award letter, an invoice that arrives "
+            "before its charge, and a receipt photo for you to bring in. The agent reads "
+            "each arrival as the clock reaches it.",
+            "placeholder": False,
         }
     ],
     LARGER: [
         {
             "choice": "larger_live",
-            "name": "Placeholder: a grant that reaches closeout, read live",
-            "description": "Placeholder until the docs give the words. A three-year grant "
-            "that reaches closeout. Its timeline starts on the grant's first day.",
-            "placeholder": True,
+            "name": "Larger sample, read live from the start",
+            "description": "One grant of about 30 charges, from its award letter to "
+            "sign-off. The agent reads each arrival as the clock reaches it, so moving "
+            "the clock waits for its work.",
+            "placeholder": False,
         },
         {
             "choice": "larger_prerun",
-            "name": "Placeholder: a grant that reaches closeout, already read",
-            "description": "Placeholder until the docs give the words. The same grant, "
-            "already read by the agent. How this works isn't settled yet.",
-            "placeholder": True,
+            "name": "Larger sample, prerun",
+            "description": "The same grant, with the agent's work done ahead of time, "
+            "so you don't wait for it.",
+            "placeholder": False,
         },
     ],
 }
@@ -90,12 +93,15 @@ def agent_records_json(g) -> str:
 def built() -> tuple[dict[str, object], list[object]]:
     """The samples by name, and the unused grants."""
     import demo
+    import larger
     import scratch
 
     grants, _ = demo.build()
-    by_slug = {g.slug: g for g in grants}
-    samples = {LARGER: by_slug.pop(LARGER), SMALL: scratch.build()}
-    return samples, list(by_slug.values())
+    # The larger sample is its own content now (the sample content brief). The
+    # placeholder seed's Grant A is no longer written; B and C stay unused.
+    unused = [g for g in grants if g.slug != LARGER]
+    samples = {LARGER: larger.build(), SMALL: scratch.build()}
+    return samples, unused
 
 
 def main() -> None:

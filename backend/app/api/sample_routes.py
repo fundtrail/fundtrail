@@ -48,10 +48,10 @@ def _summary(platform: Platform, grant: Grant) -> GrantSummary:
         return summary(load_snapshot(platform, conn, grant))
 
 
-def _view(platform: Platform, grant: Grant) -> TimelineView:
+def _view(platform: Platform, grant: Grant, user_id: str) -> TimelineView:
     with transaction(platform.pool) as conn:
         snap = load_snapshot(platform, conn, grant)
-        return player.view(platform, conn, snap.grant, summary(snap))
+        return player.view(platform, conn, snap.grant, summary(snap), user_id)
 
 
 def _sample_grant(grant: Grant) -> Grant:
@@ -91,8 +91,8 @@ def open_sample(
 
 
 @router.get("/grants/{grant_id}/timeline")
-def get_timeline(grant: GrantDep, platform: PlatformDep) -> TimelineView:
-    return _view(platform, _sample_grant(grant))
+def get_timeline(grant: GrantDep, user: UserDep, platform: PlatformDep) -> TimelineView:
+    return _view(platform, _sample_grant(grant), user.id)
 
 
 @router.post("/grants/{grant_id}/timeline", responses=_REFUSAL)
@@ -101,12 +101,15 @@ def move_timeline(
 ) -> TimelineView:
     """Move the sample's timeline forward: to `to`, or with nothing, to the next item."""
     _sample_grant(grant)
-    if body.skip_human_steps:
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED, "Skipping the human steps isn't built yet."
-        )
     try:
-        player.move(platform, user.id, grant, body.to)
+        player.move(
+            platform,
+            user.id,
+            grant,
+            body.to,
+            skip=body.skip_human_steps,
+            next_highlight=body.next_highlight,
+        )
     except player.GrantGone as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except MoveRefused as error:
@@ -114,16 +117,14 @@ def move_timeline(
     except player.SampleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, [str(error)]) from error
     except player.AnotherSampleWorking as busy:
-        name = busy.grant.award_number or "another larger sample"
         return _refused(  # pyright: ignore[reportReturnType]
             SampleRefusal(
                 reason=SampleRefusalReason.ANOTHER_SAMPLE_WORKING,
-                message=f"The agent is still reading {name}. Its clock can move again "
-                "once it's done.",
+                message=busy.reason(),
                 grant=_summary(platform, busy.grant),
             )
         )
-    return _view(platform, grant)
+    return _view(platform, grant, user.id)
 
 
 @router.post("/grants/{grant_id}/timeline/start-over", responses=_REFUSAL)
@@ -145,11 +146,13 @@ def start_over(
         fresh = player.start_over(platform, user.id, grant)
     except player.GrantGone as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
-    return _view(platform, fresh)
+    return _view(platform, fresh, user.id)
 
 
 @router.post("/grants/{grant_id}/timeline/deliveries/{event_id}")
-def deliver_for_me(grant: GrantDep, event_id: str, platform: PlatformDep) -> TimelineView:
+def deliver_for_me(
+    grant: GrantDep, event_id: str, user: UserDep, platform: PlatformDep
+) -> TimelineView:
     """ "Deliver for me": the item comes in as the user's own upload would (ruling 44)."""
     _sample_grant(grant)
     try:
@@ -158,7 +161,7 @@ def deliver_for_me(grant: GrantDep, event_id: str, platform: PlatformDep) -> Tim
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except player.SampleError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
-    return _view(platform, grant)
+    return _view(platform, grant, user.id)
 
 
 @router.get("/grants/{grant_id}/timeline/deliveries/{event_id}/file")

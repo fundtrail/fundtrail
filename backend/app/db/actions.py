@@ -40,6 +40,10 @@ from .platform import Platform
 from .pool import transaction
 from .recheck import recheck_grant
 
+# Why a sign-off can't be done now (decision 0022): the refusal, and ruling 72's
+# SignOffState.unavailable_reason, in the same words.
+AGENT_WORKING = "The agent is still working on this grant. Sign off once it's done."
+
 
 class WriteRejected(Exception):
     """The write check found problems. The API returns them with a 422."""
@@ -215,62 +219,82 @@ def add_record(
     When the record leaves a question open for the agent and no run is waiting, a run
     is queued with this record as its trigger.
     """
+    with transaction(p.pool) as conn:
+        store.get_grant(conn, grant.id, lock=True)
+        record, runs, arrived = write_record(p, conn, grant, user_id, data, replaces_id)
+    for queued in runs:
+        ping_run(p.pinger, queued)
+    what = ("records", "statuses", "evidence") if arrived else ("records", "statuses")
+    ping_changed(p.pinger, grant.workspace_id, grant.id, *what)
+    return record
+
+
+def write_record(
+    p: Platform,
+    conn: store.Conn,
+    grant: Grant,
+    user_id: str,
+    data: dict[str, Any],
+    replaces_id: str | None,
+    *,
+    catch_up: bool = False,
+) -> tuple[Record, list[AgentRun], list[EvidenceFile]]:
+    """add_record's write, in the caller's transaction, which holds the grant's lock: at
+    the grant's now, it returns the record, the runs it queued and the files it let in.
+    With `catch_up`, the runs it queues are a clock move's catch-up runs, as of that now
+    (a sample's scripted step during a jump). The caller pings after the commit."""
     run: AgentRun | None = None
     if data.get("kind") == "sign_off":
         # A sign-off stores the evidence report with it (decision 0022): add_sign_off.
         raise WriteRejected(["A sign-off goes through add_sign_off, which stores its report."])
-    with transaction(p.pool) as conn:
-        store.get_grant(conn, grant.id, lock=True)
-        now = clock.grant_now(conn, grant.id)
-        try:
-            record = Record(
-                id=_new_id(),
-                workspace_id=grant.workspace_id,
-                grant_id=grant.id,
-                author=Author.USER,
-                author_user_id=user_id,
-                written_at=now,
-                replaces_id=replaces_id,
-                data=_record_data.validate_python(_fill_term_date(data, now)),
-            )
-        except ValidationError as error:
-            raise WriteRejected(
-                [e["msg"] + f" ({'.'.join(map(str, e['loc']))})" for e in error.errors()]
-            ) from error
-        if isinstance(record.data, AcceptedReason):
-            record = record.model_copy(
-                update={"data": _accepted_amount(conn, grant.id, now, record.data)}
-            )
-        records = store.list_records(conn, grant.id, now)
-        problems = check_new_record(
-            record,
-            records,
-            store.list_charges(conn, grant.id, now),
-            store.list_files(conn, grant.id, now),
-            default_items=p.checks.default_items,
-            held_mail=store.list_held_mail(conn, grant.workspace_id, now),
-            trigger=None,  # the accountant's write
+    now = clock.grant_now(conn, grant.id)
+    try:
+        record = Record(
+            id=_new_id(),
+            workspace_id=grant.workspace_id,
+            grant_id=grant.id,
+            author=Author.USER,
+            author_user_id=user_id,
+            written_at=now,
+            replaces_id=replaces_id,
+            data=_record_data.validate_python(_fill_term_date(data, now)),
         )
-        if problems:
-            raise WriteRejected(problems)
-        [record] = store.insert_records(conn, [record])
-        trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
-        # Held mail this record lets in, or whose sender it makes known, arrives now.
-        arrived = let_in_released(p, conn, grant, now)
-        file_triggers = {f.id: Trigger(kind=TriggerKind.FILE, id=f.id) for f in arrived}
-        output = recheck_grant(conn, p.checks, grant, now, trigger, file_triggers=file_triggers)
-        # Queued whether or not a run is in progress; a queued run that hasn't started
-        # reads this record when it starts, so it's shared (the run-order ruling, 5).
-        if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
-            run = queue_run(conn, grant, trigger, now)
-        arrival_runs = [queue_run(conn, grant, file_triggers[f.id], now) for f in arrived]
-        review = clock.queue_review_if_due(conn, grant, now)
-    for queued in (run, review, *arrival_runs):
-        if queued is not None:
-            ping_run(p.pinger, queued)
-    what = ("records", "statuses", "evidence") if arrived else ("records", "statuses")
-    ping_changed(p.pinger, grant.workspace_id, grant.id, *what)
-    return record
+    except ValidationError as error:
+        raise WriteRejected(
+            [e["msg"] + f" ({'.'.join(map(str, e['loc']))})" for e in error.errors()]
+        ) from error
+    if isinstance(record.data, AcceptedReason):
+        record = record.model_copy(
+            update={"data": _accepted_amount(conn, grant.id, now, record.data)}
+        )
+    records = store.list_records(conn, grant.id, now)
+    problems = check_new_record(
+        record,
+        records,
+        store.list_charges(conn, grant.id, now),
+        store.list_files(conn, grant.id, now),
+        default_items=p.checks.default_items,
+        held_mail=store.list_held_mail(conn, grant.workspace_id, now),
+        trigger=None,  # the accountant's write
+    )
+    if problems:
+        raise WriteRejected(problems)
+    [record] = store.insert_records(conn, [record])
+    trigger = Trigger(kind=TriggerKind.RECORD, id=record.id)
+    # Held mail this record lets in, or whose sender it makes known, arrives now.
+    arrived = let_in_released(p, conn, grant, now)
+    file_triggers = {f.id: Trigger(kind=TriggerKind.FILE, id=f.id) for f in arrived}
+    output = recheck_grant(conn, p.checks, grant, now, trigger, file_triggers=file_triggers)
+    # Queued whether or not a run is in progress; a queued run that hasn't started
+    # reads this record when it starts, so it's shared (the run-order ruling, 5).
+    if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
+        run = queue_run(conn, grant, trigger, now, catch_up=catch_up)
+    arrival_runs = [
+        queue_run(conn, grant, file_triggers[f.id], now, catch_up=catch_up) for f in arrived
+    ]
+    review = clock.queue_review_if_due(conn, grant, now, catch_up=catch_up)
+    runs = [r for r in (run, review, *arrival_runs) if r is not None]
+    return record, runs, arrived
 
 
 def add_message(
@@ -328,44 +352,56 @@ def add_sign_off(
     """
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
-        if store.has_pending_run(conn, grant.id):
-            raise WriteRejected(
-                ["The agent is still working on this grant. Sign off once it's done."]
-            )
-        if not (note and note.strip()) and anything_open(conn, grant):
-            raise WriteRejected(["Something is still open, so a sign-off needs a note."])
-        now = clock.grant_now(conn, grant.id)
-        pdf, snapshot = make_report(conn, grant, now, note)
-        record_id = _new_id()
-        path = f"{grant.workspace_id}/{grant.id}/sign-offs/{record_id}.pdf"
-        record = Record(
-            id=record_id,
-            workspace_id=grant.workspace_id,
-            grant_id=grant.id,
-            author=Author.USER,
-            author_user_id=user_id,
-            written_at=now,
-            data=SignOff(
-                note=note,
-                report_path=path,
-                report_sha256=hashlib.sha256(pdf).hexdigest(),
-                snapshot=snapshot,
-            ),
-        )
-        problems = check_new_record(
-            record,
-            store.list_records(conn, grant.id, now),
-            store.list_charges(conn, grant.id, now),
-            store.list_files(conn, grant.id, now),
-            default_items=p.checks.default_items,
-            trigger=None,
-        )
-        if problems:
-            raise WriteRejected(problems)
-        # Stored before the record is written; if the commit then fails, the PDF is left
-        # without a record and nothing reads it.
-        p.storage.put(path, pdf, "application/pdf")
-        store.insert_records(conn, [record])
-        recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.RECORD, id=record.id))
+        record = write_sign_off(p, conn, grant, user_id, note, make_report, anything_open)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
+    return record
+
+
+def write_sign_off(
+    p: Platform,
+    conn: store.Conn,
+    grant: Grant,
+    user_id: str,
+    note: str | None,
+    make_report: MakeReport,
+    anything_open: Callable[[store.Conn, Grant], bool],
+) -> Record:
+    """add_sign_off's write, in the caller's transaction, which holds the grant's lock."""
+    if store.has_pending_run(conn, grant.id):
+        raise WriteRejected([AGENT_WORKING])
+    if not (note and note.strip()) and anything_open(conn, grant):
+        raise WriteRejected(["Something is still open, so a sign-off needs a note."])
+    now = clock.grant_now(conn, grant.id)
+    pdf, snapshot = make_report(conn, grant, now, note)
+    record_id = _new_id()
+    path = f"{grant.workspace_id}/{grant.id}/sign-offs/{record_id}.pdf"
+    record = Record(
+        id=record_id,
+        workspace_id=grant.workspace_id,
+        grant_id=grant.id,
+        author=Author.USER,
+        author_user_id=user_id,
+        written_at=now,
+        data=SignOff(
+            note=note,
+            report_path=path,
+            report_sha256=hashlib.sha256(pdf).hexdigest(),
+            snapshot=snapshot,
+        ),
+    )
+    problems = check_new_record(
+        record,
+        store.list_records(conn, grant.id, now),
+        store.list_charges(conn, grant.id, now),
+        store.list_files(conn, grant.id, now),
+        default_items=p.checks.default_items,
+        trigger=None,
+    )
+    if problems:
+        raise WriteRejected(problems)
+    # Stored before the record is written; if the commit then fails, the PDF is left
+    # without a record and nothing reads it.
+    p.storage.put(path, pdf, "application/pdf")
+    store.insert_records(conn, [record])
+    recheck_grant(conn, p.checks, grant, now, Trigger(kind=TriggerKind.RECORD, id=record.id))
     return record

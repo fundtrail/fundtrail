@@ -1,10 +1,12 @@
 import Link from "next/link";
-import type { EvidenceCard, FactView, Id, RecordState, ValueState } from "@/lib/api";
+import type { Citation, EvidenceCard, FactView, Id, RecordState, ValueState } from "@/lib/api";
 import { date, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { pageCaption } from "@/components/viewer/placement";
 import styles from "./evidence.module.css";
 import { confirmHref, viewerHref } from "./links";
+import { unionRanges, valueRanges } from "./quote";
+import { QuoteLink } from "./QuoteLink";
 import { confirmationText, displayValue, isCited, valueAt, valueLabel } from "./values";
 
 /** A record's state in a few words, shown only when it isn't simply in force. */
@@ -28,42 +30,99 @@ function factTitle(fact: FactView): string {
   return typeof data.label === "string" && data.label ? `${kind}: ${data.label}` : kind;
 }
 
-function ValueRow({ grantId, fact, state }: { grantId: Id; fact: FactView; state: ValueState }) {
+/** The citation of the value at `path`, or null when it has none. */
+function citationOf(fact: FactView, path: string): Citation | null {
+  const cited = valueAt(fact.record.data, path);
+  return isCited(cited) ? (cited.citation ?? null) : null;
+}
+
+/** Two citations of the same passage: same file, same place, same text, same match. */
+function samePassage(a: Citation | null, b: Citation | null): boolean {
+  if (!a || !b || a.passage === null) return false;
+  return (
+    a.file_id === b.file_id &&
+    a.passage === b.passage &&
+    a.match === b.match &&
+    JSON.stringify(a.location) === JSON.stringify(b.location)
+  );
+}
+
+/** The values in order, with consecutive values that cite the identical passage grouped. */
+function groupValues(fact: FactView, values: ValueState[]): ValueState[][] {
+  const groups: ValueState[][] = [];
+  for (const v of values) {
+    const last = groups[groups.length - 1];
+    if (last && samePassage(citationOf(fact, last[0].path), citationOf(fact, v.path))) last.push(v);
+    else groups.push([v]);
+  }
+  return groups;
+}
+
+/** Several values that cite one passage: each value, linking to its own spot, then the passage once. */
+function SharedPassage({ grantId, fact, group }: { grantId: Id; fact: FactView; group: ValueState[] }) {
+  const citation = citationOf(fact, group[0].path) as Citation;
+  const labels = group.map((v) => valueLabel(v.path)).join(", ");
+  return (
+    <>
+      {group.map((v) => (
+        <ValueRow key={v.path} grantId={grantId} fact={fact} state={v} shared />
+      ))}
+      <div className={`${styles.valueRow} ${styles.sharedQuote}`}>
+        <dt className="ft-sr">The passage for {labels}</dt>
+        <dd>
+          <QuoteLink
+            citation={citation}
+            href={viewerHref(grantId, citation.file_id, fact.record.id, group[0].path)}
+            ariaLabel={`Open the passage for ${labels.toLowerCase()} in the viewer`}
+            ranges={unionRanges(group.map((v) => valueRanges(citationOf(fact, v.path) as Citation)))}
+          />
+        </dd>
+      </div>
+    </>
+  );
+}
+
+/**
+ * One value: its label, the value, its quote, then where it is and whether
+ * it's confirmed. In a group that shares one passage (`shared`), the value
+ * itself links to its spot and the passage shows once under the group.
+ */
+function ValueRow({ grantId, fact, state, shared = false }: { grantId: Id; fact: FactView; state: ValueState; shared?: boolean }) {
   const cited = valueAt(fact.record.data, state.path);
   const label = valueLabel(state.path);
   if (!isCited(cited)) {
     return (
-      <>
+      <div className={styles.valueRow}>
         <dt>{label}</dt>
         <dd>
-          <span className={state.confirmed ? "ft-caption" : styles.unconfirmed}>{confirmationText(state)}</span>
+          <span className={state.confirmed ? styles.state : styles.unconfirmed}>{confirmationText(state)}</span>
         </dd>
-      </>
+      </div>
     );
   }
   const citation = cited.citation ?? null;
   const page = citation ? pageCaption(citation) : null;
   const shown = displayValue(state.path, cited);
+  const href = citation ? viewerHref(grantId, citation.file_id, fact.record.id, state.path) : null;
+  const openLabel = `Open ${label.toLowerCase()} in the viewer`;
   return (
-    <>
+    <div className={shared ? `${styles.valueRow} ${styles.valueRowShared}` : styles.valueRow}>
       <dt>{label}</dt>
       <dd>
-        <span className="ft-strong">{shown}</span>
-        {citation && (
-          <Link
-            className={styles.quote}
-            href={viewerHref(grantId, citation.file_id, fact.record.id, state.path)}
-            aria-label={`Open ${label.toLowerCase()} in the viewer`}
-          >
-            {citation.passage ?? "A box on the image"}
+        {shared && href ? (
+          <Link className={`${styles.value} ${styles.valueLink}`} href={href} aria-label={openLabel}>
+            {shown}
           </Link>
+        ) : (
+          <span className={styles.value}>{shown}</span>
         )}
-        <span className="ft-caption">
+        {citation && href && !shared && <QuoteLink citation={citation} href={href} ariaLabel={openLabel} />}
+        <span className={styles.state}>
           {page && <>{page} · </>}
           <span className={state.confirmed ? undefined : styles.unconfirmed}>{confirmationText(state)}</span>
         </span>
       </dd>
-    </>
+    </div>
   );
 }
 
@@ -74,10 +133,10 @@ function Fact({ grantId, fileId, fact }: { grantId: Id; fileId: Id; fact: FactVi
   const problems = fact.status?.problems ?? [];
   return (
     <li className={styles.fact} aria-label={factTitle(fact)}>
-      <div className={styles.factHead}>
-        <span className="ft-heading">{factTitle(fact)}</span>
+      <div className={fact.state === "waiting" ? `${styles.factHead} ${styles.factHeadWaiting}` : styles.factHead}>
+        <span className={styles.factTitle}>{factTitle(fact)}</span>
         <span className="ft-tag">{fact.record.author === "agent" ? "Agent" : "Accountant"}</span>
-        {stateWords && <span className="ft-tag">{stateWords}</span>}
+        {stateWords && <span className={fact.state === "waiting" ? styles.waitingTag : "ft-tag"}>{stateWords}</span>}
       </div>
 
       {problems.length > 0 && (
@@ -90,18 +149,22 @@ function Fact({ grantId, fileId, fact }: { grantId: Id; fileId: Id; fact: FactVi
 
       {values.length > 0 ? (
         <dl className={styles.values}>
-          {values.map((v) => (
-            <ValueRow key={v.path} grantId={grantId} fact={fact} state={v} />
-          ))}
+          {groupValues(fact, values).map((group) =>
+            group.length > 1 ? (
+              <SharedPassage key={group[0].path} grantId={grantId} fact={fact} group={group} />
+            ) : (
+              <ValueRow key={group[0].path} grantId={grantId} fact={fact} state={group[0]} />
+            ),
+          )}
         </dl>
       ) : (
-        <p className="ft-caption">No values read from the file.</p>
+        <p className={styles.noValues}>No values read from the file.</p>
       )}
 
       {(fact.links ?? []).length > 0 && (
         <ul className={styles.links} aria-label="Charges it pays for">
           {(fact.links ?? []).map(({ link, charge }) => (
-            <li key={link.id} className="ft-caption">
+            <li key={link.id}>
               Linked to{" "}
               <Link className="ft-link" href={routes.charge(grantId, charge.id)}>
                 {charge.ledger_line_id} · {charge.description} · {money(charge.amount_cents)}
@@ -149,10 +212,10 @@ export function EvidenceCardView({ grantId, card }: { grantId: Id; card: Evidenc
     <article className={styles.card} aria-label={file.name}>
       <header className={styles.head}>
         <div>
-          <Link className="ft-heading ft-link" href={viewerHref(grantId, file.id)}>
+          <Link className={styles.fileName} href={viewerHref(grantId, file.id)}>
             {file.name}
           </Link>
-          <div className={`${styles.meta} ft-caption`}>
+          <div className={styles.meta}>
             <span>{SOURCE_LABELS[file.source] ?? file.source}</span>
             <span>Arrived {date(file.arrived_at)}</span>
             {file.sender && <span>From {file.sender}</span>}
@@ -184,7 +247,7 @@ export function EvidenceCardView({ grantId, card }: { grantId: Id; card: Evidenc
           ))}
         </ul>
       ) : (
-        <p className="ft-empty">No facts read from this file yet.</p>
+        <p className={styles.noFacts}>No facts read from this file yet.</p>
       )}
     </article>
   );

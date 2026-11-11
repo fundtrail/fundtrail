@@ -247,11 +247,19 @@ export interface ApprovalRule {
   channel?: CitedText | null;
   scope?: Cited<ApprovalScope> | null;
 }
+/** The group of employees a benefit rate applies to (ruling 61). */
+export type BenefitGroup = "academic" | "staff" | "limited" | "no_benefit_eligibility" | "student";
+
 export interface Rate {
   kind: "rate";
   dated: CitedDate;
   name: CitedText;
   rate: CitedDecimal;
+  /** Ruling 61: a benefit rate's employee group. Null for a rate that isn't a benefit rate. */
+  applies_to?: Cited<BenefitGroup> | null;
+  /** When the rate is in effect, both days included. No end means until it's amended. */
+  effective_from?: CitedDate | null;
+  effective_to?: CitedDate | null;
 }
 export interface Notice {
   kind: "notice";
@@ -498,6 +506,8 @@ export interface Problem {
   accepted_by?: Id | null;
   /** For the award limit's over_limit problem: the amount over. Null for every other problem. */
   amount_cents?: Cents | null;
+  /** Ruling 61: for a recalculation that doesn't match, the amount code expected. */
+  expected_cents?: Cents | null;
 }
 
 export interface Reason extends Problem {
@@ -524,6 +534,14 @@ export interface ChecklistEntry {
   removal_waiting_id?: Id | null;
   /** The approval rule that added it; set exactly when added_by is "rule". */
   rule_id?: Id | null;
+  /** Ruling 61: for an item code fills by recalculating, the rate term it used. */
+  rate_id?: Id | null;
+  /** Ruling 61: and the salary lines' charges. Such an item has no links. */
+  charge_ids?: Id[];
+  /** For an item with an amount that's only partly covered: how much is covered. */
+  covered_cents?: Cents | null;
+  /** And its wording, from the server. Both are set together, or neither. */
+  partly_filled_text?: string | null;
 }
 
 export interface ChargeStatus {
@@ -732,6 +750,15 @@ export interface CloseoutDate {
   label: string;
 }
 
+/** How far the agent is through the files and ledger lines it has to read (ruling 71). */
+export interface ReadingProgress {
+  files_read: number;
+  files_total: number;
+  /** Ledger lines. */
+  lines_read: number;
+  lines_total: number;
+}
+
 /** One row of GET /workspaces/{workspace_id}/grants (issue 22, answer 7). */
 export interface GrantSummary {
   grant: Grant;
@@ -745,6 +772,10 @@ export interface GrantSummary {
   next_closeout?: CloseoutDate | null;
   /** The grant's now, so screens never ask the browser for the date (ruling 40). */
   now: IsoDatetime;
+  /** Ruling 71: how far the agent is through what it has to read now. */
+  reading?: ReadingProgress | null;
+  /** The last finished run's summary line. */
+  last_run_summary?: string | null;
 }
 
 // --- Sample grants: choosing one, and its timeline (ruling 40). ---
@@ -839,6 +870,10 @@ export interface TimelineView {
   catching_up: boolean;
   /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
   on_run_through?: boolean | null;
+  /** Why the timeline can't move now, worded by the server; null when it can. */
+  move_unavailable_reason?: string | null;
+  /** Why Next highlight can't move now; null when it can. */
+  next_highlight_unavailable_reason?: string | null;
 }
 
 /** POST /grants/{grant_id}/timeline. No `to` plays to the next event. Forward only: earlier is a 409. */
@@ -846,6 +881,8 @@ export interface TimelineMove {
   to?: IsoDatetime | null;
   /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
   skip_human_steps?: boolean;
+  /** Move to the next event marked as a highlight. */
+  next_highlight?: boolean;
 }
 
 /** POST /grants/{grant_id}/timeline/start-over. */
@@ -867,6 +904,8 @@ export interface BudgetLineView {
   line: FtRecord<BudgetLine>;
   amount_cents: Cents;
   spent_cents: Cents;
+  /** A sub-line's parent category; its amount and spending are already inside the parent's. */
+  parent?: BudgetCategory | null;
 }
 
 export interface BudgetView {
@@ -887,6 +926,8 @@ export interface SignOffState {
   state: SignOffStateName;
   sign_off?: FtRecord<SignOff> | null;
   changes?: SnapshotChange[];
+  /** Why signing off isn't available now, worded by the server; null when it is. */
+  unavailable_reason?: string | null;
 }
 
 /** GET /grants/{grant_id}. Carries no flagged charges: the problem list has its own response. */
@@ -928,6 +969,8 @@ export interface ChargeProblemRow {
   kind: "charge";
   charge: Charge;
   status: ChargeStatus;
+  /** Ruling 62: benefit charges whose only problem is that they wait on this salary line. */
+  waiting_charge_ids?: Id[];
 }
 export interface HeldMailRow {
   kind: "held_mail";

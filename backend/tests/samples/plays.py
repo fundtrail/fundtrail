@@ -71,16 +71,37 @@ class Mapping:
         return value
 
 
-_ID_FIELDS = {"id", "workspace_id", "grant_id", "replaces_id", "record_id", "charge_id", "file_id"}
+# The fields that hold one ID, and the ones that hold a list of them, in contract records.
+_ID_FIELDS = {
+    "id",
+    "workspace_id",
+    "grant_id",
+    "replaces_id",
+    "record_id",
+    "charge_id",
+    "file_id",
+    "copy_file_id",
+    "original_file_id",
+    "item_record_id",
+    "reuses_id",
+    "held_mail_id",
+    "thread_message_id",
+}
+_ID_LIST_FIELDS = {"rests_on", "record_ids"}
 
 
 def _mapped(raw: Any, to: Callable[[str], str]) -> Any:
     """`raw` with every ID field's placeholder mapped (passages and other text untouched)."""
     if isinstance(raw, dict):
-        return {
-            k: to(v) if k in _ID_FIELDS and isinstance(v, str) else _mapped(v, to)
-            for k, v in raw.items()  # pyright: ignore[reportUnknownVariableType]
-        }
+        out: dict[str, Any] = {}
+        for k, v in raw.items():  # pyright: ignore[reportUnknownVariableType]
+            if k in _ID_FIELDS and isinstance(v, str):
+                out[k] = to(v)
+            elif k in _ID_LIST_FIELDS and isinstance(v, list):
+                out[k] = [to(x) if isinstance(x, str) else x for x in v]  # pyright: ignore[reportUnknownVariableType]
+            else:
+                out[k] = _mapped(v, to)
+        return out
     if isinstance(raw, list):
         return [_mapped(v, to) for v in raw]  # pyright: ignore[reportUnknownVariableType]
     return raw
@@ -95,7 +116,9 @@ def _pointed_first(raw: list[Any]) -> list[Any]:
     waiting = list(raw)
     while waiting:
         for r in waiting:
-            needs = {r["data"].get("record_id"), r.get("replaces_id")} & ids
+            points_to = {r["data"].get("record_id"), r.get("replaces_id")}
+            points_to |= set(r["data"].get("rests_on") or ())
+            needs = points_to & ids
             if needs <= done:
                 out.append(r)
                 done.add(r["id"])
@@ -126,12 +149,20 @@ def store_agent_records(p: Platform, grant: Grant, mapping: Mapping, raw: list[A
         )
 
 
-def bucket_at(p: Platform, grant: Grant, line_id: str, at: datetime) -> Bucket | None:
-    """The real checks' bucket for a line at `at`, over everything visible then."""
+# A key's bucket for a fully reversed charge (decision 0020): the checks keep its bucket
+# and mark it reversed, so the key says "reversed" where Bucket has no such value.
+REVERSED = "reversed"
+
+
+def bucket_at(p: Platform, grant: Grant, line_id: str, at: datetime) -> str | None:
+    """The real checks' bucket for a line at `at`, over everything visible then, as the key
+    writes it: the bucket's value, or "reversed" for a fully reversed charge."""
     charges, output = checks_at(p, grant, at)
     charge = next(c for c in charges if c.ledger_line_id == line_id)
     status = next((s for s in output.charges if s.charge_id == charge.id), None)
-    return status.bucket if status else None
+    if status is None:
+        return None
+    return REVERSED if status.reversed else status.bucket.value
 
 
 def checks_at(p: Platform, grant: Grant, at: datetime) -> tuple[list[Charge], ChecksOutput]:
@@ -154,8 +185,9 @@ def checks_at(p: Platform, grant: Grant, at: datetime) -> tuple[list[Charge], Ch
 @dataclass(frozen=True)
 class Step:
     at: datetime
-    # At one moment: the files the user brings in, then the agent's records (which read
-    # them), then the user's other actions (which decide on them), then the key's checks.
+    # At one moment: the steps that bring files in (a delivery, a let-in), then the
+    # agent's records (which read them), then the user's other actions (which decide on
+    # them), then the key's checks.
     order: int
     kind: str
     payload: Any
@@ -169,7 +201,8 @@ def steps(pack: SamplePack) -> list[Step]:
     for r in agent:
         by_time.setdefault(_time(r["written_at"]), []).append(r)
     out = [Step(at, 1, "agent", records) for at, records in by_time.items()]
-    out += [Step(a.at, 0 if a.action == "deliver_file" else 2, "user", a) for a in pack.actions]
+    brings_files = {"deliver_file", "let_in_mail"}
+    out += [Step(a.at, 0 if a.action in brings_files else 2, "user", a) for a in pack.actions]
     out += [Step(_time(b["at"]), 3, "key", b) for b in key]
     return sorted(out, key=lambda s: (s.at, s.order))
 
@@ -212,7 +245,8 @@ def play_everything(
         else:
             result.checked += 1
             got = bucket_at(p, grant, step.payload["line_id"], step.at)
-            want = Bucket(step.payload["bucket"])
+            want = step.payload["bucket"]
+            assert want == REVERSED or Bucket(want), want
             if got != want:
                 result.wrong.append(f"{step.payload['line_id']} at {step.at}: {got} != {want}")
     return result

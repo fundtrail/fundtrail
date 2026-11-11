@@ -8,9 +8,9 @@
   "options": [
     {
       "choice": "small_live",
-      "name": "Placeholder: a new grant from its award letter",
-      "description": "Placeholder until the docs give the words. A small grant that starts with its award letter and ledger, with a few files for you to bring in.",
-      "placeholder": true
+      "name": "Small sample, read live",
+      "description": "A small grant with an award letter, an invoice that arrives before its charge, and a receipt photo for you to bring in. The agent reads each arrival as the clock reaches it.",
+      "placeholder": false
     }
   ]
 }

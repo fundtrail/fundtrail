@@ -3,11 +3,16 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+/** How the user signed in, as Supabase records it. */
+export type SignInMethod = "google" | "email" | "fake";
+
 export interface SignedInUser {
   /** The Supabase auth user ID. */
   id: string;
   email: string;
   name: string | null;
+  /** Null when Supabase doesn't say. */
+  method?: SignInMethod | null;
 }
 
 export type AuthState =
@@ -20,9 +25,19 @@ export interface Auth {
   /** True in fake mode: a synthetic user, no Supabase project. */
   fake: boolean;
   signIn(): Promise<void>;
+  /**
+   * Local development only (ruling 63): emails a sign-in link. Present only
+   * when NEXT_PUBLIC_DEV_EMAIL_SIGNIN=1 in a development build.
+   */
+  signInWithEmail?(email: string): Promise<void>;
   signOut(): Promise<void>;
   /** The access token sent as `Authorization: Bearer`, or null when signed out. */
   getAccessToken(): Promise<string | null>;
+  /**
+   * Listens on a private Realtime channel for the backend's "something
+   * changed" pings, and returns the way to stop. Absent in fake mode.
+   */
+  listen?(topic: string, onPing: () => void): () => void;
 }
 
 const AuthContext = createContext<Auth | null>(null);
@@ -42,16 +57,42 @@ function supabaseClient(url: string, anonKey: string): SupabaseClient {
 function userFrom(session: Session): SignedInUser {
   const meta = session.user.user_metadata ?? {};
   const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
-  return { id: session.user.id, email: session.user.email ?? "", name };
+  const provider = session.user.app_metadata?.provider;
+  const method: SignInMethod | null = provider === "google" || provider === "email" ? provider : null;
+  return { id: session.user.id, email: session.user.email ?? "", name, method };
 }
 
-function useSupabaseAuth(url: string, anonKey: string): Auth {
+function useSupabaseAuth(url: string, anonKey: string, devEmailSignIn: boolean): Auth {
   const [state, setState] = useState<AuthState>({ status: "loading" });
+
+  // Stable across token refreshes, so a screen's channel isn't torn down and
+  // rebuilt each time the session renews. supabase-js passes the renewed token
+  // to Realtime on its own.
+  const listen = useCallback(
+    (topic: string, onPing: () => void) => {
+      const client = supabaseClient(url, anonKey);
+      const channel = client.channel(topic, { config: { private: true } });
+      let stopped = false;
+      // A private channel needs the user's token before it subscribes.
+      void client.realtime.setAuth().then(() => {
+        if (stopped) return;
+        channel.on("broadcast", { event: "*" }, () => onPing()).subscribe();
+      });
+      return () => {
+        stopped = true;
+        void client.removeChannel(channel);
+      };
+    },
+    [url, anonKey],
+  );
 
   useEffect(() => {
     const client = supabaseClient(url, anonKey);
-    const show = (session: Session | null) =>
+    const show = (session: Session | null) => {
+      // A successful sign-in clears any note that the last session expired.
+      if (session) clearSessionExpired();
       setState(session ? { status: "signed_in", user: userFrom(session) } : { status: "signed_out" });
+    };
     client.auth.getSession().then(({ data }) => show(data.session));
     const { data } = client.auth.onAuthStateChange((_event, session) => show(session));
     return () => data.subscription.unsubscribe();
@@ -68,6 +109,17 @@ function useSupabaseAuth(url: string, anonKey: string): Auth {
         });
         if (error) throw error;
       },
+      ...(devEmailSignIn
+        ? {
+            async signInWithEmail(email: string) {
+              const { error } = await supabaseClient(url, anonKey).auth.signInWithOtp({
+                email,
+                options: { emailRedirectTo: `${window.location.origin}/` },
+              });
+              if (error) throw error;
+            },
+          }
+        : {}),
       async signOut() {
         await supabaseClient(url, anonKey).auth.signOut();
       },
@@ -75,15 +127,16 @@ function useSupabaseAuth(url: string, anonKey: string): Auth {
         const { data } = await supabaseClient(url, anonKey).auth.getSession();
         return data.session?.access_token ?? null;
       },
+      listen,
     }),
-    [state, url, anonKey],
+    [state, url, anonKey, devEmailSignIn, listen],
   );
 }
 
 // --- Fake mode: a synthetic user. The session lives in this browser's storage. ---
 
 const FAKE_KEY = "fundtrail.fake-session";
-export const FAKE_USER: SignedInUser = { id: "user-fake", email: "accountant@university.example", name: "Demo accountant" };
+export const FAKE_USER: SignedInUser = { id: "user-fake", email: "accountant@university.example", name: "Demo accountant", method: "fake" };
 
 function readFakeSession(): boolean {
   try {
@@ -134,8 +187,32 @@ function useFakeAuth(): Auth {
   );
 }
 
-export function SupabaseAuthProvider({ url, anonKey, children }: { url: string; anonKey: string; children: ReactNode }) {
-  return <AuthContext.Provider value={useSupabaseAuth(url, anonKey)}>{children}</AuthContext.Provider>;
+export function SupabaseAuthProvider({
+  url,
+  anonKey,
+  devEmailSignIn = false,
+  children,
+}: {
+  url: string;
+  anonKey: string;
+  devEmailSignIn?: boolean;
+  children: ReactNode;
+}) {
+  return <AuthContext.Provider value={useSupabaseAuth(url, anonKey, devEmailSignIn)}>{children}</AuthContext.Provider>;
+}
+
+/** The sidebar's line on how the user signed in. */
+export function signedInWith(user: SignedInUser): string {
+  switch (user.method) {
+    case "google":
+      return "Signed in with Google";
+    case "email":
+      return "Signed in with an email link";
+    case "fake":
+      return "Fake sign-in, no Supabase project";
+    default:
+      return "Signed in";
+  }
 }
 
 export function FakeAuthProvider({ children }: { children: ReactNode }) {
@@ -157,4 +234,35 @@ export function useAuth(): Auth {
 export function useUserId(): string | null {
   const { state } = useAuth();
   return state.status === "signed_in" ? state.user.id : null;
+}
+
+const EXPIRED_KEY = "fundtrail.session-expired";
+
+/** Notes that the server refused the session, so the sign-in page can say why. */
+export function markSessionExpired() {
+  try {
+    window.sessionStorage.setItem(EXPIRED_KEY, "1");
+  } catch {
+    // Storage is blocked: the sign-in page just won't say why.
+  }
+}
+
+/** Forgets that the last session expired. */
+export function clearSessionExpired() {
+  try {
+    window.sessionStorage.removeItem(EXPIRED_KEY);
+  } catch {
+    // Storage is blocked: nothing was noted.
+  }
+}
+
+/** Whether the last session expired, cleared once read. */
+export function takeSessionExpired(): boolean {
+  try {
+    const expired = window.sessionStorage.getItem(EXPIRED_KEY) === "1";
+    window.sessionStorage.removeItem(EXPIRED_KEY);
+    return expired;
+  } catch {
+    return false;
+  }
 }

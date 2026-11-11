@@ -1,0 +1,39 @@
+From: Example Field Gear Accounts <accounts@fieldgear.example>
+To: Earth and Ocean Sciences Grants <grants@university.example>
+Date: Mon, 12 Jan 2026 11:00:00 -0800
+Subject: Invoice EFG-30418
+Message-ID: <inv-efg-30418@fieldgear.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hello,
+
+Please find our invoice EFG-30418 below for the January field crew order.
+
+Accounts
+Example Field Gear
+
+EXAMPLE FIELD GEAR
+9 Example Wharf, Example Harbor, CA 94020
+accounts@fieldgear.example
+
+INVOICE
+
+Invoice number: EFG-30418
+Invoice date: January 7, 2026
+
+Bill to:
+  University of Example, Department of Earth and Ocean Sciences
+  Attn: Harper Fixture
+  100 Example Hall, Example City, CA 94000
+Project reference: SYN-2401835, field crew, January sampling
+
+Item  Description                                   Qty   Unit price      Amount
+1     Field crew dinner with wine, after sampling     1      $184.00     $184.00
+2     Dry bags, 20 L, 4 pack                          2       $88.00     $176.00
+
+Subtotal                                                                 $360.00
+Shipping                                                                   $0.00
+Total due                                                                $360.00
+
+Terms: net 30

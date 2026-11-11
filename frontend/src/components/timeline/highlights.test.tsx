@@ -22,33 +22,48 @@ function harness() {
 
 const part = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
+/** The panel shows folded; More opens the controls and the trail these tests read. */
+async function openMore() {
+  fireEvent.click(await screen.findByRole("button", { name: "More" }));
+}
+
 describe("highlights (ruling 58)", () => {
-  it("marks highlights in Coming up, and Next highlight moves to the next one with the human steps skipped", async () => {
+  it("marks highlights in Coming up, and Next highlight asks the server for the next one (ruling 77)", async () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
-    const move = vi.spyOn(client, "moveTimeline");
+    // The fake doesn't know next_highlight yet; it stands in for the server by moving to the highlight.
+    const real = client.moveTimeline.bind(client);
+    const move = vi
+      .spyOn(client, "moveTimeline")
+      .mockImplementation((grantId, body) => real(grantId, body.next_highlight ? { to: "2026-02-21T17:30:00Z", skip_human_steps: true } : body));
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
     await screen.findByRole("heading", { name: "Coming up" });
     const coming = part("Coming up");
     expect(within(coming).getByText("Highlight: A bill by email")).toBeInTheDocument();
     expect(within(coming).getByText("Highlight: Work after the end date")).toBeInTheDocument();
 
     const next = screen.getByRole("button", { name: "Next highlight" });
-    // It says it skips the human steps, since the Skip checkbox stays unticked.
-    expect(next).toHaveAccessibleDescription("Always skips the human steps.");
+    // It says what it does, whatever the Skip checkbox says.
+    expect(next).toHaveAccessibleDescription("Moves to the next highlight; the steps before it are done for you, the highlight's own step is yours.");
     expect(screen.getByLabelText("Skip the human steps")).not.toBeChecked();
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
-    await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { to: "2026-02-21T17:30:00Z", skip_human_steps: true }));
+    // Exactly this body: no date and no skip flag; the server finds the stop.
+    await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { next_highlight: true }));
+    expect(move.mock.calls[0][1]).toStrictEqual({ next_highlight: true });
     // The highlight it moved to is marked under Just happened too.
     await waitFor(() => expect(within(part("Just happened")).getByText("Highlight: A bill by email")).toBeInTheDocument());
     expect(within(part("Coming up")).queryByText("Highlight: A bill by email")).toBeNull();
   });
 
-  it("can't move to a highlight when none is coming up", async () => {
+  it("doesn't decide on its own that no highlight is left: only the server's reason makes it unavailable", async () => {
     const { Wrapper } = harness();
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
-    // Where the fake stands, everything has played.
-    expect(await screen.findByRole("button", { name: "Next highlight" })).toBeDisabled();
+    await openMore();
+    // Where the fake stands, everything has played, and the fake gives no reason.
+    const next = await screen.findByRole("button", { name: "Next highlight" });
+    await waitFor(() => expect(next).toBeEnabled());
+    expect(next).not.toHaveAttribute("aria-disabled");
   });
 });

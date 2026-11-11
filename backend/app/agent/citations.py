@@ -21,7 +21,7 @@ document index to the file, and checks the passage against the file:
 
 import email.utils
 import re
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -124,9 +124,18 @@ def standing_occurrences(text: str, start: int, end: int, value_text: str) -> li
     found: list[int] = []
     if not value_text:
         return found
+    wraps = "\n" in value_text or "\r" in value_text
     pos = text.find(value_text, start)
     while 0 <= pos and pos + len(value_text) <= end:
-        if value_in_span(value_text, text, pos, pos + len(value_text)):
+        after = pos + len(value_text)
+        if wraps:
+            # A value that runs over a line break, as the passage writes it (#269): prose,
+            # so standing on its own is only not running into a word on either side.
+            if (pos == 0 or not text[pos - 1].isalnum()) and (
+                after >= len(text) or not text[after].isalnum()
+            ):
+                found.append(pos)
+        elif value_in_span(value_text, text, pos, after):
             found.append(pos)
         pos = text.find(value_text, pos + 1)
     return found
@@ -153,8 +162,13 @@ def value_lines(text: str, start: int, end: int, value_text: str) -> list[tuple[
 
 
 def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[int, int]:
-    """The one range a text citation can hold today: from the first line where the value stands
-    on its own to the last, or the whole span when it stands on its own nowhere."""
+    """The shortest passage that holds a value: from the first line in text[start:end] where the
+    value stands on its own to the last, or the whole span when it stands on its own nowhere.
+
+    The API cites a sentence at a time, and on a form with no full stops a sentence can be a
+    whole section (eleven lines of an award notice for its amendment number). A citation keeps
+    the line, or table row, that holds its value instead.
+    """
     lines = value_lines(text, start, end, value_text)
     return (lines[0][0], lines[-1][1]) if lines else (start, end)
 
@@ -173,6 +187,10 @@ def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
         else:
             match = "not_found"
     lines = value_lines(sent, start, end, value_text) if match == "exact" else []
+    if lines:
+        # The shortest passage that holds the value: its line, not the API's whole chunk.
+        start, end = lines[0][0], lines[-1][1]
+        passage = sent[start:end]
     if doc.reading is not None:
         # A sample grant's live email (ruling 50): the passage stays the text the agent read,
         # so a value is checked against what it saw and no passage carries a dropped header's
@@ -193,16 +211,39 @@ def _stored_span(reading: ReadingText, stored: str, start: int, end: int) -> tup
     return stored_start, stored_end
 
 
+def _find_in_pdf(pdf: bytes, passage: str, first: int, last: int, value_text: str):
+    try:
+        return find_pdf_quote(
+            pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
+        )
+    except (UnreadablePdfError, ValueError):
+        return None
+
+
+def _holds_value_once(found: Any) -> bool:
+    return (
+        found is not None
+        and found.match != "not_found"
+        and found.value_found is not False
+        and sum(1 for o in found.occurrences if o.value_found is not False) == 1
+    )
+
+
 def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.pdf is not None
     passage = _get(raw, "cited_text") or ""
     first, last = int(_get(raw, "start_page_number")), int(_get(raw, "end_page_number"))
-    try:
-        found = find_pdf_quote(
-            doc.pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
-        )
-    except (UnreadablePdfError, ValueError):
-        found = None
+    found = _find_in_pdf(doc.pdf, passage, first, last, value_text)
+    if found is not None and found.match != "not_found" and found.value_found is not False:
+        # The shortest passage that holds the value: the line of the API's chunk where it
+        # stands on its own. It's found again in the file, and kept only when it's found once
+        # there with the value in it; otherwise the whole chunk stays.
+        start, end = narrow_to_lines(passage, 0, len(passage), value_text)
+        line = passage[start:end]
+        if line and len(line) < len(passage.strip()):
+            narrowed = _find_in_pdf(doc.pdf, line, first, last, value_text)
+            if _holds_value_once(narrowed):
+                passage, found = line, narrowed
     match = "not_found"
     highlight: list[dict[str, Any]] | None = None
     if found is not None and found.match != "not_found" and found.value_found is not False:
@@ -231,6 +272,23 @@ def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
     return citation
 
 
+def as_written(value_text: str, passage: str) -> str:
+    """The value as the passage writes it (#269).
+
+    A label line holds one line, so a value that wraps in the document, such as a statement's
+    whole sentence, comes with a space where the document breaks the line. A run of whitespace
+    in the value matches any run of whitespace in the passage, and when the value appears there
+    exactly once that way, the passage's own characters are returned. Otherwise the value.
+    """
+    if not value_text or value_text in passage:
+        return value_text
+    words = value_text.split()
+    if not words:
+        return value_text
+    found = list(re.finditer(r"\s+".join(re.escape(w) for w in words), passage))
+    return found[0].group(0) if len(found) == 1 else value_text
+
+
 def resolve_citation(
     line_text: str, raw_citations: Sequence[Any], documents: Sequence[SentDocument]
 ) -> dict[str, Any]:
@@ -246,10 +304,11 @@ def resolve_citation(
         )
     doc = documents[int(index)]
     kind = _get(raw, "type")
+    value_text = as_written(line_text, _get(raw, "cited_text") or "")
     if kind == "char_location" and doc.kind == "text":
-        return _char_citation(doc, raw, line_text)
+        return _char_citation(doc, raw, value_text)
     if kind == "page_location" and doc.kind == "pdf":
-        return _page_citation(doc, raw, line_text)
+        return _page_citation(doc, raw, value_text)
     raise CitationProblem(
         f"the citation for '{line_text}' is a {kind}, which FundTrail doesn't read"
     )
@@ -266,29 +325,29 @@ def value_in(text: str, passage: str) -> bool:
 
 def image_box(
     image: SentImage, left: float, top: float, right: float, bottom: float
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """A pixel box on the image we sent, as fractions of the page.
 
     The image was resized without cropping, so fractions of the sent image are fractions of the
-    original page.
+    original page. A box running off the image is cut to it. None when nothing of the box lies
+    on the image, or it has no area: there's nothing to read there, so its value is unconfirmed.
     """
-    if not (0 <= left < right <= image.width and 0 <= top < bottom <= image.height):
-        raise CitationProblem(
-            f"the box has to lie inside the image, which is {image.width} by {image.height} pixels"
-        )
+    left, right = max(0.0, min(left, right)), min(float(image.width), max(left, right))
+    top, bottom = max(0.0, min(top, bottom)), min(float(image.height), max(top, bottom))
+    if right <= left or bottom <= top:
+        return None
     return {
         "type": "image_box",
         "page": image.page,
         "left": left / image.width,
         "top": top / image.height,
-        "width": (right - left) / image.width,
-        "height": (bottom - top) / image.height,
+        "width": min((right - left) / image.width, 1 - left / image.width),
+        "height": min((bottom - top) / image.height, 1 - top / image.height),
     }
 
 
-# Second look on a photo or scan: reads only the boxed area and has to see the same value.
-# Not built yet; with none, a boxed value is unconfirmed.
-SecondLook = Callable[[str, dict[str, Any], str], bool]
+# The second look on photos and scans is app/agent/second_look.py: when the run ends, one call
+# per photo or scanned page reads only the boxed areas.
 
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).

@@ -63,8 +63,6 @@ A charge the accountant accepted is never Evidence complete.
 
 | Item | Who settles it |
 |---|---|
-| The blind test's process and size | product |
 | The scoring script and its output | builder (W3) |
 | How the answer key expresses checklist items, suggestions, disputes and unconfirmed facts | contract |
-| How a charge the accountant accepted is scored | product |
 | How the eval measures boxes on photos and scans, and what result would switch them to OCR (optical character recognition) | product |
