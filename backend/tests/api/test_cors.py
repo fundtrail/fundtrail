@@ -3,10 +3,11 @@ user's token; any other origin gets none."""
 
 from __future__ import annotations
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.cors import LOCAL_ORIGINS, add_cors, allowed_origins
+from app.api.cors import LOCAL_ORIGINS, AllowedOriginsRefused, add_cors, allowed_origins
 
 APP_ORIGIN = "https://fundtrail.example"
 
@@ -38,7 +39,7 @@ def test_an_allowed_origin_may_call_with_the_token() -> None:
     client = _client()
     headers = _preflight(client, APP_ORIGIN)
     assert headers["access-control-allow-origin"] == APP_ORIGIN
-    assert headers["access-control-allow-credentials"] == "true"
+    assert "access-control-allow-credentials" not in headers  # a Bearer header, not a cookie
     assert "authorization" in headers["access-control-allow-headers"].lower()
     simple = client.get("/health", headers={"Origin": APP_ORIGIN})
     assert simple.headers["access-control-allow-origin"] == APP_ORIGIN
@@ -60,3 +61,9 @@ def test_the_local_default_needs_a_local_supabase() -> None:
         "https://a.example",
         "https://b.example",
     ]
+
+
+def test_any_origin_is_refused() -> None:
+    for value in ("*", "https://a.example, *"):
+        with pytest.raises(AllowedOriginsRefused):
+            allowed_origins({"FUNDTRAIL_ALLOWED_ORIGINS": value})
