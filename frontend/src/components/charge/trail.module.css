@@ -1,0 +1,307 @@
+/* The evidence trail: one line with marks on it, solid where evidence holds,
+   dashed from where it breaks or something is missing. */
+
+.group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  column-gap: 10px;
+  padding-bottom: 12px;
+}
+
+/* The line from this node down to the next one. */
+.node::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 17px;
+  bottom: -3px;
+  border-left: 2px solid var(--ink);
+}
+
+/* Dashed from the first break on, across groups too. */
+.node[data-break]::before,
+.node[data-break] ~ .node::before,
+.group:has(.node[data-break]) ~ .group .node::before {
+  border-left-style: dashed;
+  border-left-color: var(--rule-strong);
+}
+
+.group:last-of-type > .node:last-child {
+  padding-bottom: 0;
+}
+
+.group:last-of-type > .node:last-child::before {
+  display: none;
+}
+
+/* --- Marks --- */
+
+.mark {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  margin: 3px 2px 0;
+  border-radius: 50%;
+  background: var(--ink);
+  box-sizing: border-box;
+}
+
+.node[data-mark="ledger"] .mark {
+  border-radius: 2px;
+}
+
+.node[data-mark="holds"] .mark {
+  background: var(--paper-raised);
+  border: 2px solid var(--ink);
+}
+
+.node[data-mark="holds"] .mark::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 3px;
+  height: 7px;
+  border: solid var(--ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+
+.node[data-mark="conflict"] .mark {
+  background: var(--conflict);
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+
+.node[data-mark="human"] .mark {
+  background: var(--paper-raised);
+  border: 3px solid var(--needs-human);
+}
+
+.node[data-mark="missing"] .mark {
+  background: var(--paper-raised);
+  border: 2px dashed var(--missing);
+}
+
+.node[data-mark="plain"] .mark {
+  width: 10px;
+  height: 10px;
+  margin: 5px 4px 0;
+  background: var(--paper-raised);
+  border: 2px solid var(--rule-strong);
+}
+
+/* --- The node's lines --- */
+
+.content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The head line: the name, then its status at the right end. When the line
+   is short of room the status wraps under the name, still right-aligned,
+   rather than squeezing the name or hiding behind a click. */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The head line as the toggle, when its name holds no link. */
+.headButton {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.headButton:hover .title {
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: var(--underline-offset);
+}
+
+/* The toggle beside a linked name: just the chevron, with a target the
+   pointer can find. */
+.chevronButton {
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.chevronButton:hover {
+  background: var(--paper-sunken);
+}
+
+.title a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+
+.status {
+  flex: 0 1 auto;
+  margin-left: auto;
+  max-width: 100%;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+/* A small chevron that turns when the node opens. */
+.chevron {
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border: solid var(--ink-muted);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+
+.node[data-open="true"] .chevron {
+  transform: rotate(45deg);
+}
+
+.sub {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.sub p {
+  margin: 0;
+}
+
+.node[data-open="false"] .more {
+  display: none;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.more > * {
+  max-width: 100%;
+}
+
+.more p {
+  margin: 0;
+}
+
+.note {
+  font-size: 13px;
+  color: var(--ink-muted);
+  padding-top: 1px;
+}
+
+/* --- A closed line that opens in place --- */
+
+.disclosure {
+  border-top: 1px solid var(--rule);
+}
+
+.disclosureHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.disclosureHead::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure[data-attention] .disclosureLabel {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.toggle {
+  flex: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.disclosureHead:hover .toggle {
+  color: var(--ink);
+}
+
+.hide,
+.disclosure[open] > .disclosureHead .show {
+  display: none;
+}
+
+.disclosure[open] > .disclosureHead .hide {
+  display: inline;
+}
+
+.disclosureBody {
+  padding-bottom: var(--space-3);
+}
+
+/* In a narrow pane the status always sits under the name, from the left. */
+@container charge (max-width: 440px) {
+  .title {
+    flex-basis: 100%;
+  }
+
+  .status {
+    margin-left: 0;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
