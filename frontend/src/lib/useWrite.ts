@@ -15,7 +15,8 @@ export type WriteState =
  * write check rejects shows its problems as the server words them.
  *
  * Never sends twice at once: a second call while one is in flight sends
- * nothing and returns the in-flight write's result. A disabled button stops a
+ * nothing and returns the in-flight write's result, even if the arguments
+ * differ. A disabled button stops a
  * real double click, but two submits in the same task (requestSubmit() twice,
  * say) would otherwise both send before the button re-renders. The guard is
  * released when the write settles, whether it succeeds or fails.
@@ -39,11 +40,15 @@ export function useWrite() {
         const problems = error instanceof ApiError ? (error.problems ?? [error.message]) : ["Couldn't save this. Try again."];
         setState({ status: "failed", problems });
         return null;
-      } finally {
-        inFlight.current = null;
       }
     })();
     inFlight.current = sending;
+    // Released only after the assignment above, and only if the ref still
+    // holds this write, so a write that fails synchronously can't leave a
+    // settled promise in the ref.
+    void sending.finally(() => {
+      if (inFlight.current === sending) inFlight.current = null;
+    });
     return sending;
   }
 

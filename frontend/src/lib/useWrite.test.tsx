@@ -63,4 +63,33 @@ describe("useWrite", () => {
     });
     expect(send).toHaveBeenCalledTimes(2);
   });
+
+  it("sends nothing for a second call with different arguments while one is in flight", async () => {
+    const { send, hook } = setup();
+    await act(async () => {
+      const a = hook.result.current.write(SAMPLE_GRANT_ID, body);
+      const b = hook.result.current.write("another-grant", { data: { kind: "retraction" as const } });
+      const [first, second] = await Promise.all([a, b]);
+      expect(second).toBe(first);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(SAMPLE_GRANT_ID, body);
+  });
+
+  it("releases the guard when the client throws synchronously", async () => {
+    const { send, hook } = setup();
+    send.mockImplementationOnce(() => {
+      throw new ApiError(422, ["The note is missing."]);
+    });
+    await act(async () => {
+      expect(await hook.result.current.write(SAMPLE_GRANT_ID, body)).toBeNull();
+    });
+    expect(hook.result.current.state).toEqual({ status: "failed", problems: ["The note is missing."] });
+    let again: FtRecord | null = null;
+    await act(async () => {
+      again = await hook.result.current.write(SAMPLE_GRANT_ID, body);
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(again).not.toBeNull();
+  });
 });
