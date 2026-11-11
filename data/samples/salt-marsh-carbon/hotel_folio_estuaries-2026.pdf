@@ -1,60 +1,283 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R /F4 5 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Times-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 736 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(EXAMPLE HARBOR INN) Tj T*
-(Example Harbor Convention Center, Example Harbor, MA) Tj T*
-() Tj T*
-(GUEST FOLIO) Tj T*
-() Tj T*
-(Folio number: F606754) Tj T*
-(Guest: Harper Fixture) Tj T*
-(Arrival: May 11, 2026) Tj T*
-(Departure: May 14, 2026) Tj T*
-() Tj T*
-(  May 11, 2026          Room, standard queen         $229.00) Tj T*
-(  May 12, 2026          Room, standard queen         $229.00) Tj T*
-(  May 13, 2026          Room, standard queen         $229.00) Tj T*
-() Tj T*
-(  Total charges                                  $687.00) Tj T*
-(  Payment, card ending 4417                     -$687.00) Tj T*
-(  Balance due                                      $0.00) Tj T*
-() Tj T*
-(Date: May 14, 2026) Tj T*
-ET
-endstream
+<<
+/BaseFont /Times-Roman /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/BaseFont /Times-Italic /Encoding /WinAnsiEncoding /Name /F4 /Subtype /Type1 /Type /Font
+>>
 endobj
 6 0 obj
-<< /Title (Folio F606754) /Producer (FundTrail seed generator) >>
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+7 0 obj
+<<
+/PageMode /UseNone /Pages 9 0 R /Type /Catalog
+>>
+endobj
+8 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (Folio F606754) /Trapped /False
+>>
+endobj
+9 0 obj
+<<
+/Count 1 /Kids [ 6 0 R ] /Type /Pages
+>>
+endobj
+10 0 obj
+<<
+/Length 6098
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.066667 .066667 .066667 rg
+BT /F2 15 Tf 18 TL ET
+BT 1 0 0 1 185.79 728 Tm (WHARFSIDE INN NEW BEDFORD) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 272.133 713.3 Tm (New Bedford, MA) Tj T* ET
+.066667 .066667 .066667 RG
+.8 w
+n 72 703.06 m 540 703.06 l S
+.066667 .066667 .066667 rg
+BT /F2 11 Tf 13.2 TL ET
+BT 1 0 0 1 72 683.06 Tm (GUEST FOLIO) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 7.5 Tf 9 TL ET
+BT 1 0 0 1 506.0475 683.06 Tm (Page 1 of 1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 72 663.06 Tm (Folio number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 132.6955 663.06 Tm (F606754) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 72 649.06 Tm (Guest:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 101.2885 649.06 Tm (Maren Holloway) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 322 663.06 Tm (Arrival:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 357.6155 663.06 Tm (May 11, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 322 649.06 Tm (Departure:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 369.747 649.06 Tm (May 14, 2026) Tj T* ET
+.066667 .066667 .066667 RG
+.8 w
+n 72 635.06 m 540 635.06 l S
+.372549 .388235 .407843 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 78 623.06 Tm (Date) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 222 623.06 Tm (Description) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 504.25 623.06 Tm (Amount) Tj T* ET
+.066667 .066667 .066667 RG
+.5 w
+n 72 618.06 m 540 618.06 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 604.06 Tm (May 11, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 604.06 Tm (Room, standard queen) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 604.06 Tm ($199.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 599.56 m 540 599.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 589.06 Tm (May 11, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 589.06 Tm (Room occupancy tax) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 507.875 589.06 Tm ($22.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 584.56 m 540 584.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 574.06 Tm (May 11, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 574.06 Tm (Convention center fee) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 512.625 574.06 Tm ($7.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 569.56 m 540 569.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 559.06 Tm (May 12, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 559.06 Tm (Room, standard queen) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 559.06 Tm ($199.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 554.56 m 540 554.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 544.06 Tm (May 12, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 544.06 Tm (Room occupancy tax) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 507.875 544.06 Tm ($22.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 539.56 m 540 539.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 529.06 Tm (May 12, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 529.06 Tm (Convention center fee) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 512.625 529.06 Tm ($7.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 524.56 m 540 524.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 514.06 Tm (May 13, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 514.06 Tm (Room, standard queen) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 514.06 Tm ($199.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 509.56 m 540 509.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 499.06 Tm (May 13, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 499.06 Tm (Room occupancy tax) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 507.875 499.06 Tm ($22.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 494.56 m 540 494.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 484.06 Tm (May 13, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 222 484.06 Tm (Convention center fee) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 512.625 484.06 Tm ($7.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 479.56 m 540 479.56 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 296 457.06 Tm (Total charges) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 457.06 Tm ($687.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 296 442.06 Tm (Payment, card ending 4417) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 499.9615 442.06 Tm (-$687.00) Tj T* ET
+.066667 .066667 .066667 RG
+.8 w
+n 290 438.06 m 540 438.06 l S
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 296 427.06 Tm (Balance due) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 512.625 427.06 Tm ($0.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 78 405.06 Tm (Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 102.529 405.06 Tm (May 14, 2026) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 70 m 540 70 l S
+.372549 .388235 .407843 rg
+BT /F4 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 254.524 58 Tm (Thank you for staying with us.) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 11
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000001003 00000 n 
-0000001129 00000 n 
+0000000061 00000 n 
+0000000122 00000 n 
+0000000229 00000 n 
+0000000337 00000 n 
+0000000446 00000 n 
+0000000556 00000 n 
+0000000750 00000 n 
+0000000818 00000 n 
+0000001089 00000 n 
+0000001148 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<bb465378211e62244a6e489557d074a5><bb465378211e62244a6e489557d074a5>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 8 0 R
+/Root 7 0 R
+/Size 11
+>>
 startxref
-1210
+7298
 %%EOF

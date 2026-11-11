@@ -48,8 +48,8 @@ export function ChargeScreen() {
       crumbs={[summary ? grantName(summary) : "Grant", line ?? "Charge"]}
     >
       <p>
-        <Link className="ft-link" href={routes.grant(grantId)}>
-          Back to the grant
+        <Link className="ft-link" href={routes.problemList(grantId)}>
+          Back to the problem list
         </Link>
       </p>
       <Loadable result={detail}>

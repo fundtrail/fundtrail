@@ -336,22 +336,26 @@ function dayAfter(iso: string): string {
 }
 
 /**
- * Go to a date. While the server says the timeline can't move, Go is
- * unavailable: it sends nothing, and the server's reason shows beside it as
- * its description.
+ * Go to a date. Go stays reachable whenever it can't move (ruling 79): it is
+ * `aria-disabled`, sends nothing, and says why. The server's reason comes
+ * first, in its words, as on the other controls. Without one, an empty or too
+ * early date gets the screen's own short hint, set apart from a server
+ * reason. Only a move being sent disables it outright.
  */
 function GoToDate({ now, busy, onGo, reason }: { now: string; busy: boolean; onGo: (to: string) => void; reason?: { id: string; text: string } }) {
   const id = useId();
+  const hintId = useId();
   const [value, setValue] = useState("");
   const min = dayAfter(now);
+  const valid = Boolean(value) && value >= min;
+  // The screen's own check on the field, never the server's reason.
+  const hint = reason || valid ? null : value ? "Choose a later date." : "Choose a date first.";
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (reason) return;
-    if (value && value >= min) {
-      onGo(`${value}T00:00:00Z`);
-      // The field starts empty again after a move.
-      setValue("");
-    }
+    if (reason || !valid) return;
+    onGo(`${value}T00:00:00Z`);
+    // The field starts empty again after a move.
+    setValue("");
   }
   return (
     <form className="ft-tl__goto" onSubmit={submit}>
@@ -362,16 +366,22 @@ function GoToDate({ now, busy, onGo, reason }: { now: string; busy: boolean; onG
       <button
         type="submit"
         className="ft-btn ft-btn--sm"
-        disabled={busy || !value || value < min}
-        aria-disabled={reason ? true : undefined}
-        aria-describedby={reason?.id}
+        disabled={busy}
+        aria-disabled={reason || !valid ? true : undefined}
+        aria-describedby={reason ? reason.id : hint ? hintId : undefined}
       >
         Go
       </button>
-      {reason && (
+      {reason ? (
         <span id={reason.id} className="ft-tl__reason">
           {reason.text}
         </span>
+      ) : (
+        hint && (
+          <span id={hintId} className="ft-tl__hint">
+            {hint}
+          </span>
+        )
       )}
     </form>
   );
@@ -468,9 +478,10 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
     <button
       type="button"
       className="ft-btn ft-btn--sm"
-      disabled={busy || (view.coming_up ?? []).length === 0}
+      disabled={busy || (!moveReason && (view.coming_up ?? []).length === 0)}
       aria-disabled={moveReason ? true : undefined}
-      aria-describedby={moveReason ? moveReasonId : undefined}
+      // The reason shows once: on the folded line, or under Go while More is open.
+      aria-describedby={moveReason ? (trailOpen ? goReasonId : moveReasonId) : undefined}
       onClick={() => {
         if (moveReason) return;
         void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}));
@@ -486,7 +497,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
         <button
           type="button"
           className="ft-btn ft-btn--sm"
-          aria-describedby={highlightReason ? highlightReasonId : highlightHintId}
+          aria-describedby={highlightReason ? `${highlightReasonId} ${highlightHintId}` : highlightHintId}
           disabled={busy}
           aria-disabled={highlightReason ? true : undefined}
           onClick={() => {
@@ -586,14 +597,14 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             </button>
           </span>
         )}
-        {moveReason && (
+        {moveReason && !trailOpen && (
           <p id={moveReasonId} className="ft-tl__reason ft-tl__reason--line">
             {moveReason}
           </p>
         )}
       </div>
       {/* Folded, the stop's marks and what comes next, on a second quiet line. */}
-      {view && !trailOpen && (stop?.loaded || decisions.length > 0 || next || view.finished) && (
+      {view && !trailOpen && (stop?.loaded || decisions.length > 0 || next || (view.finished && !moveReason)) && (
         <ul className="ft-tl__also" aria-label="About the stop and what comes next">
           {stop?.loaded && (
             <li>
@@ -611,7 +622,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               {next.highlight && <span className="ft-tl__flag ft-tl__flag--next">{next.highlight}</span>}
             </li>
           ) : (
-            view.finished && <li className="ft-caption">The timeline has played to its end.</li>
+            // The server's own sentence, when it sends one, already says so on the line above.
+            view.finished && !moveReason && <li className="ft-caption">The timeline has played to its end.</li>
           )}
         </ul>
       )}

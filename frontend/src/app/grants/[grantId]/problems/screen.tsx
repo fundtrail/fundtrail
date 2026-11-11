@@ -126,7 +126,7 @@ export function ProblemsScreen() {
                 {/* Only a screen wide enough to show the item loads it. */}
                 {selected && (!narrow || (asked === selected && selectedRow?.kind === "grant")) && (
                   <section className={`${styles.detail}${narrow ? ` ${styles.detailFirst}` : ""}`} aria-label="The selected item">
-                    <SelectedProblem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} />
+                    <SelectedProblem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} focusHeading={narrow} />
                   </section>
                 )}
               </div>

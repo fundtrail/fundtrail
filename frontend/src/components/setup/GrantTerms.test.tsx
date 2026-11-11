@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ApiError, type EvidenceFile, type ProblemRow } from "@/lib/api";
 import { extensionWithUnfoundEnd, SAMPLE_REUSABLE_NOTE } from "@/lib/api/fixtures/setup";
@@ -60,6 +60,20 @@ describe("GrantTerms", () => {
       data: { kind: "period_of_performance", end: { value: "2027-02-28" }, dated: { value: "2026-01-15" } },
       replaces_id: "rec-period-extension",
     });
+  });
+
+  it("sends one record when the typed value is submitted twice in the same task", async () => {
+    const { detail, rows, writeRecord, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    fireEvent.click(within(waitingGroup()).getByRole("button", { name: "Type the right value" }));
+    const form = within(waitingGroup()).getByRole("form", { name: "Type the right value" }) as HTMLFormElement;
+    // Both submits run before React re-renders, so the disabled button can't stop the second.
+    act(() => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    await waitFor(() => expect(within(waitingGroup()).getByRole("status")).toHaveTextContent("Your value is saved."));
+    expect(writeRecord).toHaveBeenCalledTimes(1);
   });
 
   it("lists each value that couldn't be found in the file", async () => {

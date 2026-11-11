@@ -54,6 +54,22 @@ describe("the viewer page", () => {
     expect(within(list).getByText("Unconfirmed")).toBeInTheDocument();
   });
 
+  it("keeps focus on the value just followed, now the current one: the panel isn't rebuilt", async () => {
+    const view = renderPage("file-syn-field-station-invoice", "record=rec-syn-bill-fs-2207&value=total");
+    const list = await screen.findByRole("navigation", { name: "In this file" });
+    const vendor = within(list).getByRole("link", { name: /^Vendor/ });
+    vendor.focus();
+    // Following the link changes the address; the screen renders again for the new value.
+    nav.search = "record=rec-syn-bill-fs-2207&value=vendor";
+    view.rerender(<FileScreen />);
+    await waitFor(() => expect(vendor).toHaveAttribute("aria-current", "true"));
+    // The same element, still in the page and still focused.
+    expect(vendor.isConnected).toBe(true);
+    expect(document.activeElement).toBe(vendor);
+    expect(within(screen.getByRole("navigation", { name: "In this file" })).getByRole("link", { name: /^Total/ })).not.toHaveAttribute("aria-current");
+    expect(within(screen.getByTestId("viewer-bar")).getByText("Vendor")).toBeInTheDocument();
+  });
+
   it("lists the file's facts with nothing marked when no value is open", async () => {
     renderPage("file-syn-field-station-invoice");
     const list = await screen.findByRole("navigation", { name: "In this file" });

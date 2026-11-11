@@ -79,20 +79,26 @@ export interface ViewerProps {
   facts?: FileFactGroup[];
   /** The level of the file's name: 1 when the viewer is the page, 2 (the default) inside one. */
   headingLevel?: 1 | 2;
+  /**
+   * Names the value the viewer is open at (the page's record and value). When
+   * it changes, the viewer opens at the new spot in place, without remounting,
+   * so the side panel keeps its place and focus. Absent, the citation names it.
+   */
+  openAt?: string | null;
 }
 
 /** One value in "In this file": its words, where it is, and the link to its spot. */
 export interface FileFact {
   key: string;
   label: string;
-  /** The value as the card shows it; null when nothing was read. */
-  value: string | null;
+  /** The value as the card shows it. */
+  value: string;
   /** Its page ("p. 2"), when the citation names one. */
   location: string | null;
   /** The card's words for its state when it isn't confirmed; null when it is. */
   note: string | null;
-  /** The viewer at this value's spot; null when it has no citation to open. */
-  href: string | null;
+  /** The viewer at this value's spot. */
+  href: string;
   /** The value the viewer is open at. */
   current: boolean;
 }
@@ -118,11 +124,42 @@ function scrollAreaTo(area: HTMLElement, target: HTMLElement, whole: boolean) {
   area.scrollTo({ top: Math.max(0, top), left: Math.max(0, left) });
 }
 
-/** "In this file": every fact read from the file, each value a link to its spot, the open one marked. */
+/**
+ * Brings the document area into the window when it isn't wholly in view, as
+ * on a narrow screen where the viewer stacks below the page's head: the
+ * window scrolls just far enough to put the viewer's bar at the top (its
+ * scroll-margin keeps it clear of anything pinned there). On a wide screen
+ * the area is already in view and the window doesn't move.
+ */
+function showDocumentArea(bar: HTMLElement, area: HTMLElement) {
+  const margin = parseFloat(getComputedStyle(bar).scrollMarginTop) || 0;
+  const r = area.getBoundingClientRect();
+  if (r.top >= margin && r.bottom <= window.innerHeight) return;
+  bar.scrollIntoView?.({ block: "start" });
+}
+
+/**
+ * "In this file": every value read from the file, each a link to its spot,
+ * the open one marked. The viewer isn't remounted when the value changes, so
+ * this list stays put and keyboard focus stays on the link just followed,
+ * which is now the current one; the panel scrolls only as far as it needs to
+ * keep the current item in view.
+ */
 function InThisFile({ groups }: { groups: FileFactGroup[] }) {
   const titled = groups.length > 1;
+  const navRef = useRef<HTMLElement>(null);
+  const currentKey = groups.flatMap((g) => g.values).find((v) => v.current)?.key ?? null;
+  useEffect(() => {
+    const panel = navRef.current?.closest("aside");
+    const item = navRef.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!panel || !item || panel.scrollHeight <= panel.clientHeight) return;
+    const p = panel.getBoundingClientRect();
+    const i = item.getBoundingClientRect();
+    if (i.top < p.top) panel.scrollTop += i.top - p.top - 8;
+    else if (i.bottom > p.bottom) panel.scrollTop += i.bottom - p.bottom + 8;
+  }, [currentKey]);
   return (
-    <nav className={styles.inFile} aria-label="In this file">
+    <nav className={styles.inFile} aria-label="In this file" ref={navRef}>
       <h2 className={styles.sideLabel}>In this file</h2>
       {groups.map((g) => (
         <div key={g.key} className={styles.inFileGroup}>
@@ -132,7 +169,7 @@ function InThisFile({ groups }: { groups: FileFactGroup[] }) {
               const body = (
                 <>
                   <span className={styles.inFileLabel}>{v.label}</span>
-                  <span className={styles.inFileValue}>{v.value ?? "Nothing read"}</span>
+                  <span className={styles.inFileValue}>{v.value}</span>
                   {(v.location || v.note) && (
                     <span className={styles.inFileMeta}>
                       {v.location}
@@ -144,15 +181,9 @@ function InThisFile({ groups }: { groups: FileFactGroup[] }) {
               );
               return (
                 <li key={v.key}>
-                  {v.href ? (
-                    <Link className={styles.inFileItem} href={v.href} aria-current={v.current ? "true" : undefined}>
-                      {body}
-                    </Link>
-                  ) : (
-                    <span className={styles.inFileItem} aria-current={v.current ? "true" : undefined}>
-                      {body}
-                    </span>
-                  )}
+                  <Link className={styles.inFileItem} href={v.href} scroll={false} aria-current={v.current ? "true" : undefined}>
+                    {body}
+                  </Link>
                 </li>
               );
             })}
@@ -180,17 +211,27 @@ export function Viewer({
   reading = null,
   facts,
   headingLevel = 2,
+  openAt,
 }: ViewerProps) {
   const kind = fileKind(file.media_type, file.name);
   const placement = useMemo(() => (citation ? placeCitation(citation, valueText) : null), [citation, valueText]);
   const boxes = placement?.kind === "boxes" ? placement.boxes : [];
+  const spot = openAt !== undefined ? (openAt ?? "") : citation ? JSON.stringify([citation.file_id, citation.location, citation.passage]) : "";
   const [zoom, setZoom] = useState(() => zoomForBoxes(boxes));
+  const [openedAt, setOpenedAt] = useState(spot);
+  // Opening at another value in place: its own zoom, as if it had just opened.
+  if (openedAt !== spot) {
+    setOpenedAt(spot);
+    setZoom(zoomForBoxes(boxes));
+  }
   const scrollRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const shownFor = useRef<string | null>(null);
   const [readyTick, setReadyTick] = useState(0);
   const onReady = useCallback(() => setReadyTick((t) => t + 1), []);
 
   // A PDF opens no wider than its document area, so a small value doesn't open
-  // on a page cut off on both sides. Measured once, when the viewer opens.
+  // on a page cut off on both sides. Measured each time it opens at a value.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (kind !== "pdf" || !el) return;
@@ -198,17 +239,24 @@ export function Viewer({
     const area = el.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
     const opening = openingZoom(boxes, area, PAGE_WIDTH);
     setZoom((z) => (z === zoomForBoxes(boxes) ? opening : z));
-    // Only at opening: the viewer is keyed by the value it opens at.
+    // Only when it opens at a value, not after the accountant zooms.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [spot]);
 
-  // Scroll to the spot once something has drawn, and again after a zoom.
+  // Scroll to the spot once something has drawn, again after a zoom, and when
+  // the viewer opens at another value. The first time for each value, the
+  // document area is brought into the window if it isn't in view (a narrow
+  // screen); after that only the area scrolls.
   useEffect(() => {
     const area = scrollRef.current;
     const target = area?.querySelector<HTMLElement>('[data-scroll-target="true"]');
+    if (!area || !target) return;
+    if (citation && barRef.current && shownFor.current !== spot) showDocumentArea(barRef.current, area);
+    shownFor.current = spot;
     // A whole page opens at its top; a highlight opens in the middle of the view.
-    if (area && target) scrollAreaTo(area, target, target.hasAttribute("data-page"));
-  }, [readyTick, zoom]);
+    scrollAreaTo(area, target, target.hasAttribute("data-page"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyTick, zoom, spot]);
 
   let body: ReactNode;
   if (kind === "text" && reading) {
@@ -261,7 +309,7 @@ export function Viewer({
         )}
       </header>
 
-      <div className={styles.bar} data-testid="viewer-bar">
+      <div className={styles.bar} data-testid="viewer-bar" ref={barRef}>
         <div className={styles.cite}>
           {!citation && <span>Whole file, nothing highlighted</span>}
           {citation && (

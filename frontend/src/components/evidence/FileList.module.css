@@ -25,10 +25,12 @@
 .row:hover {
   background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
 }
-/* The file shown beside the list: the sunken fill and a heavier name. */
+/* The file shown beside the list: the sunken fill, a heavier name, and an
+   inset bar in ink, which holds in dark mode where the fill alone is faint. */
 .row[data-selected],
 .row[data-selected]:hover {
   background: var(--paper-sunken);
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 
 .name {
@@ -45,6 +47,15 @@
 .name:hover,
 .name:focus-visible {
   text-decoration-color: currentColor;
+}
+/* The focus ring goes on the whole row, inside it, so the list's own scroll
+   never clips it at the first or last row. */
+.name:focus-visible {
+  outline: none;
+}
+.row:has(.name:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 .row[data-selected] .name {
   font-weight: 700;
@@ -83,59 +94,6 @@
   background: var(--needs-human-tint);
   color: var(--needs-human);
   font-weight: 600;
-}
-
-/* --- The filter as pills, in the page's head, as the problem list's --- */
-
-.pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-pill);
-  background: var(--paper-raised);
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pill:hover {
-  border-color: var(--rule-strong);
-  color: var(--ink);
-}
-.pill:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.pill[aria-pressed="true"] {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper-raised);
-}
-.count {
-  min-width: 18px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--paper-sunken);
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-.pill[aria-pressed="true"] .count {
-  background: transparent;
-  color: inherit;
-  opacity: 0.8;
 }
 
 /* --- The page: a quiet head, then the list and the picked card side by side --- */
@@ -187,13 +145,22 @@
   align-items: start;
   gap: var(--space-5);
 }
-/* The list is the one bordered block; the picked card sits beside it as itself. */
+/* The list is the one bordered block; the picked card sits beside it as itself.
+   It stays in view beside a long card, scrolling on its own when it's taller
+   than the window (below the fake-mode banner when there is one). */
 .listBox {
+  --list-top: var(--space-4);
+  position: sticky;
+  top: var(--list-top);
+  max-height: calc(100vh - var(--list-top) - var(--space-4));
   min-width: 0;
-  overflow: hidden;
+  overflow-y: auto;
   border: 1px solid var(--rule);
   border-radius: 12px;
   background: var(--paper-raised);
+}
+:global(.ft-fake-banner) ~ :global(.ft-app) .listBox {
+  --list-top: calc(var(--fake-banner-height) + var(--space-4));
 }
 /* A container, so the card lays itself out for the column it's in, not the window. */
 .detail {
@@ -234,6 +201,13 @@
 @media (max-width: 980px) {
   .split {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The list is the page: it scrolls with it. */
+  .listBox,
+  :global(.ft-fake-banner) ~ :global(.ft-app) .listBox {
+    position: static;
+    max-height: none;
+    overflow: hidden;
   }
 }
 @media (max-width: 760px) {

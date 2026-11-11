@@ -1,43 +1,46 @@
-From: Harper Fixture <harper.fixture@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Maren Holloway <mholloway@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Mon, 10 Feb 2025 10:20:00 -0800
 Subject: Fwd: Invoice INV-20514
-Message-ID: <fwd-inv-20514@university.example>
+Message-ID: <fwd-inv-20514@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice INV-20514 for SYN-2401835, for the files.
 
-Harper
+Maren
 
 ---------- Forwarded message ----------
-From: Example Lab Supply Co. Billing <orders@labsupply.example>
+From: Calder Laboratory Supply Billing <orders@calderlab.example>
 Date: Thu, 6 Feb 2025 15:05:00 -0800
 Subject: Invoice INV-20514
-To: harper.fixture@university.example
+To: mholloway@halden.example
 
-EXAMPLE LAB SUPPLY CO.
-200 Example Parkway, Example City, CA 94001
-orders@labsupply.example
+CALDER LABORATORY SUPPLY
+200 Quarry Parkway, Port Calloway, CA 94001
+orders@calderlab.example
 
 INVOICE
 
 Invoice number: INV-20514
 Invoice date: February 6, 2025
 Customer PO: PO-25-1102
+Account No.: 204417
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Harper Fixture
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Maren Holloway
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2401835, salt marsh carbon burial
 
-Item  Description                                   Qty   Unit price      Amount
-1     Sediment core liners, 50 count                  1      $248.00     $248.00
-2     Sample bags, sterile, 500 count                 1       $96.00      $96.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     CL-20417     Sediment core liners, 50 count                   1  CS       $164.00     $164.00
+2     CL-30562     Sample bags, sterile, 500 count                  1  PK        $96.00      $96.00
+3     CL-20431     Core liner end caps, 100 count                   1  PK        $46.00      $46.00
+4     CL-48210     Labeling tape, 19 mm, 12 rolls                   1  PK        $38.00      $38.00
 
-Subtotal                                                                 $344.00
-Shipping                                                                  $12.50
-Total due                                                                $356.50
+Subtotal                                                                                    $344.00
+Shipping                                                                                     $12.50
+Total due                                                                                   $356.50
 
 Terms: net 30
