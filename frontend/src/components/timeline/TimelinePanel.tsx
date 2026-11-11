@@ -7,7 +7,6 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { FloatingTimeline } from "./FloatingTimeline";
 import {
   ApiError,
   describeError,
@@ -662,9 +661,5 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
 
 /** The timeline panel when the grant is a sample grant; nothing for any other grant. */
 export function SampleTimeline({ summary }: { summary: GrantSummary }) {
-  return summary.grant.sample ? (
-    <FloatingTimeline>
-      <TimelinePanel grantId={summary.grant.id} />
-    </FloatingTimeline>
-  ) : null;
+  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} /> : null;
 }

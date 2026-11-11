@@ -7,7 +7,6 @@ import { AppShell } from "@/components/AppShell";
 import { Loadable } from "@/components/Loadable";
 import { BudgetFigures } from "@/components/BudgetFigures";
 import { ProblemBrief, problemRowKey } from "@/components/ProblemList";
-import { SampleTimeline } from "@/components/timeline/TimelinePanel";
 import { useGrantDisplayName } from "@/lib/grantName";
 import {
   useCharges,
@@ -287,8 +286,6 @@ export function GrantScreen() {
             return (
               <>
                 <Head summary={data.summary} start={start} />
-                {/* Only a sample grant has a timeline to play. */}
-                <SampleTimeline summary={data.summary} />
                 <NeedsYou grantId={grantId} summary={data.summary} rows={problems.data?.rows} />
                 {problems.error && <Loadable result={problems}>{() => null}</Loadable>}
                 <div className={styles.facts}>
