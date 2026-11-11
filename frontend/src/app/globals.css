@@ -38,15 +38,40 @@
   --on-brand-muted: #a9bdb2;
   --brand-rule: rgba(233, 240, 235, 0.22);
   --brand-rule-strong: rgba(233, 240, 235, 0.28);
+  --brand-hover: rgba(233, 240, 235, 0.08);
 
-  /* Citations only: nothing else is ever yellow. --hl and --on-hl are the
-     short names for the same highlighter, the same yellow in both themes. */
+  /* The one action a page is for: a filled button in a deeper brand green,
+     white text 7:1 (5.1:1 in dark, where the green is lighter to stand off
+     the dark page). Hover and press step darker. */
+  --brand-action: #17654c;
+  --brand-action-hover: #125440;
+  --brand-action-press: #0f4a38;
+  --on-brand-action: #ffffff;
+
+  /* The edge of every control (neutral buttons, the file picker's button,
+     inputs, selects): the same as --rule-strong, at least 3:1 on paper and
+     paper-raised in both themes. Hover darkens it. A disabled control's
+     dashed outline uses the same color, so a live one is never fainter. */
+  --control-border: var(--rule-strong);
+  --control-border-hover: var(--ink-muted);
+
+  /* The highlighter, the same yellow in both themes. --hl (with --on-hl) is
+     for words quoted from evidence and nothing else; --highlight and
+     --on-highlight are its longer names. The active passage is a deeper step
+     of the same yellow (dark text on it 9.7:1). The wash lies over a photo or
+     scan, which keeps its own colors in either theme, so it has one value. */
   --highlight: #ffe45c;
-  --highlight-active: #efc93a;
+  --highlight-active: #f2b900;
   --on-highlight: #1d1a05;
-  --highlight-wash: rgba(246, 221, 107, 0.4);
+  --highlight-wash: rgba(255, 228, 92, 0.45);
   --hl: var(--highlight);
   --on-hl: var(--on-highlight);
+
+  /* The same yellow as a mark, not a citation. The wordmark's diamond uses
+     --now today; --on-now is the text color on it, kept for the trail's "now"
+     dot and the screens that will draw it. */
+  --now: #ffe45c;
+  --on-now: #1d1a05;
 
   /* Selected text: a tint of the brand green, never the highlighter. */
   --selection: #cfe3d8;
@@ -112,9 +137,10 @@
     --complete-tint: #16293a;
     --approve: #4fb294;
     --approve-tint: #18291f;
-    --highlight-active: #f4dc6e;
     --selection: #24493c;
-    --highlight-wash: rgba(233, 207, 90, 0.3);
+    --brand-action: #1f7d5e;
+    --brand-action-hover: #1a7356;
+    --brand-action-press: #17654c;
     --shadow-float: 0 1px 2px #00000066, 0 8px 24px #00000099;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -317,7 +343,7 @@ html {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   padding: var(--space-4) var(--space-3);
   background: var(--brand);
   color: var(--on-brand);
@@ -342,16 +368,14 @@ html {
   flex: none;
 }
 .ft-wordmark__diamond {
-  fill: var(--hl);
+  fill: var(--now);
 }
+/* The workspace: a quiet two-line label, no box. */
 .ft-sidebar__workspace {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
-  padding: var(--space-2) 10px;
-  border: 1px solid var(--brand-rule);
-  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
   font-size: 13px;
   line-height: 18px;
   font-weight: 600;
@@ -375,8 +399,13 @@ html {
   line-height: 18px;
   overflow-wrap: anywhere;
 }
-.ft-sidebar__account > span:first-child {
+.ft-sidebar__name {
   font-weight: 600;
+}
+/* An email address never clips: it wraps anywhere, and its title has it whole. */
+.ft-sidebar__email {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ft-sidebar__foot {
   margin-top: auto;
@@ -390,59 +419,78 @@ html {
   margin-top: var(--space-2);
   align-self: flex-start;
 }
-/* A neutral button on the green: an on-brand outline over the green. */
-.ft-sidebar .ft-btn {
-  border-color: var(--on-brand);
-  background: transparent;
-  color: var(--on-brand);
+
+/* Navigation: the workspace's own pages, then the open grant's pages under its
+   name (or, outside a grant, the grants), then Add a grant, quiet, last. */
+.ft-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
-.ft-sidebar .ft-btn:hover {
-  background: var(--brand-2);
-}
-.ft-nav,
 .ft-nav ul {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ft-nav__grants {
-  padding-left: var(--space-3) !important;
+.ft-nav__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-/* The current grant's pages sit behind a thin vertical rule. */
-.ft-nav__children {
-  margin: 2px 0 2px 13px !important;
-  padding-left: 10px !important;
-  border-left: 1px solid var(--brand-rule-strong);
+.ft-nav__label {
+  padding: var(--space-3) var(--space-2) 6px;
+  overflow: hidden;
+  color: var(--on-brand-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ft-nav__item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: var(--control-sm);
-  padding: 5px var(--space-2);
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  min-height: var(--control-md);
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-md);
   color: var(--on-brand);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 14px;
+  line-height: 20px;
   text-decoration: none;
 }
-.ft-nav__item > span:first-child {
+.ft-nav__icon {
+  flex: none;
+  opacity: 0.8;
+}
+.ft-nav__text {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ft-nav__item:hover,
+/* A grant in the list has no icon; its name lines up with the items' words. */
+.ft-nav__grants .ft-nav__item {
+  padding-left: calc(var(--space-2) + 16px + 10px);
+}
+.ft-nav__item--quiet {
+  color: var(--on-brand-muted);
+}
+.ft-nav__item:hover {
+  background: var(--brand-hover);
+  color: var(--on-brand);
+}
 .ft-nav__item.is-active {
   background: var(--brand-2);
-}
-.ft-nav__item.is-active,
-.ft-nav__item--grant {
+  color: var(--on-brand);
   font-weight: 600;
+}
+.ft-nav__item:hover .ft-nav__icon,
+.ft-nav__item.is-active .ft-nav__icon {
+  opacity: 1;
 }
 .ft-nav__item:focus-visible {
   outline-offset: -2px;
@@ -467,6 +515,12 @@ html {
   background: var(--conflict-tint);
   color: var(--conflict);
 }
+/* On the green a count is a solid on-brand pill with green text: calm, but
+   plain to see that something there needs you. Never yellow, never the red. */
+.ft-sidebar .ft-count {
+  background: var(--on-brand);
+  color: var(--brand);
+}
 .ft-main {
   display: flex;
   flex-direction: column;
@@ -483,13 +537,20 @@ html {
   border-bottom: 1px solid var(--rule);
   background: var(--paper-raised);
 }
+/* One line at every width. Each crumb is one unit: its separator is drawn
+   inside it, it never wraps, and it ends in an ellipsis when it must shrink
+   (its title carries the full text). Earlier crumbs give way; the page's own
+   crumb, often an ID, keeps its whole width unless it alone is wider than the
+   bar. */
 .ft-crumbs {
   display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   list-style: none;
   color: var(--ink-muted);
   font-size: 13px;
@@ -497,9 +558,11 @@ html {
   white-space: nowrap;
 }
 .ft-crumbs li {
-  min-width: 0;
+  flex: 0 100 auto;
+  min-width: 4ch;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ft-crumbs li + li::before {
   content: "/";
@@ -508,7 +571,8 @@ html {
   font-weight: 400;
 }
 .ft-crumbs [aria-current="page"] {
-  flex: none;
+  flex: 0 0 auto;
+  min-width: 0;
   max-width: 100%;
   color: var(--ink);
   font-weight: 600;
@@ -536,8 +600,10 @@ html {
 /* Narrow screens: the sidebar becomes a block above the page, its links wrap
    in rows, and nothing scrolls sideways. */
 @media (max-width: 899px) {
+  /* The sidebar takes its own height; the page below takes the rest. */
   .ft-app {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
   }
   .ft-sidebar,
   .ft-fake-banner ~ .ft-app .ft-sidebar {
@@ -545,28 +611,23 @@ html {
     height: auto;
     overflow: visible;
     flex-flow: row wrap;
+    align-content: flex-start;
     align-items: center;
     gap: var(--space-2) var(--space-4);
   }
   .ft-sidebar > .ft-nav {
     flex: 1 1 100%;
+    gap: 0;
   }
-  .ft-nav,
   .ft-nav ul {
     flex-flow: row wrap;
-    align-items: flex-start;
+    gap: 2px var(--space-1);
   }
-  .ft-nav__grants {
-    padding-left: 0 !important;
+  .ft-nav__label {
+    padding: var(--space-2) var(--space-2) var(--space-1);
   }
-  .ft-nav__children {
-    margin: 0 0 0 var(--space-1) !important;
-    padding-left: var(--space-1) !important;
-  }
-  .ft-nav li {
-    display: flex;
-    flex-flow: row wrap;
-    gap: 2px;
+  .ft-nav__grants .ft-nav__item {
+    padding-left: var(--space-2);
   }
   .ft-sidebar__foot {
     flex: 1 1 100%;
@@ -806,9 +867,12 @@ html {
 
 /* --- Buttons and sign-in --- */
 
-/* Every button is an outline over a solid fill. Neutral: a 1px ink outline over
-   paper-raised. The one action a view is for adds ft-btn--main, a 2px outline.
-   Approve and Reject carry a check or an x as well as their color. */
+/* The one action a page is for (ft-btn--main) is filled in the action green,
+   so it can't be missed; Confirm, Sign off and Accept as that action are the
+   same, with their check. Every other button is quiet: a white fill inside
+   the control border, the same edge as the inputs beside it. Approve and
+   Reject outside the main action stay outlined in their colors, each with its
+   check or x, and keep those colors on hover and press. */
 .ft-btn {
   display: inline-flex;
   align-items: center;
@@ -816,7 +880,7 @@ html {
   gap: 6px;
   min-height: var(--control-md);
   padding: 0 var(--space-3);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--paper-raised);
   color: var(--ink);
@@ -828,19 +892,18 @@ html {
   white-space: nowrap;
   cursor: pointer;
 }
-.ft-btn:hover {
+/* Hover and press for neutral buttons only; each variant below has its own. */
+.ft-btn:not(.ft-btn--main, .ft-btn--approve, .ft-btn--reject, .ft-btn--quiet):hover {
+  border-color: var(--control-border-hover);
   background: var(--paper-sunken);
+}
+.ft-btn:not(.ft-btn--main, .ft-btn--approve, .ft-btn--reject, .ft-btn--quiet):active {
+  border-color: var(--control-border-hover);
+  background: var(--rule);
 }
 .ft-btn--sm {
   min-height: var(--control-sm);
   padding: 0 10px;
-}
-.ft-btn--main {
-  border-width: 2px;
-  padding: 0 calc(var(--space-3) - 1px);
-}
-.ft-btn--sm.ft-btn--main {
-  padding: 0 9px;
 }
 .ft-btn--approve {
   border-color: var(--approve);
@@ -853,8 +916,24 @@ html {
   color: var(--reject);
 }
 .ft-btn--approve:hover,
+.ft-btn--approve:active {
+  border-color: var(--approve);
+  background: var(--approve-tint);
+  color: var(--approve);
+}
+.ft-btn--reject:hover,
+.ft-btn--reject:active {
+  border-color: var(--reject);
+  background: var(--conflict-tint);
+  color: var(--reject);
+}
+.ft-btn--approve:hover,
 .ft-btn--reject:hover {
   filter: brightness(0.97);
+}
+.ft-btn--approve:active,
+.ft-btn--reject:active {
+  filter: brightness(0.93);
 }
 .ft-btn--approve::before,
 .ft-btn--reject::before {
@@ -872,6 +951,31 @@ html {
 .ft-btn--reject {
   --ft-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5l7 7M9.5 2.5l-7 7' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
+/* The main action: filled. Reject is never filled, even as the main action. */
+.ft-btn--main,
+.ft-btn--approve.ft-btn--main {
+  border-color: var(--brand-action);
+  background: var(--brand-action);
+  color: var(--on-brand-action);
+  filter: none;
+}
+.ft-btn--main:hover,
+.ft-btn--approve.ft-btn--main:hover {
+  border-color: var(--brand-action-hover);
+  background: var(--brand-action-hover);
+  filter: none;
+}
+.ft-btn--main:active,
+.ft-btn--approve.ft-btn--main:active {
+  border-color: var(--brand-action-press);
+  background: var(--brand-action-press);
+  filter: none;
+}
+.ft-btn--reject.ft-btn--main {
+  border-color: var(--reject);
+  background: var(--conflict-tint);
+  color: var(--reject);
+}
 /* Underlined text with no outline, for low-stakes toggles inside a card. */
 .ft-btn--quiet {
   border-color: transparent;
@@ -881,21 +985,42 @@ html {
   text-underline-offset: var(--underline-offset);
 }
 .ft-btn--quiet:hover {
+  border-color: transparent;
   background: var(--paper-sunken);
 }
-/* Disabled or busy: a dashed rule-strong outline and muted text, no fill, and
-   never lowered opacity. */
-.ft-btn:disabled,
-.ft-btn.is-busy,
-.ft-btn[aria-disabled="true"] {
-  border: 1px dashed var(--rule-strong);
+/* Disabled or busy, main or not: a dashed outline in the control border's
+   color (so a live button is never fainter), muted text, no fill, and never
+   lowered opacity. The doubled class outranks every variant's hover and press. */
+.ft-btn.ft-btn:disabled,
+.ft-btn.ft-btn.is-busy,
+.ft-btn.ft-btn[aria-disabled="true"] {
+  border: 1px dashed var(--control-border);
   background: transparent;
   color: var(--ink-muted);
   filter: none;
   cursor: not-allowed;
 }
-.ft-btn.is-busy {
+.ft-btn.ft-btn.is-busy {
   cursor: progress;
+}
+/* On the green sidebar: an on-brand outline over the green, and the green's
+   own muted tone when disabled or busy (6.4:1 on --brand). */
+.ft-sidebar .ft-btn {
+  border-color: var(--on-brand);
+  background: transparent;
+  color: var(--on-brand);
+}
+.ft-sidebar .ft-btn:hover,
+.ft-sidebar .ft-btn:active {
+  border-color: var(--on-brand);
+  background: var(--brand-2);
+}
+.ft-sidebar .ft-btn.ft-btn:disabled,
+.ft-sidebar .ft-btn.ft-btn.is-busy,
+.ft-sidebar .ft-btn.ft-btn[aria-disabled="true"] {
+  border: 1px dashed var(--on-brand-muted);
+  background: transparent;
+  color: var(--on-brand-muted);
 }
 .ft-linkbtn:disabled {
   color: var(--ink-muted);
@@ -952,7 +1077,7 @@ html {
 /* --- Form controls --- */
 
 /* Styled once for every screen. :where() keeps these at zero specificity, so a
-   screen's own rules for its fields still win. A rule-strong border, radius-sm,
+   screen's own rules for its fields still win. The control border, radius-sm,
    and the 2px focus outline from :focus-visible above. */
 :where(
     input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]),
@@ -963,7 +1088,7 @@ html {
   max-width: 100%;
   margin: 0;
   padding: 0 var(--space-2);
-  border: 1px solid var(--rule-strong);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
   color: var(--ink);
@@ -988,7 +1113,7 @@ html {
     select,
     textarea
   ):hover {
-  border-color: var(--ink-muted);
+  border-color: var(--control-border-hover);
 }
 :where(
     input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]),
@@ -1027,7 +1152,7 @@ input[type="file"]::file-selector-button {
   min-height: var(--control-md);
   margin-right: var(--space-3);
   padding: 0 var(--space-3);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--paper-raised);
   color: var(--ink);
@@ -1036,11 +1161,12 @@ input[type="file"]::file-selector-button {
   cursor: pointer;
 }
 input[type="file"]::file-selector-button:hover {
+  border-color: var(--control-border-hover);
   background: var(--paper-sunken);
 }
 input[type="file"]:disabled::file-selector-button {
   border-style: dashed;
-  border-color: var(--rule-strong);
+  border-color: var(--control-border);
   background: transparent;
   color: var(--ink-muted);
   cursor: not-allowed;
