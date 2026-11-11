@@ -94,6 +94,40 @@ describe("HeldMailList", () => {
     }
   });
 
+  describe("with several held messages", () => {
+    const several = ["held-a", "held-b", "held-c"].map((id, i) => ({
+      ...SAMPLE_HELD_MAIL[0]!,
+      id,
+      subject: `Invoice ${i + 1}`,
+    }));
+
+    it("fills no button: each row's Let in is an outlined approve, Dismiss its quiet partner", () => {
+      const { Wrapper } = fakeHarness();
+      const { container } = render(<HeldMailList mail={several} />, { wrapper: Wrapper });
+      expect(container.querySelectorAll(".ft-btn--main")).toHaveLength(0);
+      for (const n of [1, 2, 3]) {
+        const row = screen.getByRole("listitem", { name: `Held message Invoice ${n}` });
+        expect(within(row).getByRole("button", { name: "Let in" })).toHaveClass("ft-btn", "ft-btn--sm", "ft-btn--approve");
+        expect(within(row).getByRole("button", { name: "Dismiss" })).toHaveClass("ft-btn", "ft-btn--sm", "ft-btn--quiet");
+      }
+    });
+
+    it("sends each row's own action, as before", async () => {
+      const { writeRecord, Wrapper } = fakeHarness();
+      render(<HeldMailList mail={several} />, { wrapper: Wrapper });
+      fireEvent.click(within(screen.getByRole("listitem", { name: "Held message Invoice 2" })).getByRole("button", { name: "Let in" }));
+      await waitFor(() => expect(writeRecord).toHaveBeenCalledTimes(1));
+      expect(writeRecord).toHaveBeenLastCalledWith("grant-sample", {
+        data: { kind: "mail_action", held_mail_id: "held-b", action: "let_in" },
+      });
+      fireEvent.click(within(screen.getByRole("listitem", { name: "Held message Invoice 3" })).getByRole("button", { name: "Dismiss" }));
+      await waitFor(() => expect(writeRecord).toHaveBeenCalledTimes(2));
+      expect(writeRecord).toHaveBeenLastCalledWith("grant-sample", {
+        data: { kind: "mail_action", held_mail_id: "held-c", action: "dismiss" },
+      });
+    });
+  });
+
   it("says so when no mail is held", () => {
     render(<HeldMailList mail={[]} />);
     expect(screen.getByText("No mail is held.")).toBeInTheDocument();

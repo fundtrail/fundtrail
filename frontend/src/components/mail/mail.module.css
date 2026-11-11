@@ -155,4 +155,9 @@
   .filesLabel {
     width: 100%;
   }
+  /* Touch targets: each of a row's two buttons at least 44px tall. */
+  .actions :global(.ft-btn) {
+    min-height: 44px;
+    padding-inline: var(--space-4);
+  }
 }

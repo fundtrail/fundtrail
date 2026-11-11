@@ -99,10 +99,12 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
           {DONE_LABELS[done]}
         </p>
       ) : (
+        // A row's actions repeat on every held message, so neither is the page's
+        // filled main button: Let in is the outlined approve, Dismiss its quiet partner.
         <div className={styles.actions}>
           <button
             type="button"
-            className={`ft-btn ft-btn--main ft-btn--sm${busy("let_in")}`}
+            className={`ft-btn ft-btn--sm ft-btn--approve${busy("let_in")}`}
             disabled={saving}
             onClick={() => {
               setPressed("let_in");
@@ -113,7 +115,7 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
           </button>
           <button
             type="button"
-            className={`ft-btn ft-btn--sm${busy("dismiss")}`}
+            className={`ft-btn ft-btn--sm ft-btn--quiet${busy("dismiss")}`}
             disabled={saving}
             onClick={() => {
               setPressed("dismiss");
