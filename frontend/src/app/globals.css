@@ -48,9 +48,6 @@
   --brand-action-press: #0f4a38;
   --on-brand-action: #ffffff;
 
-  /* A hairline for dividers and quiet rules only, never a control's edge. */
-  --hairline-strong: #c9cec8;
-
   /* The edge of every control (neutral buttons, the file picker's button,
      inputs, selects): the same as --rule-strong, at least 3:1 on paper and
      paper-raised in both themes. Hover darkens it. A disabled control's
@@ -144,7 +141,6 @@
     --brand-action: #1f7d5e;
     --brand-action-hover: #1a7356;
     --brand-action-press: #17654c;
-    --hairline-strong: #4b5159;
     --shadow-float: 0 1px 2px #00000066, 0 8px 24px #00000099;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

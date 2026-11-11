@@ -208,6 +208,19 @@ function GrantPages({ grantId, name, count }: { grantId: Id; name: string; count
   );
 }
 
+/** An email address that, when it must wrap, breaks after the "@" first. */
+function Email({ address }: { address: string }) {
+  const at = address.indexOf("@");
+  if (at === -1) return <>{address}</>;
+  return (
+    <>
+      {address.slice(0, at + 1)}
+      <wbr />
+      {address.slice(at + 1)}
+    </>
+  );
+}
+
 function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
   const grantName = useGrantDisplayName();
   const auth = useAuth();
@@ -288,12 +301,12 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
               <>
                 <span className="ft-sidebar__name">{user.name}</span>
                 <span className="ft-caption ft-sidebar__email" title={user.email}>
-                  {user.email}
+                  <Email address={user.email} />
                 </span>
               </>
             ) : (
               <span className="ft-sidebar__name ft-sidebar__email" title={user.email}>
-                {user.email}
+                <Email address={user.email} />
               </span>
             )}
             <span className="ft-caption">{signedInWith(user)}</span>
