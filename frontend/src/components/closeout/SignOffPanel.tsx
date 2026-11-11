@@ -202,8 +202,13 @@ export function SignOffPanel({
         </h2>
       </div>
       <StateLine signOff={signOff} />
+      {signed && (
+        <p className="ft-co-done" role="status">
+          Signed off {date(signed.written_at)}. The report now carries your sign-off.
+        </p>
+      )}
 
-      <form className="ft-co-form" onSubmit={signOffNow} aria-label="Sign off">
+      <form className={`ft-co-form${again ? " is-again" : ""}`} onSubmit={signOffNow} aria-label="Sign off">
         <div className={`ft-field${refusal ? " is-invalid" : ""}`}>
           <label htmlFor={noteId} className="ft-field__label">
             Note
@@ -246,11 +251,6 @@ export function SignOffPanel({
         </div>
       </form>
 
-      {signed && (
-        <p className="ft-co-done" role="status">
-          Signed off {date(signed.written_at)}. The report now carries your sign-off.
-        </p>
-      )}
       {signOff.sign_off && !signed && (
         <WithdrawSignOff grantId={grantId} signOffId={signOff.sign_off.id} onWithdrawn={onSigned} />
       )}

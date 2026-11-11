@@ -52,8 +52,7 @@
 }
 .ft-co-steps {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: var(--co-cols);
   column-gap: var(--space-3);
   margin: var(--space-1) 0 0;
   padding: 0;
@@ -130,8 +129,7 @@
 /* Narrow: the trail turns into a list with the line down the left. */
 @container (max-width: 680px) {
   .ft-co-steps {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
+    grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-4);
   }
   .ft-co-step {
@@ -174,20 +172,28 @@
   gap: var(--space-4);
   min-width: 0;
 }
+/* The report and sign-off stay in view; a tall sign-off scrolls inside its own column. */
 .ft-co-side {
   position: sticky;
   top: var(--space-4);
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
   min-width: 0;
+  border-radius: var(--radius-md);
 }
 .ft-fake-banner ~ .ft-app .ft-co-side {
   top: calc(var(--fake-banner-height) + var(--space-4));
+  max-height: calc(100vh - var(--fake-banner-height) - 2 * var(--space-4));
 }
 @media (max-width: 1099px) {
   .ft-co-split {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ft-co-side {
+  .ft-co-side,
+  .ft-fake-banner ~ .ft-app .ft-co-side {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -272,7 +278,78 @@
   padding-left: var(--space-5);
 }
 
+/* Phone width: each expense becomes a small block instead of a sideways scroll. */
+@media (max-width: 640px) {
+  .ft-co-table,
+  .ft-co-table tbody {
+    display: block;
+  }
+  .ft-co-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ft-co-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "date amount" "charge charge" "bucket show";
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--rule);
+  }
+  .ft-co-table tr.ft-co-detail {
+    display: block;
+    padding: 0;
+    border-top: 0;
+  }
+  .ft-co-table tr.ft-co-detail td {
+    display: block;
+  }
+  .ft-co-table tr:not(.ft-co-detail) td {
+    padding: 0;
+    border-top: 0;
+  }
+  .ft-co-table td:nth-child(1) {
+    grid-area: date;
+  }
+  .ft-co-table td:nth-child(2) {
+    grid-area: charge;
+  }
+  .ft-co-table td:nth-child(3) {
+    grid-area: amount;
+  }
+  .ft-co-table td:nth-child(4) {
+    grid-area: bucket;
+  }
+  .ft-co-table td:nth-child(5) {
+    grid-area: show;
+  }
+}
+
 /* --- The report and the sign-off, one panel --- */
+
+.ft-co-side {
+  container-type: inline-size;
+}
+/* Stacked under the left column, the report and the sign-off sit side by side. */
+@container (min-width: 680px) {
+  .ft-co-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ft-co-pair .ft-co-sign {
+    border-top: 0;
+    border-left: 1px solid var(--rule);
+  }
+}
+.ft-co-report > p,
+.ft-co-sign > p,
+.ft-co-state {
+  max-width: var(--measure);
+}
 
 .ft-co-side .ft-panel {
   overflow: visible;
@@ -430,16 +507,20 @@
   border-radius: var(--radius-sm);
   background: var(--paper-sunken);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .ft-co * {
-    transition: none !important;
-    animation: none !important;
-  }
+/* Signing off again: a little space between the stored sign-off and the new note. */
+.ft-co-form.is-again {
+  margin-top: var(--space-2);
 }
 
 .ft-co-amount {
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-co * {
+    transition: none !important;
+    animation: none !important;
+  }
 }

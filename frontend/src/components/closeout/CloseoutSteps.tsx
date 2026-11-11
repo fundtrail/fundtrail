@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
 import "./closeout.css";
@@ -92,7 +92,10 @@ export function CloseoutSteps({ summary, links }: { summary: GrantSummary; links
             </>
           )}
         </p>
-        <ol className="ft-co-steps">
+        <ol
+          className="ft-co-steps"
+          style={{ "--co-cols": list.map((n) => (n.mark === "now" ? "minmax(88px, 0.6fr)" : "minmax(0, 1fr)")).join(" ") } as CSSProperties}
+        >
           {list.map((n, i) => (
             <li
               key={n.key}

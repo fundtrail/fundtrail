@@ -87,7 +87,7 @@ export function CloseoutScreen() {
           </div>
 
           <aside className="ft-co-side" aria-label="Evidence report and sign-off">
-            <div className="ft-panel">
+            <div className="ft-panel ft-co-pair">
               <Loadable result={grant}>{(data) => <ReportDraft grantId={grantId} signOff={data.sign_off} />}</Loadable>
               <Loadable result={grant}>
                 {(data) => <SignOffPanel grantId={grantId} signOff={data.sign_off} onSigned={() => refresh()} />}
