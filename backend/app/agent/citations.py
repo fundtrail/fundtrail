@@ -124,9 +124,18 @@ def standing_occurrences(text: str, start: int, end: int, value_text: str) -> li
     found: list[int] = []
     if not value_text:
         return found
+    wraps = "\n" in value_text or "\r" in value_text
     pos = text.find(value_text, start)
     while 0 <= pos and pos + len(value_text) <= end:
-        if value_in_span(value_text, text, pos, pos + len(value_text)):
+        after = pos + len(value_text)
+        if wraps:
+            # A value that runs over a line break, as the passage writes it (#269): prose,
+            # so standing on its own is only not running into a word on either side.
+            if (pos == 0 or not text[pos - 1].isalnum()) and (
+                after >= len(text) or not text[after].isalnum()
+            ):
+                found.append(pos)
+        elif value_in_span(value_text, text, pos, after):
             found.append(pos)
         pos = text.find(value_text, pos + 1)
     return found
@@ -263,6 +272,23 @@ def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
     return citation
 
 
+def as_written(value_text: str, passage: str) -> str:
+    """The value as the passage writes it (#269).
+
+    A label line holds one line, so a value that wraps in the document, such as a statement's
+    whole sentence, comes with a space where the document breaks the line. A run of whitespace
+    in the value matches any run of whitespace in the passage, and when the value appears there
+    exactly once that way, the passage's own characters are returned. Otherwise the value.
+    """
+    if not value_text or value_text in passage:
+        return value_text
+    words = value_text.split()
+    if not words:
+        return value_text
+    found = list(re.finditer(r"\s+".join(re.escape(w) for w in words), passage))
+    return found[0].group(0) if len(found) == 1 else value_text
+
+
 def resolve_citation(
     line_text: str, raw_citations: Sequence[Any], documents: Sequence[SentDocument]
 ) -> dict[str, Any]:
@@ -278,10 +304,11 @@ def resolve_citation(
         )
     doc = documents[int(index)]
     kind = _get(raw, "type")
+    value_text = as_written(line_text, _get(raw, "cited_text") or "")
     if kind == "char_location" and doc.kind == "text":
-        return _char_citation(doc, raw, line_text)
+        return _char_citation(doc, raw, value_text)
     if kind == "page_location" and doc.kind == "pdf":
-        return _page_citation(doc, raw, line_text)
+        return _page_citation(doc, raw, value_text)
     raise CitationProblem(
         f"the citation for '{line_text}' is a {kind}, which FundTrail doesn't read"
     )

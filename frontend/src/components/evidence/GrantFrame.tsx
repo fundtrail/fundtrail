@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
-import { grantName } from "@/components/GrantList";
 import { useGrant, type Id } from "@/lib/api";
+import { useGrantDisplayName } from "@/lib/grantName";
 
 /** The app frame for the evidence screens, with the grant's name first in the breadcrumbs. */
 export function GrantFrame({ grantId, crumbs, children }: { grantId: Id; crumbs: string[]; children: ReactNode }) {
+  const grantName = useGrantDisplayName();
   const grant = useGrant(grantId);
   const summary = grant.data?.summary;
   return (

@@ -1,4 +1,12 @@
-/* Evidence cards and the confirm screen, on the design system's tokens (globals.css). */
+/*
+ * Evidence cards and the confirm screen, on the design system's tokens
+ * (globals.css). One fact per row: label, the value, its quote in the serif,
+ * then where it is and whether it's confirmed.
+ *
+ * Yellow means an exact passage from the file, and nothing else. On a card it
+ * is a quiet band behind the lower part of the line, so a page of cards stays
+ * calm; the full highlighter block belongs to the viewer.
+ */
 
 .cards {
   display: flex;
@@ -6,11 +14,30 @@
   gap: var(--space-4);
 }
 
+/* The card's band: the highlighter in light. In dark, light text can't sit on
+   yellow, so the band is a quarter of the highlight mixed into the card's
+   paper: a muted stripe that keeps ink on it above 4.5:1 (about 5.8:1). It
+   uses the highlight and paper tokens, not the photo wash, so a change to the
+   wash can't make text on it unreadable. */
+.card,
+.confirmList {
+  --e-band: var(--hl);
+}
+@media (prefers-color-scheme: dark) {
+  .card,
+  .confirmList {
+    --e-band: color-mix(in srgb, var(--highlight) 25%, var(--paper-raised));
+  }
+}
+
 .card {
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   background: var(--paper-raised);
+  overflow: hidden;
 }
+
+/* --- Card head: the file ------------------------------------------------------ */
 
 .head {
   display: flex;
@@ -22,10 +49,35 @@
   border-bottom: 1px solid var(--rule);
 }
 
+.fileName {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.fileName:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.fileName:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
+  gap: 2px 0;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.meta > span + span::before {
+  content: "·";
+  padding: 0 var(--space-2);
 }
 
 .problems {
@@ -35,7 +87,18 @@
   border-bottom: 1px solid var(--rule);
   background: var(--needs-human-tint);
   color: var(--needs-human);
+  font-size: 13px;
+  font-weight: 600;
 }
+
+.noFacts {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* --- Facts -------------------------------------------------------------------- */
 
 .facts {
   margin: 0;
@@ -44,7 +107,6 @@
 }
 
 .fact {
-  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--rule);
 }
 .fact:first-child {
@@ -56,39 +118,85 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+}
+/* Waiting for the accountant: the needs-human tint, as the problem list uses it. */
+.factHeadWaiting {
+  padding-bottom: var(--space-2);
+  background: var(--needs-human-tint);
+  border-bottom: 1px solid var(--rule);
+}
+.factHeadWaiting + * {
+  margin-top: var(--space-1);
+}
+
+.factTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.waitingTag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--needs-human);
+}
+
+.noValues {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 
 .values {
-  display: grid;
-  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
   margin: 0;
-}
-.values dt {
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 600;
-  padding-top: 2px;
-}
-.values dd {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  padding: 0 var(--space-4);
 }
 
-.quote {
-  display: block;
-  padding: var(--space-1) var(--space-2);
-  border-left: 3px solid var(--rule-strong);
-  background: var(--paper-sunken);
-  color: var(--ink);
-  text-decoration: none;
-  white-space: pre-wrap;
+.valueRow {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
 }
-.quote:hover {
-  border-left-color: var(--ledger);
+.valueRow:first-child {
+  border-top: 0;
+}
+@media (max-width: 640px) {
+  .valueRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.valueRow dt {
+  padding-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.valueRow dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+}
+
+.value {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  font-size: 12px;
+  color: var(--ink-muted);
 }
 
 .unconfirmed {
@@ -96,23 +204,187 @@
   font-weight: 600;
 }
 
-.links {
-  margin: var(--space-2) 0 0;
+/* --- The quote ----------------------------------------------------------------- */
+
+.quoteWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 72ch;
+}
+
+/* A quote opens the viewer at its spot, so it reads as a link before hover:
+   a small arrow at its end (the band under it is the highlighter, so an
+   underline would read as a second band), and an underline on hover. A value
+   that links on its own has a quiet underline in the rule color. */
+.quote {
+  color: var(--ink);
+  text-decoration: none;
+}
+.quote:hover .quoteText {
+  text-decoration-line: underline;
+  text-decoration-color: var(--ink-muted);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.opens {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-left: 5px;
+  vertical-align: 0;
+  color: var(--ink-muted);
+}
+.quote:hover .opens {
+  color: var(--ink);
+}
+.valueLink {
+  color: var(--ink);
+  text-decoration-line: underline;
+  text-decoration-color: var(--rule-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.valueLink:hover {
+  text-decoration-color: var(--ink);
+}
+.quote:focus-visible,
+.valueLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.quote {
+  display: block;
+  max-width: 72ch;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* A photo's box has no passage: it says so plainly, never on the highlighter. */
+.quoteBox {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.quoteBox:hover {
+  color: var(--ink);
+}
+
+.quoteText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* An excerpt runs as one paragraph: its line breaks are the file's, not the card's. */
+.excerpt {
+  white-space: normal;
+}
+
+.ellipsis {
+  color: var(--ink-muted);
+}
+
+/* The value's own characters inside its quote. */
+.valueChars {
+  font-weight: 600;
+}
+
+/* The quiet highlighter: a band behind the lower part of the line. */
+.hl {
+  padding: 0 1px;
+  background: linear-gradient(to bottom, transparent 55%, var(--e-band) 55%);
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Said to a screen reader, never shown: the mark means an exact passage. */
+.hl::before {
+  content: "highlighted: ";
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* "Close match on the page", beside a quote that isn't word for word. */
+.matchNote {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Values that cite one passage: the rows sit together, and the passage once under them. */
+.valueRowShared + .valueRowShared,
+.valueRowShared + .sharedQuote {
+  border-top: 0;
+  padding-top: 0;
+}
+.sharedQuote dd {
+  grid-column: 2;
+}
+@media (max-width: 640px) {
+  .sharedQuote dd {
+    grid-column: 1;
+  }
+}
+
+.more {
   padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.more:hover {
+  color: var(--ink);
+}
+.more:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* --- Pays for, and the fact's action ---------------------------------------------- */
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
   list-style: none;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
 }
+.values + .actions,
+.links + .actions {
+  padding-top: var(--space-1);
+}
+
+/* --- The confirm screen ------------------------------------------------------------ */
 
 .confirmList {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  max-width: 760px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -121,11 +393,38 @@
 .confirmRow {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--paper-raised);
+}
+
+.confirmLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.readAs {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.readAs .value {
+  margin-left: 2px;
+}
+
+.waitingNote {
+  max-width: 72ch;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .choice {
@@ -133,17 +432,57 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
+  margin: var(--space-1) 0 0;
+  padding: var(--space-3) 0 0;
   border: 0;
-  margin: 0;
-  padding: 0;
+  border-top: 1px solid var(--rule);
+  align-self: stretch;
 }
 
-.input {
-  height: var(--control-md);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-sm);
-  background: var(--paper-raised);
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  font-size: 14px;
   color: var(--ink);
-  font: inherit;
+  cursor: pointer;
+}
+.radio input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* The field itself is the foundation's form control (globals.css). */
+.input {
+  min-width: 200px;
+}
+.input[aria-invalid="true"] {
+  border-color: var(--conflict);
+}
+
+.fieldError {
+  font-size: 13px;
+}
+
+.saveErrors {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--conflict-tint);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* "Open the file" beside Save: a plain link, so Save is the one main action. */
+.quietAction {
+  font-size: 13px;
 }
