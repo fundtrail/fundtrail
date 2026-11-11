@@ -41,8 +41,8 @@ class TimelineEvent(Model):
     file_id: Id | None = None  # once played or on file: the evidence file
     # Ruling 58: a short label marking the event as one of the sample's highlights,
     # shown in Coming up and Just happened. None for an ordinary event; never empty.
-    # The panel's "Next highlight" is an ordinary TimelineMove to the next highlighted
-    # event's `at` with `skip_human_steps` true. There's no route of its own.
+    # The panel's "Next highlight" is a TimelineMove with `next_highlight` true, on the
+    # same route (ruling 77).
     highlight: Text | None = None
 
 
@@ -98,6 +98,13 @@ class TimelineView(Model):
     # missing. A user's decision or a missed scripted one takes it off for good.
     # None on a sample the agent reads live.
     on_run_through: bool | None = None
+    # Ruling 72: why "Next event" and "Go to a date" can't move the clock now, in
+    # plain words, for example "Nothing is left to play." or, under the read-live
+    # limit, "The agent is still reading <the other sample>."; None when they can.
+    move_unavailable_reason: Text | None = None
+    # Ruling 72: why "Next highlight" can't move now, for example "No highlight is
+    # left to play.", or the move's own reason; None when it can.
+    next_highlight_unavailable_reason: Text | None = None
 
 
 class TimelineMove(Model):
@@ -118,6 +125,12 @@ class TimelineMove(Model):
     # accountant performs it through the ordinary write paths, as its author. A
     # scripted action whose target isn't there is left for the user.
     skip_human_steps: bool = False
+    # Ruling 77: "Next highlight". The server moves to the next highlighted event or
+    # ledger line itself (a charge that posts later carries its label on its ledger
+    # line). It makes the scripted steps before it with the sample accountant, leaves
+    # the highlight's own step for the user, and never makes a sign-off on this move.
+    # `to` is ignored when this is true.
+    next_highlight: bool = False
 
 
 class TimelineStartOver(Model):
