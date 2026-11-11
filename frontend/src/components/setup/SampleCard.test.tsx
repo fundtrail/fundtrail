@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, SampleRefusalError, type GrantSummary, type SampleOption } from "@/lib/api";
 import { readRefusal, SampleCard } from "./SampleCard";
@@ -51,6 +51,10 @@ describe("SampleCard", () => {
     choose("larger_live");
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(openSample).not.toHaveBeenCalled();
+    // The question says it once, without repeating the sample's name (issue 302).
+    const confirm = screen.getByRole("group", { name: "Confirm the sample" });
+    expect(within(confirm).getByText("The agent reads this sample live from the start. Start it?")).toBeInTheDocument();
+    expect(confirm).not.toHaveTextContent("Larger sample, read live");
     fireEvent.click(screen.getByRole("button", { name: "Start it" }));
     await waitFor(() => expect(onOpened).toHaveBeenCalled());
     expect(openSample).toHaveBeenCalledWith({ choice: "larger_live", confirmed: true });
