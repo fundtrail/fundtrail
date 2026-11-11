@@ -150,6 +150,14 @@ class WriteTerm(_In):
     replaces_id: str | None = None
 
 
+class ShareIn(_In):
+    """A share of a bill, as a document gives it, such as "56 of the 96 samples" (0021)."""
+
+    share: Value = Field(description="This grant's part, for example 56.")
+    out_of: Value = Field(description="The whole it's a part of, for example 96.")
+    total: Value = Field(description="The bill's total the share is of.")
+
+
 class LinkIn(_In):
     record_id: str = Field(description="The bill, approval or note.")
     charge_id: str
@@ -164,6 +172,20 @@ class LinkIn(_In):
     default_item: str | None = None
     reason: str | None = None
     replaces_id: str | None = Field(None, description="A fix to an existing link. It waits.")
+    stated_amount: Value | None = Field(
+        None,
+        description=(
+            "For a link for part of a bill: the bill's own line that states this charge's part, "
+            "cited."
+        ),
+    )
+    share: ShareIn | None = Field(
+        None,
+        description=(
+            "For a link for part of a bill: the share a document gives for this charge, such as "
+            '"56 of the 96 samples", with the share, the whole and the bill\'s total cited.'
+        ),
+    )
 
 
 class AssignBudgetLine(_In):
@@ -239,6 +261,13 @@ class DisputeIn(_In):
     quotes: list[Quote] = Field(min_length=1)
 
 
+class SuggestRemainder(_In):
+    record_id: str = Field(description="The bill whose rest belongs to another award.")
+    other_award: Value = Field(description="The award the passage names, cited.")
+    reason: str
+    quotes: list[Quote] = Field(default_factory=list[Quote])
+
+
 class MarkDuplicate(_In):
     copy_file_id: str
     original_file_id: str
@@ -281,9 +310,9 @@ class FileRef(_In):
 
 # Building cited values.
 
-MONEY_FIELDS = {"total", "amount", "obligated_by_amendment", "obligated_to_date"}
+MONEY_FIELDS = {"total", "amount", "obligated_by_amendment", "obligated_to_date", "stated_amount"}
 DATE_FIELDS = {"dated", "approved_on", "start", "end", "effective_from", "effective_to"}
-DECIMAL_FIELDS = {"rate", "quantity"}
+DECIMAL_FIELDS = {"rate", "quantity", "share", "out_of"}  # share, out_of: a link's share
 # A category the model names from the clause's own words, with the clause cited.
 CATEGORY_FIELDS: dict[str, frozenset[str]] = {
     "scope": frozenset(scope.value for scope in ApprovalScope),
@@ -787,6 +816,17 @@ def t_link(ctx: RunContext, a: LinkIn) -> tuple[str, bool]:
     for name in ("amount_cents", "item_record_id", "default_item", "reason"):
         if getattr(a, name) is not None:
             data[name] = getattr(a, name)
+    # A link for part of a bill rests on a cited basis (0021): a line on the bill that
+    # states the part, or a share a document gives.
+    basis: list[Value] = []
+    if a.stated_amount is not None:
+        basis.append(a.stated_amount.model_copy(update={"field": "stated_amount"}))
+    if a.share is not None:
+        basis += [
+            getattr(a.share, name).model_copy(update={"field": f"share.{name}"})
+            for name in ("share", "out_of", "total")
+        ]
+    data.update(_values(ctx, basis, "link"))
     return _saved(ctx, data, a.replaces_id, "link")
 
 
@@ -962,6 +1002,17 @@ def t_dispute(ctx: RunContext, a: DisputeIn) -> tuple[str, bool]:
         "quotes": [quote(ctx, q) for q in a.quotes],
     }
     return _saved(ctx, data, None, "dispute")
+
+
+def t_suggest_remainder(ctx: RunContext, a: SuggestRemainder) -> tuple[str, bool]:
+    data: dict[str, Any] = {
+        "kind": "remainder",
+        "record_id": a.record_id,
+        "reason": a.reason,
+        "quotes": [quote(ctx, q) for q in a.quotes],
+    }
+    data.update(_values(ctx, [a.other_award.model_copy(update={"field": "other_award"})]))
+    return _saved(ctx, data, None, "suggest_remainder")
 
 
 def t_mark_duplicate(ctx: RunContext, a: MarkDuplicate) -> tuple[str, bool]:
@@ -1141,6 +1192,12 @@ TOOLS: dict[str, tuple[type[_In], Handler, str]] = {
         DisputeIn,
         t_dispute,
         "Dispute one of code's checks on a charge, with reasoning and a quote. It waits.",
+    ),
+    "suggest_remainder": (
+        SuggestRemainder,
+        t_suggest_remainder,
+        "Suggest that the rest of a bill, beyond what this grant's charges use, belongs to "
+        "another award, cited from the passage that names it. It waits.",
     ),
     "mark_duplicate": (
         MarkDuplicate,

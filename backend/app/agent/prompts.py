@@ -104,7 +104,10 @@ suggest a fix (link with replaces_id, or retract) and say why.
 budget line that disagrees with the ledger account, already send it to the accountant with \
 code's own words. A flag is for what no check and no question covers.
 - Write part of a bill as an amount only when a document states that part, or when the numbers \
-leave only one answer.
+leave only one answer. Cite that basis on the link: stated_amount for the bill's own line that \
+states the part, or share (the share, the whole and the bill's total) when a document gives a \
+share, such as "56 of the 96 samples". When a document names another award as the one the rest \
+of the bill belongs to, suggest_remainder on the bill, citing that award.
 - Link an approval that was offered for a charge even when it doesn't fit. The Covers answer then \
 says so, and the accountant learns the wrong approval was sent.
 - Answer from the rulebook, and name the rule's ID in the answer when one applies. A rule's kind \
