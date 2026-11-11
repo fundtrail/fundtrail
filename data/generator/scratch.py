@@ -305,7 +305,7 @@ def build() -> Grant:
         Row("TAX 9.25%", money(tax)),
         Row("TOTAL", money(total), style="big"),
         Row(rule=True),
-        Row("VISA ************3310", style="small"),
+        Row("CARD ************3310", style="small"),
         Row("AUTH 71082C   SALE", style="small"),
         Row("CUSTOMER COPY", style="small", align="center"),
         Row("THANK YOU FOR SHOPPING", style="small", align="center"),
@@ -314,7 +314,7 @@ def build() -> Grant:
     put_image(
         g,
         photo_name,
-        receipt(photo_name, rows, seed=2511958),
+        receipt(photo_name, rows, seed=2511958, turn=1.2),
         FOR_USER_AT,
         "upload",
         note="A phone photo of a paper receipt for well fittings, bought on the department card.",

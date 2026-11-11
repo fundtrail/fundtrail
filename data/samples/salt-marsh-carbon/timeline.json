@@ -10,7 +10,7 @@
     {"at": "2024-09-02T17:20:00Z", "kind": "file", "file": "usage_statement_SIF-2408-98.pdf", "source": "drive", "note": "Halden Stable Isotope Facility usage statement SIF-2408-98, from the lab's Drive folder."},
     {"at": "2024-09-06T00:00:00Z", "kind": "ledger_line", "line_id": "L-1835-0008"},
     {"at": "2024-10-29T04:10:00Z", "kind": "file", "file": "airfare_receipt_egu-2024.eml", "source": "gmail", "sender": "mholloway@halden.example", "note": "Maren Holloway forwards the airline receipt for Coastal Geosciences Union Fall Meeting, poster."},
-    {"at": "2024-12-16T16:15:00Z", "kind": "file", "file": "hotel_folio_egu-2024.pdf", "source": "upload", "note": "The hotel folio for Coastal Geosciences Union Fall Meeting, poster."},
+    {"at": "2024-12-16T16:15:00Z", "kind": "file", "file": "hotel_folio_egu-2024.jpg", "source": "upload", "note": "The hotel folio for Coastal Geosciences Union Fall Meeting, poster."},
     {"at": "2024-12-19T20:20:00Z", "kind": "file", "file": "expense_report_egu-2024.pdf", "source": "upload", "note": "The department's approved expense report for Coastal Geosciences Union Fall Meeting, poster."},
     {"at": "2024-12-24T00:00:00Z", "kind": "ledger_line", "line_id": "L-1835-0012"},
     {"at": "2024-12-30T18:00:00Z", "kind": "file", "file": "taxi_receipt_egu_2024.jpg", "source": "upload", "deliver": "user", "highlight": "Receipt photo you deliver", "note": "The PI's phone photo of the paper taxi receipt: hers to deliver."},
