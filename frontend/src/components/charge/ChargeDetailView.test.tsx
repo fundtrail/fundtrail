@@ -50,3 +50,27 @@ describe("RecordThreadView on the sample grant", () => {
     expect(within(box).getByRole("button", { name: /Reject/ })).toBeInTheDocument();
   });
 });
+
+describe("the title's heading level", () => {
+  it("is an h1 on the charge's own page, and an h2 when another page asks", () => {
+    const detail = sampleChargeDetails()["chg-l-1002"];
+    const { unmount } = render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Sediment DNA sequencing run 7" })).toBeInTheDocument();
+    unmount();
+    render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} headingLevel={2} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Sediment DNA sequencing run 7" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
+  });
+
+  it("is an h1 on the record's own page, and an h2 when another page asks", () => {
+    const thread = sampleThreads().records["rec-period-extension"];
+    const record = thread.entries[0].kind === "record" ? thread.entries[0].record : null;
+    const props = { recordId: "rec-period-extension", record, state: "waiting" as const, status: null, files: {}, thread, onDecide: noop, onAsk: noop };
+    const { unmount } = render(<RecordThreadView {...props} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Period of performance" })).toBeInTheDocument();
+    unmount();
+    render(<RecordThreadView {...props} headingLevel={2} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Period of performance" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
+  });
+});

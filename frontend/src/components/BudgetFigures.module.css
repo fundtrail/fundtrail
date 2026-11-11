@@ -1,0 +1,65 @@
+/* The budget as a quiet list: each line with spent of amount and a thin bar, hairlines between. */
+
+.budget {
+  min-width: 0;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.heading :global(.ft-link) {
+  font-size: 13px;
+  font-weight: 500;
+}
+.lines,
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px var(--space-4);
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+}
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.amounts {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.track {
+  grid-column: 1 / -1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--paper-sunken);
+}
+.track i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ledger);
+}
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+}
+.empty {
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
