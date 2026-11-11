@@ -23,6 +23,18 @@
   mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
 }
 
+/* A thread that fills its parent (a tab of the problem list's pane): the
+   entries take every row the ask box leaves, and the ask box sits at the
+   bottom however few entries there are. */
+.fill {
+  flex: 1 1 0;
+}
+
+.fill > .scroll {
+  flex: 1 1 0;
+  max-height: none;
+}
+
 .entries {
   list-style: none;
   margin: 0;
@@ -357,12 +369,31 @@
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
+.recordHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The record's state on the left and, when another page shows the record, the
+   link to its own page on the right: the same top row as a charge's. */
 .recordTop {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-2) var(--space-3);
   flex-wrap: wrap;
+  min-height: 24px;
+}
+
+.pageLink {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.pageLink:hover {
+  color: var(--ink);
 }
 
 .recordName {
