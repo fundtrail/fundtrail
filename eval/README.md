@@ -65,6 +65,8 @@ A wrong bucket is listed with the checks' reasons for it. Which checks fail for 
 
 One run, the real agent (claude-opus-5-5) on all five cases. Calls went through a local counting proxy, capped at $10. The report is `results/2026-11-11-first-run.txt`.
 
+It ran on main at fa0cbcb (the app, the agent, the checks and the cases), with the runner as committed in 4f2b321. The one difference is that the runner didn't yet print the checks' reasons for a wrong bucket.
+
 | Case | Buckets | Links | Budget lines | Answers | Records | Calls | Est. cost |
 |---|---|---|---|---|---|---|---|
 | credit-memo-spaced-dash | 5 / 0 / 0 | 3 / 0 / 0 | 2 / 0 / 0 | 2 / 0 / 2 | 11 / 0 / 1 | 41 | $1.17 |
