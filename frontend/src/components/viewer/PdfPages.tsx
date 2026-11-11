@@ -30,8 +30,8 @@ export default function PdfPages({ url, width, overlay, targetPage, onPageReady 
       file={url}
       options={PDF_OPTIONS}
       suspense={false}
-      loading={<p className="ft-empty">Loading the file…</p>}
-      error={<p className="ft-error">Couldn&apos;t open this PDF.</p>}
+      loading={<p className={styles.docState}>Loading the file…</p>}
+      error={<p className={`${styles.docState} ft-error`}>Couldn&apos;t open this PDF.</p>}
       onLoadSuccess={({ numPages }) => setPages(numPages)}
     >
       {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
@@ -51,6 +51,9 @@ export default function PdfPages({ url, width, overlay, targetPage, onPageReady 
           >
             {overlay(n)}
           </Page>
+          <p className={styles.pageNum}>
+            Page {n} of {pages}
+          </p>
         </div>
       ))}
     </Document>

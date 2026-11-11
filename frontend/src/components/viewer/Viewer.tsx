@@ -3,15 +3,16 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
-import type { ReadingView } from "@/lib/api/types";
-import { placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
+import type { EvidenceFile, ReadingView } from "@/lib/api/types";
+import { date, SOURCE_LABELS } from "@/lib/format";
+import { isFound, pageCaption, placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
 import { mapSpansToReading, passageInReading } from "./reading";
 import { splitBySpans } from "./textSpans";
 import styles from "./viewer.module.css";
 
 const PdfPages = dynamic(() => import("./PdfPages"), {
   ssr: false,
-  loading: () => <p className="ft-empty">Loading the PDF viewer…</p>,
+  loading: () => <p className={styles.docState}>Loading the PDF viewer…</p>,
 });
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -46,7 +47,8 @@ function placementCaption(p: Placement | null, match: CitationLike["match"]): st
 }
 
 export interface ViewerProps {
-  file: { name: string; media_type: string };
+  /** The file. Where it came from and when it arrived show in the head when given. */
+  file: { name: string; media_type: string } & Partial<Pick<EvidenceFile, "source" | "arrived_at" | "sender">>;
   /** The short-lived link to the original (GET /evidence/{file_id}/content). */
   url: string;
   /** The citation to open at; null opens the file at the top with nothing highlighted. */
@@ -106,7 +108,7 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
     body = <ImageFile url={url} name={file.name} boxes={boxes} zoom={zoom} onReady={onReady} />;
   } else {
     body = (
-      <p className="ft-empty">
+      <p className={styles.docState}>
         This kind of file can&apos;t be shown here.{" "}
         <a className="ft-link" href={url} target="_blank" rel="noreferrer">
           Open the original
@@ -116,54 +118,91 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   }
 
   const quote = placement?.kind === "unplaced" ? placement.quote : (citation?.passage ?? valueText);
+  // Yellow is only for a verbatim passage that was found in the file. A quote
+  // that couldn't be placed, and a photo's value (which has no passage), show plain.
+  const verbatim = !!citation && citation.passage !== null && isFound(citation) && placement?.kind !== "unplaced";
+  const location = citation ? pageCaption(citation) : null;
+  const source = file.source ? ((SOURCE_LABELS as Record<string, string>)[file.source] ?? file.source) : null;
 
   return (
-    <div className={styles.viewer}>
-      <section className={styles.doc} aria-label={`Viewer: ${file.name}`}>
-        <div className={styles.bar}>
-          <span className="ft-heading">{file.name}</span>
-          <div className={styles.zoom}>
-            <button type="button" className="ft-btn ft-btn--sm" onClick={() => setZoom((z) => stepZoom(z, -1))} aria-label="Zoom out">
-              −
-            </button>
-            <span className="ft-caption ft-num" aria-live="polite">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button type="button" className="ft-btn ft-btn--sm" onClick={() => setZoom((z) => stepZoom(z, 1))} aria-label="Zoom in">
-              +
-            </button>
-          </div>
+    <section className={styles.viewer} aria-label={`Viewer: ${file.name}`}>
+      <header className={styles.head}>
+        <h2 className={styles.fileName}>{file.name}</h2>
+        {(source || file.arrived_at || file.sender) && (
+          <p className={styles.meta}>
+            {source && <span>{source}</span>}
+            {file.sender && <span>From {file.sender}</span>}
+            {file.arrived_at && <span>Arrived {date(file.arrived_at)}</span>}
+          </p>
+        )}
+      </header>
+
+      <div className={styles.bar}>
+        <div className={styles.cite}>
+          {citation && (
+            <>
+              <b>{label ?? "Quote"}</b>
+              <span className={placement?.kind === "unplaced" ? styles.citeUnplaced : undefined}>
+                {placementCaption(placement, citation.match)}
+              </span>
+              {location && <span className={styles.citeLoc}>{location}</span>}
+            </>
+          )}
         </div>
+        <div className={styles.zoom}>
+          <button
+            type="button"
+            className={`${styles.zoomBtn} ${styles.zoomOut}`}
+            onClick={() => setZoom((z) => stepZoom(z, -1))}
+            aria-label="Zoom out"
+            disabled={zoom <= ZOOMS[0]}
+          />
+          <span className={styles.zoomLevel} aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className={`${styles.zoomBtn} ${styles.zoomIn}`}
+            onClick={() => setZoom((z) => stepZoom(z, 1))}
+            aria-label="Zoom in"
+            disabled={zoom >= ZOOMS[ZOOMS.length - 1]}
+          />
+        </div>
+      </div>
+
+      <div className={citation ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
         <div className={styles.scroll} ref={scrollRef} data-testid="viewer-scroll">
           {body}
         </div>
-      </section>
 
-      {citation && (
-        <aside className={styles.side} aria-label="The quote">
-          <span className="ft-label">{label ?? "Quote"}</span>
-          {valueText && <span className="ft-strong">{valueText}</span>}
-          <span className="ft-caption">{placementCaption(placement, citation.match)}</span>
-          {confirmation && (
-            <span className="ft-caption" data-testid="value-state">
-              {confirmation.text}
-            </span>
-          )}
-          {placement?.kind === "unplaced" && (
-            <p className={styles.notice} role="note">
-              Nothing is highlighted: this value couldn&apos;t be placed in the file
-              {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
-              {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
-            </p>
-          )}
-          {quote && (
-            <blockquote className={styles.quote} data-testid="side-quote">
-              {quote}
-            </blockquote>
-          )}
-        </aside>
-      )}
-    </div>
+        {citation && (
+          <aside className={styles.side} aria-label="The quote">
+            <div className={styles.active}>
+              <span className={styles.sideLabel}>{label ?? "Quote"}</span>
+              {valueText && <span className={styles.value}>{valueText}</span>}
+              {location && <span className={styles.sideMeta}>{location}</span>}
+              {confirmation && (
+                <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
+                  {confirmation.text}
+                </span>
+              )}
+            </div>
+            {placement?.kind === "unplaced" && (
+              <p className={styles.notice} role="note">
+                Nothing is highlighted: this value couldn&apos;t be placed in the file
+                {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
+                {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
+              </p>
+            )}
+            {quote && (
+              <blockquote className={styles.quote} data-testid="side-quote">
+                {verbatim ? <mark className={styles.quoteMark}>{quote}</mark> : quote}
+              </blockquote>
+            )}
+          </aside>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -209,8 +248,8 @@ function TextFile({
     if (text !== undefined) onReady();
   }, [text, onReady]);
 
-  if (failed) return <p className="ft-error">Couldn&apos;t load this file.</p>;
-  if (text === undefined) return <p className="ft-empty">Loading the file…</p>;
+  if (failed) return <p className={`${styles.docState} ft-error`}>Couldn&apos;t load this file.</p>;
+  if (text === undefined) return <p className={styles.docState}>Loading the file…</p>;
   const spans = placement?.kind === "text" ? placement.spans : [];
   return <MarkedText text={text} spans={spans} offset={0} zoom={zoom} />;
 }
@@ -236,7 +275,7 @@ function ReadingText({
   );
   return (
     <div>
-      <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }} data-testid="reading-note">
+      <p className={styles.docNote} data-testid="reading-note">
         Shown as the agent reads it, with the grant&apos;s date.{" "}
         <a className="ft-link" href={url} download>
           Download the original
@@ -260,7 +299,7 @@ function MarkedText({
 }) {
   const pieces = splitBySpans(text, spans, offset);
   return (
-    <pre className={styles.text} style={{ fontSize: `${13 * zoom}px` }} data-testid="viewer-text">
+    <pre className={styles.text} style={{ fontSize: `${14 * zoom}px`, maxWidth: `${PAGE_WIDTH * zoom}px` }} data-testid="viewer-text">
       {pieces.map((p, i) =>
         p.marked ? (
           <mark key={i} className={styles.mark} data-scroll-target={p.first ? "true" : undefined}>
@@ -295,7 +334,7 @@ function DocxPassage({
 }) {
   return (
     <div>
-      <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }}>
+      <p className={styles.docNote}>
         A Word file (.docx) can&apos;t be shown in the browser. This is the quoted passage from the file&apos;s text.{" "}
         <a className="ft-link" href={url} download>
           Download the original
@@ -346,9 +385,12 @@ function PdfFile({
   const boxes = useMemo(() => (placement?.kind === "boxes" ? placement.boxes : []), [placement]);
   // A PDF match with no stored boxes opens at its page too, with nothing outlined.
   const targetPage = placement?.kind === "unplaced" ? placement.page : null;
+  // A passage with real text is marked like a highlighter; a scanned page's
+  // box, checked by a second look, is outlined like a photo's.
+  const variant = placement?.kind === "boxes" && placement.passage === null ? "box" : "mark";
   const overlay = useCallback(
-    (page: number) => <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} />,
-    [boxes],
+    (page: number) => <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} variant={variant} />,
+    [boxes, variant],
   );
   return <PdfPages url={url} width={PAGE_WIDTH * zoom} overlay={overlay} targetPage={targetPage} onPageReady={onReady} />;
 }
@@ -372,7 +414,7 @@ function ImageFile({
     <div className={styles.page} style={{ width: `${PAGE_WIDTH * zoom}px` }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not a static asset */}
       <img src={url} alt={name} onLoad={onReady} />
-      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} />
+      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} variant="box" />
     </div>
   );
 }
