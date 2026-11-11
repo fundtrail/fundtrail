@@ -91,6 +91,9 @@
   .split {
     grid-template-columns: minmax(0, 1fr);
   }
+  .detailFirst {
+    order: -1;
+  }
 }
 @media (max-width: 760px) {
   .page {
