@@ -106,6 +106,97 @@ describe("SignOffPanel", () => {
   });
 });
 
+/** The page's main buttons: pull request 265 fills ft-btn--main, so there is at most one at a time. */
+function mainButtons() {
+  return document.querySelectorAll(".ft-btn--main");
+}
+
+describe("why sign-off is unavailable (ruling 72)", () => {
+  const reason = "The agent is still working on this grant. Sign off once it's done.";
+
+  it("shows the server's reason under Sign off, tied to the button, and sends nothing", () => {
+    const write = vi.fn();
+    setup(write, { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason });
+    const button = screen.getByRole("button", { name: "Sign off" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription(reason);
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing with a reason present, by click, by Enter in the note, or by submitting the form", () => {
+    const write = vi.fn();
+    setup(write, { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason });
+    const note = screen.getByLabelText("Note");
+    fireEvent.change(note, { target: { value: "L-1002 waits on the extension." } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+    fireEvent.keyDown(note, { key: "Enter", code: "Enter" });
+    // Enter in a textarea adds a line; the form's own submit covers any other way of sending it.
+    fireEvent.submit(screen.getByRole("form", { name: "Sign off" }));
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["null", { unavailable_reason: null }],
+    ["absent", {}],
+  ])("leaves Sign off working when the reason is %s, and sends the request", async (_, extra) => {
+    const write = vi.fn(async () => signedRecord as FtRecord);
+    setup(write, { state: "not_signed", sign_off: null, changes: [], ...extra });
+    const button = screen.getByRole("button", { name: "Sign off" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toHaveAttribute("aria-describedby");
+    expect(button).toHaveAccessibleDescription("");
+    fireEvent.click(button);
+    await waitFor(() => expect(write).toHaveBeenCalledWith("g-1", { data: { kind: "sign_off", note: null } }));
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("once signed, signing again is quiet", () => {
+  const signedState: SignOffState = { state: "signed", sign_off: signedRecord, changes: [] };
+
+  it("has one main button before signing, and keeps it when the server refuses", async () => {
+    setup(vi.fn(async () => Promise.reject(new ApiError(422, ["A note is required: 3 charges aren't ready for closeout."]))));
+    expect(mainButtons()).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(mainButtons()).toHaveLength(1);
+  });
+
+  it("leads with the stored sign-off and offers Sign off again as a quiet button, with no main button", () => {
+    setup(vi.fn(), signedState);
+    expect(screen.getByTestId("sign-off-state")).toHaveTextContent("Signed off.");
+    expect(screen.queryByLabelText("Note")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign off again" })).not.toHaveClass("ft-btn--main");
+    expect(mainButtons()).toHaveLength(0);
+  });
+
+  it("opens the same form in place, whose submit is then the one main button, and sends the same request", async () => {
+    const write = vi.fn(async () => signedRecord as FtRecord);
+    setup(write, signedState);
+    fireEvent.click(screen.getByRole("button", { name: "Sign off again" }));
+    expect(screen.getByLabelText("Note")).toHaveFocus();
+    expect(mainButtons()).toHaveLength(1);
+    const submit = screen.getByRole("button", { name: "Sign off again" });
+    expect(submit).toHaveClass("ft-btn--main");
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: " Signed again after the extension. " } });
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(write).toHaveBeenCalledWith("g-1", { data: { kind: "sign_off", note: "Signed again after the extension." } }),
+    );
+  });
+
+  it("keeps Sign off again quiet when the server says something changed", () => {
+    setup(vi.fn(), {
+      state: "changed",
+      sign_off: signedRecord,
+      changes: [{ kind: "charge", subject: "chg-l-1002", before: "possible_conflict", after: "evidence_complete" }],
+    });
+    expect(mainButtons()).toHaveLength(0);
+  });
+});
+
 describe("withdrawing a sign-off", () => {
   const signedState: SignOffState = { state: "signed", sign_off: signedRecord, changes: [] };
 

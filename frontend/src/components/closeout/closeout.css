@@ -50,14 +50,19 @@
   gap: 2px;
   max-width: var(--measure);
 }
+/* Body sans at heading size, so the grant's name above stays the page's title. */
 .ft-co-next {
-  font-family: var(--display, var(--sans));
-  font-size: 18px;
-  line-height: 24px;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 22px;
   color: var(--ink);
 }
 .ft-co-next__label {
   font-weight: 600;
+}
+/* A date never breaks across lines. */
+.ft-co-next__date {
+  white-space: nowrap;
 }
 .ft-co-end {
   font-size: 13px;
@@ -485,6 +490,31 @@
   min-height: var(--control-sm);
 }
 
+/* The submit and, when the server gives one, its reason for being unavailable right under it. */
+.ft-co-submit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.ft-co-unavailable {
+  max-width: var(--measure);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink);
+}
+/* Signed: signing again is a quiet action behind the same rule as withdrawing. */
+.ft-co-again {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+/* Signed: the report's signed line leads its panel. */
+.ft-co-report__lead {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
 .ft-co-done {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ApiError, useApi, type FtRecord, type Id, type SignOffState, type SnapshotChange } from "@/lib/api";
 import { date } from "@/lib/format";
 import "./closeout.css";
@@ -168,10 +168,19 @@ export function SignOffPanel({
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string[] | null>(null);
   const [signed, setSigned] = useState<FtRecord | null>(null);
+  // Once signed, signing again is a quiet action: the form opens in place when asked.
+  const [formOpen, setFormOpen] = useState(false);
+  // Ruling 72: the server says, in its own words, when signing off can't be done now.
+  const unavailable = signOff.unavailable_reason?.trim() || null;
+
+  // Opening the form to sign again puts the cursor in the note, the first thing to fill in.
+  useEffect(() => {
+    if (formOpen) noteRef.current?.focus();
+  }, [formOpen]);
 
   async function signOffNow(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || unavailable) return;
     setBusy(true);
     setRefusal(null);
     setSigned(null);
@@ -180,6 +189,7 @@ export function SignOffPanel({
       const record = await api.writeRecord(grantId, { data: { kind: "sign_off", note: text === "" ? null : text } });
       setSigned(record);
       setNote("");
+      setFormOpen(false);
       await onSigned(record);
     } catch (e) {
       if (e instanceof ApiError) {
@@ -194,6 +204,10 @@ export function SignOffPanel({
   }
 
   const again = signOff.state !== "not_signed";
+  // Signed: the stored sign-off leads, and the form waits behind a quiet button.
+  const showForm = !again || formOpen;
+  const reasonId = `${noteId}-unavailable`;
+
   return (
     <section className="ft-co-sign" aria-labelledby="sign-off-heading">
       <div className="ft-co-sign__head">
@@ -208,48 +222,64 @@ export function SignOffPanel({
         </p>
       )}
 
-      <form className={`ft-co-form${again ? " is-again" : ""}`} onSubmit={signOffNow} aria-label="Sign off">
-        <div className={`ft-field${refusal ? " is-invalid" : ""}`}>
-          <label htmlFor={noteId} className="ft-field__label">
-            Note
-          </label>
-          <textarea
-            id={noteId}
-            ref={noteRef}
-            className="ft-textarea"
-            rows={3}
-            value={note}
-            aria-describedby={`${noteId}-hint`}
-            aria-invalid={refusal ? true : undefined}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <span className="ft-field__hint" id={`${noteId}-hint`}>
-            Required when any charge isn&apos;t ready for closeout or anything is still open. It goes into the report.
-          </span>
-        </div>
-        {refusal && (
-          <div className="ft-error" role="alert">
-            {refusal.length === 1 ? (
-              refusal[0]
-            ) : (
-              <ul>
-                {refusal.map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
+      {showForm ? (
+        <form className={`ft-co-form${again ? " is-again" : ""}`} onSubmit={signOffNow} aria-label="Sign off">
+          <div className={`ft-field${refusal ? " is-invalid" : ""}`}>
+            <label htmlFor={noteId} className="ft-field__label">
+              Note
+            </label>
+            <textarea
+              id={noteId}
+              ref={noteRef}
+              className="ft-textarea"
+              rows={3}
+              value={note}
+              aria-describedby={`${noteId}-hint`}
+              aria-invalid={refusal ? true : undefined}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <span className="ft-field__hint" id={`${noteId}-hint`}>
+              Required when any charge isn&apos;t ready for closeout or anything is still open. It goes into the report.
+            </span>
+          </div>
+          {refusal && (
+            <div className="ft-error" role="alert">
+              {refusal.length === 1 ? (
+                refusal[0]
+              ) : (
+                <ul>
+                  {refusal.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <div className="ft-co-submit">
+            {/* aria-disabled, not disabled, so the button and its reason stay reachable by keyboard. */}
+            <button
+              type="submit"
+              className={`ft-btn ft-btn--approve ft-btn--main${busy ? " is-busy" : ""}`}
+              disabled={busy}
+              aria-disabled={unavailable ? true : undefined}
+              aria-describedby={unavailable ? reasonId : undefined}
+            >
+              {again ? "Sign off again" : "Sign off"}
+            </button>
+            {unavailable && (
+              <p className="ft-co-unavailable" id={reasonId}>
+                {unavailable}
+              </p>
             )}
           </div>
-        )}
-        <div className="ft-co-actions">
-          <button
-            type="submit"
-            className={`ft-btn ft-btn--approve ft-btn--main${busy ? " is-busy" : ""}`}
-            disabled={busy}
-          >
-            {again ? "Sign off again" : "Sign off"}
+        </form>
+      ) : (
+        <div className="ft-co-again">
+          <button type="button" className="ft-btn ft-btn--sm" onClick={() => setFormOpen(true)}>
+            Sign off again
           </button>
         </div>
-      </form>
+      )}
 
       {signOff.sign_off && !signed && (
         <WithdrawSignOff grantId={grantId} signOffId={signOff.sign_off.id} onWithdrawn={onSigned} />
