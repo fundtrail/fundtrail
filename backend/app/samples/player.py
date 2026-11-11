@@ -99,6 +99,7 @@ PACK_FOR_CHOICE = {
     SampleChoice.SMALL_LIVE: SMALL_SAMPLE,
     SampleChoice.LARGER_LIVE: LARGER_SAMPLE,
     SampleChoice.LARGER_PRERUN: LARGER_SAMPLE,
+    SampleChoice.LARGER_EXPECTED: LARGER_SAMPLE,
 }
 # Not built: how a prerun is saved and reused isn't settled (ruling 47).
 PRERUN_UNAVAILABLE = "The already-read sample isn't ready yet."
@@ -152,25 +153,47 @@ def _sample_of(grant: Grant) -> GrantSample:
 # The choices.
 
 
-def options(prerun_unavailable: str | None = PRERUN_UNAVAILABLE) -> list[SampleOption]:
+# The expected prerun choice (the demo's fallback, to remove with its choice and rows once
+# it isn't needed): its text lives here, as the sample folder is part of a prerun's version.
+EXPECTED_PRERUN_TEXT = {
+    "name": "Larger sample, expected prerun",
+    "description": (
+        "The same grant, with the records we expect the agent to write, prepared ahead of "
+        "time. They aren't the agent's output."
+    ),
+}
+
+
+def options(
+    prerun_unavailable: str | None = PRERUN_UNAVAILABLE,
+    expected_unavailable: str | None = PRERUN_UNAVAILABLE,
+) -> list[SampleOption]:
     """The Add a grant dropdown's sample choices, in order, with the packs' names. The
-    prerun choice is available when `prerun_unavailable` gives no reason it isn't."""
+    prerun choice is available when `prerun_unavailable` gives no reason it isn't, and the
+    expected prerun choice when `expected_unavailable` gives none."""
     out: list[SampleOption] = []
     for choice in SampleChoice:
         meta = pack_for(PACK_FOR_CHOICE[choice]).meta
-        text = next(
-            (o for o in meta.get("options", []) if o.get("choice") == choice.value),
-            {"name": choice.value, "description": choice.value},
+        default = (
+            EXPECTED_PRERUN_TEXT
+            if choice is SampleChoice.LARGER_EXPECTED
+            else {"name": choice.value, "description": choice.value}
         )
-        prerun = choice is SampleChoice.LARGER_PRERUN
+        text = next(
+            (o for o in meta.get("options", []) if o.get("choice") == choice.value), default
+        )
+        reason = {
+            SampleChoice.LARGER_PRERUN: prerun_unavailable,
+            SampleChoice.LARGER_EXPECTED: expected_unavailable,
+        }.get(choice)
         out.append(
             SampleOption(
                 choice=choice,
                 name=text["name"],
                 description=text["description"],
                 needs_confirm=choice is SampleChoice.LARGER_LIVE,
-                available=not (prerun and prerun_unavailable),
-                unavailable_reason=prerun_unavailable if prerun else None,
+                available=reason is None,
+                unavailable_reason=reason,
             )
         )
     return out
@@ -312,11 +335,14 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
     pack = pack_for(info.sample)
     start = plan_start(items_for(info.sample), pack.starts_at)
     sample_store.set_sample(conn, grant.id, info)
-    if info.choice is SampleChoice.LARGER_PRERUN:
-        # Opened from the prerun: on its run-through, its first moment loaded, not played.
-        saved = prerun.current(conn, info.sample)
+    if info.choice in (SampleChoice.LARGER_PRERUN, SampleChoice.LARGER_EXPECTED):
+        # Opened from a prerun, of the choice's own kind (played, or the expected one): on
+        # its run-through, its first moment loaded, not played.
+        expected = info.choice is SampleChoice.LARGER_EXPECTED
+        saved = prerun.current(conn, info.sample, expected=expected)
         if saved is None:
-            raise SampleError(prerun.unavailable_reason(conn, info.sample) or PRERUN_UNAVAILABLE)
+            reason = prerun.unavailable_reason(conn, info.sample, expected=expected)
+            raise SampleError(reason or PRERUN_UNAVAILABLE)
         prerun.start_run_through(conn, grant.id, saved.id)
         _load(p, conn, grant, saved, None, start.until)
         return []
@@ -866,6 +892,7 @@ def view(
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
         on_run_through=prerun.is_on_run_through(conn, grant),
+        expected_prerun=prerun.opened_from_expected(conn, grant),
         move_unavailable_reason=move_reason,
         next_highlight_unavailable_reason=highlight_reason,
     )

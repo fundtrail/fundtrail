@@ -146,23 +146,40 @@ def get(conn: Conn, prerun_id: str) -> Prerun | None:
     return _prerun(row) if row else None
 
 
-def current(conn: Conn, sample: str, data_dir: Path = DATA_DIR) -> Prerun | None:
-    """The newest released prerun of the sample at its current version, if any."""
+def is_expected(prerun: Prerun) -> bool:
+    """An expected prerun: the records we expect the agent to write, prepared ahead of time
+    as the demo's fallback, not the agent's output. Its usage says {"expected": true}."""
+    return prerun.usage.get("expected") is True
+
+
+def current(
+    conn: Conn, sample: str, data_dir: Path = DATA_DIR, *, expected: bool = False
+) -> Prerun | None:
+    """The newest released prerun of the sample at its current version, if any, of one
+    kind: played, or with `expected`, an expected one. Each choice opens only its kind."""
     row = conn.execute(
         f"""select {_COLUMNS} from public.sample_preruns
-            where sample = %s and version = %s and released order by seq desc limit 1""",
-        (sample, version(sample, data_dir)),
+            where sample = %s and version = %s and released
+              and (coalesce(usage ->> 'expected', 'false') = 'true') = %s
+            order by seq desc limit 1""",
+        (sample, version(sample, data_dir), expected),
     ).fetchone()
     return _prerun(row) if row else None
 
 
-def unavailable_reason(conn: Conn, sample: str | None = None) -> str | None:
-    """Why the prerun choice can't be opened now, or None when it can."""
+def unavailable_reason(
+    conn: Conn, sample: str | None = None, *, expected: bool = False
+) -> str | None:
+    """Why the prerun choice (or with `expected`, the expected prerun choice) can't be
+    opened now, or None when it can."""
     from .player import PACK_FOR_CHOICE
 
-    sample = sample or PACK_FOR_CHOICE[SampleChoice.LARGER_PRERUN]
-    if current(conn, sample) is not None:
+    choice = SampleChoice.LARGER_EXPECTED if expected else SampleChoice.LARGER_PRERUN
+    sample = sample or PACK_FOR_CHOICE[choice]
+    if current(conn, sample, expected=expected) is not None:
         return None
+    if expected:
+        return "The expected prerun isn't made for this version of the app yet."
     return "The already-read sample isn't made for this version of the app yet."
 
 
@@ -570,8 +587,8 @@ def match_user_step(
             s = made.get(n)
             if (s is not None and s.state != "held") or (s is None and a.at <= now):
                 continue
-            if a.action in ("sign_off", "let_in_mail"):
-                continue  # the user signs off themselves; a let-in brings in mail live
+            if a.action == "sign_off":
+                continue  # the user signs off themselves
             if sha256 is not None:
                 if a.action == "deliver_file" and a.file and pack.sha256(a.file) == sha256:
                     return n
@@ -642,6 +659,19 @@ def run_through(conn: Conn, grant: Grant) -> Prerun | None:
     if saved is None or not saved.released or saved.version != version(saved.sample):
         return None
     return saved
+
+
+def opened_from_expected(conn: Conn, grant: Grant) -> bool | None:
+    """For the panel: whether the grant was opened from an expected prerun. It goes by the
+    grant's own prerun, so a grant opened from an expected one keeps saying so after a
+    played one takes over. None on a sample grant not opened from a prerun."""
+    row = conn.execute(
+        "select prerun_id from public.sample_runthrough where grant_id = %s", (grant.id,)
+    ).fetchone()
+    if row is None:
+        return None
+    saved = get(conn, row["prerun_id"])
+    return saved is not None and is_expected(saved)
 
 
 def is_on_run_through(conn: Conn, grant: Grant) -> bool | None:
@@ -728,6 +758,19 @@ def load(
             if old and new:
                 renamed[old] = new
                 theirs.add(old)
+    # What a user's step brought in that the prerun brought in too (the held message a
+    # matching let-in releases, ruling 80): the same bytes from the same message stand
+    # for the prerun's, which aren't copied over them.
+    brought = {
+        (f.sha256, f.source_ref): f.id
+        for f in store.list_files(conn, target.id, store.END_OF_TIME)
+        if f.source_ref
+    }
+    for f in files:
+        on_target = brought.get((f.sha256, f.source_ref)) if f.source_ref else None
+        if on_target is not None and within(f.arrived_at) and f.id not in theirs:
+            renamed[f.id] = on_target
+            theirs.add(f.id)
     seeding_ids = re.compile("|".join(re.escape(k) for k in sorted(renamed, key=len, reverse=True)))
 
     def remap(value: Any) -> Any:
