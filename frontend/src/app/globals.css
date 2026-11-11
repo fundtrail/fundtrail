@@ -39,7 +39,6 @@
   --brand-rule: rgba(233, 240, 235, 0.22);
   --brand-rule-strong: rgba(233, 240, 235, 0.28);
   --brand-hover: rgba(233, 240, 235, 0.08);
-  --brand-count: rgba(233, 240, 235, 0.16);
 
   /* The one action a page is for: a filled button in a deeper brand green,
      white text 7:1 (5.1:1 in dark, where the green is lighter to stand off
@@ -49,8 +48,15 @@
   --brand-action-press: #0f4a38;
   --on-brand-action: #ffffff;
 
-  /* The outline of a quiet, neutral button: a hairline, lighter than inputs. */
+  /* A hairline for dividers and quiet rules only, never a control's edge. */
   --hairline-strong: #c9cec8;
+
+  /* The edge of every control (neutral buttons, the file picker's button,
+     inputs, selects): the same as --rule-strong, at least 3:1 on paper and
+     paper-raised in both themes. Hover darkens it. A disabled control's
+     dashed outline uses the same color, so a live one is never fainter. */
+  --control-border: var(--rule-strong);
+  --control-border-hover: var(--ink-muted);
 
   /* The highlighter, the same yellow in both themes. --hl (with --on-hl) is
      for words quoted from evidence and nothing else; --highlight and
@@ -64,8 +70,9 @@
   --hl: var(--highlight);
   --on-hl: var(--on-highlight);
 
-  /* The same yellow as a mark, not a citation: the brand's trail glyph and
-     the trail's "now" dot. */
+  /* The same yellow as a mark, not a citation. The wordmark's diamond uses
+     --now today; --on-now is the text color on it, kept for the trail's "now"
+     dot and the screens that will draw it. */
   --now: #ffe45c;
   --on-now: #1d1a05;
 
@@ -396,8 +403,13 @@ html {
   line-height: 18px;
   overflow-wrap: anywhere;
 }
-.ft-sidebar__account > span:first-child {
+.ft-sidebar__name {
   font-weight: 600;
+}
+/* An email address never clips: it wraps anywhere, and its title has it whole. */
+.ft-sidebar__email {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ft-sidebar__foot {
   margin-top: auto;
@@ -507,10 +519,11 @@ html {
   background: var(--conflict-tint);
   color: var(--conflict);
 }
-/* On the green a count is a soft on-brand tint: never yellow, never the red. */
+/* On the green a count is a solid on-brand pill with green text: calm, but
+   plain to see that something there needs you. Never yellow, never the red. */
 .ft-sidebar .ft-count {
-  background: var(--brand-count);
-  color: var(--on-brand);
+  background: var(--on-brand);
+  color: var(--brand);
 }
 .ft-main {
   display: flex;
@@ -528,13 +541,20 @@ html {
   border-bottom: 1px solid var(--rule);
   background: var(--paper-raised);
 }
+/* One line at every width. Each crumb is one unit: its separator is drawn
+   inside it, it never wraps, and it ends in an ellipsis when it must shrink
+   (its title carries the full text). Earlier crumbs give way; the page's own
+   crumb, often an ID, keeps its whole width unless it alone is wider than the
+   bar. */
 .ft-crumbs {
   display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   list-style: none;
   color: var(--ink-muted);
   font-size: 13px;
@@ -542,9 +562,11 @@ html {
   white-space: nowrap;
 }
 .ft-crumbs li {
-  min-width: 0;
+  flex: 0 100 auto;
+  min-width: 4ch;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ft-crumbs li + li::before {
   content: "/";
@@ -553,7 +575,8 @@ html {
   font-weight: 400;
 }
 .ft-crumbs [aria-current="page"] {
-  flex: none;
+  flex: 0 0 auto;
+  min-width: 0;
   max-width: 100%;
   color: var(--ink);
   font-weight: 600;
@@ -850,9 +873,10 @@ html {
 
 /* The one action a page is for (ft-btn--main) is filled in the action green,
    so it can't be missed; Confirm, Sign off and Accept as that action are the
-   same, with their check. Every other button is quiet: a hairline outline over
-   paper-raised. Approve and Reject outside the main action stay outlined in
-   their colors, each with its check or x. */
+   same, with their check. Every other button is quiet: a white fill inside
+   the control border, the same edge as the inputs beside it. Approve and
+   Reject outside the main action stay outlined in their colors, each with its
+   check or x, and keep those colors on hover and press. */
 .ft-btn {
   display: inline-flex;
   align-items: center;
@@ -860,7 +884,7 @@ html {
   gap: 6px;
   min-height: var(--control-md);
   padding: 0 var(--space-3);
-  border: 1px solid var(--hairline-strong);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--paper-raised);
   color: var(--ink);
@@ -872,11 +896,13 @@ html {
   white-space: nowrap;
   cursor: pointer;
 }
-.ft-btn:hover {
-  border-color: var(--rule-strong);
+/* Hover and press for neutral buttons only; each variant below has its own. */
+.ft-btn:not(.ft-btn--main, .ft-btn--approve, .ft-btn--reject, .ft-btn--quiet):hover {
+  border-color: var(--control-border-hover);
   background: var(--paper-sunken);
 }
-.ft-btn:active {
+.ft-btn:not(.ft-btn--main, .ft-btn--approve, .ft-btn--reject, .ft-btn--quiet):active {
+  border-color: var(--control-border-hover);
   background: var(--rule);
 }
 .ft-btn--sm {
@@ -889,6 +915,18 @@ html {
   color: var(--approve);
 }
 .ft-btn--reject {
+  border-color: var(--reject);
+  background: var(--conflict-tint);
+  color: var(--reject);
+}
+.ft-btn--approve:hover,
+.ft-btn--approve:active {
+  border-color: var(--approve);
+  background: var(--approve-tint);
+  color: var(--approve);
+}
+.ft-btn--reject:hover,
+.ft-btn--reject:active {
   border-color: var(--reject);
   background: var(--conflict-tint);
   color: var(--reject);
@@ -954,13 +992,13 @@ html {
   border-color: transparent;
   background: var(--paper-sunken);
 }
-/* Disabled or busy, main or not: a dashed rule-strong outline and muted text,
-   no fill, and never lowered opacity. The doubled class outranks every
-   variant's hover and press. */
+/* Disabled or busy, main or not: a dashed outline in the control border's
+   color (so a live button is never fainter), muted text, no fill, and never
+   lowered opacity. The doubled class outranks every variant's hover and press. */
 .ft-btn.ft-btn:disabled,
 .ft-btn.ft-btn.is-busy,
 .ft-btn.ft-btn[aria-disabled="true"] {
-  border: 1px dashed var(--rule-strong);
+  border: 1px dashed var(--control-border);
   background: transparent;
   color: var(--ink-muted);
   filter: none;
@@ -978,6 +1016,7 @@ html {
 }
 .ft-sidebar .ft-btn:hover,
 .ft-sidebar .ft-btn:active {
+  border-color: var(--on-brand);
   background: var(--brand-2);
 }
 .ft-sidebar .ft-btn.ft-btn:disabled,
@@ -1042,7 +1081,7 @@ html {
 /* --- Form controls --- */
 
 /* Styled once for every screen. :where() keeps these at zero specificity, so a
-   screen's own rules for its fields still win. A rule-strong border, radius-sm,
+   screen's own rules for its fields still win. The control border, radius-sm,
    and the 2px focus outline from :focus-visible above. */
 :where(
     input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]),
@@ -1053,7 +1092,7 @@ html {
   max-width: 100%;
   margin: 0;
   padding: 0 var(--space-2);
-  border: 1px solid var(--rule-strong);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
   color: var(--ink);
@@ -1078,7 +1117,7 @@ html {
     select,
     textarea
   ):hover {
-  border-color: var(--ink-muted);
+  border-color: var(--control-border-hover);
 }
 :where(
     input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]),
@@ -1117,7 +1156,7 @@ input[type="file"]::file-selector-button {
   min-height: var(--control-md);
   margin-right: var(--space-3);
   padding: 0 var(--space-3);
-  border: 1px solid var(--hairline-strong);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--paper-raised);
   color: var(--ink);
@@ -1126,12 +1165,12 @@ input[type="file"]::file-selector-button {
   cursor: pointer;
 }
 input[type="file"]::file-selector-button:hover {
-  border-color: var(--rule-strong);
+  border-color: var(--control-border-hover);
   background: var(--paper-sunken);
 }
 input[type="file"]:disabled::file-selector-button {
   border-style: dashed;
-  border-color: var(--rule-strong);
+  border-color: var(--control-border);
   background: transparent;
   color: var(--ink-muted);
   cursor: not-allowed;
