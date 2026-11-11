@@ -85,17 +85,17 @@ export default function SignIn() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.brand}>
-        <h1 className={styles.wordmark}>
+      <aside className={styles.brand} aria-label="FundTrail">
+        <p className={styles.wordmark}>
           <TrailMark className={styles.glyph} width={34} />
           FundTrail
-        </h1>
+        </p>
         <p className={styles.line}>A running evidence file for every research grant, so the review is done before closeout.</p>
         <TrailArt className={styles.art} classes={styles} />
-      </div>
+      </aside>
       <main className={styles.paper}>
         <div className={styles.panel}>
-          <h2 className={styles.title}>Sign in</h2>
+          <h1 className={styles.title}>Sign in</h1>
           {expired && !failed && (
             <p className={styles.note} role="status">
               Your session has expired. Sign in again.

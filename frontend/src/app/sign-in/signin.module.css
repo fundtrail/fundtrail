@@ -5,8 +5,9 @@
  */
 
 .page {
-  /* The trail's break mark, lifted toward on-brand so it reads on the green. */
-  --si-break: color-mix(in srgb, var(--conflict) 62%, var(--on-brand));
+  /* The trail's break mark: one color on the green in both themes, from the
+     brand side's own tokens, which don't change with the theme (10.9:1). */
+  --si-break: var(--on-brand);
 
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(400px, 5fr);
@@ -53,7 +54,7 @@
   max-width: 17em;
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(32px, 3.3vw, 50px);
+  font-size: clamp(30px, 2.9vw, 42px);
   line-height: 1.08;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -84,21 +85,22 @@
 .check {
   stroke: var(--on-brand);
 }
+/* The yellow dot for now, the brand's now mark, cut out of the dashes by a
+   solid ring of the green itself. */
 .now {
-  fill: var(--hl);
-}
-.nowRing {
-  stroke: var(--hl);
-  opacity: 0.45;
+  fill: var(--now, var(--hl));
+  stroke: var(--brand);
 }
 .break {
   fill: var(--si-break);
 }
 
-/* One quiet draw-in, left to right. Fully drawn without it. */
+/* One quiet draw-in: the stretch after the break runs out to now. The drawing
+   is complete without it, and nothing up to the break ever moves. No fill
+   mode, so no blank frame is held before it starts or after it ends. */
 @media (prefers-reduced-motion: no-preference) {
-  .art {
-    animation: draw 1400ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+  .after {
+    animation: draw 1100ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 @keyframes draw {
@@ -128,10 +130,10 @@
 .title {
   margin: 0 0 var(--space-1);
   font-family: var(--display);
-  font-size: 26px;
-  line-height: 32px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .signIn {
   width: 100%;
