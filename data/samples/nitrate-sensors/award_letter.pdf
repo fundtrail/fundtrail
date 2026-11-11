@@ -1,99 +1,410 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 2492 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(NATIONAL SCIENCE FOUNDATION) Tj T*
-(AWARD NOTICE) Tj T*
-() Tj T*
-(RECIPIENT INFORMATION) Tj T*
-(Recipient: University of Example) Tj T*
-(Address: 100 Example Hall, Example City, CA 94000) Tj T*
-() Tj T*
-(AMENDMENT INFORMATION) Tj T*
-(Amendment Type: New Project) Tj T*
-(Amendment Number: 000) Tj T*
-(Amendment Date: August 12, 2025) Tj T*
-(Amendment Description: This amendment funds a new project for the period) Tj T*
-(of performance shown below. The project builds low-cost sensors that) Tj T*
-(measure nitrate in groundwater wells on Example Valley farms.) Tj T*
-() Tj T*
-(AWARD INFORMATION) Tj T*
-(Award Number \(FAIN\): SYN-2511958) Tj T*
-(Award Instrument: Standard Grant) Tj T*
-(Award Date: August 12, 2025) Tj T*
-(Period of Performance Start Date: September 1, 2025) Tj T*
-(Period of Performance End Date: August 31, 2028) Tj T*
-(Project Title: Low-Cost Nitrate Sensors for Example Valley Groundwater) Tj T*
-(Funding Opportunity: NSF 24-1 Proposal & Award Policies & Procedures Guide \(PAPPG\)) Tj T*
-() Tj T*
-(FUNDING INFORMATION) Tj T*
-(Amount Obligated by this Amendment: $40,000) Tj T*
-(Total Intended Award Amount: $40,000) Tj T*
-(Cost Share: $0) Tj T*
-(Total Amount Obligated to Date: $40,000) Tj T*
-(Expenditure Limitation: Not applicable) Tj T*
-() Tj T*
-(PROJECT PERSONNEL) Tj T*
-(Emery Testwell, Principal Investigator) Tj T*
-(  Email: emery.testwell@university.example) Tj T*
-(  Organization: University of Example) Tj T*
-() Tj T*
-(NSF CONTACT INFORMATION) Tj T*
-(Managing Grants Official: Avery Ledger) Tj T*
-(  Email: avery.ledger@funder.example) Tj T*
-(Awarding Official: Morgan Signet) Tj T*
-(  Email: morgan.signet@funder.example) Tj T*
-(Managing Program Officer: Kai Officer) Tj T*
-(  Email: kai.officer@funder.example) Tj T*
-() Tj T*
-(TERMS AND CONDITIONS) Tj T*
-(This award is subject to the NSF Grant General Conditions \(GC-1\) effective) Tj T*
-(October 1, 2024, and to the terms of this notice.) Tj T*
-() Tj T*
-(BUDGET) Tj T*
-(Only the lines that hold funds are shown.) Tj T*
-() Tj T*
-(E. Travel                                              $6,000) Tj T*
-(     Domestic                                          $6,000) Tj T*
-(G. Other Direct Costs                                 $34,000) Tj T*
-(     Materials and Supplies                           $34,000) Tj T*
-(H. Total Direct Costs                                 $40,000) Tj T*
-() Tj T*
-(Except as modified by this amendment, the award conditions remain unchanged.) Tj T*
-ET
-endstream
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
 endobj
 6 0 obj
-<< /Title (Award notice SYN-2511958) /Producer (FundTrail seed generator) >>
+<<
+/Contents 11 0 R /MediaBox [ 0 0 612 792 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+7 0 obj
+<<
+/PageMode /UseNone /Pages 9 0 R /Type /Catalog
+>>
+endobj
+8 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (NSF Award Notice for Award ID SYN-2511958 - Amendment ID 000) /Trapped /False
+>>
+endobj
+9 0 obj
+<<
+/Count 2 /Kids [ 5 0 R 6 0 R ] /Type /Pages
+>>
+endobj
+10 0 obj
+<<
+/Length 6531
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.121569 .305882 .419608 rg
+BT /F1 13 Tf 15.6 TL ET
+BT 1 0 0 1 198.0155 696 Tm (NATIONAL SCIENCE FOUNDATION) Tj T* ET
+.121569 .305882 .419608 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 269.0545 674 Tm (AWARD NOTICE) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 639 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 648 Tm (RECIPIENT INFORMATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 618 Tm (Recipient:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 131.676 618 Tm (Halden University) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 603.5 Tm (Address:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 126.426 603.5 Tm (1 University Drive, Port Calloway, CA 94000) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 572 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 581 Tm (AMENDMENT INFORMATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 551 Tm (Amendment Type:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 172.5105 551 Tm (New Project) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 536.5 Tm (Amendment Number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 187.6725 536.5 Tm (000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 522 Tm (Amendment Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 170.757 522 Tm (August 12, 2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 507.5 Tm (Proposal Number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 171.933 507.5 Tm (SYN-2511958) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 493 Tm (Amendment Description:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 478.5 Tm (The National Science Foundation hereby awards a standard grant to Halden University for) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 464 Tm (support of the project described in the proposal referenced above. This amendment funds a new) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 449.5 Tm (project for the period of performance shown below. The project builds low-cost sensors that) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 435 Tm (measure nitrate in groundwater wells on Tolliver Valley farms.) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 403.5 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 412.5 Tm (AWARD INFORMATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 382.5 Tm (Award Number \(FAIN\):) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 193.5 382.5 Tm (SYN-2511958) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 368 Tm (Award Instrument:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 173.676 368 Tm (Standard Grant) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 353.5 Tm (Award Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 142.176 353.5 Tm (August 12, 2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 339 Tm (Period of Performance Start Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 249.5385 339 Tm (September 1, 2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 324.5 Tm (Period of Performance End Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 245.454 324.5 Tm (August 31, 2028) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 310 Tm (Project Title:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 144.5175 310 Tm (Low-Cost Nitrate Sensors for Tolliver Valley Groundwater) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 295.5 Tm (Managing Division Abbreviation:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 244.278 295.5 Tm (EAR) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 281 Tm (Research and Development Award:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 257.13 281 Tm (Yes) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 266.5 Tm (Funding Opportunity:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 188.8275 266.5 Tm (NSF 24-1 Proposal & Award Policies & Procedures Guide \(PAPPG\)) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 252 Tm (Assistance Listing Number and Name:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 272.88 252 Tm (47.050 Geosciences) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 220.5 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 229.5 Tm (FUNDING INFORMATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 199.5 Tm (Amount Obligated by this Amendment:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 275.7675 199.5 Tm ($40,000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 185 Tm (Total Intended Award Amount:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 233.757 185 Tm ($40,000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 170.5 Tm (Cost Share:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 139.845 170.5 Tm ($0) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 156 Tm (Total Amount Obligated to Date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 241.926 156 Tm ($40,000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 141.5 Tm (Expenditure Limitation:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 198.183 141.5 Tm (Not applicable) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 8 Tf 9.6 TL ET
+BT 1 0 0 1 285.54 50 Tm (Page 1 of 2) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 7 Tf 8.4 TL ET
+BT 1 0 0 1 142.0075 38 Tm (Synthetic sample document for a software demonstration. Not issued by the National Science Foundation.) Tj T* ET
+ 
+endstream
+endobj
+11 0 obj
+<<
+/Length 4649
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.933333 .945098 .952941 rg
+n 70 691 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 700 Tm (PROJECT PERSONNEL) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 670 Tm (Owen Marchetti, Principal Investigator) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 92 655.5 Tm (Email:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 126.4295 655.5 Tm (omarchetti@halden.example) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 92 641 Tm (Organization:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 162.5915 641 Tm (Halden University) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 605.5 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 614.5 Tm (NSF CONTACT INFORMATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 584.5 Tm (Managing Grants Official:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 208.6935 584.5 Tm (Carolyn Whitfield) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 92 570 Tm (Email:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 126.4295 570 Tm (cwhitfield@nsf.example) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 555.5 Tm (Awarding Official:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 170.7675 555.5 Tm (Marcus Delacroix) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 92 541 Tm (Email:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 126.4295 541 Tm (mdelacroix@nsf.example) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 526.5 Tm (Managing Program Officer:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 216.2745 526.5 Tm (Lionel Abara) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 92 512 Tm (Email:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 126.4295 512 Tm (labara@nsf.example) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 480.5 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 489.5 Tm (TERMS AND CONDITIONS) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 459.5 Tm (This award is subject to the NSF Grant General Conditions \(GC-1\) effective October 1, 2024, and) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 445 Tm (to the terms of this notice.) Tj T* ET
+.933333 .945098 .952941 rg
+n 70 413.5 472 26 re f*
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 422.5 Tm (BUDGET) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 390.5 Tm (Only the lines that hold funds are shown.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 370 Tm (E. Travel) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 481.891 370 Tm ($6,000) Tj T* ET
+.835294 .854902 .866667 RG
+.4 w
+n 78 365.5 m 534 365.5 l S
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 100 353 Tm (Domestic) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 481.891 353 Tm ($6,000) Tj T* ET
+.835294 .854902 .866667 RG
+.4 w
+n 78 348.5 m 534 348.5 l S
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 336 Tm (G. Other Direct Costs) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 476.053 336 Tm ($34,000) Tj T* ET
+.835294 .854902 .866667 RG
+.4 w
+n 78 331.5 m 534 331.5 l S
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 100 319 Tm (Materials and Supplies) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 476.053 319 Tm ($34,000) Tj T* ET
+.835294 .854902 .866667 RG
+.4 w
+n 78 314.5 m 534 314.5 l S
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 302 Tm (H. Total Direct Costs) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 476.053 302 Tm ($40,000) Tj T* ET
+.835294 .854902 .866667 RG
+.4 w
+n 78 297.5 m 534 297.5 l S
+.066667 .066667 .066667 rg
+BT /F1 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 78 275 Tm (Except as modified by this amendment, the award conditions remain unchanged.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 8 Tf 9.6 TL ET
+BT 1 0 0 1 285.54 50 Tm (Page 2 of 2) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 7 Tf 8.4 TL ET
+BT 1 0 0 1 142.0075 38 Tm (Synthetic sample document for a software demonstration. Not issued by the National Science Foundation.) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 12
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000002760 00000 n 
-0000002886 00000 n 
+0000000061 00000 n 
+0000000112 00000 n 
+0000000219 00000 n 
+0000000334 00000 n 
+0000000446 00000 n 
+0000000640 00000 n 
+0000000834 00000 n 
+0000000902 00000 n 
+0000001220 00000 n 
+0000001285 00000 n 
+0000007868 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<4103823673d2322e64b03a4e752ef53d><4103823673d2322e64b03a4e752ef53d>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 8 0 R
+/Root 7 0 R
+/Size 12
+>>
 startxref
-2978
+12569
 %%EOF

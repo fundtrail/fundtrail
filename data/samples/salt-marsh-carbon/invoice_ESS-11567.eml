@@ -1,42 +1,45 @@
-From: Harper Fixture <harper.fixture@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Maren Holloway <mholloway@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Sun, 20 Sep 2026 12:20:00 -0700
 Subject: Fwd: Invoice ESS-11567
-Message-ID: <fwd-ess-11567@university.example>
+Message-ID: <fwd-ess-11567@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice ESS-11567 for SYN-2401835, salt marsh carbon burial, for the files.
 
-Harper
+Maren
 
 ---------- Forwarded message ----------
-From: Example Scientific Supply Billing <billing@scisupply.example>
+From: Kittredge Scientific Billing <billing@kittredgescientific.example>
 Date: Tue, 15 Sep 2026 08:50:00 -0700
 Subject: Invoice ESS-11567
-To: harper.fixture@university.example
+To: mholloway@halden.example
 
-EXAMPLE SCIENTIFIC SUPPLY
-55 Example Road, Example Town, CA 94010
-billing@scisupply.example
+KITTREDGE SCIENTIFIC
+55 Foundry Road, Marlow Junction, CA 94010
+billing@kittredgescientific.example
 
 INVOICE
 
 Invoice number: ESS-11567
 Invoice date: September 15, 2026
 Customer PO: PO-26-8102
+Account No.: 118820
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Harper Fixture
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Maren Holloway
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2401835, salt marsh carbon burial
 
-Item  Description                                   Qty   Unit price      Amount
-1     Balance calibration weights, set                2      $215.00     $430.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     KS-118-SET   Balance calibration weights, set                 1  EA       $310.00     $310.00
+2     KS-130-250   Weighing boats, aluminum, 250 count              2  PK        $36.00      $72.00
+3     KS-215-AST   Forceps, anti-static, stainless                  2  EA        $24.00      $48.00
 
-Subtotal                                                                 $430.00
-Shipping                                                                  $12.50
-Total due                                                                $442.50
+Subtotal                                                                                    $430.00
+Shipping                                                                                     $12.50
+Total due                                                                                   $442.50
 
 Terms: net 30
