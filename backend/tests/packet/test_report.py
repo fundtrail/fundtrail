@@ -875,3 +875,72 @@ def test_a_place_in_a_replaced_header_counts_the_reading_date_line():
     assert fmt.place(cite, files, texts_by_id, reading=view) == (
         f"sequencing_statement.eml, line {date_line}"
     )
+
+
+OVER_TEXT = (
+    "Spending of $124,000.00 is $4,000.00 over the award's limit of $120,000.00, "
+    "the total obligated to date on amendment 001."
+)
+
+
+def _over_limit(accepted_by: str | None, *more: Problem) -> GrantStatus:
+    """The grant's over_limit problem in the checks' own words (grant_checks.py)."""
+    return GrantStatus(
+        grant_id="grant-sample",
+        problems=(
+            Problem(
+                check="budget",
+                problem="over_limit",
+                text=OVER_TEXT,
+                accepted_by=accepted_by,
+                amount_cents=400000,
+            ),
+            *more,
+        ),
+        flagged=accepted_by is None or bool(more),
+        accepted=accepted_by is not None and not more,
+    )
+
+
+def _acceptance() -> Record:
+    return user_record(
+        "rec-accept-over-limit",
+        APRIL_10,
+        {
+            "kind": "accepted_reason",
+            "reason": {"check": "budget", "problem": "over_limit"},
+            "note": "The second increment is expected in June.",
+            "amount_cents": 400000,
+        },
+    )
+
+
+def test_an_accepted_grant_problem_shows_under_spending_and_not_as_open():
+    """Ruling 84: spending over the award's limit, accepted with a note, shows under Spending
+    in the checks' words, with the note and who accepted it and when. It isn't listed as
+    open in section 2, while another grant problem still open is."""
+    base = sample_inputs()
+    accepted = _acceptance()
+    other = Problem(check="notice", problem="totals:001", text="The notice's totals don't add up.")
+    checks = base.checks.model_copy(update={"grants": (_over_limit(accepted.id, other),)})
+    inputs = sample_inputs(checks=checks, records=(*base.records, accepted))
+    summary = texts(section(inputs, 1))
+    assert (
+        f"{OVER_TEXT} Accepted by {USER.name or USER.email} on Apr 10, 2026, with the note: "
+        "“The second increment is expected in June.”"
+    ) in summary
+    assert summary.count("over the award's limit") == 1  # not said twice
+    open_now = texts(section(inputs, 2))
+    assert OVER_TEXT not in open_now
+    assert "The notice's totals don't add up." in open_now
+
+
+def test_an_open_grant_problem_says_nothing_about_an_acceptance():
+    """An acceptance that no longer covers the problem (accepted_by is None) isn't shown."""
+    base = sample_inputs()
+    checks = base.checks.model_copy(update={"grants": (_over_limit(None),)})
+    inputs = sample_inputs(checks=checks, records=(*base.records, _acceptance()))
+    summary = texts(section(inputs, 1))
+    assert "Accepted by" not in summary
+    assert "Spending is over the award's limit." in summary
+    assert OVER_TEXT in texts(section(inputs, 2))
