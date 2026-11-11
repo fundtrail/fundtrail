@@ -1,15 +1,22 @@
 """Photos and scans of paper documents, drawn with Pillow, with a box for every printed string.
 
-Two pictures:
+Three pictures:
 
 - `receipt_photo`: a thermal-paper receipt photographed with a phone on a desk.
 - `scanned_page`: a printed page scanned on a flatbed, a little crooked, with an office's
   date stamp and pen marks.
+- `photo_of_page`: a printed page photographed with a phone, lying on a desk.
 
-Each returns the JPEG's bytes and `boxes`: for every string drawn, its box on the finished
-image as (left, top, width, height) in fractions of the image, keyed by the string. The
-stand-in agent's records cite a value on a photo by the box of the string that holds it, so
-the box follows the paper through the turn, the perspective and the resize.
+A page is drawn string by string (`Page.text`), or made from a picture of it with the place
+of each of its strings (`printed_page`), which is how a typeset PDF page becomes a scan or a
+photo.
+
+Each returns the JPEG's bytes and `boxes`: for every string printed, in the order printed,
+its box on the finished image as (left, top, width, height) in fractions of the image, or
+None for one that fell off the picture. A string printed more than once has a box for every
+place it's printed. The stand-in agent's records cite a value on a photo by the box of the
+string that holds it, so the box follows the paper through the turn, the perspective and the
+resize.
 
 Dev-only, like photo.py: needs Pillow, and the look depends on the fonts on the machine.
 """
@@ -50,41 +57,54 @@ SANS_BOLD = ("Arial Bold.ttf", "DejaVuSans-Bold.ttf")
 NARROW_BOLD = ("Arial Narrow Bold.ttf", "DejaVuSansCondensed-Bold.ttf")
 
 
+Boxes = list[tuple[str, Box | None]]
+# How many strings one index image holds: a grey level each, with 0 for the paper.
+PER_LAYER = 250
+
+
 @dataclass
 class Marks:
-    """Records where each string was drawn, as an index image that rides through every
-    transform the paper goes through."""
+    """Records where each string was drawn, as index images that ride through every
+    transform the paper goes through. Every string is kept, also one printed before."""
 
     size: tuple[int, int]
     texts: list[str] = field(default_factory=list)
-    index: Image.Image | None = None
-
-    def __post_init__(self) -> None:
-        self.index = Image.new("L", self.size, 0)
+    layers: list[Image.Image] = field(default_factory=list)
 
     def add(self, text: str, box: tuple[int, int, int, int]) -> None:
-        """Remember `text` at `box` (left, top, right, bottom). At most 250 strings."""
-        if not text.strip() or text in self.texts:
+        """Remember `text` at `box` (left, top, right, bottom)."""
+        if not text.strip():
             return
+        if len(self.texts) % PER_LAYER == 0:
+            self.layers.append(Image.new("L", self.size, 0))
+        level = len(self.texts) % PER_LAYER + 1
         self.texts.append(text)
-        assert self.index is not None
-        ImageDraw.Draw(self.index).rectangle(box, fill=len(self.texts))
+        ImageDraw.Draw(self.layers[-1]).rectangle(box, fill=level)
 
-    def boxes(self, moved: Image.Image) -> dict[str, Box]:
-        """Each string's box on `moved`, the index image after the paper's transforms."""
-        w, h = moved.size
-        out: dict[str, Box] = {}
-        for i, text in enumerate(self.texts, start=1):
-            found = moved.point(lambda v, i=i: 255 if v == i else 0).getbbox()
+    def moved(self, transform) -> list[Image.Image]:
+        """The index images after `transform`, the one the paper went through."""
+        return [transform(layer) for layer in self.layers]
+
+    def boxes(self, moved: list[Image.Image]) -> Boxes:
+        """Each string and its box on `moved`, the index images after the paper's
+        transforms, in the order the strings were added. None for one no longer in view."""
+        out: Boxes = []
+        for i, text in enumerate(self.texts):
+            layer = moved[i // PER_LAYER]
+            level = i % PER_LAYER + 1
+            w, h = layer.size
+            found = layer.point(lambda v, level=level: 255 if v == level else 0).getbbox()
             if found is None:
+                out.append((text, None))
                 continue
             left, top, right, bottom = found
-            out[text] = (
+            box = (
                 round(left / w, 4),
                 round(top / h, 4),
                 round((right - left) / w, 4),
                 round((bottom - top) / h, 4),
             )
+            out.append((text, box))
         return out
 
 
@@ -154,11 +174,13 @@ def _thermal_paper(rows: list[Row], seed: int) -> tuple[Image.Image, Marks]:
     d = ImageDraw.Draw(small)
     d.fontmode = "1"
     marks = Marks((pw * scale, height * scale))
+    rules: list[int] = []  # how far down each dotted rule is, on the full-size paper
     y = 30
     for r in rows:
         if r.rule:
             for x in range(margin, pw - margin, 4):
                 d.line([(x, y + 3), (x + 1, y + 3)], fill=255)
+            rules.append((y + 3) * scale)
             y += 8
             continue
         f = fonts[r.style]
@@ -208,6 +230,12 @@ def _thermal_paper(rows: list[Row], seed: int) -> tuple[Image.Image, Marks]:
     for frac in (0.31, 0.63):
         fy = int(size[1] * frac) + rng.randint(-12, 12)
         tilt = rng.randint(-6, 6)
+        if rules:
+            # The paper creases along a dotted rule, the one nearest a third of the way
+            # down, so no printed row is struck through.
+            fy = min(rules, key=lambda at: abs(at - size[1] * frac))
+            rules.remove(fy)
+            tilt = max(-2, min(2, tilt))
         d.line([(0, fy), (size[0], fy + tilt)], fill=(214, 211, 203), width=2)
         d.line([(0, fy + 3), (size[0], fy + 3 + tilt)], fill=(250, 249, 245), width=1)
     # Torn off the printer's cutter: a fine, slightly uneven sawtooth at both ends.
@@ -234,8 +262,9 @@ def _desk(size: tuple[int, int], seed: int) -> Image.Image:
     return desk.filter(ImageFilter.GaussianBlur(1.6))
 
 
-def receipt_photo(rows: list[Row], *, seed: int) -> tuple[bytes, dict[str, Box]]:
-    """A phone photo of a thermal receipt lying on a desk."""
+def receipt_photo(rows: list[Row], *, seed: int, turn: float | None = None) -> tuple[bytes, Boxes]:
+    """A phone photo of a thermal receipt lying on a desk, turned `turn` degrees, or by
+    an angle of the seed's choosing within seven degrees."""
     rng = random.Random(seed)
     size = (1512, 2016)
     scene = _desk(size, seed)
@@ -251,7 +280,8 @@ def receipt_photo(rows: list[Row], *, seed: int) -> tuple[bytes, dict[str, Box]]
     fit = min(1500 / ph, 760 / pw)
     w2, h2 = pw * fit, ph * fit
     cx, cy = size[0] / 2 + rng.randint(-30, 30), size[1] / 2 + 30
-    turn = math.radians(rng.uniform(-7, 7))
+    chosen = rng.uniform(-7, 7)
+    turn = math.radians(chosen if turn is None else turn)
     pinch = 0.07
     corners = [
         (-w2 / 2 * (1 - pinch), -h2 / 2),
@@ -265,9 +295,10 @@ def receipt_photo(rows: list[Row], *, seed: int) -> tuple[bytes, dict[str, Box]]
     ]
     coeffs = perspective([(0, 0), (pw, 0), (pw, ph), (0, ph)], quad)
     warped = paper.transform(size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.BICUBIC)
-    assert marks.index is not None
-    moved = marks.index.transform(
-        size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.NEAREST
+    moved = marks.moved(
+        lambda layer: layer.transform(
+            size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.NEAREST
+        )
     )
     alpha = warped.getchannel("A")
     # A soft shadow: the paper lifts off the desk more at one side.
@@ -427,8 +458,11 @@ def scanned_page(
     initials_at: tuple[float, float] | None = None,
     check_at: tuple[float, float] | None = None,
     turn: float = 0.9,
-) -> tuple[bytes, dict[str, Box]]:
-    """The page as a flatbed scan: stamped and marked, a little crooked, grainy."""
+    folds: tuple[float, ...] = (0.372, 0.694),
+) -> tuple[bytes, Boxes]:
+    """The page as a flatbed scan: stamped and marked, a little crooked, grainy.
+
+    `folds` are where the sheet was folded for its envelope, as fractions of its height."""
     rng = random.Random(seed)
     w, h = page.size
     sheet = Image.merge("RGB", (page.image,) * 3).convert("RGBA")
@@ -447,7 +481,7 @@ def scanned_page(
     tone = Image.new("RGB", (w, h), (247, 246, 241))
     paper = ImageChops.multiply(sheet.convert("RGB"), tone)
     d = ImageDraw.Draw(paper)
-    for frac in (0.372, 0.694):
+    for frac in folds:
         fy = int(h * frac) + rng.randint(-6, 6)
         d.line([(0, fy), (w, fy + rng.randint(-3, 3))], fill=(228, 227, 222), width=3)
         d.line([(0, fy + 3), (w, fy + 3)], fill=(252, 252, 250), width=1)
@@ -456,18 +490,20 @@ def scanned_page(
     paper = paper.convert("RGBA").rotate(
         turn, expand=True, resample=Image.Resampling.BICUBIC, fillcolor=(0, 0, 0, 0)
     )
-    assert page.marks.index is not None
-    moved_marks = page.marks.index.rotate(
-        turn, expand=True, resample=Image.Resampling.NEAREST, fillcolor=0
-    )
     # The scanner's bed shows past the sheet's edge, with the sheet's shadow.
     bed = Image.new("RGB", (w, h), (233, 233, 231))
     off = ((w - paper.width) // 2 + 6, (h - paper.height) // 2 + 4)
     shadow = paper.getchannel("A").filter(ImageFilter.GaussianBlur(5))
     bed.paste((170, 170, 170), (off[0] + 4, off[1] + 5), shadow)
     bed.paste(paper.convert("RGB"), off, paper.getchannel("A"))
-    moved = Image.new("L", (w, h), 0)
-    moved.paste(moved_marks, off)
+
+    def follow(layer: Image.Image) -> Image.Image:
+        turned = layer.rotate(turn, expand=True, resample=Image.Resampling.NEAREST, fillcolor=0)
+        on_bed = Image.new("L", (w, h), 0)
+        on_bed.paste(turned, off)
+        return on_bed
+
+    moved = page.marks.moved(follow)
     # The scan: soft, grainy, a darker band along the lid's hinge, compressed.
     bed = bed.filter(ImageFilter.GaussianBlur(0.5))
     grain = _noise((w // 2, h // 2), 6, seed + 41).resize((w, h), Image.Resampling.BILINEAR)
@@ -482,4 +518,97 @@ def scanned_page(
     bed = ImageEnhance.Contrast(bed).enhance(1.1)
     out = io.BytesIO()
     bed.save(out, "JPEG", quality=58)
+    return out.getvalue(), page.marks.boxes(moved)
+
+
+def printed_page(image: Image.Image, strings: list[tuple[str, tuple[int, int, int, int]]]) -> Page:
+    """A printed sheet from a picture of it: `image` in grey, and each string printed on it
+    with its box (left, top, right, bottom) in the picture's pixels."""
+    page = Page(size=image.size)
+    page.image = image.convert("L")
+    page.draw = ImageDraw.Draw(page.image)
+    for text, box in strings:
+        page.marks.add(text, box)
+    return page
+
+
+def photo_of_page(page: Page, *, seed: int) -> tuple[bytes, Boxes]:
+    """A phone photo of a printed sheet lying on a desk, taken from above its lower edge."""
+    rng = random.Random(seed)
+    size = (1512, 2016)
+    scene = _desk(size, seed)
+    pw, ph = page.size
+    sheet = Image.merge("RGB", (page.image.filter(ImageFilter.GaussianBlur(0.5)),) * 3)
+    # Paper: off-white, with the soft waves of a sheet that was folded in three.
+    tone = Image.new("RGB", (pw, ph), (246, 245, 240))
+    sheet = ImageChops.multiply(sheet, tone)
+    waves = Image.new("L", (1, 256))
+    waves.putdata([int(232 + 20 * math.cos(math.pi * 3 * i / 255)) for i in range(256)])
+    waves = waves.resize((pw, ph), Image.Resampling.BICUBIC)
+    bumps = _soft_noise((pw, ph), (6, 8), 30, seed + 3).filter(ImageFilter.GaussianBlur(30))
+    bumps = bumps.point(lambda v: max(0, min(255, 240 + (v - 128) // 5)))
+    shade = ImageChops.multiply(waves, bumps)
+    sheet = ImageChops.multiply(sheet, Image.merge("RGB", (shade,) * 3)).convert("RGBA")
+
+    fit = min(1700 / ph, 1260 / pw)
+    w2, h2 = pw * fit, ph * fit
+    cx, cy = size[0] / 2 + rng.randint(-20, 20), size[1] / 2 + rng.randint(0, 40)
+    turn = math.radians(rng.uniform(-5, 5))
+    pinch = 0.09
+    corners = [
+        (-w2 / 2 * (1 - pinch), -h2 / 2),
+        (w2 / 2 * (1 - pinch), -h2 / 2),
+        (w2 / 2, h2 / 2),
+        (-w2 / 2, h2 / 2),
+    ]
+    quad = [
+        (cx + x * math.cos(turn) - y * math.sin(turn), cy + x * math.sin(turn) + y * math.cos(turn))
+        for x, y in corners
+    ]
+    coeffs = perspective([(0, 0), (pw, 0), (pw, ph), (0, ph)], quad)
+    warped = sheet.transform(size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.BICUBIC)
+    moved = page.marks.moved(
+        lambda layer: layer.transform(
+            size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.NEAREST
+        )
+    )
+    alpha = warped.getchannel("A")
+    shadow = alpha.filter(ImageFilter.GaussianBlur(18)).point(lambda v: v * 5 // 10)
+    scene.paste((30, 26, 22), (18, 24), shadow)
+    scene.paste(warped.convert("RGB"), (0, 0), alpha)
+
+    big = (
+        Image.linear_gradient("L")
+        .resize((size[1] * 3, size[1] * 3))
+        .rotate(118, resample=Image.Resampling.BICUBIC)
+    )
+    mid = big.size[0] // 2
+    light = big.crop(
+        (
+            mid - size[0] // 2,
+            mid - size[1] // 2,
+            mid - size[0] // 2 + size[0],
+            mid - size[1] // 2 + size[1],
+        )
+    )
+    light = light.filter(ImageFilter.GaussianBlur(30)).point(lambda v: 158 + v * 97 // 255)
+    vignette = (
+        ImageOps.invert(Image.radial_gradient("L"))
+        .resize(size)
+        .point(lambda v: 200 + v * 55 // 255)
+    )
+    lit = ImageChops.multiply(light, vignette)
+    scene = ImageChops.multiply(scene, Image.merge("RGB", (lit,) * 3))
+    r, g, b = scene.split()
+    scene = Image.merge(
+        "RGB", (r.point(lambda v: min(255, int(v * 1.03))), g, b.point(lambda v: int(v * 0.95)))
+    )
+    scene = scene.filter(ImageFilter.GaussianBlur(0.8))
+    grain = _noise((size[0] // 2, size[1] // 2), 6, seed + 20).resize(
+        size, Image.Resampling.BILINEAR
+    )
+    scene = ImageChops.add(scene, Image.merge("RGB", (grain,) * 3), scale=1, offset=-128)
+    scene = ImageEnhance.Contrast(scene).enhance(1.05)
+    out = io.BytesIO()
+    scene.save(out, "JPEG", quality=82)
     return out.getvalue(), page.marks.boxes(moved)

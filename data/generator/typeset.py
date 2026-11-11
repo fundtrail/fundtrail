@@ -55,12 +55,15 @@ STRIP = HexColor("#E8E9EB")
 NAVY = HexColor("#1F4E6B")
 BAND = HexColor("#EEF1F3")
 
-LABEL = re.compile(r"^\s*[A-Z][A-Za-z ()]{1,40}: \S")
+# A row that is a label and its value: "Invoice date: May 12, 2025", "Account No.: 077103".
+LABEL = re.compile(r"^\s*[A-Z][A-Za-z ()]{1,40}(?: No\.)?: \S")
 MONEY = r"-?\$[\d,]+(?:\.\d\d)?"
 # The foot of the page: a row drawn below it means the document didn't fit.
 FLOOR = 30.0
 # The page's side margin: a string drawn past it would be cut off.
 EDGE = 36.0
+# The room a letter leaves between its closing and the signer's printed name.
+SIGNATURE_ROOM = 34.0
 
 
 class Pen:
@@ -1079,7 +1082,11 @@ def letterhead(p: Pen, x0: float, x1: float, rows: list[str]) -> float:
 def letter_blocks(p: Pen, x0: float, x1: float, groups: list[list[str]], size: float) -> None:
     """A letter's body from the cursor down: paragraphs wrapped, every other row on its own line."""
     lead = size * 1.36
-    for group in groups:
+    # The closing ("Sincerely,") is the last row that stands alone and ends in a comma.
+    # A letter leaves room under it for the signature.
+    alone = [n for n, group in enumerate(groups) if len(group) == 1 and group[0].endswith(",")]
+    closing = alone[-1] if len(alone) > 1 else None
+    for n, group in enumerate(groups):
         if is_prose(group):
             p.para(x0, x1 - x0, " ".join(r.strip() for r in group), size, lead)
         else:
@@ -1087,7 +1094,7 @@ def letter_blocks(p: Pen, x0: float, x1: float, groups: list[list[str]], size: f
                 # A row too long for the measure wraps, as a long project title does.
                 indent = 16 if row.startswith(" ") else 0
                 p.y = p.stack(x0 + indent, p.y, [row], x1 - x0 - indent, size, lead, fields=True)
-        p.y -= lead * 0.72
+        p.y -= lead * 0.72 + (SIGNATURE_ROOM if n == closing else 0)
 
 
 def appointment_letter(rows: list[str], total: int | None, look: str | None = None) -> Pen:
@@ -1295,34 +1302,96 @@ def page_texts(data: bytes) -> list[str]:
         doc.close()
 
 
-def locate(data: bytes, text: str) -> list[tuple[int, int] | None]:
-    """For each row of `text`, the first and last page it's on, counted from 1.
+Word = tuple[int, str, tuple[float, float, float, float]]
 
-    A blank row gets None. Rows are compared with runs of whitespace as one space,
-    as the quote finder compares them, and each is looked for after the one before
-    it, so the page has to give the rows in the text's own order. A row missing
-    from the page raises ValueError.
+
+def page_words(data: bytes) -> list[Word]:
+    """Every word in the PDF, in reading order: its page (from 1), the word, and its box
+    as (left, top, right, bottom) in fractions of the page, from the page's top left.
+
+    A word is a run of characters with no whitespace, as pdfium reads the page."""
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as pdfium_c
+
+    out: list[Word] = []
+    doc = pdfium.PdfDocument(data)
+    try:
+        for number in range(1, len(doc) + 1):
+            page = doc[number - 1]
+            width, height = page.get_size()
+            textpage = page.get_textpage()
+            word, box = "", None
+            for i in range(textpage.count_chars() + 1):
+                ch = (
+                    chr(pdfium_c.FPDFText_GetUnicode(textpage.raw, i))
+                    if i < textpage.count_chars()
+                    else " "
+                )
+                if ch.isspace() or ch == "\x00":
+                    if word and box is not None:
+                        left, bottom, right, top = box
+                        frac = (left / width, 1 - top / height, right / width, 1 - bottom / height)
+                        out.append((number, word, frac))
+                    word, box = "", None
+                    continue
+                left, bottom, right, top = textpage.get_charbox(i, loose=False)
+                word += ch
+                box = (
+                    (left, bottom, right, top)
+                    if box is None
+                    else (
+                        min(box[0], left),
+                        min(box[1], bottom),
+                        max(box[2], right),
+                        max(box[3], top),
+                    )
+                )
+            textpage.close()
+            page.close()
+        return out
+    finally:
+        doc.close()
+
+
+def row_words(words: list[Word], text: str) -> list[tuple[int, int] | None]:
+    """For each row of `text`, the first and last of `words` that make it up.
+
+    A blank row gets None. A row's words are the page's words, one for one, and each
+    row is looked for after the one before it, so the page has to give the rows in the
+    text's own order. A row missing from the page raises ValueError.
     """
-    flat: list[str] = []
-    page_of: list[int] = []
-    for number, page in enumerate(page_texts(data), start=1):
-        for word in page.split():
-            if flat:
-                flat.append(" ")
-                page_of.append(number)
-            flat.append(word)
-            page_of += [number] * len(word)
-    whole = "".join(flat)
+    printed = [word for _, word, _ in words]
     out: list[tuple[int, int] | None] = []
     cursor = 0
     for row in text.split("\n"):
-        want = " ".join(row.split())
+        want = row.split()
         if not want:
             out.append(None)
             continue
-        found = whole.find(want, cursor)
-        if found < 0:
-            raise ValueError(f"the PDF doesn't give this row, in order: {want!r}")
+        found = next(
+            (
+                i
+                for i in range(cursor, len(printed) - len(want) + 1)
+                if printed[i : i + len(want)] == want
+            ),
+            None,
+        )
+        if found is None:
+            raise ValueError(f"the PDF doesn't give this row, in order: {' '.join(want)!r}")
         cursor = found + len(want)
-        out.append((page_of[found], page_of[cursor - 1]))
+        out.append((found, cursor - 1))
     return out
+
+
+def locate(data: bytes, text: str) -> list[tuple[int, int] | None]:
+    """For each row of `text`, the first and last page it's on, counted from 1.
+
+    A blank row gets None. Rows are compared word by word, with runs of whitespace as
+    one space, as the quote finder compares them (see `row_words`). A row missing from
+    the page raises ValueError.
+    """
+    words = page_words(data)
+    return [
+        None if found is None else (words[found[0]][0], words[found[1]][0])
+        for found in row_words(words, text)
+    ]

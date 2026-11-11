@@ -19,7 +19,7 @@ Every page laid out like an agency's or a university's own notice says at its fo
 | `generator/` | The script that makes all of the above |
 | `generator/names.py` | Every name the samples use, in one place |
 | `generator/typeset.py` | The layouts that draw the samples' PDFs |
-| `generator/images.py`, `realphoto.py`, `image_boxes.json` | The samples' three images, and the box of every string drawn on them |
+| `generator/images.py`, `realphoto.py`, `image_boxes.json` | The samples' pictures of paper (photos and scans), and the box of every string or word on them |
 | `test_seed.py` | The test |
 | `test_write_check.py` | Runs every agent record through the save's write check |
 
@@ -61,11 +61,14 @@ The small sample marks highlights 1 to 3: its award letter, invoice ESS-32410 em
 
 ### The forms the files take
 
-The samples hold three forms of evidence, and one plain text file.
+The samples hold four forms of evidence, and one plain text file.
 
 - **Typeset PDFs with a real text layer** (`generator/typeset.py`): the award notices, laid out like an NSF notice; each vendor's invoices, in that vendor's own look; the facility usage statements, the travel expense reports and the effort report, as reports printed from an administrative system; the hotel folios; the appointment letter; the cost transfer form; the rate agreement; the notice of expiration. A layout draws the rows of the document's text, in the same words and the same order, and adds only furniture that states no fact: a page number, a column heading, a remit-to line, small print. Nothing about a document is written into a layout, so the names and the lines can change in the generator without touching it.
 - **Emails** (`.eml`), with a forwarded invoice or receipt in the body.
-- **Images** (`.jpg`): the two receipt photos and the scan of invoice ESS-55120, drawn by `generator/realphoto.py`.
+- **Images** (`.jpg`): the two receipt photos and the scan of invoice ESS-55120, drawn string by string by `generator/realphoto.py`, and one phone photo of a printed typeset page, `hotel_folio_egu-2024.jpg` (1512 by 2016 pixels).
+- **Scans** (`.pdf` with no text layer): three typeset pages of the larger sample as paper the department scanned, `invoice_INV-12655.pdf`, `invoice_EFG-56443.pdf` and `appointment_letter_castellano.pdf`. Each is one US Letter page holding the scan at 150 dots per inch (1275 by 1650 pixels): a little crooked at its own angle, grainy, with fold lines and staple holes. The invoices carry the department's stamp, "RECEIVED" with the day the file arrives and "EARTH & OCEAN SCIENCES", a tick by the total and a pen scrawl. The letter carries a scrawl as a signature over the signer's printed name. The marks state nothing a check could read, and each sits on empty paper: the build fails if one would cover a word, and each fold falls between two rows of print.
+
+A scan or a photo of a typeset page is made by `images.picture` from the same page `typeset.py` draws, so any typeset document can arrive that way: name it in the grant's `pictures` (`PICTURES` in `generator/larger.py`). None of the four is a document a highlight's own result rests on. The app sends a scanned page to the model as an image of 1687 by 2184 pixels, whatever the scan's own resolution, and the photo as it is, at 1512 by 2016.
 - `closeout_certification_receipt.txt` stays plain text.
 
 An invoice carries a catalog number and a unit of measure on each line, and the university's account number with the vendor. A hotel folio shows each night's room and tax lines, and an airline receipt itemizes its taxes. Each document's lines come to the same subtotal and total as before they were added.
@@ -143,7 +146,10 @@ IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the
 
 - a text or email file gets a `char_location`
 - a PDF gets a `page_location`: the passage is the row of the document's text that holds the value, with single spaces as the page gives it, and the pages are the ones the typeset PDF puts that row on
-- an image gets an `image_box`: the box of the string drawn on it that holds the value, as `realphoto.py` returns it
+- an image drawn string by string gets an `image_box`: the box of the string drawn on it that holds the value, as `realphoto.py` returns it
+- a scan or a photo of a typeset page gets an `image_box` too, on page 1: the box around the value's own words on the row of the document's text that the record cites. A value printed more than once has a box for each place, so a total's box sits on the total and not on a line's amount that happens to be the same.
+
+A bill's total is cited on its total's row ("Total due"), not on a subtotal of the same amount.
 
 Each record is written when its file and its charge have both arrived. Confirmations aren't here, because they're the accountant's and live in `user_actions.json`.
 
@@ -157,7 +163,7 @@ The static test checks six things:
 - every link, budget line and answer the key expects is there
 - every passage is at its place in its file: at its characters in a text or email file, and a row of the text on its pages in a PDF
 - every passage cited into a PDF is found in the file by the app's own quote finder (`backend/app/quotes/pdf.py`), with its value, and no more often than the document's text has it
-- every image box is the box of a string drawn on its image
+- every image box is the box of a string drawn on its image, or, on a scan or a photo of a typeset page, holds words of one row of it
 - nothing is written before what it rests on
 - no record comes before a record it points to
 
@@ -223,7 +229,7 @@ The names and the documents' lines are the product owner's decision of November 
 
 ## Making it again
 
-Run all three from `backend/`, whose environment has what they need (reportlab and pypdfium2 for the PDFs, Pillow for the images):
+Run all three from `backend/`, whose environment has what they need (reportlab and pypdfium2 for the PDFs, Pillow for the pictures):
 
 ```
 cd backend
@@ -234,8 +240,8 @@ uv run python ../data/test_write_check.py
 
 The generator's output is the same every time, byte for byte. The typeset PDFs use only the 14 standard PDF fonts, with nothing compressed or dated, so they don't depend on the machine. Records and script steps find a file by its hash, so a file that changes is a different file to them.
 
-The three images do depend on the machine's fonts, so a build keeps the ones on disk. To draw them again, run `uv run python ../data/generator/build.py --photos`. That also saves the box of every string drawn on them to `generator/image_boxes.json`, which a build that keeps the images reads the boxes from. After redrawing them, update their hashes in `test_seed.py` (`PHOTO_SHA256`).
+The seven pictures do depend on the machine, so a build keeps the ones on disk: the three images drawn string by string, the three scanned PDFs and the folio's photo. The drawn ones and the stamp use the machine's fonts, and a scan or a photo of a typeset page shows that page as pdfium draws it, with the fonts the machine has for Helvetica, Times and Courier. To draw them again, run `uv run python ../data/generator/build.py --photos`. That also saves the box of every string or word on them to `generator/image_boxes.json`, which a build that keeps the pictures reads the boxes from. On one machine, drawing them twice gives the same bytes. After redrawing them, update their hashes in `test_seed.py` (`PHOTO_SHA256`).
 
 The test fails if any file differs from what the generator makes, so change the generator, not the files.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file, the rules behind the buckets, and the synthetic-data rule. A typeset PDF is read back with pdfium: every row of the document's text has to be on the page, in order. An image is read from the strings drawn on it, and checked against its hash. For the samples, it also checks that no placeholder "Example" name is left, that each page laid out like an agency's or a university's notice carries its synthetic mark, that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so `test_seed.py` and the eval cases' test don't run there yet. Running them in CI is a separate follow-up issue. The write check over the agent records does run there, through the backend's tests, and with it the quote finder's check of every PDF citation.
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file, the rules behind the buckets, and the synthetic-data rule. A typeset PDF is read back with pdfium: every row of the document's text has to be on the page, in order. An image is read from the strings drawn on it, and checked against its hash. A scanned PDF has no text layer to read back: the test checks that it has none, that it's one page, that it's the file the test knows by its hash, and that every word of every row of the document's text has a box that lies on the picture. For the samples, it also checks that no placeholder "Example" name is left, that each page laid out like an agency's or a university's notice carries its synthetic mark, that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so `test_seed.py` and the eval cases' test don't run there yet. Running them in CI is a separate follow-up issue. The write check over the agent records does run there, through the backend's tests, and with it the quote finder's check of every PDF citation.

@@ -53,7 +53,7 @@ endobj
 endobj
 10 0 obj
 <<
-/Length 5195
+/Length 5285
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -90,9 +90,12 @@ BT 1 0 0 1 447.483 648.72 Tm (Customer PO:) Tj T* ET
 .066667 .066667 .066667 rg
 BT /F3 8.5 Tf 10.2 TL ET
 BT 1 0 0 1 507 648.72 Tm (PO-25-3381) Tj T* ET
-.066667 .066667 .066667 rg
+.372549 .388235 .407843 rg
 BT /F1 9 Tf 10.8 TL ET
-BT 1 0 0 1 473.949 635.72 Tm (Account No.: 077103) Tj T* ET
+BT 1 0 0 1 473.373 635.72 Tm (Account No.:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 527.4 635.72 Tm (077103) Tj T* ET
 .372549 .388235 .407843 rg
 BT /F2 7.5 Tf 9 TL ET
 BT 1 0 0 1 54 674.72 Tm (Bill to:) Tj T* ET
@@ -237,5 +240,5 @@ trailer
 /Size 11
 >>
 startxref
-6399
+6489
 %%EOF

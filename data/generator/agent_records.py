@@ -26,6 +26,9 @@ from model import Grant, iso
 
 ALLOWABLE = "Is this cost necessary and reasonable, and is it for this project?"
 PHOTO_SUFFIXES = (".jpg", ".jpeg", ".png")
+# A bill's total is cited on its total's row ("Total due"), not on a subtotal of the
+# same amount.
+TOTAL_ROW = re.compile(r"\btotal\b", re.IGNORECASE)
 WORKSPACE = "ws-sample"
 
 # Default checklist items by account code prefix and document (W2's table on main,
@@ -81,6 +84,32 @@ def spaced(text: str) -> str:
     return " ".join(text.split())
 
 
+def value_box(words: list, text: str) -> tuple[float, float, float, float]:
+    """The box around a value on its row of a picture, as (left, top, right, bottom).
+
+    `words` are the row's words and their boxes (left, top, width, height). The value's
+    words are found among them, and the box is the one around those. A value that
+    isn't whole words of the row gets the box of the whole row."""
+    want = text.split()
+    printed = [word for word, _ in words]
+    at = next(
+        (
+            i
+            for i in range(len(printed) - len(want) + 1)
+            if want and printed[i : i + len(want)] == want
+        ),
+        None,
+    )
+    chosen = words if at is None else words[at : at + len(want)]
+    if not chosen:
+        raise LookupError(f"no words on the row for {text!r}")
+    left = min(b[0] for _, b in chosen)
+    top = min(b[1] for _, b in chosen)
+    right = max(b[0] + b[2] for _, b in chosen)
+    bottom = max(b[1] + b[3] for _, b in chosen)
+    return round(left, 4), round(top, 4), round(right, 4), round(bottom, 4)
+
+
 class Builder:
     def __init__(self, g: Grant, key: dict) -> None:
         self.g = g
@@ -101,23 +130,43 @@ class Builder:
     def charge_id(self, line_id: str) -> str:
         return f"chg-{line_id}"
 
-    def find(self, name: str, test, prefer: str | None = None) -> tuple[int, str]:
-        """The first line of a file passing `test`, or the first that also holds `prefer`."""
+    def find(self, name: str, test, prefer: str | re.Pattern | None = None) -> tuple[int, str]:
+        """The first line of a file passing `test`, or the first that also holds `prefer`,
+        which is text to find in the line whatever its case, or a pattern."""
         rows = self.docs[name].text.split("\n")
         hits = [(i, r) for i, r in enumerate(rows) if test(r)]
         if not hits:
             raise LookupError(f"{name}: no line passes the test")
-        if prefer:
-            preferred = [h for h in hits if prefer.casefold() in h[1].casefold()]
-            if preferred:
-                return preferred[0]
-        return hits[0]
+        if isinstance(prefer, re.Pattern):
+            preferred = [h for h in hits if prefer.search(h[1])]
+        else:
+            preferred = [h for h in hits if prefer and prefer.casefold() in h[1].casefold()]
+        return preferred[0] if preferred else hits[0]
 
-    def citation(self, name: str, index: int) -> dict:
+    def citation(self, name: str, index: int, text: str = "") -> dict:
         doc = self.docs[name]
         rows = doc.text.split("\n")
         row = rows[index]
         passage = row.strip()
+        if doc.words is not None:
+            # A scan or a photo of a typeset page: the box around the value's own words
+            # on this row, so a total's box sits on the total and not on a line's
+            # amount that happens to be the same.
+            left, top, right, bottom = value_box(doc.words[index] or [], text)
+            box = {
+                "type": "image_box",
+                "page": 1,
+                "left": left,
+                "top": top,
+                "width": round(right - left, 4),
+                "height": round(bottom - top, 4),
+            }
+            return {
+                "file_id": self.file_id(name),
+                "passage": None,
+                "location": box,
+                "match": "exact",
+            }
         if name.endswith(".pdf"):
             # The pages the typeset PDF puts the row on (typeset.locate). Pages count
             # from 1, and the end is exclusive.
@@ -166,11 +215,12 @@ class Builder:
         }
 
     def cited(self, name: str, value, text: str, index: int) -> dict:
-        if name.endswith(".pdf"):
-            # A PDF's passage has single spaces, and the value's text has to be in it.
+        if name.endswith(".pdf") or self.docs[name].words is not None:
+            # A page gives single spaces. A PDF's passage has them, and the value's text
+            # has to be in it.
             value = spaced(value) if value == text else value
             text = spaced(text)
-        return {"value": value, "text": text, "citation": self.citation(name, index)}
+        return {"value": value, "text": text, "citation": self.citation(name, index, text)}
 
     def cited_text(self, name: str, value: str, prefer: str | None = None) -> dict:
         i, row = self.find(name, lambda r: value.casefold() in r.casefold(), prefer)
@@ -183,7 +233,7 @@ class Builder:
         i, row = self.find(name, lambda r: any(t in r for t in texts), prefer)
         return self.cited(name, iso_date, next(t for t in texts if t in row), i)
 
-    def cited_money(self, name: str, cents: int, prefer: str | None = None) -> dict:
+    def cited_money(self, name: str, cents: int, prefer: str | re.Pattern | None = None) -> dict:
         i, row = self.find(name, lambda r: money_in(r, cents) is not None, prefer)
         return self.cited(name, cents, money_in(row, cents), i)
 
@@ -243,7 +293,7 @@ class Builder:
                     data["email"] = self.cited_text(name, f["email"])
                 data["role"] = self.cited_text(name, f["role"], f["name"])
             elif kind == "bill":
-                data["total"] = self.cited_money(name, int(f["total"]), "total")
+                data["total"] = self.cited_money(name, int(f["total"]), TOTAL_ROW)
                 if "vendor" in f:
                     data["vendor"] = self.cited_text(name, f["vendor"])
                 if "dated" in f:
@@ -460,7 +510,7 @@ class Builder:
                     return {
                         "share": self.cited(note, str(k), str(k), i_share),
                         "out_of": self.cited(note, str(whole), str(whole), i_whole),
-                        "total": self.cited_money(name, total, "total"),
+                        "total": self.cited_money(name, total, TOTAL_ROW),
                     }
         return None
 

@@ -37,7 +37,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from demo import RTC, SUPPLIES_ACCOUNT
-from images import Row, Stamp, invoice_scan, put_image, receipt
+from images import Photo, Row, Scan, Stamp, invoice_scan, put_image, receipt
 from model import (
     EVIDENCE_COMPLETE,
     MISSING_EVIDENCE,
@@ -167,6 +167,20 @@ BUDGET_001 = [
     ),
 ]
 
+# The documents that arrive as paper: three scanned by the department, each a little
+# crooked at its own angle, and one photographed with a phone (issue 312). None is a
+# document a highlight's own result rests on. The invoices carry the department's
+# received stamp, a tick and a pen scrawl, and the letter a scrawl for a signature. The
+# marks state nothing.
+PICTURES = {
+    "invoice_INV-12655.pdf": Scan(seed=12655, turn=0.7),
+    "invoice_EFG-56443.pdf": Scan(seed=56443, turn=-1.1),
+    f"appointment_letter_{IMOGEN.name.split()[-1].lower()}.pdf": Scan(
+        seed=2025, turn=0.4, stamp=False, tick=False, sign=True
+    ),
+    "hotel_folio_egu-2024.jpg": Photo(seed=2024),
+}
+
 DESCRIPTION = (
     f"The National Science Foundation hereby awards a continuing grant to {UNIVERSITY} for "
     "support of the project described in the proposal referenced above. This amendment "
@@ -181,6 +195,7 @@ def build() -> Grant:
     g = Grant(SLUG, AWARD, START, OLD_END, horizon=at(NEW_END + timedelta(days=60), 23, 59))
     g.typeset = True
     g.org = SAMPLES
+    g.pictures = dict(PICTURES)
     rng = random.Random(2401835)
     g.agent_extras = {"rules": {}, "remainders": [], "duplicates": []}
     letter(g)
@@ -384,7 +399,7 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
         Row(rule=True),
         Row("TOTAL", "$52.00", style="big"),
         Row(rule=True),
-        Row("VISA ************4417", style="small"),
+        Row("CARD ************4417", style="small"),
         Row("AUTH 06214B   SALE", style="small"),
         Row("CUSTOMER COPY", style="small", align="center"),
         Row("THANK YOU", style="small", align="center"),
@@ -1118,11 +1133,11 @@ def held_vendor_invoice(g: Grant) -> None:
                 f"Ledger line moved: {ln.line_id}, {SALTGRASS.name} invoice EFG-30418, "
                 f"{money(total)}",
                 "",
-                "Why the transfer is needed: the invoice includes a field crew dinner with wine,",
+                "Why the transfer is needed: The invoice includes a field crew dinner with wine,",
                 "which the award can't pay for.",
-                "Why the wrong fund was charged: the invoice was coded to the award with the",
+                "Why the wrong fund was charged: The invoice was coded to the award with the",
                 "January field supplies.",
-                "How the expense relates to the project: the dry bags were for the award's field",
+                "How the expense relates to the project: The dry bags were for the award's field",
                 "work and are charged again to the department fund with the dinner.",
                 "",
                 f"Prepared by: {GAIL.name}, March 5, 2026",

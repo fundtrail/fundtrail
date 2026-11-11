@@ -66,6 +66,10 @@ class Doc:
     # For a drawn image (images.py): the box of each row of `text` on the image, as
     # (left, top, width, height) in fractions of it. None for any other file.
     boxes: list[tuple[float, float, float, float]] | None = None
+    # For a scan or a photo made from a typeset page (images.py): for each row of `text`,
+    # its words and each one's box on the picture, and None for a blank row. None for
+    # any other file.
+    words: list[list[tuple[str, tuple[float, float, float, float]]] | None] | None = None
 
 
 @dataclass
@@ -135,6 +139,9 @@ class Grant:
     # The university, the funder's officials and the airline its documents name. The
     # samples set names.SAMPLES; the unused seed grants keep the placeholder names.
     org: Org = LEGACY
+    # The documents that arrive as a scan or a phone photo of their typeset page, by
+    # file name: an images.Scan or an images.Photo (issue 312).
+    pictures: dict = field(default_factory=dict)
     _seq: int = 0
 
     # ------------------------------------------------------------ building
