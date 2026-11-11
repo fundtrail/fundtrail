@@ -1,3 +1,5 @@
+# A fallback copy of Dockerfile.backend.dockerignore, which BuildKit reads for that
+# Dockerfile. Kept for a builder that reads only .dockerignore; keep the two the same.
 # Only the backend and the sample packs go into the backend's image (Dockerfile.backend).
 *
 !backend/
