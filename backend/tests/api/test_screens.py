@@ -846,6 +846,27 @@ def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None
     assert tampered.json()["detail"].startswith("The stored report doesn't match the checksum")
 
 
+def test_the_grant_page_says_why_sign_off_cant_be_done_now(api: Api) -> None:
+    """Ruling 72: while a run is queued or running, the sign-off state carries the same
+    words the sign-off route refuses with; once the agent is done, none."""
+    sample = _sample(api)
+    path = f"/grants/{sample.grant.id}/records"
+    with transaction(api.platform.pool) as conn:
+        from app.db.jobs import queue_run
+
+        queue_run(conn, sample.grant, Trigger(kind=TriggerKind.CLOCK), APRIL_10)
+    reason = _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"]
+    refused = api.client.post(
+        path, json={"data": {"kind": "sign_off", "note": "Done."}}, headers=api.headers
+    )
+    assert refused.status_code == 422 and refused.json()["detail"] == [reason]
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (sample.grant.id,)
+        )
+    assert _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"] is None
+
+
 def test_the_charge_page_names_every_file_its_records_cite(api: Api) -> None:
     """Issue 275: a file an answer's quote cites is in the charge page's files, not only
     the links' files."""
@@ -970,3 +991,45 @@ def test_a_file_from_another_grant_or_not_yet_arrived_stays_out(api: Api) -> Non
     files = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}")["files"]
     assert invoice in files
     assert notice not in files and elsewhere not in files
+
+
+def test_a_suggestion_moving_the_accountants_link_names_that_links_file(api: Api) -> None:
+    """The no-part branch: the accountant linked L-1002 to the sequencing statement's bill
+    with no part; an agent's link waiting to move it to L-1001 is on L-1001's page, and
+    names the statement through the link it would replace."""
+    sample = _sample(api)
+    l1001, l1002 = _id(sample, "chg-l-1001"), _id(sample, "chg-l-1002")
+    statement = _id(sample, "file-sequencing-statement")
+    theirs = Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "user",
+            "author_user_id": api.user_id,
+            "written_at": APRIL_10,
+            "data": {
+                "kind": "link",
+                "charge_id": l1002,
+                "record_id": _id(sample, "rec-bill-seq-0207"),
+                "amount_cents": 218000,
+            },
+        }
+    )
+    quote = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(quote.data, Judgment)
+    mine = _agent_record(
+        sample,
+        {
+            "kind": "link",
+            "charge_id": l1001,
+            "record_id": _id(sample, "rec-bill-inv-1001"),
+            "amount_cents": 124000,
+            "part": quote.data.quotes[0].model_dump(mode="json"),
+        },
+        APRIL_10,
+    ).model_copy(update={"replaces_id": theirs.id})
+    _store(api, theirs, mine)
+    detail = _get(api, f"/charges/{l1001}")
+    assert mine.id in [w["record"]["id"] for w in detail["waiting"]]
+    assert statement in detail["files"]

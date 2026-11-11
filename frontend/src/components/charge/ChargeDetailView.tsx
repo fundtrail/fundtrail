@@ -33,6 +33,7 @@ export function ChargeDetailView({
   onAsk,
   onWrite,
   links = {},
+  headingLevel = 1,
 }: {
   detail: ChargeDetail;
   onDecide: OnDecide;
@@ -40,6 +41,8 @@ export function ChargeDetailView({
   /** The accountant's other records: answers, checklist changes, accepted reasons, snoozes. */
   onWrite?: OnWrite;
   links?: ChargeLinks;
+  /** The charge's title: h1 on its own page, h2 inside another page. */
+  headingLevel?: 1 | 2;
 }) {
   const { charge, status } = detail;
   const records = detail.records ?? {};
@@ -57,7 +60,7 @@ export function ChargeDetailView({
     <div className={styles.view}>
       <div className={styles.layout}>
         <article className={styles.card} aria-labelledby="charge-name">
-          <ChargeHeader detail={detail} />
+          <ChargeHeader detail={detail} headingLevel={headingLevel} />
           <section className={styles.section} aria-labelledby="trail-heading">
             <h2 id="trail-heading" className={styles.sectionHeading}>
               Evidence trail

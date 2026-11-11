@@ -57,8 +57,9 @@ export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOf
       <p>
         {signed ? (
           <>
-            Signed off {date(signed.written_at)}. The signed report is stored as it was signed. The draft below is
-            today&apos;s, made fresh from the records.
+            {/* Once signed, the signed report is the page's main thing: its line leads. */}
+            <span className="ft-co-report__lead">Signed off {date(signed.written_at)}.</span> The signed report is
+            stored as it was signed. The draft below is today&apos;s, made fresh from the records.
           </>
         ) : (
           <>Draft. It&apos;s made fresh from the records each time you open it.</>

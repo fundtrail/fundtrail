@@ -34,6 +34,7 @@ from app.contracts.api import (
     LinkView,
     MessageThreadEntry,
     ProblemRow,
+    ReadingProgress,
     RecordProblemRow,
     RecordThreadEntry,
     ReusableNoteView,
@@ -66,6 +67,7 @@ from app.contracts.checks import (
 from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import HeldMail
 from app.contracts.records import (
+    CATEGORY_PARENT,
     FOUND,
     TERM_KINDS,
     AcceptedReason,
@@ -91,6 +93,7 @@ from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
+from app.db.actions import AGENT_WORKING
 from app.db.clock import grant_now
 from app.db.held_mail import still_held_mail
 from app.db.platform import Platform
@@ -113,6 +116,8 @@ class GrantSnapshot:
     messages: list[ThreadMessage]
     output: ChecksOutput
     held: list[HeldMail]  # the grant's messages still held at "now" (rules.still_held)
+    reading: ReadingProgress | None = None  # ruling 71
+    last_run_summary: str | None = None  # ruling 71
     state: RecordState = field(init=False)
 
     def __post_init__(self) -> None:
@@ -146,6 +151,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
             skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
+    pending = store.pending_runs(conn, grant.id)
     return GrantSnapshot(
         workspace=workspace,
         grant=grant,
@@ -154,10 +160,27 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
         files=files,
         records=records,
         statuses=store.current_statuses(conn, grant.id),
-        pending=store.pending_runs(conn, grant.id),
+        pending=pending,
         messages=store.grant_messages(conn, grant.id, now),
         output=output,
         held=still_held_mail(conn, grant, now, RecordState(records, files)),
+        # Only while the agent has work queued or running: an idle grant asks nothing.
+        reading=_reading(store.reading_counts(conn, grant.id)) if pending else None,
+        last_run_summary=store.last_run_summary(conn, grant.id),
+    )
+
+
+def _reading(counts: dict[str, int] | None) -> ReadingProgress | None:
+    """Ruling 71: how far the agent is, while it has anything queued or running. The
+    counts come from one query over one set of runs, and read is clamped to total, so a
+    run finishing meanwhile can't push read past it."""
+    if counts is None:
+        return None
+    return ReadingProgress(
+        files_read=min(counts["files_read"], counts["files_total"]),
+        files_total=counts["files_total"],
+        lines_read=min(counts["lines_read"], counts["lines_total"]),
+        lines_total=counts["lines_total"],
     )
 
 
@@ -266,6 +289,8 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         bucket_counts=counts,
         next_closeout=CloseoutDate(date=step.date, label=step.label) if step else None,
         now=snap.now,
+        reading=snap.reading,
+        last_run_summary=snap.last_run_summary,
     )
 
 
@@ -420,6 +445,8 @@ def budget(snap: GrantSnapshot) -> BudgetView:
                 line=snap.state.by_id[f.record_ids[-1]],
                 amount_cents=f.budget_cents,
                 spent_cents=f.spent_cents,
+                # Ruling 74: a sub-line sits inside its parent category.
+                parent=CATEGORY_PARENT.get(f.category),
             )
             for f in figures.categories
         ),
@@ -437,9 +464,14 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
     """Decision 0022: not signed, signed, or changed since, comparing the snapshot the
     sign-off stored with one taken now (each charge's bucket, accepted and reversed state,
     the problem list row by row, and the totals)."""
+    # Ruling 72: why signing off can't be done now, the same words the refusal uses. Only a
+    # run queued or running blocks it; anything open asks for a note instead.
+    unavailable = AGENT_WORKING if snap.pending else None
     signed = [r for r in snap.state.current() if isinstance(r.data, SignOff)]
     if not signed:
-        return SignOffState(state=signed_state(None, snapshot_now(snap)))
+        return SignOffState(
+            state=signed_state(None, snapshot_now(snap)), unavailable_reason=unavailable
+        )
     sign_off = signed[-1]
     assert isinstance(sign_off.data, SignOff)
     now = snapshot_now(snap)
@@ -447,6 +479,7 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
         state=signed_state(sign_off.data.snapshot, now),
         sign_off=sign_off,
         changes=changes_since(sign_off.data.snapshot, now),
+        unavailable_reason=unavailable,
     )
 
 

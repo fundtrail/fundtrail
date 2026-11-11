@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, SampleRefusalError, type GrantSummary, type SampleOption } from "@/lib/api";
 import { readRefusal, SampleCard } from "./SampleCard";
@@ -51,6 +51,10 @@ describe("SampleCard", () => {
     choose("larger_live");
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(openSample).not.toHaveBeenCalled();
+    // The question says it once, without repeating the sample's name (issue 302).
+    const confirm = screen.getByRole("group", { name: "Confirm the sample" });
+    expect(within(confirm).getByText("The agent reads this sample live from the start. Start it?")).toBeInTheDocument();
+    expect(confirm).not.toHaveTextContent("Larger sample, read live");
     fireEvent.click(screen.getByRole("button", { name: "Start it" }));
     await waitFor(() => expect(onOpened).toHaveBeenCalled());
     expect(openSample).toHaveBeenCalledWith({ choice: "larger_live", confirmed: true });
@@ -86,6 +90,20 @@ describe("SampleCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Confirm before starting this sample.");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+describe("SampleCard's main button", () => {
+  it("is Open once a sample is chosen, and only while this side is the one in use", () => {
+    const onUse = vi.fn();
+    const { rerender } = render(<SampleCard options={OPTIONS} openSample={vi.fn()} onOpened={vi.fn()} main={false} onUse={onUse} />);
+    const open = screen.getByRole("button", { name: "Open" });
+    expect(open).not.toHaveClass("ft-btn--main");
+    fireEvent.change(screen.getByLabelText("Which sample"), { target: { value: "small_live" } });
+    expect(onUse).toHaveBeenCalled();
+    expect(open).not.toHaveClass("ft-btn--main");
+    rerender(<SampleCard options={OPTIONS} openSample={vi.fn()} onOpened={vi.fn()} main onUse={onUse} />);
+    expect(open).toHaveClass("ft-btn--main");
   });
 });
 
