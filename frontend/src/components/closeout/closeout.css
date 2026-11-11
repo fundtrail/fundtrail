@@ -198,9 +198,6 @@
 }
 
 /* Still open: the problem list rows sit flush in the panel. */
-.ft-co-open .ft-problems {
-  border-top: 0;
-}
 .ft-co-open .ft-empty {
   padding: 0 var(--space-4) var(--space-4);
 }
@@ -221,11 +218,20 @@
   padding: 0;
   list-style: none;
 }
+/* Same columns as a problem list row: date and ID, the charge, amount over bucket. */
 .ft-co-snoozed__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
   gap: var(--space-1) var(--space-3);
   align-items: start;
+}
+@media (max-width: 640px) {
+  .ft-co-snoozed__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ft-co-snoozed__row .ft-co-snoozed__side {
+    align-items: flex-start;
+  }
 }
 .ft-co-snoozed__side {
   display: flex;
@@ -456,6 +462,29 @@
 }
 .ft-co .ft-textarea[aria-invalid="true"] {
   border-color: var(--conflict);
+}
+/* The server's refusal, as a field error: a diamond mark and the reason. */
+.ft-co-report .ft-error,
+.ft-co-sign .ft-error {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-1));
+  padding: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+.ft-co-report .ft-error::before,
+.ft-co-sign .ft-error::before {
+  content: "";
+  flex: none;
+  position: relative;
+  top: -1px;
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  transform: rotate(45deg);
 }
 .ft-co-sign .ft-error ul {
   margin: 0;

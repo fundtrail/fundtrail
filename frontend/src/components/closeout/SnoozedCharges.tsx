@@ -23,12 +23,13 @@ export function SnoozedCharges({ grantId, rows }: { grantId: Id; rows: ChargeRow
         {snoozed.map(({ charge, status }) => (
           <li key={charge.id} className="ft-co-snoozed__row">
             <div>
+              <div className="ft-num">{date(charge.transaction_date)}</div>
+              <div className="ft-id">{charge.ledger_line_id}</div>
+            </div>
+            <div>
               <Link className="ft-link ft-strong" href={routes.charge(grantId, charge.id)}>
                 {charge.description}
               </Link>
-              <div className="ft-caption">
-                <span className="ft-id">{charge.ledger_line_id}</span> · {date(charge.transaction_date)}
-              </div>
             </div>
             <div className="ft-co-snoozed__side">
               <span className="ft-co-amount ft-strong">{money(charge.amount_cents)}</span>
