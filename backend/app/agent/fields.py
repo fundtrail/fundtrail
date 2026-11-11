@@ -47,6 +47,8 @@ def _describe(annotation: Any, prefix: str) -> list[str]:
         ]
     if name == "BudgetCategory":
         return [f"{prefix}: the tool's category argument, one of NSF's categories"]
+    if annotation is bool:
+        return [f"{prefix}: the tool's {prefix} argument, true or false"]
     return [f"{prefix}: the tool's {prefix} argument, plain text"]
 
 

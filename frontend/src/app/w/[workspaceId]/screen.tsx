@@ -51,7 +51,7 @@ export function WorkspaceScreen() {
   const hasGrants = !!workspace && !!grants.data && grants.data.length > 0;
 
   return (
-    <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "Grants"]}>
+    <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "All grants"]}>
       <header className={styles.head}>
         {workspace ? (
           <h1 className={styles.title}>

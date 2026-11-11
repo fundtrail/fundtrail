@@ -14,42 +14,45 @@ export type WriteState =
  * then refetches what's on screen so the server's new state shows. A write the
  * write check rejects shows its problems as the server words them.
  *
- * Never sends twice at once: a second call while one is in flight sends
- * nothing and returns the in-flight write's result, even if the arguments
- * differ. A disabled button stops a
- * real double click, but two submits in the same task (requestSubmit() twice,
- * say) would otherwise both send before the button re-renders. The guard is
- * released when the write settles, whether it succeeds or fails.
+ * `write` resolves to the saved record, or to null when nothing was saved.
+ * Null means one of two things, and callers treat both as "do nothing":
+ * - the write failed: `state` is "failed" with the problems to show;
+ * - the write was not sent: another write from this hook was still in
+ *   flight. `state` is left as it is, so it keeps describing that other
+ *   write, never this one.
+ *
+ * Never sends twice at once. A disabled button stops a real double click, but
+ * two submits in the same task (requestSubmit() twice, or Confirm then Reject)
+ * would otherwise both send before the button re-renders. A call that arrives
+ * while a write is in flight, even with different arguments, sends nothing
+ * and resolves to null; it never gets the other write's record, which could
+ * show a decision that wasn't sent. The guard is released when the write
+ * settles, whether it succeeds or fails.
  */
 export function useWrite() {
   const api = useApi();
   const refresh = useRefresh();
   const [state, setState] = useState<WriteState>({ status: "idle" });
-  const inFlight = useRef<Promise<FtRecord | null> | null>(null);
+  const inFlight = useRef(false);
 
-  function write(grantId: Id, body: NewRecordInput): Promise<FtRecord | null> {
-    if (inFlight.current) return inFlight.current;
+  async function write(grantId: Id, body: NewRecordInput): Promise<FtRecord | null> {
+    if (inFlight.current) return null;
+    // Set before anything can throw, cleared in finally, so even a client that
+    // throws synchronously releases it.
+    inFlight.current = true;
     setState({ status: "saving" });
-    const sending = (async () => {
-      try {
-        const record = await api.writeRecord(grantId, body);
-        setState({ status: "saved", record });
-        void refresh();
-        return record;
-      } catch (error) {
-        const problems = error instanceof ApiError ? (error.problems ?? [error.message]) : ["Couldn't save this. Try again."];
-        setState({ status: "failed", problems });
-        return null;
-      }
-    })();
-    inFlight.current = sending;
-    // Released only after the assignment above, and only if the ref still
-    // holds this write, so a write that fails synchronously can't leave a
-    // settled promise in the ref.
-    void sending.finally(() => {
-      if (inFlight.current === sending) inFlight.current = null;
-    });
-    return sending;
+    try {
+      const record = await api.writeRecord(grantId, body);
+      setState({ status: "saved", record });
+      void refresh();
+      return record;
+    } catch (error) {
+      const problems = error instanceof ApiError ? (error.problems ?? [error.message]) : ["Couldn't save this. Try again."];
+      setState({ status: "failed", problems });
+      return null;
+    } finally {
+      inFlight.current = false;
+    }
   }
 
   return { state, write };
