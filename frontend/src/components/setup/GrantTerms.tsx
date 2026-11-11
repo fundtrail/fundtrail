@@ -1,29 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { EvidenceFile, Id, ProblemRow, TermView } from "@/lib/api";
 import { date, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { TermCard } from "./TermCard";
-import { isTermKind } from "./termFields";
+import { isTermKind, TERM_GROUP_LABELS, type TermKind } from "./termFields";
 import { useWrite, WriteProblems } from "./useWrite";
 import "./setup.css";
 
 type TermsWaitingRow = Extract<ProblemRow, { kind: "terms_waiting" }>;
 
-/** The terms in the order they come, each marked when it continues a run of the same kind, so a run reads as one group. */
-function TermRows({ terms, settled = false, lead = false }: { terms: TermView[]; settled?: boolean; lead?: boolean }) {
+/** The terms grouped by kind, the groups in the order their first term comes, each group's terms in the order they come. */
+function byKind(terms: TermView[]): [TermKind, TermView[]][] {
+  const groups = new Map<TermKind, TermView[]>();
+  for (const t of terms) {
+    const kind = t.record.data.kind;
+    if (!isTermKind(kind)) continue;
+    groups.set(kind, [...(groups.get(kind) ?? []), t]);
+  }
+  return [...groups.entries()];
+}
+
+/** A list of terms under a quiet heading per kind, with its count when there's more than one. */
+function KindGroups({ terms, settled = false, heading: Heading }: { terms: TermView[]; settled?: boolean; heading: "h3" | "h4" }) {
   return (
-    <div className="ft-trs">
-      {terms.map((t, i) => (
-        <TermCard
-          key={t.record.id}
-          term={t}
-          settled={settled}
-          lead={lead}
-          continues={i > 0 && terms[i - 1]!.record.data.kind === t.record.data.kind}
-        />
+    <div className="ft-tgroups">
+      {byKind(terms).map(([kind, group]) => (
+        <div key={kind} className="ft-tgroup" role="group" aria-label={TERM_GROUP_LABELS[kind]}>
+          <Heading className="ft-tgroup__head">
+            {TERM_GROUP_LABELS[kind]}
+            {group.length > 1 && <span className="ft-count">{group.length}</span>}
+          </Heading>
+          {group.map((t) => (
+            <TermCard key={t.record.id} term={t} settled={settled} />
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -84,16 +97,41 @@ function WaitingGroup({ file, text, terms }: { file: EvidenceFile | null; text: 
           <WriteProblems state={state} />
         </div>
       )}
-      <TermRows terms={terms} settled={confirmedAll} lead={waitingIds.length === 1} />
+      <KindGroups terms={terms} settled={confirmedAll} heading="h4" />
     </section>
+  );
+}
+
+/** The terms no check uses any more: one closed group at the end, struck through. */
+function RetiredGroup({ terms }: { terms: TermView[] }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ft-tgroup ft-tgroup--retired" role="group" aria-label="Not in force">
+      <h3 className="ft-tgroup__head">
+        <button type="button" className="ft-tgroup__toggle" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+          <span className="ft-trow__chev" aria-hidden="true" />
+          Not in force
+          <span className="ft-count">{terms.length}</span>
+        </button>
+      </h3>
+      {open && (
+        <div id={id}>
+          {terms.map((t) => (
+            <TermCard key={t.record.id} term={t} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 /**
  * The confirm screen's body: one group per source document with terms waiting
  * (the problem list's terms rows, in the server's order), then any waiting
- * term no row names, then every other term with its state: those in force
- * first, then those no check uses any more, each in the server's order.
+ * term no row names, then the terms in force grouped by kind, then those no
+ * check uses any more. A term opens by itself only when it needs the
+ * accountant; the rest show their values and open on a click.
  */
 export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRow[] }) {
   const termTerms = terms.filter((t) => isTermKind(t.record.data.kind));
@@ -133,12 +171,8 @@ export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRo
           <p className="ft-empty">No terms yet. They appear as the agent reads the award letter.</p>
         ) : (
           <>
-            {inForce.length > 0 && <TermRows terms={inForce} />}
-            {retired.length > 0 && (
-              <div className="ft-retired">
-                <TermRows terms={retired} />
-              </div>
-            )}
+            {inForce.length > 0 && <KindGroups terms={inForce} heading="h3" />}
+            {retired.length > 0 && <RetiredGroup terms={retired} />}
           </>
         )}
       </section>

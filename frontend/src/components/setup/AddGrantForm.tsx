@@ -74,7 +74,8 @@ export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
         </p>
       )}
       <div className="ft-choice-card__actions">
-        <button type="submit" className={`ft-btn ft-btn--main${sending ? " is-busy" : ""}`} disabled={!file || sending}>
+        {/* The main action only once a file is chosen: the side the accountant acted on carries it. */}
+        <button type="submit" className={`ft-btn${file ? " ft-btn--main" : ""}${sending ? " is-busy" : ""}`} disabled={!file || sending}>
           Add the grant
         </button>
       </div>

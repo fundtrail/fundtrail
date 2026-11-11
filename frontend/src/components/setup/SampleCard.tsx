@@ -136,7 +136,7 @@ export function SampleCard({
         <div className="ft-choice-card__actions">
           <button
             type="button"
-            className={`ft-btn ft-btn--main${busy ? " is-busy" : ""}`}
+            className={`ft-btn${option ? " ft-btn--main" : ""}${busy ? " is-busy" : ""}`}
             disabled={busy || (option !== null && !option.available)}
             onClick={clickOpen}
           >

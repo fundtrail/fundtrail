@@ -23,7 +23,8 @@ describe("GrantTerms", () => {
     render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
     const group = waitingGroup();
     expect(within(group).getByText("1 term waiting to be confirmed")).toBeInTheDocument();
-    expect(within(group).getByText("Jan 31, 2027")).toBeInTheDocument();
+    // The value shows in the term's row and again in its open detail.
+    expect(within(group).getAllByText("Jan 31, 2027")).toHaveLength(2);
     expect(within(group).getByRole("button", { name: "Confirm" })).toBeInTheDocument();
   });
 
@@ -93,6 +94,9 @@ describe("GrantTerms", () => {
     const { detail, Wrapper } = await sampleTerms();
     const rejected = detail.terms.filter((t) => t.record.id === "rec-period-extension").map((t) => ({ ...t, state: "rejected" as const }));
     render(<GrantTerms terms={rejected} rows={[]} />, { wrapper: Wrapper });
+    // A rejected term sits closed in the last group: open the group, then the term.
+    fireEvent.click(screen.getByRole("button", { name: /Not in force/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Jan 31, 2027/, expanded: false }));
     expect(screen.getByRole("button", { name: "Type the right value" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the term's thread" })).toHaveAttribute("href", "/grants/grant-sample/records/rec-period-extension");
   });
@@ -117,6 +121,92 @@ describe("GrantTerms", () => {
     const terms = detail.terms.filter((t) => t.state !== "waiting");
     render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
     expect(screen.getByText("No terms are waiting to be confirmed.")).toBeInTheDocument();
+  });
+});
+
+describe("which terms open by themselves", () => {
+  /** A term row's disclosure button, found by the values the closed row shows. */
+  const rowOf = (name: RegExp) => screen.getByRole("button", { name });
+
+  it("opens a waiting term, so its quote shows before it is confirmed", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    const row = within(waitingGroup()).getByRole("button", { name: /Jan 31, 2027/ });
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(within(waitingGroup()).getByText(/This amendment extends the end date/)).toBeInTheDocument();
+  });
+
+  it("keeps a confirmed term in force closed, with its values but not its quotes, until it is clicked", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    const row = rowOf(/Dr\. Robin Example/);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(row).toHaveTextContent("Dr. Robin Example");
+    expect(screen.queryByText(/Principal Investigator: Dr. Robin Example/)).not.toBeInTheDocument();
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/Principal Investigator: Dr. Robin Example/)).toBeInTheDocument();
+  });
+
+  it("opens a term in force with a value that couldn't be found", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const terms = detail.terms.map((t) =>
+      t.record.id === "rec-person-pi" ? { ...t, values: [{ path: "email", confirmed: false }] } : t,
+    );
+    render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
+    expect(rowOf(/Dr\. Robin Example/)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("list", { name: "Values not confirmed" })).toHaveTextContent("Email");
+    expect(rowOf(/Dr\. Jesse Sample/)).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens a term in force with a problem", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const problem = { check: "check-x", problem: "problem-x", text: "A problem code found with this term." };
+    const terms = detail.terms.map((t) =>
+      t.record.id === "rec-approval-rule"
+        ? { ...t, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [problem], flagged: true } }
+        : t,
+    );
+    render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
+    expect(rowOf(/Applies to/)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("A problem code found with this term.")).toBeInTheDocument();
+  });
+
+  it("puts the terms no check uses in one closed group at the end", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const terms = detail.terms.map((t) => (t.record.id === "rec-period" ? { ...t, state: "replaced" as const } : t));
+    render(<GrantTerms terms={terms} rows={[]} />, { wrapper: Wrapper });
+    const toggle = screen.getByRole("button", { name: /Not in force/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Replaced")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByText("Replaced")).toBeInTheDocument();
+  });
+
+  it("groups terms in force by kind, with a count where there is more than one", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={[]} />, { wrapper: Wrapper });
+    const budget = screen.getByRole("group", { name: "Budget lines" });
+    expect(within(budget).getByRole("heading")).toHaveTextContent("Budget lines4");
+    expect(within(screen.getByRole("group", { name: "Approval rules" })).getByRole("heading")).toHaveTextContent(/^Approval rules$/);
+  });
+
+  it("shows a passage that consecutive values share once, each value keeping its own link", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    fireEvent.click(rowOf(/Dr\. Robin Example/));
+    const person = rowOf(/Dr\. Robin Example/).closest("article") as HTMLElement;
+    // Name, role and email quote the same line, so it shows once; the document date quotes another.
+    expect(within(person).getAllByText(/Principal Investigator: Dr. Robin Example/)).toHaveLength(1);
+    expect(within(person).getAllByRole("blockquote")).toHaveLength(2);
+    const links = within(person).getAllByRole("link", { name: /^Open the source of / });
+    expect(links.map((l) => l.getAttribute("aria-label"))).toEqual([
+      "Open the source of name",
+      "Open the source of role",
+      "Open the source of email",
+      "Open the source of document date",
+    ]);
+    expect(links[0]).toHaveAttribute("href", "/grants/grant-sample/files/file-award-letter?record=rec-person-pi&value=name");
   });
 });
 

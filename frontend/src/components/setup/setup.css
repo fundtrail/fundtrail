@@ -211,98 +211,212 @@
   color: var(--needs-human);
 }
 
-/* One term, one row: what it is on the left, its values with their quotes in
-   the middle, its actions at the end. The rows measure their own list, so the
-   actions drop under the values where the list is narrow. */
-.ft-trs {
+/* The terms of one kind under a quiet heading, with their count when there's
+   more than one. The groups measure their own width, so a row's parts stack
+   where the list is narrow. */
+.ft-tgroups {
   container-type: inline-size;
 }
-.ft-tr {
-  --tr-meta: 216px;
-  --tr-gap: var(--space-5);
-  position: relative;
-  display: grid;
-  grid-template-columns: var(--tr-meta) minmax(0, 1fr) auto;
-  grid-template-areas:
-    "meta main actions"
-    "meta form form";
-  column-gap: var(--tr-gap);
-  padding: 14px var(--space-4);
-  border-top: 1px solid var(--rule);
-}
-/* A row of the same kind as the one above joins its group: the rule between
-   them starts at the values, and the kind isn't repeated. */
-.ft-tr.is-cont {
-  border-top-color: transparent;
-}
-.ft-tr.is-cont::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: calc(var(--space-4) + var(--tr-meta) + var(--tr-gap));
-  right: var(--space-4);
-  border-top: 1px solid var(--rule);
-}
-.ft-tr__meta {
-  grid-area: meta;
+.ft-tgroup__head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) var(--space-4) 6px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
 }
-.ft-tr__date {
+.ft-tgroup__head .ft-count {
+  height: 16px;
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.ft-tgroup__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ft-tgroup__toggle:hover {
+  color: var(--ink);
+}
+.ft-tgroup__toggle .ft-trow__chev {
+  align-self: center;
+  margin: 0 2px 0 0;
+}
+.ft-tgroup--retired {
+  container-type: inline-size;
+}
+.ft-tgroup--retired .ft-tgroup__head {
+  padding-bottom: var(--space-4);
+}
+.ft-tgroup--retired .ft-tgroup__toggle[aria-expanded="true"] .ft-trow__chev {
+  transform: rotate(45deg);
+}
+
+/* One term, one row: a button that shows its values plainly and opens the
+   proof underneath. */
+.ft-trow {
+  border-top: 1px solid var(--rule);
+}
+.ft-trow__head {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  width: 100%;
+  min-height: var(--row-min);
+  margin: 0;
+  padding: 11px var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ft-trow__head:hover {
+  background: var(--paper-sunken);
+}
+.ft-trow__head:focus-visible {
+  outline-offset: -2px;
+}
+/* The chevron: two sides of a small square, pointing right when closed and
+   down when open. */
+.ft-trow__chev {
+  display: inline-block;
+  flex: none;
+  align-self: start;
+  justify-self: center;
+  margin-top: 7px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--ink-muted);
+  border-bottom: 1.5px solid var(--ink-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease-out;
+}
+.ft-trow.is-open > .ft-trow__head .ft-trow__chev {
+  transform: rotate(45deg);
+}
+.ft-trow__main {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.ft-trow__aside {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
-.ft-tr__kind {
-  font-size: 13px;
-  line-height: 22px;
-  font-weight: 600;
+.ft-trow__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
-.ft-tr__main {
-  grid-area: main;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
+.ft-trow__tags:empty {
+  display: none;
 }
-.ft-tr__fields {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-}
-.ft-tr__field {
-  display: grid;
-  grid-template-columns: 136px minmax(0, 1fr);
-  column-gap: var(--space-4);
-}
-/* The label's first line sits on the value's baseline. */
-.ft-tr__field dt {
-  padding-top: 4px;
-}
-.ft-tr__field dd {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-width: 0;
-  margin: 0;
-}
-.ft-tr__value {
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.ft-tr.is-muted .ft-tr__kind,
-.ft-tr.is-muted .ft-tr__value {
+.ft-trow.is-muted .ft-trow__main,
+.ft-trow.is-muted .ft-trow__aside {
   color: var(--ink-muted);
 }
-.ft-tr.is-muted .ft-tr__value {
-  font-weight: 500;
+
+/* The closed row's values, laid out for the kind. */
+.ft-ts__strong {
+  font-weight: 600;
 }
-.ft-tr__unconfirmed ul {
+.ft-ts__amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ft-ts__line > span + span::before {
+  content: "·";
+  margin: 0 var(--space-2);
+  color: var(--ink-muted);
+}
+.ft-ts__line--clip {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-ts__pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-5);
+}
+.ft-ts__pair {
+  font-variant-numeric: tabular-nums;
+}
+.ft-ts__label {
+  margin-right: 2px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+/* The open row: each value with its quote and its link, who wrote it, the
+   thread, and the actions at the end. */
+.ft-trow__detail {
+  --tval-label: 136px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "body actions"
+    "form form";
+  column-gap: var(--space-5);
+  padding: var(--space-1) var(--space-4) var(--space-4) calc(var(--space-4) + 12px + var(--space-3));
+}
+.ft-trow__body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ft-tvals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ft-tvals__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ft-tval {
+  display: grid;
+  grid-template-columns: var(--tval-label) minmax(0, max-content) auto;
+  justify-content: start;
+  align-items: baseline;
+  column-gap: var(--space-4);
+}
+.ft-tval__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+}
+.ft-tval__src {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.ft-tvals__group > .ft-tq {
+  margin-left: calc(var(--tval-label) + var(--space-4));
+}
+.ft-trow__unconfirmed ul {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -310,18 +424,18 @@
   padding: 0;
   list-style: none;
 }
-.ft-tr__unconfirmed .ft-label {
+.ft-trow__unconfirmed .ft-label {
   color: var(--needs-human);
 }
 /* A value that couldn't be found carries the dashed ring of missing evidence. */
-.ft-tr__unconfirmed li {
+.ft-trow__unconfirmed li {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   font-size: 13px;
   line-height: 18px;
 }
-.ft-tr__unconfirmed li::before {
+.ft-trow__unconfirmed li::before {
   content: "";
   flex: none;
   width: 9px;
@@ -329,132 +443,141 @@
   border: 1.5px dashed var(--needs-human);
   border-radius: 50%;
 }
-.ft-tr .ft-problem__text {
+.ft-trow .ft-problem__text {
   font-size: 13px;
   line-height: 18px;
 }
-.ft-tr__actions {
+.ft-trow__who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-4);
+}
+.ft-nowrap {
+  white-space: nowrap;
+}
+.ft-trow__actions {
   grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   align-self: start;
-  gap: var(--space-1) var(--space-1);
+  gap: 6px;
 }
-.ft-tr__done {
+.ft-trow__done {
   margin-right: var(--space-2);
   font-size: 13px;
   line-height: 18px;
   font-weight: 600;
 }
-.ft-tr__form {
+.ft-trow__form {
   grid-area: form;
   margin-top: var(--space-3);
 }
-/* The terms no check uses any more come last, after a stronger rule. */
-.ft-retired > .ft-trs > .ft-tr:first-child {
-  border-top-color: var(--rule-strong);
-}
 
-/* A value's quote: the file's own words in serif on the highlighter, held to
-   two lines until opened in place. */
-/* "Open the source" sits beside a quote that fits on one line, so a value with
-   its quote takes two lines; a longer quote puts it underneath. */
+/* A value's quote, in the file's own words. Only an exact match carries the
+   highlighter, and in a list it is a low band behind the lower part of the
+   line, not a block. A close match is serif without it; anything not found
+   is plain. The value's own characters are set stronger. */
 .ft-tq {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  column-gap: var(--space-4);
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  width: 100%;
 }
 .ft-tq__text {
-  display: -webkit-box;
-  flex: 0 1 auto;
-  min-width: 0;
   max-width: var(--measure);
   margin: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 15px;
   line-height: 24px;
   overflow-wrap: anywhere;
 }
-.ft-tq__text.is-open {
-  display: block;
-  overflow: visible;
-  -webkit-line-clamp: unset;
-  line-clamp: none;
+.ft-tq__text strong {
+  font-weight: 600;
 }
 .ft-tq__text mark {
-  padding: 1px 2px;
-  border-radius: var(--radius-sm);
-  background: var(--highlight);
-  color: var(--on-highlight);
+  --tq-band: var(--highlight);
+  padding: 0 1px;
+  background: linear-gradient(to bottom, transparent 58%, var(--tq-band) 58%);
+  color: inherit;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
-/* A replaced or rejected term's quote stays a quote, on the paler wash. */
-.ft-tq__text.is-muted mark {
-  background: var(--highlight-wash);
-  color: var(--ink);
+.ft-trow.is-muted .ft-tq__text mark {
+  --tq-band: var(--highlight-wash);
+}
+.ft-tq__text.is-plain {
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 20px;
+}
+.ft-tq__cut {
+  color: var(--ink-muted);
 }
 .ft-tq__foot {
   display: flex;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: 2px var(--space-4);
+  color: var(--ink-muted);
   font-size: 12px;
-  line-height: 24px;
-  white-space: nowrap;
+  line-height: 18px;
 }
 .ft-tq__foot .ft-linkbtn {
   color: var(--ink-muted);
+  text-decoration-color: var(--rule-strong);
 }
 .ft-tq__foot .ft-linkbtn:hover {
   color: var(--ink);
 }
-
-@container (max-width: 820px) {
-  .ft-tr {
-    --tr-meta: 168px;
-    grid-template-columns: var(--tr-meta) minmax(0, 1fr);
-    grid-template-areas:
-      "meta main"
-      "meta actions"
-      "form form";
-  }
-  .ft-tr__actions {
-    justify-content: flex-start;
-    margin-top: var(--space-3);
-    margin-left: calc(-1 * 10px);
+/* On the dark page the full yellow under light text reads as a block; the
+   band takes the wash there. */
+@media (prefers-color-scheme: dark) {
+  .ft-tq__text mark {
+    --tq-band: var(--highlight-wash);
   }
 }
-@container (max-width: 540px) {
-  .ft-tr {
+
+@container (max-width: 820px) {
+  .ft-trow__detail {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "meta" "main" "actions" "form";
-    row-gap: var(--space-2);
+    grid-template-areas: "body" "actions" "form";
   }
-  .ft-tr.is-cont::before {
-    left: var(--space-4);
+  .ft-trow__actions {
+    justify-content: flex-start;
+    margin-top: var(--space-3);
   }
-  .ft-tr__meta {
-    flex-flow: row wrap;
-    align-items: baseline;
-    column-gap: var(--space-2);
+}
+@container (max-width: 560px) {
+  .ft-trow__head {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    row-gap: var(--space-1);
   }
-  .ft-tr__field {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 2px;
+  .ft-trow__tags {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
   }
-  .ft-tr__field dt {
-    padding-top: 0;
+  .ft-trow__detail {
+    padding-left: var(--space-4);
   }
-  .ft-tq__foot {
-    line-height: 20px;
+  /* The label and its link share a line; the value takes the width under them. */
+  .ft-tval {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label src" "value value";
+  }
+  .ft-tval .ft-label {
+    grid-area: label;
+  }
+  .ft-tval__src {
+    grid-area: src;
+  }
+  .ft-tval__value {
+    grid-area: value;
+  }
+  .ft-tvals__group > .ft-tq {
+    margin-left: 0;
   }
 }
 
