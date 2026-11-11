@@ -285,3 +285,19 @@ def test_two_first_requests_at_once_make_one_workspace(platform: Platform) -> No
         t.join()
     with transaction(platform.pool) as conn:
         assert [w.name for w in store.list_workspaces(conn, user.id)] == ["New's workspace"]
+
+
+def test_a_user_with_a_workspace_takes_no_lock(platform: Platform) -> None:  # noqa: F811
+    """An ordinary request reads membership without locking the user's row."""
+    owner = _user(platform)
+    _grant(platform, owner)
+    user = User(id=owner, email="pat@university.example")
+    with transaction(platform.pool) as conn:
+        assert store.ensure_first_workspace(conn, user) is None
+        held = conn.execute(
+            """select count(*) as n from pg_locks l
+               where l.pid = pg_backend_pid() and l.locktype = 'tuple'
+                 or (l.pid = pg_backend_pid() and l.mode = 'RowShareLock'
+                     and l.relation = 'public.users'::regclass)"""
+        ).fetchone()
+    assert held == {"n": 0}

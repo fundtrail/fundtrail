@@ -167,7 +167,7 @@ def test_a_bill_is_staged_with_its_citations_and_takes_effect():
     assert data.total.value == 124000  # pyright: ignore[reportAttributeAccessIssue]
     number = data.document_number  # pyright: ignore[reportAttributeAccessIssue]
     assert number is not None and number.citation is not None
-    assert number.citation.passage == "Example Lab Supply Co.\nINVOICE\nInvoice Number: INV-1001"
+    assert number.citation.passage == "Invoice Number: INV-1001"  # its line, not the chunk
     ranges = number.citation.highlight or ()
     assert [INVOICE[r.start_char_index : r.end_char_index] for r in ranges] == [  # pyright: ignore[reportAttributeAccessIssue]
         "Invoice Number: INV-1001"
