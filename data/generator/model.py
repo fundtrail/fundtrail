@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
+from names import LEGACY, Org
+
 EVIDENCE_COMPLETE = "evidence_complete"
 POSSIBLE_CONFLICT = "possible_conflict"
 MISSING_EVIDENCE = "missing_evidence"
@@ -58,6 +60,12 @@ class Doc:
     # delivers it. The clock never delivers it. In the play the key assumes,
     # the user delivers it on that date, so `at` is also when it arrives.
     deliver: str | None = None
+    # For a typeset PDF: the first and last page each row of `text` is on, counted
+    # from 1, and None for a blank row (typeset.locate). None for any other file.
+    pages: list[tuple[int, int] | None] | None = None
+    # For a drawn image (images.py): the box of each row of `text` on the image, as
+    # (left, top, width, height) in fractions of it. None for any other file.
+    boxes: list[tuple[float, float, float, float]] | None = None
 
 
 @dataclass
@@ -121,6 +129,12 @@ class Grant:
     # (confirmed at, new end date): a later end date confirmed by the accountant
     extensions: list[tuple[datetime, date]] = field(default_factory=list)
     horizon: datetime | None = None
+    # A sample's documents are typeset PDFs (ordinary.put). The unused seed grants
+    # keep the plain text and the typewriter PDFs they were built with.
+    typeset: bool = False
+    # The university, the funder's officials and the airline its documents name. The
+    # samples set names.SAMPLES; the unused seed grants keep the placeholder names.
+    org: Org = LEGACY
     _seq: int = 0
 
     # ------------------------------------------------------------ building
@@ -321,8 +335,7 @@ class Grant:
                 "at": self.ledger_at,
                 "kind": "ledger",
                 "file": "ledger.csv",
-                "note": "The ledger file arrives. Each line arrives at the later of this "
-                "and 00:00 UTC on its posting date (decision 0023).",
+                "note": "The ledger file arrives. Each line posts on its date.",
             }
             if "ledger.csv" in self.highlights:
                 ev["highlight"] = self.highlights["ledger.csv"]

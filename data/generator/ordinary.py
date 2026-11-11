@@ -13,9 +13,10 @@ import random
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+import typeset
 from model import Doc, Grant, Line, Ordinary, at, business_day
+from names import LEGACY, Person, Vendor
 from render import (
-    UNIVERSITY,
     award_notice,
     eml,
     forwarded,
@@ -28,20 +29,16 @@ from render import (
     usage_statement,
 )
 
-GRANTS_INBOX = ("Earth and Ocean Sciences Grants", "grants@university.example")
+# The unused seed grants' inbox. A template takes the grant's own from `g.org`.
+GRANTS_INBOX = LEGACY.grants_inbox
 DEPARTMENT = "Department of Earth and Ocean Sciences"
 
+__all__ = ["Person", "Vendor"]  # defined in names.py, and used from here by demo.py
 
-@dataclass(frozen=True)
-class Person:
-    name: str
-    email: str
-    role: str = ""
 
-    @property
-    def last_first(self) -> str:
-        first, last = self.name.split(" ", 1)
-        return f"{last} {first[0]}"
+def mail_domain(g: Grant) -> str:
+    """The university's email domain, for the Message-ID of a forwarded email."""
+    return g.org.grants_inbox[1].split("@")[1]
 
 
 def month_end(year: int, month: int) -> date:
@@ -63,6 +60,40 @@ def utc_hour(rng: random.Random, d: date, lo: int = 16, hi: int = 23) -> datetim
     return at(d, rng.randint(lo, hi), rng.choice([0, 5, 10, 15, 20, 30, 40, 45, 50]))
 
 
+def put(
+    g: Grant,
+    name: str,
+    text: str,
+    title: str,
+    arrives: datetime,
+    source: str,
+    *,
+    look: str | None = None,
+    **fields: str | None,
+) -> Doc:
+    """Adds a document whose content is `text`, in the form its name gives.
+
+    A `.pdf` on a sample is typeset (typeset.render), in the `look` of whoever
+    issued it. On the unused seed grants it's the typewriter PDF they were built
+    with. Any other name is the text itself. `text` stays the document's text, the
+    one the stand-in agent cites from.
+    """
+    if not name.endswith(".pdf"):
+        return g.doc(name, text, arrives, source, **fields)
+    if not g.typeset:
+        return g.doc(name, pdf(text, title=title), arrives, source, text=text, **fields)
+    data, pages = typeset.render(name, text, look)
+    doc = g.doc(name, data, arrives, source, text=text, **fields)
+    doc.pages = pages
+    return doc
+
+
+def paper(g: Grant, stem: str) -> str:
+    """The file name for a document that's plain text on the unused seed grants and a
+    typeset PDF on a sample."""
+    return f"{stem}.pdf" if g.typeset else f"{stem}.txt"
+
+
 # ---------------------------------------------------------------- the award letter
 
 
@@ -80,11 +111,12 @@ def award_letter(
     budget: list[tuple[str, int, str, list[tuple[str, int, str]]]],
     approval_rule: bool = False,
     name: str = "award_letter.txt",
-    as_pdf: bool = False,
     source: str = "upload",
     intended_cents: int | None = None,
     instrument: str = "Standard Grant",
     highlight: str | None = None,
+    division: str | None = None,
+    listing: str | None = None,
 ) -> None:
     """The award notice, the accountant confirming its terms, and its records.
 
@@ -108,19 +140,16 @@ def award_letter(
         program_officer=(program_officer.name, program_officer.email),
         conditions=conditions,
         budget=[(b[0], b[1], [(s[0], s[1]) for s in b[3]]) for b in budget],
+        org=g.org,
+        division=division,
+        listing=listing,
     )
-    note = "The award letter arrives: the grant's first scheduled event."
-    if as_pdf:
-        g.doc(
-            name,
-            pdf(text, title=f"Award notice {g.award_number}"),
-            arrives,
-            source,
-            note=note,
-            text=text,
-        )
-    else:
-        g.doc(name, text, arrives, source, note=note)
+    note = (
+        "The award letter arrives. It's the first thing on the grant's timeline."
+        if g.typeset
+        else "The award letter arrives: the grant's first scheduled event."
+    )
+    put(g, name, text, f"Award notice {g.award_number}", arrives, source, note=note)
     g.confirm(name, confirm_at, "The user confirms every term read from the award letter.")
     if highlight:
         g.highlights[name] = highlight
@@ -160,16 +189,16 @@ def award_letter(
     g.record(
         "person",
         name,
-        name="Avery Ledger",
-        email="avery.ledger@funder.example",
+        name=g.org.grants_official[0],
+        email=g.org.grants_official[1],
         role="Managing Grants Official",
         dated=dated,
     )
     g.record(
         "person",
         name,
-        name="Morgan Signet",
-        email="morgan.signet@funder.example",
+        name=g.org.awarding_official[0],
+        email=g.org.awarding_official[1],
         role="Awarding Official",
         dated=dated,
     )
@@ -207,9 +236,9 @@ def appointment_letter(
 ) -> None:
     text = "\n".join(
         [
-            UNIVERSITY.upper(),
+            g.org.university.upper(),
             DEPARTMENT,
-            "100 Example Hall, Example City, CA 94000",
+            g.org.address,
             "",
             long_date(dated),
             "",
@@ -245,7 +274,15 @@ def appointment_letter(
             f"Accepted: {person.name}, {long_date(accepted)}",
         ]
     )
-    g.doc(name, text + "\n", arrives, "upload", note=f"{person.name}'s appointment letter.")
+    put(
+        g,
+        name,
+        text + "\n",
+        f"Appointment letter, {person.name}",
+        arrives,
+        "upload",
+        note=f"{person.name}'s appointment letter.",
+    )
     g.record("note", name)
 
 
@@ -272,7 +309,7 @@ def effort_report(
     total = sum(c for _, c in salary)
     text = "\n".join(
         [
-            UNIVERSITY.upper(),
+            g.org.university.upper(),
             "CERTIFIED EFFORT REPORT",
             "",
             f"Employee: {person.name}",
@@ -300,9 +337,11 @@ def effort_report(
             f"Date certified: {long_date(certified)}",
         ]
     )
-    g.doc(
+    put(
+        g,
         name,
         text + "\n",
+        f"Certified effort report, {person.name}",
         arrives,
         "upload",
         note=f"The certified effort report for {person.name}, {long_date(period[0])} to "
@@ -350,7 +389,7 @@ def salary_series(
         arrives = utc_hour(rng, certified + timedelta(days=rng.randint(1, 3)))
         if arrives > horizon:
             continue
-        name = f"effort_report_{person.name.split()[1].lower()}_{period[0]:%Y_%m}.txt"
+        name = paper(g, f"effort_report_{person.name.split()[1].lower()}_{period[0]:%Y_%m}")
         in_period = [m for m in month_ends if period[0] <= m <= period[1]]
         effort_report(
             g,
@@ -394,15 +433,6 @@ def salary_series(
 # ---------------------------------------------------------------- supplies
 
 
-@dataclass(frozen=True)
-class Vendor:
-    name: str
-    address: str
-    email: str
-    prefix: str
-    catalog: tuple[tuple[str, int], ...]
-
-
 def supplies(
     g: Grant,
     rng: random.Random,
@@ -414,11 +444,15 @@ def supplies(
     account: str,
     budget_line: str = "Materials and Supplies",
     forwarder: Person,
+    lines_for: dict[str, list[tuple]] | None = None,
 ) -> list[Line]:
     """One purchase per date: an invoice and a ledger line.
 
-    The invoice arrives as an uploaded text file, as an email the professor
-    forwards, or as a PDF found in Drive, before or after the line posts.
+    The invoice arrives as an uploaded file, as an email the professor forwards,
+    or as a PDF found in Drive, before or after the line posts. `lines_for` gives
+    an invoice's lines by its number, in place of the ones drawn for it: they have
+    to come to the same subtotal, so the charge is the same, and the ledger line
+    keeps the description drawn for it.
     """
     out = []
     for txn in dates:
@@ -428,6 +462,11 @@ def supplies(
         items = [(desc, rng.choice([1, 1, 2, 3, 4, 5]), unit) for desc, unit in picks]
         shipping = rng.choice([0, 0, 0, 1250, 1875, 2400])
         number = f"{v.prefix}-{rng.randint(10000, 99999)}"
+        described = short(", ".join(d for d, _, _ in items))
+        if lines_for and number in lines_for:
+            drawn = sum(q * u for _, q, u in items)
+            items = lines_for[number]
+            assert sum(i[1] * i[2] for i in items) == drawn, f"{number}: a different subtotal"
         text, total = invoice(
             vendor=v.name,
             vendor_address=v.address,
@@ -440,20 +479,31 @@ def supplies(
             items=items,
             shipping_cents=shipping,
             po=f"PO-{txn:%y}-{rng.randint(1000, 9999)}",
+            org=g.org,
+            account=v.account,
         )
         posting = business_day(txn + timedelta(days=rng.randint(5, 12)))
         mode = rng.choice(["upload", "upload", "upload", "gmail", "gmail", "drive"])
         if mode == "upload":
-            name = f"invoice_{number}.txt"
+            name = paper(g, f"invoice_{number}")
             arrives = utc_hour(rng, txn + timedelta(days=rng.randint(1, 4)))
-            g.doc(name, text, arrives, "upload", note=sentence(f"Invoice {number} from {v.name}"))
+            put(
+                g,
+                name,
+                text,
+                f"Invoice {number}",
+                arrives,
+                "upload",
+                look=v.look,
+                note=sentence(f"Invoice {number} from {v.name}"),
+            )
         elif mode == "gmail":
             name = f"invoice_{number}.eml"
             arrives = utc_hour(rng, txn + timedelta(days=rng.randint(1, 16)))
             sent = utc_hour(rng, txn, 15, 18)
             body = (
                 f"Invoice {number} for {project_ref}, for the files.\n\n"
-                f"{forwarder.name.split()[0]}\n\n"
+                f"{forwarder.first}\n\n"
                 + forwarded(
                     sender=(f"{v.name} Billing", v.email),
                     at=min(sent, arrives - timedelta(minutes=30)),
@@ -466,10 +516,10 @@ def supplies(
                 name,
                 eml(
                     sender=(forwarder.name, forwarder.email),
-                    to=GRANTS_INBOX,
+                    to=g.org.grants_inbox,
                     at=arrives,
                     subject=f"Fwd: Invoice {number}",
-                    message_id=f"fwd-{number.lower()}@university.example",
+                    message_id=f"fwd-{number.lower()}@{mail_domain(g)}",
                     body=body,
                 ),
                 arrives,
@@ -480,19 +530,21 @@ def supplies(
         else:
             name = f"invoice_{number}.pdf"
             arrives = utc_hour(rng, posting + timedelta(days=rng.randint(3, 25)))
-            g.doc(
+            put(
+                g,
                 name,
-                pdf(text, title=f"Invoice {number}"),
+                text,
+                f"Invoice {number}",
                 arrives,
                 "drive",
+                look=v.look,
                 note=f"Invoice {number}, saved to the lab's Drive folder.",
-                text=text,
             )
         ln = g.line(
             txn,
             posting,
             total,
-            short(", ".join(d for d, _, _ in items)),
+            described,
             account,
             vendor=v.name,
             reference=number,
@@ -524,6 +576,12 @@ class Trip:
     booked: date
     confirmation: str
     extra: tuple[str, int, Doc | None] | None = None  # (description, cents, its doc)
+    # The fare's lines as an airline itemizes them, the base fare first, coming to
+    # the fare and its taxes; and the receipt's ticket number.
+    fare_lines: tuple[tuple[str, int], ...] = ()
+    ticket: str = ""
+    # Each night's lines on the folio, the room first, coming to the nightly rate.
+    night_lines: tuple[tuple[str, int], ...] = ()
 
 
 def trip(
@@ -535,7 +593,7 @@ def trip(
     account: str = "57210 Domestic Travel",
     budget_line: str = "Domestic",
 ) -> Line:
-    """A trip: an airline receipt by email, a hotel folio PDF and an expense report."""
+    """A trip: an airline receipt by email, a hotel folio and an expense report."""
     ret = t.depart + timedelta(days=t.nights)
     fare_total = t.fare_cents + t.taxes_cents
     hotel_total = t.nightly_cents * t.nights
@@ -543,24 +601,33 @@ def trip(
     air_name = f"airfare_receipt_{t.slug}.eml"
     sent = utc_hour(rng, t.booked, 16, 19)
     air_at = sent + timedelta(hours=rng.randint(1, 30))
+    org = g.org
+    code, home = org.flight_code, org.home_airport
+    fare_lines = t.fare_lines or (
+        ("Base fare", t.fare_cents),
+        ("Taxes, fees and charges", t.taxes_cents),
+    )
+    assert sum(c for _, c in fare_lines) == fare_total, f"{t.slug}: the fare's lines"
+    night_lines = t.night_lines or (("Room, standard queen", t.nightly_cents),)
+    assert sum(c for _, c in night_lines) == t.nightly_cents, f"{t.slug}: a night's lines"
     receipt = "\n".join(
         [
-            "EXAMPLE AIR",
+            org.airline.upper(),
             "Electronic ticket receipt",
             "",
             f"Receipt date: {long_date(t.booked)}",
             f"Confirmation: {t.confirmation}",
+            *([f"Ticket number: {t.ticket}"] if t.ticket else []),
             f"Passenger: {traveler.name}",
             "",
             "Itinerary",
-            f"  {long_date(t.depart):<18}Flight EX {rng.randint(100, 899)}   EXC to {t.airport}"
-            "   Economy, fare class V",
-            f"  {long_date(ret):<18}Flight EX {rng.randint(100, 899)}   {t.airport} to EXC"
-            "   Economy, fare class V",
+            f"  {long_date(t.depart):<18}Flight {code} {rng.randint(100, 899)}   {home} to "
+            f"{t.airport}   Economy, fare class V",
+            f"  {long_date(ret):<18}Flight {code} {rng.randint(100, 899)}   {t.airport} to "
+            f"{home}   Economy, fare class V",
             "",
             "Charges",
-            f"  {'Base fare':<36}{money(t.fare_cents):>12}",
-            f"  {'Taxes, fees and charges':<36}{money(t.taxes_cents):>12}",
+            *[f"  {label:<36}{money(cents):>12}" for label, cents in fare_lines],
             f"  {'Total':<36}{money(fare_total):>12}",
             "",
             "Form of payment: personal card ending 4417",
@@ -570,11 +637,11 @@ def trip(
     body = (
         f"Airfare receipt for {t.purpose} on {g.award_number}.\n"
         "The expense report will follow after the trip.\n\n"
-        f"{traveler.name.split()[0]}\n\n"
+        f"{traveler.first}\n\n"
         + forwarded(
-            sender=("Example Air", "receipts@exampleair.example"),
+            sender=(org.airline, org.airline_email),
             at=sent,
-            subject=f"Your Example Air receipt, confirmation {t.confirmation}",
+            subject=f"Your {org.airline} receipt, confirmation {t.confirmation}",
             to=traveler.email,
             body=receipt,
         )
@@ -583,10 +650,10 @@ def trip(
         air_name,
         eml(
             sender=(traveler.name, traveler.email),
-            to=GRANTS_INBOX,
+            to=org.grants_inbox,
             at=air_at,
-            subject=f"Fwd: Your Example Air receipt, confirmation {t.confirmation}",
-            message_id=f"fwd-{t.confirmation.lower()}@university.example",
+            subject=f"Fwd: Your {org.airline} receipt, confirmation {t.confirmation}",
+            message_id=f"fwd-{t.confirmation.lower()}@{mail_domain(g)}",
             body=body,
         ),
         air_at,
@@ -598,9 +665,9 @@ def trip(
     folio_no = f"F{rng.randint(100000, 999999)}"
     folio_name = f"hotel_folio_{t.slug}.pdf"
     nights = [
-        f"  {long_date(t.depart + timedelta(days=i)):<22}Room, standard queen"
-        f"{money(t.nightly_cents):>16}"
+        f"  {long_date(t.depart + timedelta(days=i)):<22}{label:<28}{money(cents):>8}"
         for i in range(t.nights)
+        for label, cents in night_lines
     ]
     folio = "\n".join(
         [
@@ -624,20 +691,21 @@ def trip(
         ]
     )
     folio_at = utc_hour(rng, ret + timedelta(days=rng.randint(2, 4)))
-    g.doc(
+    put(
+        g,
         folio_name,
-        pdf(folio, title=f"Folio {folio_no}"),
+        folio,
+        f"Folio {folio_no}",
         folio_at,
         "upload",
         note=f"The hotel folio for {t.purpose}.",
-        text=folio,
     )
     # Expense report.
     total = fare_total + hotel_total + (t.extra[1] if t.extra else 0)
     report_no = f"ER-{ret:%y}-{rng.randint(1000, 9999)}"
-    report_name = f"expense_report_{t.slug}.txt"
+    report_name = paper(g, f"expense_report_{t.slug}")
     claimed = [
-        f"  Airfare, Example Air, confirmation {t.confirmation}".ljust(60)
+        f"  Airfare, {org.airline}, confirmation {t.confirmation}".ljust(60)
         + f"{money(fare_total):>12}",
         f"  Lodging, {t.hotel}, {t.nights} nights".ljust(60) + f"{money(hotel_total):>12}",
     ]
@@ -647,7 +715,7 @@ def trip(
     approved = submitted + timedelta(days=1)
     report = "\n".join(
         [
-            UNIVERSITY.upper(),
+            org.university.upper(),
             "TRAVEL EXPENSE REPORT",
             "",
             f"Report number: {report_no}",
@@ -672,9 +740,11 @@ def trip(
         ]
     )
     report_at = utc_hour(rng, approved + timedelta(days=rng.randint(0, 2)))
-    g.doc(
+    put(
+        g,
         report_name,
         report + "\n",
+        f"Expense report {report_no}",
         report_at,
         "upload",
         note=f"The department's approved expense report for {t.purpose}.",
@@ -690,7 +760,7 @@ def trip(
         reference=report_no,
     )
     g.record(
-        "bill", air_name, total=str(fare_total), dated=t.booked.isoformat(), vendor="Example Air"
+        "bill", air_name, total=str(fare_total), dated=t.booked.isoformat(), vendor=org.airline
     )
     g.record("bill", folio_name, total=str(hotel_total), dated=ret.isoformat(), vendor=t.hotel)
     g.record("note", report_name)
@@ -724,13 +794,21 @@ def recharges(
     account: str = "59009 Recharge-Other Expenses",
     budget_line: str = "Other",
     as_pdf_every: int = 3,
+    rows_for: dict[str, list[tuple[str, int, int]]] | None = None,
 ) -> list[Line]:
-    """A campus facility's monthly usage statements and their recharge lines."""
+    """A campus facility's monthly usage statements and their recharge lines.
+
+    `rows_for` gives a statement's service rows by its number, in place of the one
+    drawn for it: they have to come to the same total."""
     out = []
     for i, me in enumerate(service_months):
         stmt_date = business_day(me + timedelta(days=1))
         rows = [(desc, rng.randint(*qty), rate) for desc, rate in rng.sample(services, 1)]
         number = f"{prefix}-{me:%y%m}-{rng.randint(10, 99)}"
+        if rows_for and number in rows_for:
+            drawn = sum(q * r for _, q, r in rows)
+            rows = rows_for[number]
+            assert sum(q * r for _, q, r in rows) == drawn, f"{number}: a different total"
         text, total = usage_statement(
             facility=facility,
             unit=unit,
@@ -740,27 +818,22 @@ def recharges(
             pi=pi.name,
             award_number=g.award_number,
             rows=rows,
+            org=g.org,
         )
         arrives = utc_hour(rng, stmt_date + timedelta(days=rng.randint(0, 3)))
         if as_pdf_every and i % as_pdf_every == as_pdf_every - 1:
             name = f"usage_statement_{number}.pdf"
-            g.doc(
-                name,
-                pdf(text, title=f"Usage statement {number}"),
-                arrives,
-                "drive",
-                note=f"{facility} usage statement {number}, from the lab's Drive folder.",
-                text=text,
-            )
         else:
-            name = f"usage_statement_{number}.txt"
-            g.doc(
-                name,
-                text,
-                arrives,
-                "drive",
-                note=f"{facility} usage statement {number}, from the lab's Drive folder.",
-            )
+            name = paper(g, f"usage_statement_{number}")
+        put(
+            g,
+            name,
+            text,
+            f"Usage statement {number}",
+            arrives,
+            "drive",
+            note=f"{facility} usage statement {number}, from the lab's Drive folder.",
+        )
         posting = business_day(stmt_date + timedelta(days=rng.randint(2, 6)))
         ln = g.line(
             me,

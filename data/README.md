@@ -1,6 +1,10 @@
 # data
 
-The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' people, amounts and dates are placeholders until the product owner settles them.
+The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' amounts and dates are placeholders until the product owner settles them.
+
+The larger sample's shape is modelled on a real public National Science Foundation (NSF) award, number 1354251: one university's share of a collaborative salt-marsh project, a continuing grant funded in increments and extended once. Only the shape is taken. Its name, number, people and text aren't used.
+
+Every page laid out like an agency's or a university's own notice says at its foot that it's a synthetic sample and wasn't issued by that body: the award notices, the rate agreement, the notice of expiration, and the closeout certification receipt in its text.
 
 | Path | What it is |
 |---|---|
@@ -13,6 +17,9 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/agent_records.json` | The agent's expected records, shaped as the contract's records, for the checks-only play |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
+| `generator/names.py` | Every name the samples use, in one place |
+| `generator/typeset.py` | The layouts that draw the samples' PDFs |
+| `generator/images.py`, `realphoto.py`, `image_boxes.json` | The samples' three images, and the box of every string drawn on them |
 | `test_seed.py` | The test |
 | `test_write_check.py` | Runs every agent record through the save's write check |
 
@@ -20,8 +27,8 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 
 | Sample | Grant | Its clock | Lines | Files |
 |---|---|---|---|---|
-| `salt-marsh-carbon` (larger) | SYN-2401835, Salt Marsh Carbon Burial at Example Point. Continuing grant, Feb 1, 2024 to Jul 31, 2026, extended to Jan 31, 2027. $60,000 obligated, then $120,000. | Starts with its award letter, 2024-01-18T17:00Z, and runs its whole life, to the closeout certification's receipt on 2027-03-12 | 33 | 37 |
-| `nitrate-sensors` (small) | SYN-2511958, Low-Cost Nitrate Sensors for Example Valley Groundwater. Sep 1, 2025 to Aug 31, 2028. $40,000. | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
+| `salt-marsh-carbon` (larger) | SYN-2401835, Collaborative Research: Salt Marsh Carbon Burial Under Nutrient Enrichment and Sea-Level Rise. Continuing grant, Feb 1, 2024 to Jul 31, 2026, extended to Jan 31, 2027. $60,000 obligated, then $120,000. | Starts with its award letter, 2024-01-18T17:00Z, and runs its whole life, to the closeout certification's receipt on 2027-03-12 | 33 | 37 |
+| `nitrate-sensors` (small) | SYN-2511958, Low-Cost Nitrate Sensors for Tolliver Valley Groundwater. Sep 1, 2025 to Aug 31, 2028. $40,000. | Starts with its award letter, at 2026-11-16T17:30Z. Its ledger file follows at 17:45. | 7 | 10 |
 
 There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
 
@@ -35,7 +42,7 @@ Each highlight's events carry a short `highlight` label in `timeline.json`, and 
 |---|---|---|---|
 | 1 | Terms tied to their passages | The award letter, a continuing grant with a participant support condition | Terms confirmed by the script |
 | 2 | Invoice before its line | Invoice INV-20514 arrives by email on 2025-02-10; its line posts 2025-02-18 | Evidence complete once the line arrives |
-| 3 | Receipt photo you deliver | A $52.00 taxi receipt photo, the PI's to deliver, on a trip whose plain text expense report rides along | Missing evidence until it's delivered |
+| 3 | Receipt photo you deliver | A $52.00 taxi receipt photo, the PI's to deliver, on a trip whose expense report rides along | Missing evidence until it's delivered |
 | 4 | Shared invoice, 56 of 96 | A $10,000.00 invoice; the PI's email gives 56 of 96 samples, so $5,833.33 is this grant's; the agent's suggestion that the rest belongs to SYN-2507264 waits | Evidence complete. Decision 0021, in `shared_invoice()` |
 | 5 | Own fee, own approval | The PI's own $650.00 conference fee on participant support, then her own "Approved" email | Possible conflict throughout |
 | 6 | Extension found in Drive | $3,150.00 of boat time in August 2026, after the July 31 end date; extension 002, dated July 15, turns up in Drive | Possible conflict, then Evidence complete once the new end date is confirmed |
@@ -49,6 +56,34 @@ Each highlight's events carry a short `highlight` label in `timeline.json`, and 
 The small sample marks highlights 1 to 3: its award letter, invoice ESS-32410 emailed on 2026-11-19 before its line posts on 2026-12-07, and the hardware store receipt photo, the user's to deliver.
 
 **Benefits (background, not a highlight).** The postdoc's salary is on 51232, the benefit check's Limited salary account, and beside each of the six salary lines is a benefit line on 53080 Benefit Assessment - Limited, at 15.00% of that month's $6,500.00. The rate comes from the synthetic rate agreement, laid out like a real Colleges and Universities Rate Agreement: a fixed rate per employee group and fiscal year, July 1 to June 30. The agent reads each fixed row as a rate term (ruling 61), and the script confirms them. Code fills a benefit line's "Benefit rate" item from the confirmed rate and its salary line, with no link, and the line clears when its salary line does.
+
+### The forms the files take
+
+The samples hold three forms of evidence, and one plain text file.
+
+- **Typeset PDFs with a real text layer** (`generator/typeset.py`): the award notices, laid out like an NSF notice; each vendor's invoices, in that vendor's own look; the facility usage statements, the travel expense reports and the effort report, as reports printed from an administrative system; the hotel folios; the appointment letter; the cost transfer form; the rate agreement; the notice of expiration. A layout draws the rows of the document's text, in the same words and the same order, and adds only furniture that states no fact: a page number, a column heading, a remit-to line, small print. Nothing about a document is written into a layout, so the names and the lines can change in the generator without touching it.
+- **Emails** (`.eml`), with a forwarded invoice or receipt in the body.
+- **Images** (`.jpg`): the two receipt photos and the scan of invoice ESS-55120, drawn by `generator/realphoto.py`.
+- `closeout_certification_receipt.txt` stays plain text.
+
+An invoice carries a catalog number and a unit of measure on each line, and the university's account number with the vendor. A hotel folio shows each night's room and tax lines, and an airline receipt itemizes its taxes. Each document's lines come to the same subtotal and total as before they were added.
+
+### The names
+
+Every name is invented, and each was checked by web search on 2026-11-10 for a real namesake. The checks, name by name, are in the pull request for issue 281. They're all in `generator/names.py`. Real cities and airports are used only for where a meeting is held (Denver, New Bedford; SFO, DEN, BOS, FAT). NSF is named as the funder, with its real division abbreviations and assistance listings. Nobody named is a real official.
+
+| What | Name |
+|---|---|
+| The university | Halden University, 1 University Drive, Port Calloway, CA 94000 |
+| The larger sample's people | Maren Holloway (principal investigator), Tobias Lindqvist (co-principal investigator), Imogen Castellano (postdoctoral scholar), Gail Petrakis (the department's accountant), Simone Brandt (the other lab's principal investigator) |
+| The small sample's principal investigator | Owen Marchetti |
+| NSF's staff | Carolyn Whitfield (grants official), Marcus Delacroix (awarding official), Renata Sokolova and Lionel Abara (program officers) |
+| Places | Carrow Point (the marsh), Halden Marine Station at Carrow Point, Halden Stable Isotope Facility, Tolliver Valley, Halden Tolliver Valley Research Farm |
+| Vendors | Calder Laboratory Supply (INV-), Kittredge Scientific (ESS-), Saltgrass Field Supply (EFG-), Loomis Bioscience (EGS-), Tannery Row Electronics (EES-), Port Calloway Hardware |
+| Travel | Altamont Airlines, Platte River Taxi, Hotel Ashgrove Denver, Wharfside Inn New Bedford, Tolliver Valley Motor Inn |
+| Meetings | Coastal Geosciences Union Fall Meeting, Estuarine Carbon Science Conference, Pacific Coastal Science Society and its Pacific Coastal Science Meeting |
+
+The two unused grants in `demo/` keep the placeholder names they were built with ("University of Example", "Harper Fixture").
 
 ## The timeline
 
@@ -105,8 +140,8 @@ Two plays use these files. Both are W4's, in `backend/tests/samples/`:
 IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the grant `grant-<sample>`, a file `file-<file name>`, a charge `chg-<ledger line ID>`. Citations are counted, not typed:
 
 - a text or email file gets a `char_location`
-- a PDF gets a `page_location`
-- a photo gets an `image_box` around the value's line, worked out from the photo's layout
+- a PDF gets a `page_location`: the passage is the row of the document's text that holds the value, with single spaces as the page gives it, and the pages are the ones the typeset PDF puts that row on
+- an image gets an `image_box`: the box of the string drawn on it that holds the value, as `realphoto.py` returns it
 
 Each record is written when its file and its charge have both arrived. Confirmations aren't here, because they're the accountant's and live in `user_actions.json`.
 
@@ -116,14 +151,15 @@ Within one moment, a record comes after every record it points to, the way a run
 
 The records validate against the contract's models. Played through main's checks at every key time, with the scripted steps the key measures, they give the key's bucket 8 of 8 times in the small sample. In the larger sample they give it 54 of 54 times, on the benefit check's branch (PR 219). Main's checks, without that check, can't fill a benefit line's item, so the six benefit lines' final buckets wait for it.
 
-The static test checks five things:
+The static test checks six things:
 - every link, budget line and answer the key expects is there
-- every passage is at its place in its file
-- every photo box lies inside its photo
+- every passage is at its place in its file: at its characters in a text or email file, and a row of the text on its pages in a PDF
+- every passage cited into a PDF is found in the file by the app's own quote finder (`backend/app/quotes/pdf.py`), with its value, and no more often than the document's text has it
+- every image box is the box of a string drawn on its image
 - nothing is written before what it rests on
 - no record comes before a record it points to
 
-The checks-only play stores these records straight into the database, so it never runs the write check a real save runs. `test_write_check.py` does: it runs every record, in file order, through the contract's `check_new_record` with the checks' own `default_items`, over the charges and files that have arrived by the record's time. It needs the backend's dependencies, so run it from `backend/` (below). CI runs it through `backend/tests/samples/test_agent_records_write_check.py`.
+The checks-only play stores these records straight into the database, so it never runs the write check a real save runs. `test_write_check.py` does: it runs every record, in file order, through the contract's `check_new_record` with the checks' own `default_items`, over the charges and files that have arrived by the record's time, and then runs the quote finder's check above. It needs the backend's dependencies, so run it from `backend/` (below). CI runs it through `backend/tests/samples/test_agent_records_write_check.py`.
 
 ## The seed grants
 
@@ -179,18 +215,25 @@ Where an expected result depends on something the docs and the provisional decis
 - Account codes are 5-digit codes inside the groups of domain.md's starting table. To check a charge's account against its budget line, the test carries a copy of each group's NSF categories from `backend/app/checks/account_groups.py`, because importing that table would bring in the backend's dependencies. The test reads the table's source and fails if the copy differs from it.
 - The sixth sub-line of Other Direct Costs is `other_direct_costs_other`, as the contract code names it, and `eval/test_cases.py` spells it the same way.
 - Award letters dated before May 20, 2024 name the policy guide in force then, NSF 23-1. Later ones name NSF 24-1.
-- Airports and cities in the travel documents are made up, such as "EXC" for Example City.
+- A meeting is held in a real city and reached through real airports. The hotels, the airline, the taxi company and the societies are made up.
 
-The grants, people, amounts and dates are this build's picks, and the samples use them as placeholders. The samples' content is the product owner's to settle, so all of it is open to change in `generator/demo.py` and `generator/scratch.py`.
+The names and the documents' lines are the product owner's decision of November 10, 2026 (issue 281). The grants' amounts and dates are this build's picks, and the samples use them as placeholders. All of it is open to change: the names in `generator/names.py`, and the rest in `generator/larger.py` and `generator/scratch.py`.
 
 ## Making it again
 
+Run all three from `backend/`, whose environment has what they need (reportlab and pypdfium2 for the PDFs, Pillow for the images):
+
 ```
-uv run --no-project --with pillow python data/generator/build.py
-python3 data/test_seed.py
-cd backend && uv run python ../data/test_write_check.py
+cd backend
+uv run python ../data/generator/build.py
+uv run python ../data/test_seed.py
+uv run python ../data/test_write_check.py
 ```
 
-The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
+The generator's output is the same every time, byte for byte. The typeset PDFs use only the 14 standard PDF fonts, with nothing compressed or dated, so they don't depend on the machine. Records and script steps find a file by its hash, so a file that changes is a different file to them.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so `test_seed.py` and the eval cases' test don't run there yet. Running them in CI is a separate follow-up issue. The write check over the agent records does run there, through the backend's tests.
+The three images do depend on the machine's fonts, so a build keeps the ones on disk. To draw them again, run `uv run python ../data/generator/build.py --photos`. That also saves the box of every string drawn on them to `generator/image_boxes.json`, which a build that keeps the images reads the boxes from. After redrawing them, update their hashes in `test_seed.py` (`PHOTO_SHA256`).
+
+The test fails if any file differs from what the generator makes, so change the generator, not the files.
+
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file, the rules behind the buckets, and the synthetic-data rule. A typeset PDF is read back with pdfium: every row of the document's text has to be on the page, in order. An image is read from the strings drawn on it, and checked against its hash. For the samples, it also checks that no placeholder "Example" name is left, that each page laid out like an agency's or a university's notice carries its synthetic mark, that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so `test_seed.py` and the eval cases' test don't run there yet. Running them in CI is a separate follow-up issue. The write check over the agent records does run there, through the backend's tests, and with it the quote finder's check of every PDF citation.

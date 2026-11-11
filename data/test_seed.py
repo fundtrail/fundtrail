@@ -1,19 +1,27 @@
 """Checks the two sample grants and the two unused seed grants.
 
-- The files on disk are exactly what data/generator/build.py makes (photos
+- The files on disk are exactly what data/generator/build.py makes (images
   aside, which depend on the machine's fonts), so nobody edits one by hand.
 - Each ledger follows docs/contracts.md section 13 and each answer key section
   14. Each timeline holds scheduled events only, and each line arrives by
   decision 0023's rule. The user actions are the script the key assumes.
-- Every value a key expects is written in its file. PDFs are read back from
-  their text, and photos from the words the generator drew on them.
+- Every value a key expects is written in its file. A sample's typeset PDF is
+  read back with pdfium: every row of its text has to be on the page, in order.
+  An image is read from the strings the generator drew on it.
+- Every passage the stand-in agent's records cite into a PDF is found there by
+  the app's own quote finder, with its value, as often as the text has it.
 - The synthetic-data rule (CLAUDE.md): award numbers start with SYN-, email
   addresses are at .example, and nothing has an em dash or an en dash.
 - The larger sample's timeline runs from its start into its closeout window,
   and the small sample starts with its award letter and its ledger.
 
-Uses only the standard library, and borrows the eval cases' checks from
-eval/test_cases.py. Run it with `python3 data/test_seed.py`, or with pytest.
+It runs the generator, so it needs reportlab and pypdfium2, and the quote finder
+is the backend's. Run it from backend/:
+
+    cd backend && uv run python ../data/test_seed.py
+    cd backend && uv run pytest ../data/test_seed.py
+
+It borrows the eval cases' checks from eval/test_cases.py.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 DATA = Path(__file__).resolve().parent
+sys.path.insert(0, str(DATA.parent / "backend"))  # for the app's quote finder
 SAMPLES = DATA / "samples"
 DEMO = DATA / "demo"
 GENERATOR = DATA / "generator"
@@ -121,7 +130,7 @@ OPTION_FIELDS = {"choice", "name", "description", "placeholder"}
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png"}
 CATEGORIES = ev.CATEGORIES
 ODC_SUBLINES = ev.ODC_SUBLINE_CATEGORIES
-MAX_FILE_BYTES = 200_000
+MAX_FILE_BYTES = 500_000  # a phone photo of a receipt is the largest
 # Each account group's NSF categories, by account code prefix, longest prefix
 # first, and None for an account in no group. A copy of the table in
 # backend/app/checks/account_groups.py, which imports the contract code and so
@@ -179,21 +188,21 @@ DATE_FIELDS = ev.DATE_FIELDS | {"effective_from", "effective_to"}
 # "Benefit rate" item from the confirmed rate and its salary lines, with no link.
 BENEFIT_ACCOUNTS = {"53060", "53070", "53080", "53085", "53086"}
 APPROVAL_SCOPES = {"every_charge", "moved_out"}
-# The photos depend on the machine's fonts, so the generator's bytes can't be
-# compared. Their hashes catch a photo swapped or edited by hand. After
-# redrawing them on purpose, update these.
+# The images depend on the machine's fonts, so the generator's bytes can't be
+# compared. Their hashes catch an image swapped or edited by hand. After
+# redrawing them on purpose (build.py --photos), update these.
 PHOTO_SHA256 = {
     "demo/coastal-microbial-genomics/taxi_receipt_ocean_sciences_2026.jpg": (
         "3210e49710071f2bfb82d3bf6a528c731ecc62a6f55baf2d6fac80c98217f310"
     ),
     "samples/nitrate-sensors/hardware_receipt.jpg": (
-        "384fbd3a259b36408c6e5ec0004ec178359e4be02ac8e90d0f5cfe659e953827"
+        "d67b26c0e1cb75da64238e339fc30369dd98c9c148f8c88fa59320f77448fc7e"
     ),
     "samples/salt-marsh-carbon/taxi_receipt_egu_2024.jpg": (
-        "400df989b207c25b05757423ae17216b4d54b7e4af756163cb2238c378c3fb7d"
+        "7fa74e0162d7523d0545ab9d5d37d56d02360798d7769710396d66e7b3165886"
     ),
     "samples/salt-marsh-carbon/scan_invoice_ESS-55120.jpg": (
-        "880275c8c0a60534f22d411230cef399d946e86c8f0921f961406f851a185342"
+        "1ef97f648cde2b6ec0dbec4b4596bb72ff2217d7ce7dd52cc125a4be4f2fff47"
     ),
 }
 # The highlights each sample marks in its timeline (the sample content brief).
@@ -225,7 +234,8 @@ TJ = re.compile(rb"\(((?:\\.|[^\\)])*)\)\s*Tj")
 
 
 def pdf_text(data: bytes) -> str:
-    """The text of a PDF the generator wrote: one Tj string per line."""
+    """The text of a typewriter PDF the generator wrote for an unused seed grant: one
+    Tj string per line."""
     assert data.startswith(b"%PDF-"), "not a PDF"
     lines = []
     for raw in TJ.findall(data):
@@ -264,20 +274,35 @@ def folders() -> list[Path]:
 
 
 def texts(files: Path, grant) -> dict[str, str]:
-    """What a reader sees in each evidence file, read back from disk."""
-    photo_text = {d.name: d.text for d in grant.docs}
+    """What a reader sees in each evidence file, read back from disk.
+
+    A typeset PDF and an image give the generator's text for them: check_folder
+    holds the PDF to having every row of it, and an image is its drawn strings."""
+    docs = {d.name: d for d in grant.docs}
     out = {}
     for p in sorted(files.iterdir()):
         if not p.is_file() or p.name in META_FILES:
             continue
         data = p.read_bytes()
-        if p.suffix == ".pdf":
+        doc = docs.get(p.name)
+        if p.suffix == ".pdf" and doc is not None and doc.pages is not None:
+            out[p.name] = doc.text
+        elif p.suffix == ".pdf":
             out[p.name] = pdf_text(data)
         elif p.suffix in PHOTO_SUFFIXES:
-            out[p.name] = photo_text.get(p.name, "")
+            out[p.name] = doc.text if doc is not None else ""
         else:
             out[p.name] = data.decode("utf-8")
     return out
+
+
+def typeset_module():
+    sys.path.insert(0, str(GENERATOR))
+    try:
+        import typeset
+    finally:
+        sys.path.pop(0)
+    return typeset
 
 
 # ---------------------------------------------------------------- checks
@@ -937,14 +962,57 @@ def check_folder(key_dir: Path, grant) -> list[str]:
     problems: list[str] = []
     check_generated(key_dir, files, grant, problems)
     text = texts(files, grant)
+    drawn: dict[str, str] = {}
     for d in grant.docs:
-        if d.name.endswith(".pdf") and d.name in text and text[d.name] != d.text.rstrip("\n"):
-            problems.append(f"{d.name}: its PDF text doesn't read back as written")
+        if not d.name.endswith(".pdf") or d.name not in text:
+            continue
+        if d.pages is None:
+            if text[d.name] != d.text.rstrip("\n"):
+                problems.append(f"{d.name}: its PDF text doesn't read back as written")
+            continue
+        # A typeset PDF: every row of its text is on the page, in order, on the pages
+        # the records cite. What else the page says (its furniture) is checked too.
+        typeset = typeset_module()
+        data = (files / d.name).read_bytes()
+        try:
+            if typeset.locate(data, d.text) != d.pages:
+                problems.append(f"{d.name}: its rows aren't on the pages the generator found")
+        except ValueError as error:
+            problems.append(f"{d.name}: {error}")
+        drawn[f"{d.name} (as drawn)"] = "\n".join(typeset.page_texts(data))
     lines = check_ledger(files, problems)
     arrivals = check_timeline(key_dir, files, lines, problems)
     check_key(key_dir, lines, arrivals, text, grant.award_number, problems)
-    check_synthetic(files, text, problems)
+    check_synthetic(files, {**text, **drawn}, problems)
+    if key_dir.parent == SAMPLES:
+        check_sample_names(text | drawn, problems)
+        check_marked(grant, drawn, problems)
     return [f"{key_dir.name}: {p}" for p in problems]
+
+
+def check_sample_names(text: dict[str, str], problems: list[str]) -> None:
+    """A sample's names are invented, realistic ones: no placeholder "Example" is left
+    in any file, apart from the .example domain of an email address."""
+    for name, body in text.items():
+        if re.search(r"(?<![.\w])example", body, re.IGNORECASE):
+            problems.append(f"{name}: still says Example")
+
+
+# The documents laid out like an agency's or a university's own notice, by the start
+# of their file names. Each says on every page that it's a synthetic sample.
+MARKED = ("award_letter", "notice_0", "extension_notice", "rate_agreement", "notice_of_exp")
+SYNTHETIC_MARK = "Synthetic sample document for a software demonstration. Not issued by"
+
+
+def check_marked(grant, drawn: dict[str, str], problems: list[str]) -> None:
+    typeset = typeset_module()
+    for d in grant.docs:
+        if d.name.startswith("closeout_certification") and SYNTHETIC_MARK not in d.text:
+            problems.append(f"{d.name}: doesn't say it's a synthetic sample")
+        if d.name.startswith(MARKED) and d.pages is not None:
+            for n, page in enumerate(typeset.page_texts(d.data), start=1):
+                if SYNTHETIC_MARK not in " ".join(page.split()):
+                    problems.append(f"{d.name}: page {n} doesn't say it's a synthetic sample")
 
 
 # ---------------------------------------------------------------- tests
@@ -1580,11 +1648,16 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                 if got != c["passage"]:
                     problems.append(f"{where}: {rid}'s passage isn't at its characters in {name}")
             elif loc["type"] == "page_location":
-                page = loc["start_page_number"]
-                text = "\n".join(rows[(page - 1) * 60 : page * 60])
-                if loc["end_page_number"] != page + 1 or c["passage"] not in text:
-                    problems.append(f"{where}: {rid}'s passage isn't on page {page} of {name}")
+                # The passage is a row of the file's text, cited on the pages the
+                # typeset PDF puts that row on. test_pdf_citations_are_found then
+                # finds it in the PDF itself.
+                pages = (loc["start_page_number"], loc["end_page_number"] - 1)
+                spaced = [" ".join(r.split()) for r in rows]
+                at = [docs[name].pages[i] for i, r in enumerate(spaced) if r == c["passage"]]
+                if pages not in at:
+                    problems.append(f"{where}: {rid}'s passage isn't a row of {name} there")
             elif loc["type"] == "image_box":
+                box = (loc["left"], loc["top"], loc["width"], loc["height"])
                 if not (
                     0 <= loc["left"]
                     and loc["left"] + loc["width"] <= 1
@@ -1592,6 +1665,8 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                     and loc["top"] + loc["height"] <= 1
                 ):
                     problems.append(f"{where}: {rid}'s box isn't inside {name}")
+                elif box not in (docs[name].boxes or []):
+                    problems.append(f"{where}: {rid}'s box isn't a string drawn on {name}")
             else:
                 problems.append(f"{where}: {rid} has a {loc['type']} citation")
 
@@ -1603,6 +1678,74 @@ def test_agent_records_match_the_key() -> None:
     problems: list[str] = []
     for folder in (LARGER, SMALL):
         check_agent_records(folder, g[folder], problems)
+    assert not problems, "\n".join(problems[:30])
+
+
+def check_pdf_citations(folder: Path, grant, problems: list[str]) -> None:
+    """Every passage agent_records.json cites into a PDF is found in the file on disk
+    by the app's own quote finder, on the pages cited, with its value.
+
+    It's found as often as the file's text has it and no more: a page's furniture
+    mustn't repeat a cited passage, or a value would be found twice."""
+    from app.quotes.pdf import find_pdf_quote
+
+    docs = {d.name: d for d in grant.docs}
+    seen: set[tuple] = set()
+    for r in load(folder, "agent_records.json")["records"]:
+        for value in cited_values(r["data"]):
+            c = value["citation"]
+            loc = c["location"]
+            name = c["file_id"].removeprefix("file-")
+            key = (name, c["passage"], value.get("text"), loc.get("start_page_number"))
+            if loc["type"] != "page_location" or key in seen or name not in docs:
+                continue
+            seen.add(key)
+            where = f"{folder.name}: {r['id']}: {c['passage']!r} in {name}"
+            found = find_pdf_quote(
+                (folder / name).read_bytes(),
+                c["passage"],
+                start_page_number=loc["start_page_number"],
+                end_page_number=loc["end_page_number"],
+                value_text=value.get("text"),
+            )
+            if found.match not in ("exact", "close"):
+                problems.append(f"{where}: the finder says {found.match}")
+                continue
+            if value.get("text") and not found.value_found:
+                problems.append(f"{where}: the value {value['text']!r} isn't found in it")
+            if found.match != c["match"]:
+                problems.append(f"{where}: found as {found.match}, cited as {c['match']}")
+            spaced = " ".join(docs[name].text.split())
+            in_text = spaced.count(c["passage"])
+            if len(found.occurrences) > in_text:
+                problems.append(
+                    f"{where}: on the page {len(found.occurrences)} times, in its text {in_text}"
+                )
+
+
+def cited_values(obj) -> list[dict]:
+    """Every cited value inside a record's data: a dict with its citation, and its
+    text where it has one. A bare citation (a link's part, an answer's quote) counts."""
+    found = []
+    if isinstance(obj, dict):
+        if isinstance(obj.get("citation"), dict):
+            found.append(obj)
+        elif "file_id" in obj and "location" in obj:
+            found.append({"citation": obj})
+        for v in obj.values():
+            found += cited_values(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += cited_values(v)
+    return found
+
+
+def test_pdf_citations_are_found() -> None:
+    """The app's quote finder finds every passage the agent records cite into a PDF."""
+    g = gen()
+    problems: list[str] = []
+    for folder in (LARGER, SMALL):
+        check_pdf_citations(folder, g[folder], problems)
     assert not problems, "\n".join(problems[:30])
 
 
@@ -1673,6 +1816,7 @@ if __name__ == "__main__":
         test_suggestion_kinds_are_record_kinds,
         test_a_script_with_more_than_the_key_assumes_fails,
         test_agent_records_match_the_key,
+        test_pdf_citations_are_found,
         test_larger_sample,
         test_highlights,
         test_small_sample,
