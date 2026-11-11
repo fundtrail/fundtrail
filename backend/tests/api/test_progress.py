@@ -3,6 +3,7 @@ sub-line names its parent)."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from app.api.views import _reading  # pyright: ignore[reportPrivateUsage]
@@ -83,3 +84,34 @@ def test_a_budget_sub_line_names_its_parent(api: Api) -> None:
     assert parents["materials_and_supplies"] == "other_direct_costs"
     assert parents["other_direct_costs"] is None
     assert parents["participant_support"] is None
+
+
+def test_a_new_stretch_starts_from_zero_and_thread_runs_alone_show_nothing(api: Api) -> None:
+    c, h = api.client, api.headers
+    workspace = c.post("/workspaces", json={"name": "Lab"}, headers=h).json()["id"]
+    grant = c.post(
+        f"/workspaces/{workspace}/grants",
+        files={"file": ("award_letter.txt", b"Award SYN-1", "text/plain")},
+        headers=h,
+    ).json()["id"]
+    _finish(api, grant, "Read the award letter.")
+    assert _summary(api, workspace, grant)["reading"] is None
+    # Only a run with nothing to read is pending (a review, a thread or a record run):
+    # no progress line.
+    with transaction(api.platform.pool) as conn:
+        from app.contracts.runs import Trigger, TriggerKind
+        from app.db.jobs import queue_run
+
+        g = store.get_grant(conn, grant)
+        assert g is not None
+        queue_run(conn, g, Trigger(kind=TriggerKind.CLOCK), datetime.now(UTC))
+    assert _summary(api, workspace, grant)["reading"] is None
+    _finish(api, grant)
+    # A second stretch counts only its own work, not the first stretch's letter.
+    c.post(
+        f"/grants/{grant}/evidence",
+        files={"file": ("invoice.txt", b"Total: $10.00", "text/plain")},
+        headers=h,
+    )
+    reading = _summary(api, workspace, grant)["reading"]
+    assert reading == {"files_read": 0, "files_total": 1, "lines_read": 0, "lines_total": 0}

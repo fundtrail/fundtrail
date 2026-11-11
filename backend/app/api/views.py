@@ -149,6 +149,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
             skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
+    pending = store.pending_runs(conn, grant.id)
     return GrantSnapshot(
         workspace=workspace,
         grant=grant,
@@ -157,11 +158,12 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
         files=files,
         records=records,
         statuses=store.current_statuses(conn, grant.id),
-        pending=store.pending_runs(conn, grant.id),
+        pending=pending,
         messages=store.grant_messages(conn, grant.id, now),
         output=output,
         held=still_held_mail(conn, grant, now, RecordState(records, files)),
-        reading=_reading(store.reading_counts(conn, grant.id)),
+        # Only while the agent has work queued or running: an idle grant asks nothing.
+        reading=_reading(store.reading_counts(conn, grant.id)) if pending else None,
         last_run_summary=store.last_run_summary(conn, grant.id),
     )
 
