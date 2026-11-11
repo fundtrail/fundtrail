@@ -1,0 +1,169 @@
+/*
+ * The workspace's grants, one row each: a table by its ARIA roles, laid out
+ * as a grid so every row shares the same columns. The whole row opens the
+ * grant: the name's link stretches over the row. When the list is narrower
+ * than 720px, each row stacks into a labelled block.
+ */
+
+.table {
+  container-type: inline-size;
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 2.2fr) minmax(128px, 1fr) minmax(212px, 1.4fr)
+    minmax(112px, 0.8fr) minmax(192px, 1.3fr);
+}
+.row > * {
+  min-width: 0;
+  padding: 14px var(--space-4);
+}
+
+.head .row {
+  border-bottom: 1px solid var(--rule);
+  border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
+  background: var(--paper-sunken);
+}
+.head [role="columnheader"] {
+  padding-block: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.grantRow {
+  /* The stretched link is placed against the row, a grid box, never a <tr>. */
+  position: relative;
+  border-top: 1px solid var(--rule);
+  line-height: 20px;
+}
+.grantRow:first-child {
+  border-top: 0;
+}
+/* A hover tint between the panel and the sunken fill. */
+.grantRow:hover {
+  background: color-mix(in srgb, var(--paper-sunken) 55%, var(--paper-raised));
+}
+.grantRow:last-child {
+  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
+}
+
+.name {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.grantRow:hover .name {
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
+.name:focus-visible {
+  outline: none;
+}
+.name:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.grant :global(.ft-id) {
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.date {
+  white-space: nowrap;
+}
+/* The next closeout date is what the row is read for: it leads its cell. */
+.next {
+  font-weight: 600;
+}
+
+.ready {
+  display: block;
+  white-space: nowrap;
+}
+.ready strong {
+  font-weight: 600;
+}
+.unit {
+  color: var(--ink-muted);
+}
+
+/* The readiness bar: ready charges filled, the rest an empty track. */
+.bar {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  height: 6px;
+  margin-top: var(--space-2);
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--rule);
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--brand-action, var(--ledger));
+}
+
+/* Beside the narrower sidebar: tighter cells and a shorter bar. */
+@media (max-width: 1279px) {
+  .row {
+    grid-template-columns:
+      minmax(180px, 2fr) minmax(116px, 1fr) minmax(164px, 1.3fr)
+      minmax(104px, 0.8fr) minmax(168px, 1.3fr);
+  }
+  .row > * {
+    padding-inline: var(--space-3);
+  }
+  .bar {
+    width: 140px;
+  }
+}
+
+/* A narrow list: each grant a block, its facts in two labelled columns. The
+   header row stays for screen readers; the labels are for the eye only. */
+@container (max-width: 719px) {
+  .head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .grantRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-4);
+    padding: 14px var(--space-4);
+  }
+  .grantRow > * {
+    padding: 0;
+  }
+  .grant {
+    grid-column: 1 / -1;
+  }
+  .cell[data-label]::before {
+    content: attr(data-label) / "";
+    display: block;
+    margin-bottom: 2px;
+    color: var(--ink-muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+  }
+  .bar {
+    width: 100%;
+    max-width: 180px;
+  }
+}
