@@ -45,8 +45,13 @@ class RunContext:
     messages_out: list[ThreadMessage] = field(default_factory=list[ThreadMessage])
     labels: dict[str, LabelLine] = field(default_factory=dict[str, LabelLine])
     documents: list[SentDocument] = field(default_factory=list[SentDocument])
-    images: dict[str, SentImage] = field(default_factory=dict[str, SentImage])
+    # Each photo or scanned page sent as an image in this run, by file and page.
+    images: dict[tuple[str, int], SentImage] = field(
+        default_factory=dict[tuple[str, int], SentImage]
+    )
     uncited_refusals: Counter[tuple[str, str]] = field(default_factory=Counter[tuple[str, str]])
+    # Notes for the agent from the write in progress, added to its result (a box off the image).
+    write_notes: list[str] = field(default_factory=list[str])
     problem_counts: Counter[str] = field(default_factory=Counter[str])
     messages: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     summary: str | None = None
