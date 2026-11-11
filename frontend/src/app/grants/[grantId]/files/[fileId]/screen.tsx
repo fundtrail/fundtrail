@@ -46,7 +46,7 @@ export function FileScreen() {
             <Loadable result={link}>
               {(fileLink) => (
                 <Viewer
-                  key={`${recordId}:${path}`}
+                  openAt={recordId && path ? `${recordId}:${path}` : null}
                   file={found.file}
                   url={fileLink.url}
                   citation={spot?.citation.file_id === fileId ? spot.citation : null}

@@ -10,12 +10,26 @@ import { QuoteLink } from "./QuoteLink";
 import { confirmationText, displayValue, isCited, valueAt, valueLabel } from "./values";
 
 /** A record's state in a few words, shown only when it isn't simply in force. */
-const STATE_WORDS: Partial<Record<RecordState, string>> = {
+export const STATE_WORDS: Partial<Record<RecordState, string>> = {
   waiting: "Waiting for the accountant",
   rejected: "Rejected",
   replaced: "Replaced",
   retracted: "Retracted",
 };
+
+/**
+ * What the card says about a file that's a copy of another, whole: "Copy of
+ * X", with the duplicate mark's state when it isn't simply in force (for
+ * example "· Waiting for the accountant" while the suggestion waits). Null
+ * when the file isn't marked as a copy.
+ */
+export function duplicateWords(card: EvidenceCard): string | null {
+  const duplicate = card.duplicate;
+  if (!duplicate) return null;
+  const original = card.files?.[(duplicate.mark.data as { original_file_id: Id }).original_file_id];
+  const state = STATE_WORDS[duplicate.state];
+  return `Copy of ${original?.name ?? "another file"}${state ? ` · ${state}` : ""}`;
+}
 
 /** Google's types for the files Drive exports to PDF (decision 0025). */
 const EXPORTED_FROM: Record<string, string> = {
@@ -214,8 +228,7 @@ export function EvidenceCardView({
   const parent = file.parent_id ? card.files?.[file.parent_id] : undefined;
   const exported = file.exported_from ? (EXPORTED_FROM[file.exported_from] ?? file.exported_from) : null;
   const problems = card.status?.problems ?? [];
-  const duplicate = card.duplicate;
-  const original = duplicate ? card.files?.[(duplicate.mark.data as { original_file_id: Id }).original_file_id] : undefined;
+  const copy = duplicateWords(card);
   const name = (
     <Link className={styles.fileName} href={viewerHref(grantId, file.id)}>
       {file.name}
@@ -237,12 +250,7 @@ export function EvidenceCardView({
             {exported && <span>Exported to PDF from {exported}</span>}
           </div>
         </div>
-        {duplicate && (
-          <span className="ft-tag">
-            Copy of {original?.name ?? "another file"}
-            {STATE_WORDS[duplicate.state] ? ` · ${STATE_WORDS[duplicate.state]}` : ""}
-          </span>
-        )}
+        {copy && <span className="ft-tag">{copy}</span>}
       </header>
 
       {problems.length > 0 && (

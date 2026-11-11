@@ -73,15 +73,30 @@ describe("the Evidence page", () => {
     expect(nav.push).toHaveBeenCalledWith("/grants/grant-sample/files?file=file-invoice-1001", { scroll: false });
   });
 
-  it("never leaves a hidden file's card open when the filter hides it", async () => {
-    renderPage("file=file-extension-notice");
+  it("makes the address true when it names a file that isn't on the grant, with no new history entry", async () => {
+    renderPage("file=file-nope");
     await waitFor(() => expect(within(pane()).getByRole("heading", { level: 2, name: "extension_notice.txt" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: /^Not linked/ }));
-    // The extension notice sets terms, so it's never in "Not linked"; the first file the filter shows takes its place.
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/grants/grant-sample/files?file=file-extension-notice", { scroll: false }));
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it("leaves a known file in the address alone", async () => {
+    renderPage("file=file-syn-boat-receipt");
     await waitFor(() => expect(within(pane()).getByRole("heading", { level: 2, name: "boat_rental_receipt.jpg" })).toBeInTheDocument());
-    expect(within(pane()).queryByRole("heading", { name: "extension_notice.txt" })).toBeNull();
-    expect(rowNames()).not.toContain("extension_notice.txt");
-    expect(rowNames()).not.toContain("invoice_1001.txt");
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("offers no filter: the server says nothing a filter could rest on", async () => {
+    renderPage();
+    await screen.findByRole("list", { name: "Files" });
+    expect(screen.queryByRole("group", { name: /Show on/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Not linked/ })).toBeNull();
+  });
+
+  it("names the file list once for a screen reader", async () => {
+    renderPage();
+    await screen.findByRole("list", { name: "Files" });
+    expect(screen.getAllByLabelText("Files")).toHaveLength(1);
   });
 
   it("on a narrow screen loads no card beside the list, rows open the file's page, and a link with a file opens it", async () => {
