@@ -27,6 +27,4 @@ def add_error_catch(app: FastAPI) -> None:
         except Exception:
             # The method and path only: no request body, headers or token.
             log.exception("unhandled error on %s %s", request.method, request.url.path)
-            return JSONResponse(
-                {"detail": ["Something went wrong on the server."]}, status_code=500
-            )
+            return JSONResponse({"detail": "Something went wrong on the server."}, status_code=500)

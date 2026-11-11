@@ -83,5 +83,5 @@ def test_a_server_bug_is_a_json_500_with_the_origins_headers() -> None:
         "/boom", headers={"Origin": APP_ORIGIN}
     )
     assert response.status_code == 500
-    assert response.json() == {"detail": ["Something went wrong on the server."]}
+    assert response.json() == {"detail": "Something went wrong on the server."}
     assert response.headers["access-control-allow-origin"] == APP_ORIGIN
