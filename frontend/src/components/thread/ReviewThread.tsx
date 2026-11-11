@@ -302,6 +302,7 @@ export function ReviewThread({
   ctx,
   onDecide,
   onAsk,
+  fill = false,
 }: {
   thread: Thread;
   /** What the thread is about, for the ask box: "L-1002", for example. */
@@ -309,10 +310,14 @@ export function ReviewThread({
   ctx: ThreadContext;
   onDecide?: OnDecide;
   onAsk: (text: string) => Promise<void>;
+  /** Fill the height its parent gives it: the entries take the room, the ask box stays at the bottom. */
+  fill?: boolean;
 }) {
   const decisions = decisionsFrom(thread, ctx.records);
   const scroller = useRef<HTMLDivElement>(null);
   const shown = useRef<ThreadShape | null>(null);
+  // A scroll asked for while the thread is out of view (a tab not shown yet), made once it shows.
+  const pending = useRef<(() => void) | null>(null);
   // Newest entry last. scrollTarget decides which entry comes into view, and
   // leaves the scroll alone when a refetch brings nothing new.
   useEffect(() => {
@@ -321,13 +326,30 @@ export function ReviewThread({
     const target = scrollTarget(shown.current, next);
     shown.current = next;
     if (!el || target.to === "stay") return;
-    const entry =
-      target.to === "record" ? [...el.querySelectorAll<HTMLElement>("[data-record]")].find((n) => n.dataset.record === target.id) : undefined;
-    // The scroll area is positioned, so an entry's offsetTop is measured from its top.
-    el.scrollTop = entry ? Math.max(0, entry.offsetTop - 12) : el.scrollHeight;
+    const scroll = () => {
+      const entry =
+        target.to === "record" ? [...el.querySelectorAll<HTMLElement>("[data-record]")].find((n) => n.dataset.record === target.id) : undefined;
+      // The scroll area is positioned, so an entry's offsetTop is measured from its top.
+      el.scrollTop = entry ? Math.max(0, entry.offsetTop - 12) : el.scrollHeight;
+    };
+    const hidden = typeof ResizeObserver !== "undefined" && el.getClientRects().length === 0;
+    pending.current = hidden ? scroll : null;
+    if (!hidden) scroll();
   }, [thread]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!pending.current || el.getClientRects().length === 0) return;
+      const scroll = pending.current;
+      pending.current = null;
+      scroll();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <div className={styles.thread}>
+    <div className={`${styles.thread}${fill ? ` ${styles.fill}` : ""}`}>
       <div className={styles.scroll} ref={scroller}>
       {thread.entries.length === 0 ? (
         <p className={styles.empty}>Nothing in this thread yet.</p>

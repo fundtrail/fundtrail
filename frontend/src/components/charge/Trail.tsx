@@ -132,9 +132,17 @@ export function TrailNote({ children }: { children: ReactNode }) {
 }
 
 /**
+ * The folded lines the accountant opened or closed, by name, while the app
+ * stays loaded: opening the evidence trail on one charge keeps it open on the
+ * next one picked from the problem list. A reload forgets.
+ */
+const remembered = new Map<string, boolean>();
+
+/**
  * A closed line that opens in place: "Evidence checklist · 2 of 3 filled",
  * "Passing · 3". Open by default only when something in it needs the
- * accountant; like a trail node, it stays open once opened until the
+ * accountant, or when the accountant left the line of the same name
+ * (`remember`) open; like a trail node, it stays open once opened until the
  * accountant closes it.
  */
 export function Disclosure({
@@ -144,6 +152,7 @@ export function Disclosure({
   attention = false,
   children,
   testId,
+  remember,
 }: {
   label: ReactNode;
   count?: ReactNode;
@@ -152,8 +161,10 @@ export function Disclosure({
   attention?: boolean;
   children: ReactNode;
   testId?: string;
+  /** A name to keep the accountant's open or closed choice under, across the charges they pick. */
+  remember?: string;
 }) {
-  const [isOpen, setIsOpen] = useState(open);
+  const [isOpen, setIsOpen] = useState(() => open || (remember !== undefined && remembered.get(remember) === true));
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -163,7 +174,11 @@ export function Disclosure({
     <details
       className={styles.disclosure}
       open={isOpen}
-      onToggle={(e) => setIsOpen(e.currentTarget.open)}
+      onToggle={(e) => {
+        const next = e.currentTarget.open;
+        setIsOpen(next);
+        if (remember !== undefined) remembered.set(remember, next);
+      }}
       data-attention={attention || undefined}
       data-testid={testId}
     >

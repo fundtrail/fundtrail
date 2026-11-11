@@ -1,11 +1,117 @@
-/* The charge view. Designed for the grant page's right pane first (about 520
-   to 640px): one column, the thread docked under the charge. When the view's
-   own container is wide, as on the standalone charge page, the thread sits
-   beside it. */
+/* The charge view, decision first: the header, what needs the accountant,
+   then the rest of the story folded to one line each. On the charge's own
+   page the thread docks under the charge, or sits beside it when the view's
+   own container is wide. In the problem list's pane (about 460 to 770px) the
+   card fills the pane's height and the charge and its thread are two tabs,
+   each scrolling inside the card under a header that stays put. */
 
 .view {
   container: charge / inline-size;
 }
+
+/* --- The problem list's pane --- */
+
+.paneView {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.paneCard {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.paneHead {
+  flex: none;
+  padding: var(--space-4) var(--space-5) var(--space-3);
+}
+
+.tabs {
+  flex: none;
+  display: flex;
+  gap: var(--space-5);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: 600 13px/1 var(--sans);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+/* The chosen tab: ink, with a 2px rule along its foot over the list's hairline. */
+.tab[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ink);
+}
+
+.tab:focus-visible {
+  outline-offset: -2px;
+}
+
+.tabNote {
+  color: var(--ink-muted);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.panel {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+/* The thread's tab is the thread itself, edge to edge, its ask box at the foot. */
+.threadPanel {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--paper-sunken);
+}
+
+/* --- The charge's own page --- */
 
 .layout {
   display: grid;
@@ -66,26 +172,36 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
-/* The meta line and the bucket badge share a row while the meta line keeps
-   room for whole items; below that the badge drops under it. */
+/* The bucket on the left; the link to the charge's own page, when there is
+   one, on the right, so the card's first line is the same height as the
+   list's beside it. */
 .headerTop {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2) var(--space-3);
+  min-height: 24px;
 }
 
-.headerTop > .meta {
-  flex: 1 1 18rem;
-  padding-top: 2px;
+.pageLink {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 13px;
 }
 
-.headerTop > :last-child {
-  flex: none;
+.pageLink:hover {
+  color: var(--ink);
+}
+
+/* The ledger's facts, quiet under the name and amount. */
+.metaLines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* Items separated by a middle dot. Every item hangs its dot in its own left
@@ -119,7 +235,7 @@
 
 .fact {
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .nameRow {
@@ -147,10 +263,18 @@
 
 /* --- Sections --- */
 
-.section {
+/* What needs the accountant: the open reasons with their actions, then Snooze. */
+.needs {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+/* No reason left open: one quiet line, in place of the reasons. */
+.clear {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 
 .sectionHeading {
@@ -204,19 +328,17 @@
   max-width: 68ch;
 }
 
-.closedLines {
+/* The rest of the story, one closed line each with a hairline above it, so
+   the stack reads as one list of things to open. */
+.folds {
   display: flex;
   flex-direction: column;
-  /* Stack evenly under the trail's own closed line, without the section gap. */
-  margin-top: calc(-1 * var(--space-2));
 }
 
-.trail + .closedLines {
-  margin-top: var(--space-2);
-}
-
-.trail:has(> details:last-child) + .closedLines {
-  margin-top: calc(-1 * var(--space-2));
+/* An open line's body: the trail and the checklist start in line with the
+   line's own words. */
+.folds > details > div {
+  padding-top: var(--space-1);
 }
 
 .label {

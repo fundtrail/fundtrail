@@ -12,19 +12,11 @@ import { routes } from "@/lib/routes";
 import { GrantProblemPane } from "./GrantProblemPane";
 import styles from "./SelectedProblem.module.css";
 
-/** The bar over the item: a link to open it on its own page. */
-function Bar({ href }: { href?: string }) {
-  if (!href) return null;
-  return (
-    <div className={styles.paneBar}>
-      <Link className="ft-link" href={href}>
-        Open on its own page
-      </Link>
-    </div>
-  );
-}
-
-/** A charge beside the list, as the charge page shows it. */
+/**
+ * A charge beside the list, decision first like the charge page, with the
+ * charge and its thread as two tabs that fill the pane. The link to its own
+ * page sits in the charge's header, so the card starts level with the list.
+ */
 function ChargePane({ grantId, chargeId }: { grantId: Id; chargeId: Id }) {
   const detail = useCharge(chargeId);
   const thread = useChargeThread(chargeId);
@@ -35,23 +27,22 @@ function ChargePane({ grantId, chargeId }: { grantId: Id; chargeId: Id }) {
     file: (fileId) => routes.file(grantId, fileId),
   };
   return (
-    <>
-      <Bar href={routes.charge(grantId, chargeId)} />
-      <div className={styles.charge}>
-        <Loadable result={detail} onRetry={() => void detail.mutate()}>
-          {(data) => (
-            <ChargeDetailView
-              detail={thread.data ? { ...data, thread: thread.data } : data}
-              onDecide={actions.decide}
-              onWrite={actions.write}
-              onAsk={actions.ask}
-              links={links}
-              headingLevel={2}
-            />
-          )}
-        </Loadable>
-      </div>
-    </>
+    <div className={styles.charge} data-fill>
+      <Loadable result={detail} onRetry={() => void detail.mutate()}>
+        {(data) => (
+          <ChargeDetailView
+            detail={thread.data ? { ...data, thread: thread.data } : data}
+            onDecide={actions.decide}
+            onWrite={actions.write}
+            onAsk={actions.ask}
+            links={links}
+            headingLevel={2}
+            layout="pane"
+            pageHref={routes.charge(grantId, chargeId)}
+          />
+        )}
+      </Loadable>
+    </div>
   );
 }
 
@@ -68,28 +59,26 @@ function RecordPane({ grantId, recordId }: { grantId: Id; recordId: Id }) {
   const files: Record<Id, EvidenceFile> = {};
   for (const card of evidence.data ?? []) files[card.file.id] = card.file;
   return (
-    <>
-      <Bar href={routes.record(grantId, recordId)} />
-      <div className={styles.charge}>
-        <Loadable result={thread}>
-          {(data) => (
-            <RecordThreadView
-              recordId={recordId}
-              record={view?.record ?? null}
-              state={view?.state ?? null}
-              status={status}
-              files={files}
-              thread={data}
-              fileHref={(fileId) => routes.file(grantId, fileId)}
-              quoteHref={(citation) => routes.file(grantId, citation.file_id)}
-              onDecide={actions.decide}
-              onAsk={actions.ask}
-              headingLevel={2}
-            />
-          )}
-        </Loadable>
-      </div>
-    </>
+    <div className={styles.charge}>
+      <Loadable result={thread}>
+        {(data) => (
+          <RecordThreadView
+            recordId={recordId}
+            record={view?.record ?? null}
+            state={view?.state ?? null}
+            status={status}
+            files={files}
+            thread={data}
+            fileHref={(fileId) => routes.file(grantId, fileId)}
+            quoteHref={(citation) => routes.file(grantId, citation.file_id)}
+            onDecide={actions.decide}
+            onAsk={actions.ask}
+            headingLevel={2}
+            pageHref={routes.record(grantId, recordId)}
+          />
+        )}
+      </Loadable>
+    </div>
   );
 }
 

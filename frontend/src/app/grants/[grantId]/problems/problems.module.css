@@ -33,20 +33,63 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  /* The list gives up width first on a smaller screen, so the picked item keeps room to read. */
+  grid-template-columns: minmax(0, clamp(280px, 32%, 360px)) minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
 }
-/* The list is the one bordered block; the picked item sits beside it in its own panels. */
+/* The list is one bordered block; the picked item sits beside it in its own card, both starting on the same line. */
 .list {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--paper-raised);
 }
 .detail {
   min-width: 0;
+}
+
+/*
+ * Beside each other, the two panes take the window's height under the top
+ * bar and scroll on their own, so the page itself never scrolls: the list
+ * keeps its place while the picked item scrolls, and the other way round.
+ * The list's block is as tall as its rows, up to the pane; the picked item
+ * lays itself out in the pane's whole height.
+ */
+@media (min-width: 981px) {
+  .page {
+    height: calc(100dvh - var(--topbar-height) - 2 * var(--page-gutter));
+    min-height: 480px;
+  }
+  :global(.ft-fake-banner) ~ :global(.ft-app) .page {
+    height: calc(100dvh - var(--fake-banner-height) - var(--topbar-height) - 2 * var(--page-gutter));
+  }
+  .split {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .list {
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+  .detail {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+  .detail > * {
+    flex: 1 0 auto;
+  }
 }
 
 .empty {
