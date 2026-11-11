@@ -27,7 +27,7 @@ Every amount, name and award number on screen is synthetic.
 | 07 | Sidebar **Closeout**: the steps, what's still open, every expense. **Make the draft**, then **Open the draft (PDF)** | "At closeout, the review is already done, and the evidence report is ready to attach to Berkeley's closeout certification." |
 | 08 | The report's pages, then the FundTrail wordmark | "The agent reads and suggests. Code checks every rule it can. A person makes every final call. That's FundTrail." |
 
-**Rehearsed Nov 10, about 8:30 PM, on main at ae64e07.** Agent time: the award letter 37 seconds, the ledger and seven files about 5 and a half minutes, the receipt 53 seconds, the emailed invoice 29 seconds and its link 34 seconds, the question 25 seconds. About 9 minutes in all; cut every wait.
+**Rehearsed Nov 10, about 8 PM, on main at ae64e07.** Agent time: the award letter 37 seconds, the ledger and seven files about 5 and a half minutes, the receipt 53 seconds, the emailed invoice 29 seconds and its link 34 seconds, the question 25 seconds. About 9 minutes in all; cut every wait.
 
 - **Beat 02:** "Open the source" opens the viewer at the passage with "Exact passage" and "Confirmed on the page". The strongest shot in the video.
 - **Beat 03:** the travel charge's thread shows each status change on the way to Evidence complete, and the agent notes the hotel may be university-owned.
