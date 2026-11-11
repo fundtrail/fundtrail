@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
 import "./closeout.css";
@@ -23,57 +23,14 @@ const BERKELEY_STEPS: { name: string; when: string }[] = [
   { name: "Final financial report", when: "Filed by central accounting by day 90. FundTrail isn't involved." },
 ];
 
-type Mark = "past" | "now" | "ahead" | "plain";
-
-interface TrailNode {
-  key: string;
-  mark: Mark;
-  date: string | null;
-  name: string;
-  when: string | null;
-}
-
 /**
- * Which step the server's next closeout date names: the step whose name its
- * label carries ("Final financial report due" names "Final financial report").
- * -1 when the server sends none, or names a step this list doesn't show.
+ * The steps as one trail, every step drawn the same: the server says what's
+ * next, not where the grant stands among these steps, so the trail marks no
+ * step as passed or current. The only date under a step is the end date in
+ * force, under End date. What's next leads, in the server's own words.
  */
-function nextStepIndex(summary: GrantSummary): number {
-  const label = summary.next_closeout?.label.toLowerCase();
-  if (!label) return -1;
-  return BERKELEY_STEPS.findIndex((s) => label.includes(s.name.toLowerCase()));
-}
-
-/**
- * The trail's nodes. Dates come only from the server: the end date in force
- * under "End date", the next closeout date under the step it names, and the
- * grant's now (ruling 40) where it falls, just before that step. With no next
- * step named, every step is drawn the same.
- */
-function nodes(summary: GrantSummary): TrailNode[] {
-  const next = nextStepIndex(summary);
-  const out: TrailNode[] = [];
-  BERKELEY_STEPS.forEach((s, i) => {
-    if (i === next) {
-      out.push({ key: "now", mark: "now", date: date(summary.now), name: "Now", when: null });
-    }
-    let dated: string | null = null;
-    if (i === next && summary.next_closeout) dated = date(summary.next_closeout.date);
-    else if (s.name === "End date" && summary.end_date) dated = date(summary.end_date);
-    out.push({ key: s.name, mark: next < 0 ? "plain" : i < next ? "past" : "ahead", date: dated, name: s.name, when: s.when });
-  });
-  return out;
-}
-
-/** The line after a node runs solid up to now, dashed ahead of it. */
-function lineAfter(list: TrailNode[], i: number): "solid" | "dashed" | "plain" {
-  const following = list[i + 1];
-  if (!following || following.mark === "plain") return "plain";
-  return following.mark === "ahead" ? "dashed" : "solid";
-}
-
 export function CloseoutSteps({ summary, links }: { summary: GrantSummary; links?: ReactNode }) {
-  const list = nodes(summary);
+  const next = summary.next_closeout ?? null;
   return (
     <section className="ft-panel ft-co-steps-panel" aria-labelledby="steps-heading">
       <div className="ft-panel__head">
@@ -83,30 +40,25 @@ export function CloseoutSteps({ summary, links }: { summary: GrantSummary; links
         {links}
       </div>
       <div className="ft-co-body">
-        <p className="ft-co-summary">
-          {summary.end_date ? <>End date in force: {date(summary.end_date)}.</> : <>End date not confirmed yet.</>}
-          {summary.next_closeout && (
-            <>
-              {" "}
-              Next: <span className="ft-strong">{summary.next_closeout.label}</span>, {date(summary.next_closeout.date)}.
-            </>
+        <div className="ft-co-summary" data-testid="closeout-summary">
+          {next && (
+            <p className="ft-co-next">
+              Next: <span className="ft-co-next__label">{next.label}</span>, {date(next.date)}.
+            </p>
           )}
-        </p>
-        <ol
-          className="ft-co-steps"
-          style={{ "--co-cols": list.map((n) => (n.mark === "now" ? "minmax(88px, 0.6fr)" : "minmax(0, 1fr)")).join(" ") } as CSSProperties}
-        >
-          {list.map((n, i) => (
-            <li
-              key={n.key}
-              className={`ft-co-step is-${n.mark}`}
-              data-line={lineAfter(list, i)}
-              aria-current={n.mark === "now" ? "step" : undefined}
-            >
+          <p className="ft-co-end">
+            {summary.end_date ? <>End date in force: {date(summary.end_date)}.</> : <>End date not confirmed yet.</>}
+          </p>
+        </div>
+        <ol className="ft-co-steps">
+          {BERKELEY_STEPS.map((s) => (
+            <li key={s.name} className="ft-co-step">
               <span className="ft-co-step__dot" aria-hidden="true" />
-              {n.date && <span className="ft-co-step__date">{n.date}</span>}
-              <span className="ft-co-step__name">{n.name}</span>
-              {n.when && <span>{n.when}</span>}
+              {s.name === "End date" && summary.end_date && (
+                <span className="ft-co-step__date">{date(summary.end_date)}</span>
+              )}
+              <span className="ft-co-step__name">{s.name}</span>
+              <span className="ft-co-step__when">{s.when}</span>
             </li>
           ))}
         </ol>

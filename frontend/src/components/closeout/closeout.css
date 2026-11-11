@@ -43,13 +43,32 @@
 .ft-co-steps-panel .ft-panel__head {
   flex-wrap: wrap;
 }
+/* What's next leads the panel, in the server's words; the end date in force follows. */
 .ft-co-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   max-width: var(--measure);
 }
+.ft-co-next {
+  font-family: var(--display, var(--sans));
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--ink);
+}
+.ft-co-next__label {
+  font-weight: 600;
+}
+.ft-co-end {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+/* Every step is drawn the same: one dot and one line, nothing passed or current. */
 .ft-co-steps {
   display: grid;
-  grid-template-columns: var(--co-cols);
-  column-gap: var(--space-3);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: var(--space-4);
   margin: var(--space-1) 0 0;
   padding: 0;
   list-style: none;
@@ -71,14 +90,8 @@
   position: absolute;
   top: 5px;
   left: 12px;
-  right: calc(-1 * var(--space-3));
+  right: calc(-1 * var(--space-4));
   border-top: 2px solid var(--rule-strong);
-}
-.ft-co-step[data-line="solid"]::after {
-  border-top-color: var(--ink);
-}
-.ft-co-step[data-line="dashed"]::after {
-  border-top-style: dashed;
 }
 .ft-co-step:last-child::after {
   display: none;
@@ -89,21 +102,9 @@
   left: 0;
   width: 12px;
   height: 12px;
-  border: 2px solid var(--rule-strong);
+  border: 2px solid var(--ink-muted);
   border-radius: 50%;
   background: var(--paper-raised);
-}
-.ft-co-step.is-past .ft-co-step__dot {
-  border-color: var(--ink);
-  background: var(--ink);
-}
-.ft-co-step.is-now .ft-co-step__dot {
-  top: -2px;
-  left: -2px;
-  width: 16px;
-  height: 16px;
-  border-color: var(--ink);
-  background: var(--hl);
 }
 .ft-co-step__date {
   font-size: 13px;
@@ -118,39 +119,28 @@
   font-weight: 600;
   color: var(--ink);
 }
-.ft-co-step.is-ahead .ft-co-step__name {
-  font-weight: 500;
-}
 
-/* Narrow: the trail turns into a list with the line down the left. */
-@container (max-width: 680px) {
+/* Narrower than five readable columns: a list with the line down the left. */
+@container (max-width: 800px) {
   .ft-co-steps {
     grid-template-columns: minmax(0, 1fr);
-    row-gap: var(--space-4);
+    row-gap: var(--space-3);
   }
   .ft-co-step {
+    max-width: var(--measure);
     padding-top: 0;
     padding-left: 26px;
   }
   .ft-co-step::after {
-    top: 14px;
+    top: 16px;
     left: 5px;
     right: auto;
-    bottom: calc(-1 * var(--space-4));
+    bottom: calc(-1 * var(--space-3) - 2px);
     border-top: 0;
     border-left: 2px solid var(--rule-strong);
   }
-  .ft-co-step[data-line="solid"]::after {
-    border-left-color: var(--ink);
-  }
-  .ft-co-step[data-line="dashed"]::after {
-    border-left-style: dashed;
-  }
   .ft-co-step__dot {
-    top: 2px;
-  }
-  .ft-co-step.is-now .ft-co-step__dot {
-    top: 0;
+    top: 3px;
   }
 }
 
@@ -389,10 +379,22 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+/* The signed state reads top down: who signed and when, then their note as quoted text. */
+.ft-co-state__head {
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--ink);
+}
+.ft-co-quote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 .ft-co-note {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--paper-sunken);
+  margin: 0;
+  padding: 2px 0 2px var(--space-3);
+  border-left: 1px solid var(--rule-strong);
+  color: var(--ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -488,9 +490,10 @@
   border-radius: var(--radius-sm);
   background: var(--paper-sunken);
 }
-/* Signing off again: a little space between the stored sign-off and the new note. */
+/* Signing off again sits behind the same rule and spacing as withdrawing. */
 .ft-co-form.is-again {
-  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
 }
 
 .ft-co-amount {

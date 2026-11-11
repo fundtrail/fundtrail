@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import useSWR from "swr";
 import { ChargeStatusBadge } from "@/components/BucketBadge";
 import {
@@ -94,6 +94,7 @@ function EvidenceAndHistory({ grantId, chargeId }: { grantId: Id; chargeId: Id }
  */
 export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRow[] }) {
   const [open, setOpen] = useState<Set<Id>>(new Set());
+  const col = useId();
   if (rows.length === 0) return <p className="ft-empty">No charges.</p>;
 
   function toggle(id: Id) {
@@ -106,39 +107,51 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
   }
 
   return (
-    <table className="ft-ledger ft-co-table">
-      <thead>
-        <tr>
-          <th scope="col">Date</th>
-          <th scope="col">Charge</th>
-          <th scope="col" className="ft-right">
+    // Explicit table roles and header links: at phone width the rows are laid out
+    // as blocks, which can drop a table's native semantics in some browsers.
+    <table className="ft-ledger ft-co-table" role="table">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th scope="col" role="columnheader" id={`${col}-date`}>
+            Date
+          </th>
+          <th scope="col" role="columnheader" id={`${col}-charge`}>
+            Charge
+          </th>
+          <th scope="col" role="columnheader" id={`${col}-amount`} className="ft-right">
             Amount
           </th>
-          <th scope="col">Bucket</th>
-          <th scope="col">Evidence and history</th>
+          <th scope="col" role="columnheader" id={`${col}-bucket`}>
+            Bucket
+          </th>
+          <th scope="col" role="columnheader" id={`${col}-show`}>
+            Evidence and history
+          </th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {rows.map(({ charge, status }) => {
           const isOpen = open.has(charge.id);
           return (
             <Fragment key={charge.id}>
-              <tr>
-                <td className="ft-co-date">
+              <tr role="row">
+                <td role="cell" headers={`${col}-date`} className="ft-co-date">
                   <div className="ft-num">{date(charge.transaction_date)}</div>
                   <div className="ft-id">{charge.ledger_line_id}</div>
                 </td>
-                <td>
+                <td role="cell" headers={`${col}-charge`}>
                   <Link className="ft-link" href={routes.charge(grantId, charge.id)}>
                     {charge.description}
                   </Link>
                   {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
                 </td>
-                <td className="ft-right ft-co-amount">{money(charge.amount_cents)}</td>
-                <td>
+                <td role="cell" headers={`${col}-amount`} className="ft-right ft-co-amount">
+                  {money(charge.amount_cents)}
+                </td>
+                <td role="cell" headers={`${col}-bucket`}>
                   <ChargeStatusBadge status={status ?? null} />
                 </td>
-                <td>
+                <td role="cell" headers={`${col}-show`}>
                   <button
                     type="button"
                     className="ft-btn ft-btn--sm"
@@ -153,10 +166,11 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
               </tr>
               {isOpen && (
                 <tr
+                  role="row"
                   id={`closeout-detail-${charge.id}`}
                   className="ft-co-detail"
                   aria-label={`Evidence and history for ${charge.ledger_line_id}`}>
-                  <td colSpan={5}>
+                  <td role="cell" colSpan={5}>
                     <EvidenceAndHistory grantId={grantId} chargeId={charge.id} />
                   </td>
                 </tr>

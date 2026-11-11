@@ -22,14 +22,14 @@ function StateLine({ signOff }: { signOff: SignOffState }) {
   }
   return (
     <div className="ft-co-state" data-testid="sign-off-state">
-      <p>
+      <p className="ft-co-state__head">
         <span className="ft-strong">{signOff.state === "changed" ? "Changed since sign-off." : "Signed off."}</span>{" "}
         Signed {date(record.written_at)}.
       </p>
       {record.data.note && (
-        <div className="ft-field">
+        <div className="ft-co-quote">
           <span className="ft-label">Note</span>
-          <p className="ft-co-note">{record.data.note}</p>
+          <blockquote className="ft-co-note">{record.data.note}</blockquote>
         </div>
       )}
       <p className="ft-caption">
