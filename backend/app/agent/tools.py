@@ -25,6 +25,7 @@ from .adapter import (
     Author,
     BenefitGroup,
     BudgetCategory,
+    Citation,
     Question,
     Record,
     RecordKind,
@@ -527,8 +528,14 @@ def quote(ctx: RunContext, q: Quote) -> dict[str, Any]:
             raise WriteProblem(
                 f"quote: record {q.record_id} has no current cited value '{q.field}'"
             )
-        return citation.model_dump(mode="json", exclude_none=True)
+        return _citation_json(citation)
     raise WriteProblem("quote: give a label, or a record_id and a field")
+
+
+def _citation_json(citation: Citation) -> dict[str, Any]:
+    """A saved citation as a new record carries it: None fields left out, except `passage`,
+    which the contract requires, and which a photo's or a scan's box has as None (#336)."""
+    return citation.model_dump(mode="json", exclude_none=True) | {"passage": citation.passage}
 
 
 def _values(ctx: RunContext, values: list[Value], kind: str | None = None) -> dict[str, Any]:
@@ -770,7 +777,7 @@ def t_link(ctx: RunContext, a: LinkIn) -> tuple[str, bool]:
                 "give the link's part: there's no current bill, approval or note with that ID "
                 "to take it from"
             )
-        part = citation.model_dump(mode="json", exclude_none=True)
+        part = _citation_json(citation)
     data: dict[str, Any] = {
         "kind": "link",
         "record_id": a.record_id,
