@@ -1,17 +1,20 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
-import type { ReadingView } from "@/lib/api/types";
-import { placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
+import type { EvidenceFile, ReadingView } from "@/lib/api/types";
+import { date, SOURCE_LABELS } from "@/lib/format";
+import { pageCaption, placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
 import { mapSpansToReading, passageInReading } from "./reading";
 import { splitBySpans } from "./textSpans";
 import styles from "./viewer.module.css";
+import { BOX_CHECKED, CLOSE_MATCH, EXACT_PASSAGE, NOT_PLACED } from "./words";
+import { openingZoom } from "./zoom";
 
 const PdfPages = dynamic(() => import("./PdfPages"), {
   ssr: false,
-  loading: () => <p className="ft-empty">Loading the PDF viewer…</p>,
+  loading: () => <p className={styles.docState}>Loading the PDF viewer…</p>,
 });
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -40,13 +43,14 @@ function stepZoom(current: number, dir: 1 | -1): number {
 /** What the viewer says about the spot, in the side panel and the bar. */
 function placementCaption(p: Placement | null, match: CitationLike["match"]): string {
   if (!p) return "No fact selected";
-  if (p.kind === "unplaced") return "Couldn't be placed in the file";
-  if (p.kind === "boxes" && p.passage === null) return "Box checked by a second look";
-  return match === "close" ? "Close match on the page" : "Exact passage";
+  if (p.kind === "unplaced") return NOT_PLACED;
+  if (p.kind === "boxes" && p.passage === null) return BOX_CHECKED;
+  return match === "close" ? CLOSE_MATCH : EXACT_PASSAGE;
 }
 
 export interface ViewerProps {
-  file: { name: string; media_type: string };
+  /** The file. Where it came from and when it arrived show in the head when given. */
+  file: { name: string; media_type: string } & Partial<Pick<EvidenceFile, "source" | "arrived_at" | "sender">>;
   /** The short-lived link to the original (GET /evidence/{file_id}/content). */
   url: string;
   /** The citation to open at; null opens the file at the top with nothing highlighted. */
@@ -85,6 +89,19 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   const [readyTick, setReadyTick] = useState(0);
   const onReady = useCallback(() => setReadyTick((t) => t + 1), []);
 
+  // A PDF opens no wider than its document area, so a small value doesn't open
+  // on a page cut off on both sides. Measured once, when the viewer opens.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (kind !== "pdf" || !el) return;
+    const style = getComputedStyle(el);
+    const area = el.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
+    const opening = openingZoom(boxes, area, PAGE_WIDTH);
+    setZoom((z) => (z === zoomForBoxes(boxes) ? opening : z));
+    // Only at opening: the viewer is keyed by the value it opens at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Scroll to the spot once something has drawn, and again after a zoom.
   useEffect(() => {
     const target = scrollRef.current?.querySelector<HTMLElement>('[data-scroll-target="true"]');
@@ -101,12 +118,12 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   } else if (kind === "docx") {
     body = <DocxPassage url={url} placement={placement} zoom={zoom} reading={reading} />;
   } else if (kind === "pdf") {
-    body = <PdfFile url={url} placement={placement} zoom={zoom} onReady={onReady} />;
+    body = <PdfFile url={url} placement={placement} zoom={zoom} label={label} onReady={onReady} />;
   } else if (kind === "image") {
-    body = <ImageFile url={url} name={file.name} boxes={boxes} zoom={zoom} onReady={onReady} />;
+    body = <ImageFile url={url} name={file.name} boxes={boxes} zoom={zoom} label={label} onReady={onReady} />;
   } else {
     body = (
-      <p className="ft-empty">
+      <p className={styles.docState}>
         This kind of file can&apos;t be shown here.{" "}
         <a className="ft-link" href={url} target="_blank" rel="noreferrer">
           Open the original
@@ -115,56 +132,147 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
     );
   }
 
-  const quote = placement?.kind === "unplaced" ? placement.quote : (citation?.passage ?? valueText);
+  // A photo or scan has no passage: its value shows once, as the value, and
+  // never again in the quote's voice.
+  const noPassage = !!citation && citation.passage === null;
+  const quote = noPassage ? null : placement?.kind === "unplaced" ? placement.quote : (citation?.passage ?? null);
+  // Yellow is only for an exact passage: word for word from the file. A close
+  // match was found but isn't word for word, so its quote shows plain with the
+  // bar's words for it; a quote that couldn't be placed shows plain too. The
+  // mark on the page itself stays, since that's where the passage was found.
+  const exact = !!citation && citation.match === "exact" && placement?.kind !== "unplaced";
+  const close = !!citation && citation.match === "close" && placement?.kind !== "unplaced";
+  const location = citation ? pageCaption(citation) : null;
+  const source = file.source ? ((SOURCE_LABELS as Record<string, string>)[file.source] ?? file.source) : null;
 
   return (
-    <div className={styles.viewer}>
-      <section className={styles.doc} aria-label={`Viewer: ${file.name}`}>
-        <div className={styles.bar}>
-          <span className="ft-heading">{file.name}</span>
-          <div className={styles.zoom}>
-            <button type="button" className="ft-btn ft-btn--sm" onClick={() => setZoom((z) => stepZoom(z, -1))} aria-label="Zoom out">
-              −
-            </button>
-            <span className="ft-caption ft-num" aria-live="polite">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button type="button" className="ft-btn ft-btn--sm" onClick={() => setZoom((z) => stepZoom(z, 1))} aria-label="Zoom in">
-              +
-            </button>
-          </div>
+    <section className={styles.viewer} aria-label={`Viewer: ${file.name}`}>
+      <header className={styles.head}>
+        <h2 className={styles.fileName}>{file.name}</h2>
+        {(source || file.arrived_at || file.sender) && (
+          <p className={styles.meta}>
+            {source && <span>{source}</span>}
+            {file.arrived_at && <span>Arrived {date(file.arrived_at)}</span>}
+            {file.sender && <span>From {file.sender}</span>}
+          </p>
+        )}
+      </header>
+
+      <div className={styles.bar} data-testid="viewer-bar">
+        <div className={styles.cite}>
+          {!citation && <span>Whole file, nothing highlighted</span>}
+          {citation && (
+            <>
+              <b>{label ?? "Quote"}</b>
+              <span className={placement?.kind === "unplaced" ? styles.citeUnplaced : undefined}>
+                {placementCaption(placement, citation.match)}
+              </span>
+              {location && <span className={styles.citeLoc}>{location}</span>}
+            </>
+          )}
         </div>
+        <div className={styles.zoom}>
+          <button
+            type="button"
+            className={`${styles.zoomBtn} ${styles.zoomOut}`}
+            onClick={() => setZoom((z) => stepZoom(z, -1))}
+            aria-label="Zoom out"
+            disabled={zoom <= ZOOMS[0]}
+          />
+          <span className={styles.zoomLevel} aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className={`${styles.zoomBtn} ${styles.zoomIn}`}
+            onClick={() => setZoom((z) => stepZoom(z, 1))}
+            aria-label="Zoom in"
+            disabled={zoom >= ZOOMS[ZOOMS.length - 1]}
+          />
+        </div>
+      </div>
+
+      <div className={citation ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
         <div className={styles.scroll} ref={scrollRef} data-testid="viewer-scroll">
           {body}
         </div>
-      </section>
 
-      {citation && (
-        <aside className={styles.side} aria-label="The quote">
-          <span className="ft-label">{label ?? "Quote"}</span>
-          {valueText && <span className="ft-strong">{valueText}</span>}
-          <span className="ft-caption">{placementCaption(placement, citation.match)}</span>
-          {confirmation && (
-            <span className="ft-caption" data-testid="value-state">
-              {confirmation.text}
-            </span>
-          )}
-          {placement?.kind === "unplaced" && (
-            <p className={styles.notice} role="note">
-              Nothing is highlighted: this value couldn&apos;t be placed in the file
-              {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
-              {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
-            </p>
-          )}
-          {quote && (
-            <blockquote className={styles.quote} data-testid="side-quote">
-              {quote}
-            </blockquote>
-          )}
-        </aside>
-      )}
-    </div>
+        {citation && (
+          <aside className={styles.side} aria-label="The quote">
+            <div className={styles.active}>
+              <span className={styles.sideLabel}>{label ?? "Quote"}</span>
+              {valueText && (
+                <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
+                  {valueText}
+                </span>
+              )}
+              {location && <span className={styles.sideMeta}>{location}</span>}
+              {confirmation && (
+                <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
+                  {confirmation.text}
+                </span>
+              )}
+            </div>
+            {placement?.kind === "unplaced" && (
+              <p className={styles.notice} role="note">
+                Nothing is highlighted: this value couldn&apos;t be placed in the file
+                {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
+                {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
+              </p>
+            )}
+            {quote && (
+              <figure className={styles.quoteFigure}>
+                <blockquote className={styles.quote} data-testid="side-quote">
+                  {exact && placement?.kind === "text" ? (
+                    <SideQuoteText placement={placement} reading={reading} />
+                  ) : exact ? (
+                    <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
+                  ) : (
+                    collapseSpaces(quote)
+                  )}
+                </blockquote>
+                {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
+              </figure>
+            )}
+          </aside>
+        )}
+      </div>
+    </section>
   );
+}
+
+/**
+ * The side panel's quote for text, email and .docx: the passage, with only the
+ * value's own characters on the highlighter, carried into the reading text the
+ * same way the document's marks are.
+ */
+function SideQuoteText({ placement, reading }: { placement: Extract<Placement, { kind: "text" }>; reading: ReadingView | null }) {
+  const { spans, offset } = reading
+    ? passageInReading(placement.spans, placement.passageStart, reading.segments, reading.text)
+    : { spans: placement.spans, offset: placement.passageStart };
+  return (
+    <>
+      {splitBySpans(placement.passage, spans, offset).map((p, i) =>
+        p.marked ? (
+          <mark key={i} className={styles.quoteMark}>
+            {collapseSpaces(p.text)}
+          </mark>
+        ) : (
+          <span key={i}>{collapseSpaces(p.text)}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * A quote as the side panel shows it: a plain-text file's column spaces (runs
+ * of spaces or tabs) read as one space, so a highlight doesn't run to the
+ * panel's edge. Display only: the stored text and its ranges are untouched,
+ * and the document itself keeps every space.
+ */
+export function collapseSpaces(text: string): string {
+  return text.replace(/[ \t]{2,}/g, " ");
 }
 
 // --- Text, email -------------------------------------------------------------
@@ -209,8 +317,8 @@ function TextFile({
     if (text !== undefined) onReady();
   }, [text, onReady]);
 
-  if (failed) return <p className="ft-error">Couldn&apos;t load this file.</p>;
-  if (text === undefined) return <p className="ft-empty">Loading the file…</p>;
+  if (failed) return <p className={`${styles.docState} ft-error`}>Couldn&apos;t load this file.</p>;
+  if (text === undefined) return <p className={styles.docState}>Loading the file…</p>;
   const spans = placement?.kind === "text" ? placement.spans : [];
   return <MarkedText text={text} spans={spans} offset={0} zoom={zoom} />;
 }
@@ -236,7 +344,7 @@ function ReadingText({
   );
   return (
     <div>
-      <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }} data-testid="reading-note">
+      <p className={styles.docNote} data-testid="reading-note">
         Shown as the agent reads it, with the grant&apos;s date.{" "}
         <a className="ft-link" href={url} download>
           Download the original
@@ -260,7 +368,7 @@ function MarkedText({
 }) {
   const pieces = splitBySpans(text, spans, offset);
   return (
-    <pre className={styles.text} style={{ fontSize: `${13 * zoom}px` }} data-testid="viewer-text">
+    <pre className={styles.text} style={{ fontSize: `${13 * zoom}px`, maxWidth: `${PAGE_WIDTH * zoom}px` }} data-testid="viewer-text">
       {pieces.map((p, i) =>
         p.marked ? (
           <mark key={i} className={styles.mark} data-scroll-target={p.first ? "true" : undefined}>
@@ -295,7 +403,7 @@ function DocxPassage({
 }) {
   return (
     <div>
-      <p className="ft-caption" style={{ marginBottom: "var(--space-3)" }}>
+      <p className={styles.docNote}>
         A Word file (.docx) can&apos;t be shown in the browser. This is the quoted passage from the file&apos;s text.{" "}
         <a className="ft-link" href={url} download>
           Download the original
@@ -336,19 +444,26 @@ function PdfFile({
   url,
   placement,
   zoom,
+  label,
   onReady,
 }: {
   url: string;
   placement: Placement | null;
   zoom: number;
+  label: string | null;
   onReady: () => void;
 }) {
   const boxes = useMemo(() => (placement?.kind === "boxes" ? placement.boxes : []), [placement]);
   // A PDF match with no stored boxes opens at its page too, with nothing outlined.
   const targetPage = placement?.kind === "unplaced" ? placement.page : null;
+  // A passage with real text is marked like a highlighter; a scanned page's
+  // box, checked by a second look, is outlined like a photo's.
+  const variant = placement?.kind === "boxes" && placement.passage === null ? "box" : "mark";
   const overlay = useCallback(
-    (page: number) => <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} />,
-    [boxes],
+    (page: number) => (
+      <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} variant={variant} label={label} />
+    ),
+    [boxes, variant, label],
   );
   return <PdfPages url={url} width={PAGE_WIDTH * zoom} overlay={overlay} targetPage={targetPage} onPageReady={onReady} />;
 }
@@ -360,19 +475,21 @@ function ImageFile({
   name,
   boxes,
   zoom,
+  label,
   onReady,
 }: {
   url: string;
   name: string;
   boxes: Box[];
   zoom: number;
+  label: string | null;
   onReady: () => void;
 }) {
   return (
     <div className={styles.page} style={{ width: `${PAGE_WIDTH * zoom}px` }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not a static asset */}
       <img src={url} alt={name} onLoad={onReady} />
-      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} />
+      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} variant="box" label={label} />
     </div>
   );
 }
