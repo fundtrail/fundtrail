@@ -159,7 +159,9 @@ def test_a_quote_across_a_dropped_header_stores_none_of_its_text():
     span = sent[sent.index("From:") : sent.index("\n", sent.index("Subject:"))]
     assert "X-Received" not in span
     c = resolve_citation("Sequencing core usage statement", [_cite(sent, span)], [opened.document])
-    assert c["passage"] == span and c["match"] == "exact"
+    # The passage is the line that holds the value, cut from the text the agent read.
+    assert c["passage"] == "Subject: Sequencing core usage statement for run 7"
+    assert c["match"] == "exact"
     assert "X-Received" not in c["passage"] and "2025" not in c["passage"]
     assert c["highlight"]
     for r in c["highlight"]:
