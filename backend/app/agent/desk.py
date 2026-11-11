@@ -340,8 +340,8 @@ def trigger_section(ctx: RunContext) -> list[dict[str, Any]]:
         else:
             if opened.document is not None:
                 ctx.documents.append(opened.document)
-            if opened.image is not None:
-                ctx.images[f.id] = opened.image
+            for image in opened.images or []:
+                ctx.images[(f.id, image.page)] = image
             blocks += opened.blocks
             if f.parent_id or any(x.parent_id == f.id for x in i.files):
                 related = [x for x in i.files if x.id == f.parent_id or x.parent_id == f.id]

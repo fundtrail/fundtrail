@@ -21,7 +21,7 @@ document index to the file, and checks the passage against the file:
 
 import email.utils
 import re
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -298,29 +298,29 @@ def value_in(text: str, passage: str) -> bool:
 
 def image_box(
     image: SentImage, left: float, top: float, right: float, bottom: float
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """A pixel box on the image we sent, as fractions of the page.
 
     The image was resized without cropping, so fractions of the sent image are fractions of the
-    original page.
+    original page. A box running off the image is cut to it. None when nothing of the box lies
+    on the image, or it has no area: there's nothing to read there, so its value is unconfirmed.
     """
-    if not (0 <= left < right <= image.width and 0 <= top < bottom <= image.height):
-        raise CitationProblem(
-            f"the box has to lie inside the image, which is {image.width} by {image.height} pixels"
-        )
+    left, right = max(0.0, min(left, right)), min(float(image.width), max(left, right))
+    top, bottom = max(0.0, min(top, bottom)), min(float(image.height), max(top, bottom))
+    if right <= left or bottom <= top:
+        return None
     return {
         "type": "image_box",
         "page": image.page,
         "left": left / image.width,
         "top": top / image.height,
-        "width": (right - left) / image.width,
-        "height": (bottom - top) / image.height,
+        "width": min((right - left) / image.width, 1 - left / image.width),
+        "height": min((bottom - top) / image.height, 1 - top / image.height),
     }
 
 
-# Second look on a photo or scan: reads only the boxed area and has to see the same value.
-# Not built yet; with none, a boxed value is unconfirmed.
-SecondLook = Callable[[str, dict[str, Any], str], bool]
+# The second look on photos and scans is app/agent/second_look.py: when the run ends, one call
+# per photo or scanned page reads only the boxed areas.
 
 
 # Re-deriving money, dates and numbers from the text as written (trust rule 3).
