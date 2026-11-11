@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { Bucket, GrantSummary } from "@/lib/api";
+import type { ReactNode } from "react";
+import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
 import { grantDisplayName, useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
@@ -14,75 +15,68 @@ export function grantName(summary: GrantSummary): string {
   return grantDisplayName(summary);
 }
 
-/** The bar's segments, in bucket order: the most serious first. */
-const SEGMENTS: [Bucket, string][] = [
-  ["possible_conflict", styles.conflict],
-  ["needs_human", styles.human],
-  ["missing_evidence", styles.missing],
-  ["evidence_complete", styles.complete],
-];
-
 /**
- * A grant's charges as a thin bar, one segment per bucket sized by the row's
- * own counts, plus a neutral one for charges the counts don't cover. A grant
- * with no charges gets one neutral bar. The text beside it carries the meaning.
+ * The two numbers beside it drawn as a thin bar: charges ready for closeout,
+ * filled, out of every charge, the empty track. Only those two numbers, so the
+ * bar can never say something the text doesn't. No bucket colors.
  */
-function ReadyBar({ summary }: { summary: GrantSummary }) {
-  const segments = SEGMENTS.map(([bucket, className]) => ({ bucket, className, count: summary.bucket_counts?.[bucket] ?? 0 }));
-  const rest = Math.max(summary.charges_total - segments.reduce((sum, s) => sum + s.count, 0), 0);
+export function ReadyBar({ ready, total }: { ready: number; total: number }) {
+  const share = total > 0 ? Math.min(Math.max(ready / total, 0), 1) : 0;
   return (
-    <span className={styles.bar} aria-hidden="true">
-      {segments
-        .filter((s) => s.count > 0)
-        .map((s) => (
-          <span key={s.bucket} className={s.className} style={{ flexGrow: s.count }} />
-        ))}
-      {(rest > 0 || summary.charges_total === 0) && <span className={styles.rest} style={{ flexGrow: rest || 1 }} />}
+    <span className={styles.bar} aria-hidden="true" data-ready-bar="">
+      <span className={styles.fill} style={{ width: `${share * 100}%` }} />
     </span>
+  );
+}
+
+/** One cell; on narrow screens it shows its column's name above its value. */
+function Cell({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
+  return (
+    <div role="cell" className={className ? `${styles.cell} ${className}` : styles.cell} data-label={label}>
+      {children}
+    </div>
   );
 }
 
 /**
  * The workspace's grants, one row each (answer 7 of #22): award number, title,
  * end date in force, charges ready out of total, rows on its problem list, and
- * the next closeout date. Rows keep the server's order.
+ * the next closeout date. Rows keep the server's order. A table by its roles,
+ * laid out as a grid, so each row can be one link and phones can stack it.
  */
 export function GrantList({ grants }: { grants: GrantSummary[] }) {
   const nameOf = useGrantDisplayName();
-  if (grants.length === 0) {
-    return <p className="ft-empty">No grants in this workspace yet.</p>;
-  }
   return (
     <div className="ft-panel">
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col">Grant</th>
-            <th scope="col">Ends</th>
-            <th scope="col">Ready for closeout</th>
-            <th scope="col">Problem list</th>
-            <th scope="col">Next closeout date</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div role="table" aria-label="Grants" className={styles.table}>
+        <div role="rowgroup" className={styles.head}>
+          <div role="row" className={styles.row}>
+            <span role="columnheader">Grant</span>
+            <span role="columnheader">Ends</span>
+            <span role="columnheader">Ready for closeout</span>
+            <span role="columnheader">Problem list</span>
+            <span role="columnheader">Next closeout date</span>
+          </div>
+        </div>
+        <div role="rowgroup">
           {grants.map((g) => (
-            <tr key={g.grant.id} className={styles.row}>
-              <td className={styles.grant}>
+            <div role="row" key={g.grant.id} className={`${styles.row} ${styles.grantRow}`}>
+              <Cell className={styles.grant}>
                 <Link className={styles.name} href={routes.grant(g.grant.id)}>
                   {nameOf(g)}
                 </Link>
                 {g.grant.award_number && <div className="ft-id">{g.grant.award_number}</div>}
-              </td>
-              <td data-label="Ends">
+              </Cell>
+              <Cell label="Ends">
                 {g.end_date ? <span className={styles.date}>{date(g.end_date)}</span> : <span className="ft-caption">Not confirmed yet</span>}
-              </td>
-              <td data-label="Ready for closeout">
+              </Cell>
+              <Cell label="Ready for closeout">
                 <span className={styles.ready}>
                   <strong>{g.charges_ready}</strong> of {g.charges_total} <span className={styles.unit}>charges</span>
                 </span>
-                <ReadyBar summary={g} />
-              </td>
-              <td data-label="Problem list">
+                <ReadyBar ready={g.charges_ready} total={g.charges_total} />
+              </Cell>
+              <Cell label="Problem list">
                 {g.on_problem_list > 0 ? (
                   <span className="ft-count ft-count--alert">
                     {g.on_problem_list}
@@ -91,8 +85,8 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
                 ) : (
                   <span className="ft-caption">None</span>
                 )}
-              </td>
-              <td data-label="Next closeout date">
+              </Cell>
+              <Cell label="Next closeout date">
                 {g.next_closeout ? (
                   <>
                     <div className={`${styles.date} ${styles.next}`}>{date(g.next_closeout.date)}</div>
@@ -101,11 +95,11 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
                 ) : (
                   <span className="ft-caption">None</span>
                 )}
-              </td>
-            </tr>
+              </Cell>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </div>
   );
 }
