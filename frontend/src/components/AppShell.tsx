@@ -283,8 +283,19 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
       <div className="ft-sidebar__foot">
         {user && (
           <div className="ft-sidebar__account">
-            <span>{user.name ?? user.email}</span>
-            <span className="ft-caption">{user.email}</span>
+            {/* The email shows once: under the name, or alone when the name is the email. */}
+            {user.name && user.name !== user.email ? (
+              <>
+                <span className="ft-sidebar__name">{user.name}</span>
+                <span className="ft-caption ft-sidebar__email" title={user.email}>
+                  {user.email}
+                </span>
+              </>
+            ) : (
+              <span className="ft-sidebar__name ft-sidebar__email" title={user.email}>
+                {user.email}
+              </span>
+            )}
             <span className="ft-caption">{signedInWith(user)}</span>
             <button type="button" className="ft-btn ft-btn--sm" onClick={() => void auth.signOut()}>
               Sign out
@@ -327,7 +338,7 @@ export function AppShell({
         <div className="ft-topbar">
           <ol className="ft-crumbs" aria-label="Breadcrumbs">
             {crumbs.map((c, i) => (
-              <li key={i} aria-current={i === crumbs.length - 1 ? "page" : undefined}>
+              <li key={i} aria-current={i === crumbs.length - 1 ? "page" : undefined} title={c}>
                 {c}
               </li>
             ))}
