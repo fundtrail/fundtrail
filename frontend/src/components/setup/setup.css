@@ -1,5 +1,5 @@
-/* The grant setup screens (adding a grant, grant terms, reusable notes, the
-   ledger upload) and the held mail list. Built on the tokens and ft- classes
+/* The grant setup screens: adding a grant, grant terms, reusable notes and the
+   ledger upload. Built on the tokens and ft- classes
    in globals.css. Flat: color only where something needs the accountant, and
    the highlighter only on words quoted from a file. */
 
@@ -792,31 +792,4 @@
 .ft-upload__rows .ft-ledger th:first-child,
 .ft-upload__rows .ft-ledger td:first-child {
   width: 72px;
-}
-
-/* --- The held mail list (components/mail), which shares this sheet --- */
-
-.ft-terms {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ft-term {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--rule);
-}
-.ft-term__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-.ft-files {
-  margin: var(--space-1) 0 0;
-  padding-left: var(--space-5);
 }
