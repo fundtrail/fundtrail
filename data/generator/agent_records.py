@@ -39,6 +39,7 @@ DEFAULT_ITEMS: list[tuple[str, str, str]] = [
     ("51", "appointment", "appointment_letter"),
     ("51", "effort", "effort_report"),
     ("550", "bill", "bill"),
+    ("5671", "bill", "payment_record"),
     ("5721", "expense", "expense_report"),
     ("5721", "bill", "bills"),
     ("590", "bill", "usage_statement"),
