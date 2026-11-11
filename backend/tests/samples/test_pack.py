@@ -12,6 +12,7 @@ import pytest
 from app.contracts.api import ArrivalSource
 from app.contracts.records import RecordKind
 from app.samples.pack import (
+    DATA_DIR,
     LARGER_SAMPLE,
     SMALL_SAMPLE,
     SUGGESTION_KINDS,
@@ -362,6 +363,47 @@ def test_ids_are_the_same_on_every_load() -> None:
     first, second = load_pack(LARGER_SAMPLE), load_pack(LARGER_SAMPLE)
     assert [(e.id, e.name) for e in first.events] == [(e.id, e.name) for e in second.events]
     assert len({e.id for e in first.events}) == len(first.events)
+
+
+def _labels(sample: str) -> dict[str, str]:
+    """The highlight labels timeline.json gives, by event name."""
+    raw = json.loads((DATA_DIR / "samples" / sample / "timeline.json").read_text())["events"]
+    return {e.get("file") or e.get("line_id"): e["highlight"] for e in raw if "highlight" in e}
+
+
+@pytest.mark.parametrize(("sample", "count"), [(SMALL_SAMPLE, 3), (LARGER_SAMPLE, 14)])
+def test_keeps_each_events_highlight(sample: str, count: int) -> None:
+    pack = load_pack(sample)
+    labels = {e.name: e.highlight for e in pack.events if e.highlight is not None}
+    assert labels == _labels(sample) and len(labels) == count
+
+
+def test_refuses_a_blank_highlight(tmp_path: Path) -> None:
+    blank = {**EVENTS[0], "highlight": "  "}
+    with pytest.raises(PackError, match="highlight"):
+        load_folder(write_pack(tmp_path / "s", events=[blank, *EVENTS[1:]], actions=[]))
+
+
+def _receipt_highlighted(tmp_path: Path, label: Any) -> Path:
+    receipt = "receipt_R-3.txt"
+    events = [{**e, "highlight": "Receipt"} if e["file"] == receipt else e for e in EVENTS]
+    actions = [{**a, "highlight": label} if a["action"] == "deliver_file" else a for a in ACTIONS]
+    return write_pack(tmp_path / "s", events=events, actions=actions)
+
+
+def test_keeps_a_steps_highlight(tmp_path: Path) -> None:
+    """Ruling 77: a step may name the highlight it's the user's own step for."""
+    pack = load_folder(_receipt_highlighted(tmp_path, "Receipt"))
+    assert {a.action: a.highlight for a in pack.actions} == {
+        "confirm_terms": None,
+        "deliver_file": "Receipt",
+    }
+
+
+@pytest.mark.parametrize("label", ["  ", 3, "Not a highlight"])
+def test_refuses_a_steps_highlight_no_event_carries(tmp_path: Path, label: Any) -> None:
+    with pytest.raises(PackError, match="highlight"):
+        load_folder(_receipt_highlighted(tmp_path, label))
 
 
 # A step's file that is an email's attachment.

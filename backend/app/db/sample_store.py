@@ -35,7 +35,7 @@ class Scripted:
     step: int  # its place in the pack's script
     move_id: int
     at: datetime
-    state: str  # pending, done or left
+    state: str  # pending, done, left, or held (by a Next highlight move, ruling 77)
     record_id: str | None = None
     file_id: str | None = None
 
@@ -72,9 +72,12 @@ _SCRIPTED = "step, move_id, at, state, record_id, file_id"
 
 
 def insert_scripted(conn: Conn, grant_id: str, s: Scripted) -> None:
+    """A step a move queued. One already on the grant (held, taken up, made or left) stays
+    as it is: a step is queued at most once per grant."""
     conn.execute(
         f"""insert into public.sample_scripted (grant_id, {_SCRIPTED})
-            values (%s, %s, %s, %s, %s, %s, %s)""",
+            values (%s, %s, %s, %s, %s, %s, %s)
+            on conflict (grant_id, step) do nothing""",
         (grant_id, s.step, s.move_id, s.at, s.state, s.record_id, s.file_id),
     )
 
@@ -193,6 +196,25 @@ def pending_scripted(conn: Conn, grant_id: str, before: datetime | None) -> list
     return [Scripted(**r) for r in rows]
 
 
+def held_scripted(conn: Conn, grant_id: str) -> list[Scripted]:
+    """The steps a Next highlight move held for the user (ruling 77), in time order."""
+    rows = conn.execute(
+        f"""select {_SCRIPTED} from public.sample_scripted
+            where grant_id = %s and state = 'held' order by at, step""",
+        (grant_id,),
+    ).fetchall()
+    return [Scripted(**r) for r in rows]
+
+
+def take_up_scripted(conn: Conn, grant_id: str, step: int, move_id: int) -> None:
+    """A held step, pending again for a later skipping move's walk, under that move."""
+    conn.execute(
+        """update public.sample_scripted set state = 'pending', move_id = %s
+           where grant_id = %s and step = %s and state = 'held'""",
+        (move_id, grant_id, step),
+    )
+
+
 def move_scripted(conn: Conn, move_id: int) -> list[Scripted]:
     """The steps one move made or will make, in time order."""
     rows = conn.execute(
@@ -202,14 +224,15 @@ def move_scripted(conn: Conn, move_id: int) -> list[Scripted]:
     return [Scripted(**r) for r in rows]
 
 
-def scripted_files(conn: Conn, grant_id: str) -> set[str]:
-    """The files the Sample accountant brought in on the grant."""
+def scripted_files(conn: Conn, grant_id: str) -> dict[str, int]:
+    """The files the Sample accountant brought in on the grant, with the move each is
+    listed under: the grant's last move when it was brought."""
     rows = conn.execute(
-        """select file_id from public.sample_scripted
+        """select file_id, move_id from public.sample_scripted
            where grant_id = %s and file_id is not null""",
         (grant_id,),
     ).fetchall()
-    return {r["file_id"] for r in rows}
+    return {r["file_id"]: int(r["move_id"]) for r in rows}
 
 
 def drop_queued_jobs(conn: Conn, grant_id: str) -> None:
