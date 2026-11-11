@@ -101,14 +101,18 @@ describe("HeldMailList", () => {
       subject: `Invoice ${i + 1}`,
     }));
 
-    it("fills no button: each row's Let in is an outlined approve, Dismiss its quiet partner", () => {
+    it("fills no button: each row's Let in is an outlined approve, Dismiss the neutral outlined button", () => {
       const { Wrapper } = fakeHarness();
       const { container } = render(<HeldMailList mail={several} />, { wrapper: Wrapper });
       expect(container.querySelectorAll(".ft-btn--main")).toHaveLength(0);
       for (const n of [1, 2, 3]) {
         const row = screen.getByRole("listitem", { name: `Held message Invoice ${n}` });
         expect(within(row).getByRole("button", { name: "Let in" })).toHaveClass("ft-btn", "ft-btn--sm", "ft-btn--approve");
-        expect(within(row).getByRole("button", { name: "Dismiss" })).toHaveClass("ft-btn", "ft-btn--sm", "ft-btn--quiet");
+        const dismiss = within(row).getByRole("button", { name: "Dismiss" });
+        expect(dismiss).toHaveClass("ft-btn", "ft-btn--sm");
+        for (const variant of ["ft-btn--main", "ft-btn--quiet", "ft-btn--approve", "ft-btn--reject"]) {
+          expect(dismiss).not.toHaveClass(variant);
+        }
       }
     });
 

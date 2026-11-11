@@ -88,7 +88,7 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
             {skipped.map((f) => (
               <li key={f.name + f.skipped_at} className={`${styles.chip} ${styles.chipSkipped}`}>
                 <FileGlyph />
-                <span>{f.name}</span> <span className={styles.chipNote}>({SKIP_REASON_LABELS[f.reason]})</span>
+                <span className={styles.chipName}>{f.name}</span> <span className={styles.chipNote}>({SKIP_REASON_LABELS[f.reason]})</span>
               </li>
             ))}
           </ul>
@@ -100,7 +100,8 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
         </p>
       ) : (
         // A row's actions repeat on every held message, so neither is the page's
-        // filled main button: Let in is the outlined approve, Dismiss its quiet partner.
+        // filled main button: Let in is the outlined approve, Dismiss the neutral
+        // outlined button, since it writes a decision too.
         <div className={styles.actions}>
           <button
             type="button"
@@ -115,7 +116,7 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
           </button>
           <button
             type="button"
-            className={`ft-btn ft-btn--sm ft-btn--quiet${busy("dismiss")}`}
+            className={`ft-btn ft-btn--sm${busy("dismiss")}`}
             disabled={saving}
             onClick={() => {
               setPressed("dismiss");

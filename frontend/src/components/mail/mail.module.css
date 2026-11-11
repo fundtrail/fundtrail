@@ -21,11 +21,13 @@
   border-top: 0;
 }
 
+/* Who and what on the left, when and for which grant in a column on the right.
+   A long sender or subject wraps inside its own column, so the right column
+   never drops below it and stays aligned. */
 .head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-1) var(--space-5);
 }
 .who {
@@ -107,8 +109,14 @@
   background: transparent;
   color: var(--ink-muted);
 }
+/* A long file name wraps; the reason beside it stays whole. */
+.chipName {
+  min-width: 0;
+}
 .chipNote {
+  flex: none;
   font-family: var(--sans);
+  white-space: nowrap;
 }
 .fileGlyph {
   flex: none;
@@ -147,6 +155,9 @@
 @media (max-width: 640px) {
   .message {
     padding: var(--space-4);
+  }
+  .head {
+    grid-template-columns: minmax(0, 1fr);
   }
   .when {
     align-items: flex-start;
