@@ -371,10 +371,11 @@ class _Report:
 
         blocks.append(Heading("Spending", 3))
         if b is not None and b.limit_cents is not None:
+            # Said here only while it's open: an accepted overspend has its own line below.
             over = (
                 " Spending is over the award's limit."
                 if any(
-                    p.check == BUDGET and p.problem == OVER_LIMIT
+                    p.check == BUDGET and p.problem == OVER_LIMIT and p.accepted_by is None
                     for gs in self.inp.checks.grants
                     if gs.grant_id == self.inp.grant.id
                     for p in gs.problems
@@ -546,9 +547,13 @@ class _Report:
 
         problems: list[tuple[str, ...]] = []
         for g in self.inp.checks.grants:
-            if g.grant_id == self.inp.grant.id and not g.accepted:
+            if g.grant_id == self.inp.grant.id:
+                # Only what's still open: an accepted problem is under Spending and in
+                # Decisions (ruling 84).
                 problems += [
-                    ("The grant", p.check, p.text, self.snooze_mark(g.snoozed)) for p in g.problems
+                    ("The grant", p.check, p.text, self.snooze_mark(g.snoozed))
+                    for p in g.problems
+                    if p.accepted_by is None
                 ]
         for rs in self.inp.checks.records:
             if rs.grant_id != self.inp.grant.id or rs.accepted:
