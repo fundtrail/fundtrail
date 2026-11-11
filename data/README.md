@@ -59,7 +59,7 @@ The small sample marks highlights 1 to 3: its award letter, invoice ESS-32410 em
 | `ledger` | The whole ledger file | At its `at`. Each line arrives at the later of that and 00:00 UTC on its posting date (decision 0023). The small sample uses it. |
 | `ledger_line` | One seeded ledger line | At 00:00 UTC on its posting date. The larger sample uses these. |
 
-**Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is its date. From then it waits under the timeline's Now, with Get the file and Deliver for me, until the user delivers it. The clock never delivers it (ruling 44). The small sample marks three, dated 2026-11-18T17:00Z: `hardware_receipt.jpg`, `email_invoice_ESS-32410.eml` and `invoice_EES-7420.pdf`. The larger sample marks none.
+**Files marked for the user.** A `file` event marked `"deliver": "user"` is one the user is expected to bring in, by uploading or forwarding it. Its `at` is its date. From then it waits under the timeline's Now, with Get the file and Deliver for me, until the user delivers it. The clock never delivers it (ruling 44). The small sample marks one, dated 2026-11-18T17:00Z: `hardware_receipt.jpg`. The larger sample marks one, dated 2024-12-30T18:00Z, after its trip's ledger line posts: `taxi_receipt_egu_2024.jpg`.
 
 ## The accountant script and the two plays
 

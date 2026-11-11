@@ -260,7 +260,7 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
     taxi = g.doc(
         name,
         photo(name, lines, seed=2024),
-        at(date(2024, 12, 16), 18),
+        at(date(2024, 12, 30), 18),
         "upload",
         note="The PI's phone photo of the paper taxi receipt: hers to deliver.",
         text="\n".join(lines),
@@ -268,7 +268,7 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
     )
     g.highlights[name] = "Receipt photo you deliver"
     g.deliver_file(
-        name, at(date(2024, 12, 16), 18), "The PI uploads her taxi receipt photo on its date."
+        name, at(date(2024, 12, 30), 18), "The PI uploads her taxi receipt photo on its date."
     )
     g.record("bill", name, total="5200", dated="2024-12-09", vendor="Example Cab Co.")
     trip(

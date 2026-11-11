@@ -2,7 +2,7 @@
   "sample": "salt-marsh-carbon",
   "actions": [
     {"at": "2024-01-19T18:00:00Z", "action": "confirm_terms", "file": "award_letter.txt", "note": "The user confirms every term read from the award letter."},
-    {"at": "2024-12-16T18:00:00Z", "action": "deliver_file", "file": "taxi_receipt_egu_2024.jpg", "note": "The PI uploads her taxi receipt photo on its date."},
+    {"at": "2024-12-30T18:00:00Z", "action": "deliver_file", "file": "taxi_receipt_egu_2024.jpg", "note": "The PI uploads her taxi receipt photo on its date."},
     {"at": "2025-06-17T17:00:00Z", "action": "confirm_terms", "file": "rate_agreement_2025-05-28.pdf", "note": "The user confirms the benefit rates."},
     {"at": "2025-11-21T17:00:00Z", "action": "decide_suggestion", "suggestion": "duplicate", "decision": "accept", "file": "scan_invoice_ESS-55120.jpg", "note": "The accountant confirms the scan is a copy of the emailed invoice."},
     {"at": "2026-01-15T17:30:00Z", "action": "let_in_mail", "file": "email_invoice_EFG-30418.eml", "note": "The accountant lets in the vendor's held email."},
