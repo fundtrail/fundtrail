@@ -1,11 +1,40 @@
 import Link from "next/link";
-import type { GrantSummary } from "@/lib/api";
+import type { Bucket, GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import styles from "./GrantList.module.css";
 
 /** A grant's name before its award letter has been read. */
 export function grantName(summary: GrantSummary): string {
   return summary.grant.title || summary.grant.award_number || "Untitled grant";
+}
+
+/** The bar's segments, in bucket order: the most serious first. */
+const SEGMENTS: [Bucket, string][] = [
+  ["possible_conflict", styles.conflict],
+  ["needs_human", styles.human],
+  ["missing_evidence", styles.missing],
+  ["evidence_complete", styles.complete],
+];
+
+/**
+ * A grant's charges as a thin bar, one segment per bucket sized by the row's
+ * own counts, plus a neutral one for charges the counts don't cover. A grant
+ * with no charges gets one neutral bar. The text beside it carries the meaning.
+ */
+function ReadyBar({ summary }: { summary: GrantSummary }) {
+  const segments = SEGMENTS.map(([bucket, className]) => ({ bucket, className, count: summary.bucket_counts?.[bucket] ?? 0 }));
+  const rest = Math.max(summary.charges_total - segments.reduce((sum, s) => sum + s.count, 0), 0);
+  return (
+    <span className={styles.bar} aria-hidden="true">
+      {segments
+        .filter((s) => s.count > 0)
+        .map((s) => (
+          <span key={s.bucket} className={s.className} style={{ flexGrow: s.count }} />
+        ))}
+      {(rest > 0 || summary.charges_total === 0) && <span className={styles.rest} style={{ flexGrow: rest || 1 }} />}
+    </span>
+  );
 }
 
 /**
@@ -19,7 +48,7 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
   }
   return (
     <div className="ft-panel">
-      <table className="ft-ledger">
+      <table className={styles.table}>
         <thead>
           <tr>
             <th scope="col">Grant</th>
@@ -31,21 +60,23 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
         </thead>
         <tbody>
           {grants.map((g) => (
-            <tr key={g.grant.id}>
-              <td>
-                <Link className="ft-link ft-strong" href={routes.grant(g.grant.id)}>
+            <tr key={g.grant.id} className={styles.row}>
+              <td className={styles.grant}>
+                <Link className={styles.name} href={routes.grant(g.grant.id)}>
                   {grantName(g)}
                 </Link>
                 {g.grant.award_number && <div className="ft-id">{g.grant.award_number}</div>}
               </td>
-              <td className="ft-num">{g.end_date ? date(g.end_date) : <span className="ft-caption">Not confirmed yet</span>}</td>
-              <td>
-                <span className="ft-num">
-                  {g.charges_ready} of {g.charges_total}
-                </span>{" "}
-                <span className="ft-caption">charges</span>
+              <td data-label="Ends">
+                {g.end_date ? <span className={styles.date}>{date(g.end_date)}</span> : <span className="ft-caption">Not confirmed yet</span>}
               </td>
-              <td>
+              <td data-label="Ready for closeout">
+                <span className={styles.ready}>
+                  <strong>{g.charges_ready}</strong> of {g.charges_total} <span className={styles.unit}>charges</span>
+                </span>
+                <ReadyBar summary={g} />
+              </td>
+              <td data-label="Problem list">
                 {g.on_problem_list > 0 ? (
                   <span className="ft-count ft-count--alert">
                     {g.on_problem_list}
@@ -55,10 +86,10 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
                   <span className="ft-caption">None</span>
                 )}
               </td>
-              <td>
+              <td data-label="Next closeout date">
                 {g.next_closeout ? (
                   <>
-                    <div className="ft-num">{date(g.next_closeout.date)}</div>
+                    <div className={`${styles.date} ${styles.next}`}>{date(g.next_closeout.date)}</div>
                     <div className="ft-caption">{g.next_closeout.label}</div>
                   </>
                 ) : (
