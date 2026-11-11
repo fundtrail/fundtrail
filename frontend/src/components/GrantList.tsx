@@ -1,12 +1,17 @@
 import Link from "next/link";
 import type { Bucket, GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
+import { grantDisplayName, useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
 import styles from "./GrantList.module.css";
 
-/** A grant's name before its award letter has been read. */
+/**
+ * A grant's name, without the sample choices: "Untitled grant" until the award
+ * letter is read. Screens that can should use useGrantDisplayName (lib/grantName),
+ * which names a sample grant by its sample.
+ */
 export function grantName(summary: GrantSummary): string {
-  return summary.grant.title || summary.grant.award_number || "Untitled grant";
+  return grantDisplayName(summary);
 }
 
 /** The bar's segments, in bucket order: the most serious first. */
@@ -43,6 +48,7 @@ function ReadyBar({ summary }: { summary: GrantSummary }) {
  * the next closeout date. Rows keep the server's order.
  */
 export function GrantList({ grants }: { grants: GrantSummary[] }) {
+  const nameOf = useGrantDisplayName();
   if (grants.length === 0) {
     return <p className="ft-empty">No grants in this workspace yet.</p>;
   }
@@ -63,7 +69,7 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
             <tr key={g.grant.id} className={styles.row}>
               <td className={styles.grant}>
                 <Link className={styles.name} href={routes.grant(g.grant.id)}>
-                  {grantName(g)}
+                  {nameOf(g)}
                 </Link>
                 {g.grant.award_number && <div className="ft-id">{g.grant.award_number}</div>}
               </td>
