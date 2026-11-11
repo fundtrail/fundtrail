@@ -1,34 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Citation } from "@/lib/api";
-import { isFound } from "@/components/viewer/placement";
+import { CLOSE_MATCH } from "@/components/viewer/words";
 import styles from "./evidence.module.css";
+import { excerptWindow, isExact, segments, valueRanges, type Range } from "./quote";
 
 /**
- * A value's quote on a card, linking to the viewer at its spot. A passage the
- * server found in the file is shown verbatim in the serif on the highlighter;
- * one it couldn't place shows plain, and a photo's box, which has no passage,
- * says so in the interface font. A long quote is clamped to two lines, with a
- * button to read the whole of it in place.
+ * A value's quote on a card, linking to the viewer at its spot.
+ *
+ * - An exact passage is set in the serif on a quiet highlighter. A close
+ *   match is the passage found, but not word for word, so it shows plain with
+ *   the viewer's words for it; so does a quote that couldn't be placed.
+ * - Where the stored ranges say where the value sits, its characters are set
+ *   stronger, and a long quote shows the part around the value, with an
+ *   ellipsis where it's cut, so the value is never hidden. "Show the whole
+ *   quote" opens the full passage in place. Where the value's place isn't
+ *   known, the whole quote shows.
+ * - A photo's box has no passage, and says so plainly.
+ *
+ * `ranges` overrides where the values sit, for a passage shown once for
+ * several values that cite it.
  */
-export function QuoteLink({ citation, href, ariaLabel }: { citation: Citation; href: string; ariaLabel?: string }) {
-  const textRef = useRef<HTMLSpanElement>(null);
+export function QuoteLink({
+  citation,
+  href,
+  ariaLabel,
+  ranges,
+}: {
+  citation: Citation;
+  href: string;
+  ariaLabel?: string;
+  ranges?: Range[] | null;
+}) {
   const [open, setOpen] = useState(false);
-  const [clamped, setClamped] = useState(false);
   const passage = citation.passage;
-
-  useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!el || open) return;
-    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [open, passage]);
 
   if (passage === null) {
     return (
@@ -38,15 +45,31 @@ export function QuoteLink({ citation, href, ariaLabel }: { citation: Citation; h
     );
   }
 
-  const verbatim = isFound(citation);
+  const valueAt = ranges === undefined ? valueRanges(citation) : ranges;
+  const excerpt = excerptWindow(passage, valueAt);
+  const shown = open || !excerpt ? { start: 0, end: passage.length } : excerpt;
+  const text = segments(passage, shown, valueAt).map((s, i) =>
+    s.value ? (
+      <strong key={i} className={styles.valueChars}>
+        {s.text}
+      </strong>
+    ) : (
+      <span key={i}>{s.text}</span>
+    ),
+  );
+  const exact = isExact(citation);
+
   return (
     <span className={styles.quoteWrap}>
       <Link className={styles.quote} href={href} aria-label={ariaLabel}>
-        <span ref={textRef} className={open ? styles.quoteText : `${styles.quoteText} ${styles.clamp}`}>
-          {verbatim ? <mark className={styles.hl}>{passage}</mark> : passage}
+        <span className={shown === excerpt ? `${styles.quoteText} ${styles.excerpt}` : styles.quoteText} data-testid="card-quote">
+          {shown.start > 0 && <span className={styles.ellipsis}>…</span>}
+          {exact ? <mark className={styles.hl}>{text}</mark> : text}
+          {shown.end < passage.length && <span className={styles.ellipsis}>…</span>}
         </span>
       </Link>
-      {(clamped || open) && (
+      {citation.match === "close" && <span className={styles.matchNote}>{CLOSE_MATCH}</span>}
+      {excerpt && (
         <button type="button" className={styles.more} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? "Show less" : "Show the whole quote"}
         </button>

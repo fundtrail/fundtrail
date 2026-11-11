@@ -1,10 +1,11 @@
 import Link from "next/link";
-import type { EvidenceCard, FactView, Id, RecordState, ValueState } from "@/lib/api";
+import type { Citation, EvidenceCard, FactView, Id, RecordState, ValueState } from "@/lib/api";
 import { date, money, recordKindLabel, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { pageCaption } from "@/components/viewer/placement";
 import styles from "./evidence.module.css";
 import { confirmHref, viewerHref } from "./links";
+import { unionRanges, valueRanges } from "./quote";
 import { QuoteLink } from "./QuoteLink";
 import { confirmationText, displayValue, isCited, valueAt, valueLabel } from "./values";
 
@@ -29,7 +30,64 @@ function factTitle(fact: FactView): string {
   return typeof data.label === "string" && data.label ? `${kind}: ${data.label}` : kind;
 }
 
-function ValueRow({ grantId, fact, state }: { grantId: Id; fact: FactView; state: ValueState }) {
+/** The citation of the value at `path`, or null when it has none. */
+function citationOf(fact: FactView, path: string): Citation | null {
+  const cited = valueAt(fact.record.data, path);
+  return isCited(cited) ? (cited.citation ?? null) : null;
+}
+
+/** Two citations of the same passage: same file, same place, same text, same match. */
+function samePassage(a: Citation | null, b: Citation | null): boolean {
+  if (!a || !b || a.passage === null) return false;
+  return (
+    a.file_id === b.file_id &&
+    a.passage === b.passage &&
+    a.match === b.match &&
+    JSON.stringify(a.location) === JSON.stringify(b.location)
+  );
+}
+
+/** The values in order, with consecutive values that cite the identical passage grouped. */
+function groupValues(fact: FactView, values: ValueState[]): ValueState[][] {
+  const groups: ValueState[][] = [];
+  for (const v of values) {
+    const last = groups[groups.length - 1];
+    if (last && samePassage(citationOf(fact, last[0].path), citationOf(fact, v.path))) last.push(v);
+    else groups.push([v]);
+  }
+  return groups;
+}
+
+/** Several values that cite one passage: each value, linking to its own spot, then the passage once. */
+function SharedPassage({ grantId, fact, group }: { grantId: Id; fact: FactView; group: ValueState[] }) {
+  const citation = citationOf(fact, group[0].path) as Citation;
+  const labels = group.map((v) => valueLabel(v.path)).join(", ");
+  return (
+    <>
+      {group.map((v) => (
+        <ValueRow key={v.path} grantId={grantId} fact={fact} state={v} shared />
+      ))}
+      <div className={`${styles.valueRow} ${styles.sharedQuote}`}>
+        <dt className="ft-sr">The passage for {labels}</dt>
+        <dd>
+          <QuoteLink
+            citation={citation}
+            href={viewerHref(grantId, citation.file_id, fact.record.id, group[0].path)}
+            ariaLabel={`Open the passage for ${labels.toLowerCase()} in the viewer`}
+            ranges={unionRanges(group.map((v) => valueRanges(citationOf(fact, v.path) as Citation)))}
+          />
+        </dd>
+      </div>
+    </>
+  );
+}
+
+/**
+ * One value: its label, the value, its quote, then where it is and whether
+ * it's confirmed. In a group that shares one passage (`shared`), the value
+ * itself links to its spot and the passage shows once under the group.
+ */
+function ValueRow({ grantId, fact, state, shared = false }: { grantId: Id; fact: FactView; state: ValueState; shared?: boolean }) {
   const cited = valueAt(fact.record.data, state.path);
   const label = valueLabel(state.path);
   if (!isCited(cited)) {
@@ -45,18 +103,20 @@ function ValueRow({ grantId, fact, state }: { grantId: Id; fact: FactView; state
   const citation = cited.citation ?? null;
   const page = citation ? pageCaption(citation) : null;
   const shown = displayValue(state.path, cited);
+  const href = citation ? viewerHref(grantId, citation.file_id, fact.record.id, state.path) : null;
+  const openLabel = `Open ${label.toLowerCase()} in the viewer`;
   return (
-    <div className={styles.valueRow}>
+    <div className={shared ? `${styles.valueRow} ${styles.valueRowShared}` : styles.valueRow}>
       <dt>{label}</dt>
       <dd>
-        <span className={styles.value}>{shown}</span>
-        {citation && (
-          <QuoteLink
-            citation={citation}
-            href={viewerHref(grantId, citation.file_id, fact.record.id, state.path)}
-            ariaLabel={`Open ${label.toLowerCase()} in the viewer`}
-          />
+        {shared && href ? (
+          <Link className={`${styles.value} ${styles.valueLink}`} href={href} aria-label={openLabel}>
+            {shown}
+          </Link>
+        ) : (
+          <span className={styles.value}>{shown}</span>
         )}
+        {citation && href && !shared && <QuoteLink citation={citation} href={href} ariaLabel={openLabel} />}
         <span className={styles.state}>
           {page && <>{page} · </>}
           <span className={state.confirmed ? undefined : styles.unconfirmed}>{confirmationText(state)}</span>
@@ -89,9 +149,13 @@ function Fact({ grantId, fileId, fact }: { grantId: Id; fileId: Id; fact: FactVi
 
       {values.length > 0 ? (
         <dl className={styles.values}>
-          {values.map((v) => (
-            <ValueRow key={v.path} grantId={grantId} fact={fact} state={v} />
-          ))}
+          {groupValues(fact, values).map((group) =>
+            group.length > 1 ? (
+              <SharedPassage key={group[0].path} grantId={grantId} fact={fact} group={group} />
+            ) : (
+              <ValueRow key={group[0].path} grantId={grantId} fact={fact} state={group[0]} />
+            ),
+          )}
         </dl>
       ) : (
         <p className={styles.noValues}>No values read from the file.</p>

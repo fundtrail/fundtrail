@@ -175,7 +175,7 @@ export function ConfirmValues({
         <button type="submit" className={`ft-btn ft-btn--main${busy ? " is-busy" : ""}`} aria-disabled={busy || undefined}>
           {busy ? "Saving…" : "Save"}
         </button>
-        <Link className="ft-btn" href={viewerHref(grantId, fileId)}>
+        <Link className={`ft-link ${styles.quietAction}`} href={viewerHref(grantId, fileId)}>
           Open the file
         </Link>
       </div>

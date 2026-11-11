@@ -1,28 +1,33 @@
 /*
  * Evidence cards and the confirm screen, on the design system's tokens
- * (globals.css). One fact per row: label, the value, its quote in the serif on
- * the highlighter, then where it is and whether it's confirmed.
+ * (globals.css). One fact per row: label, the value, its quote in the serif,
+ * then where it is and whether it's confirmed.
  *
- * Yellow means a verbatim passage found in the file, and nothing else. It stays
- * yellow with dark text in both themes. The fallbacks hold until the UI
- * foundation (issue 238) defines the tokens.
+ * Yellow means an exact passage from the file, and nothing else. On a card it
+ * is a quiet band behind the lower part of the line, so a page of cards stays
+ * calm; the full highlighter block belongs to the viewer.
  */
 
 .cards {
-  --e-hl: var(--hl, #ffe45c);
-  --e-on-hl: var(--on-hl, #1d1a05);
-  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
-
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.card {
-  --e-hl: var(--hl, #ffe45c);
-  --e-on-hl: var(--on-hl, #1d1a05);
-  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
+/* The card's band: the highlighter in light. In dark, light text can't sit on
+   yellow, so the band is the wash, which keeps the text readable on it. */
+.card,
+.confirmList {
+  --e-band: var(--hl);
+}
+@media (prefers-color-scheme: dark) {
+  .card,
+  .confirmList {
+    --e-band: var(--highlight-wash);
+  }
+}
 
+.card {
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   background: var(--paper-raised);
@@ -206,28 +211,33 @@
   max-width: 72ch;
 }
 
+/* A quote opens the viewer at its spot, so it reads as a link before hover:
+   a quiet underline in the rule color that darkens on hover. */
+.quote,
+.valueLink {
+  color: var(--ink);
+  text-decoration-line: underline;
+  text-decoration-color: var(--rule-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.quote:hover,
+.valueLink:hover {
+  text-decoration-color: var(--ink);
+}
+.quote:focus-visible,
+.valueLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .quote {
   display: block;
   max-width: 72ch;
-  border-radius: 2px;
-  color: var(--ink);
-  text-decoration: none;
-  font-family: var(--e-serif);
+  font-family: var(--serif);
   font-size: 15px;
   line-height: 1.6;
-}
-.quote:hover .hl {
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--e-on-hl) 45%, transparent);
-  text-underline-offset: 3px;
-}
-.quote:hover .quoteText {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.quote:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* A photo's box has no passage: it says so plainly, never on the highlighter. */
@@ -235,30 +245,64 @@
   font-family: var(--sans);
   font-size: 13px;
   color: var(--ink-muted);
-  text-decoration: underline;
-  text-decoration-color: var(--rule-strong);
-  text-underline-offset: 3px;
 }
 
 .quoteText {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.clamp {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+/* An excerpt runs as one paragraph: its line breaks are the file's, not the card's. */
+.excerpt {
+  white-space: normal;
 }
 
+.ellipsis {
+  color: var(--ink-muted);
+}
+
+/* The value's own characters inside its quote. */
+.valueChars {
+  font-weight: 600;
+}
+
+/* The quiet highlighter: a band behind the lower part of the line. */
 .hl {
-  padding: 1px 3px;
-  border-radius: 2px;
-  background: var(--e-hl);
-  color: var(--e-on-hl);
+  padding: 0 1px;
+  background: linear-gradient(to bottom, transparent 58%, var(--e-band) 58%);
+  color: inherit;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+/* Said to a screen reader, never shown: the mark means an exact passage. */
+.hl::before {
+  content: "highlighted: ";
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* "Close match on the page", beside a quote that isn't word for word. */
+.matchNote {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Values that cite one passage: the rows sit together, and the passage once under them. */
+.valueRowShared + .valueRowShared,
+.valueRowShared + .sharedQuote {
+  border-top: 0;
+  padding-top: 0;
+}
+.sharedQuote dd {
+  grid-column: 2;
+}
+@media (max-width: 640px) {
+  .sharedQuote dd {
+    grid-column: 1;
+  }
 }
 
 .more {
@@ -317,9 +361,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  --e-hl: var(--hl, #ffe45c);
-  --e-on-hl: var(--on-hl, #1d1a05);
-  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
 }
 
 .confirmRow {
@@ -410,13 +451,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-2) var(--space-4);
   margin-top: var(--space-4);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .quote,
-  .more {
-    transition: none;
-  }
+/* "Open the file" beside Save: a plain link, so Save is the one main action. */
+.quietAction {
+  font-size: 13px;
 }
