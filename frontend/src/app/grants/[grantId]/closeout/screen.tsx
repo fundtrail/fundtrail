@@ -10,9 +10,9 @@ import { ReportDraft } from "@/components/closeout/ReportDraft";
 import { SignOffPanel } from "@/components/closeout/SignOffPanel";
 import { SnoozedCharges } from "@/components/closeout/SnoozedCharges";
 import { GrantHeader } from "@/components/GrantHeader";
-import { grantName } from "@/components/GrantList";
 import { ProblemList } from "@/components/ProblemList";
 import { useCharges, useGrant, useProblemList, useRefresh } from "@/lib/api";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
 
 /**
@@ -21,6 +21,7 @@ import { routes } from "@/lib/routes";
  * and history, the evidence report and the sign-off. First version, may change.
  */
 export function CloseoutScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId } = useParams<{ grantId: string }>();
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
