@@ -382,9 +382,12 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
 }
 
 /**
- * The panel itself, for a grant known to be a sample. `compact` keeps it to
- * one row: where the clock stands and the controls, with the trail opening in
- * place from Show the timeline.
+ * The panel itself, for a grant known to be a sample. `compact` folds it to
+ * one quiet line: where the clock stands, what it stopped on, what waits on
+ * the problem list, Next event, and More, which opens everything else in
+ * place: the other controls and the trail with every mark the full panel
+ * shows. A refused move, a load error, catching up and the run-through note
+ * show on the folded line too.
  */
 export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compact?: boolean }) {
   const grantName = useGrantDisplayName();
@@ -397,7 +400,7 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
   const [skip, setSkip] = useState(false);
   // Start over asks first, under the controls.
   const [asking, setAsking] = useState(false);
-  // The compact form keeps the trail closed until asked.
+  // The compact form keeps everything but Next event folded until More.
   const [trailOpen, setTrailOpen] = useState(false);
   const trailId = useId();
   const skipId = useId();
@@ -429,72 +432,116 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
 
   const view = timeline.data;
   const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
-  const showTrail = !compact || trailOpen;
+  const open = !compact || trailOpen;
   const toDeliver = (view?.now.deliveries ?? []).filter((d) => !d.delivered).length;
+
+  const nextEvent = view && (
+    <button
+      type="button"
+      className={`ft-btn ft-btn--sm${compact ? "" : " ft-btn--main"}`}
+      disabled={busy || (view.coming_up ?? []).length === 0}
+      onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
+    >
+      Next event
+    </button>
+  );
+  const otherControls = view && (
+    <>
+      {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
+      <span className="ft-tl__hinted">
+        <button
+          type="button"
+          className="ft-btn ft-btn--sm"
+          aria-describedby={highlightHintId}
+          disabled={busy || !nextHighlight}
+          onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+        >
+          Next highlight
+        </button>
+        <span id={highlightHintId} className="ft-caption">
+          Always skips the human steps.
+        </span>
+      </span>
+      <GoToDate now={view.now.now} busy={busy} onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))} />
+      <span className="ft-tl__skip">
+        <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+        <label htmlFor={skipId}>Skip the human steps</label>
+      </span>
+      {!asking && (
+        <button type="button" className="ft-btn ft-btn--sm ft-tl__quiet" disabled={busy} onClick={() => setAsking(true)}>
+          Start over
+        </button>
+      )}
+    </>
+  );
+
   return (
-    <section className="ft-panel ft-tl" aria-labelledby="tl-heading" data-compact={compact || undefined}>
-      <div className="ft-tl__head">
-        <h2 id="tl-heading" className="ft-tl__title">
-          Sample timeline
-        </h2>
-        {compact && view && (
+    <section className={`ft-tl${compact ? "" : " ft-panel"}`} aria-labelledby="tl-heading" data-compact={compact || undefined} aria-busy={busy || undefined}>
+      {compact ? (
+        <div className="ft-tl__line">
+          <span className="ft-tl__dot" aria-hidden="true" />
           <p className="ft-tl__where">
-            <span>
-              <span className="ft-tl__nowtag">Now</span> <span className="ft-num ft-strong">{date(view.now.now)}</span>
+            <span id="tl-heading" role="heading" aria-level={2} className="ft-strong">
+              Sample timeline
             </span>
-            {view.now.stopped_on && (
-              <span className="ft-tl__where-stop">
-                {" "}
-                <span className="ft-tl__sep">·</span> stopped on <span className="ft-tl__name">{view.now.stopped_on.name}</span>
-              </span>
+            {view && (
+              <>
+                <span className="ft-tl__sep">·</span>
+                <span className="ft-num">{date(view.now.now)}</span>
+                {view.now.stopped_on && (
+                  <>
+                    <span className="ft-tl__sep">·</span>
+                    <span className="ft-tl__where-stop">
+                      stopped on <span className="ft-id">{view.now.stopped_on.name}</span>
+                      {view.now.stopped_on.highlight && <span className="ft-tl__flag">{view.now.stopped_on.highlight}</span>}
+                    </span>
+                  </>
+                )}
+                {view.now.waiting_on_problem_list > 0 && (
+                  <>
+                    <span className="ft-tl__sep">·</span>
+                    <Link className="ft-link" href={routes.problemList(grantId)}>
+                      {view.now.waiting_on_problem_list} waiting on the problem list
+                    </Link>
+                  </>
+                )}
+                {toDeliver > 0 && !trailOpen && (
+                  <>
+                    <span className="ft-tl__sep">·</span>
+                    <span>{toDeliver} for you to deliver</span>
+                  </>
+                )}
+                {view.catching_up && !trailOpen && (
+                  <>
+                    <span className="ft-tl__sep">·</span>
+                    <span className="ft-caption">The agent is still catching up on what arrived.</span>
+                  </>
+                )}
+              </>
             )}
-            <button type="button" className="ft-tl__toggle" aria-expanded={trailOpen} aria-controls={trailId} onClick={() => setTrailOpen(!trailOpen)}>
-              {trailOpen ? "Hide the timeline" : toDeliver > 0 ? `Show the timeline · ${toDeliver} for you to deliver` : "Show the timeline"}
-            </button>
           </p>
-        )}
-        {view && (
-          <div className="ft-tl__controls">
-            <button
-              type="button"
-              className="ft-btn ft-btn--main ft-btn--sm"
-              disabled={busy || (view.coming_up ?? []).length === 0}
-              onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
-            >
-              Next event
-            </button>
-            {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
-            <span className="ft-tl__hinted">
-              <button
-                type="button"
-                className="ft-btn ft-btn--sm"
-                aria-describedby={highlightHintId}
-                disabled={busy || !nextHighlight}
-                onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
-              >
-                Next highlight
+          {view && (
+            <span className="ft-tl__lineActions">
+              {nextEvent}
+              <button type="button" className="ft-btn ft-btn--sm" aria-expanded={trailOpen} aria-controls={trailId} onClick={() => setTrailOpen(!trailOpen)}>
+                {trailOpen ? "Less" : "More"}
               </button>
-              <span id={highlightHintId} className="ft-caption">
-                Always skips the human steps.
-              </span>
             </span>
-            <GoToDate
-              now={view.now.now}
-              busy={busy}
-              onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
-            />
-            <span className="ft-tl__skip">
-              <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
-              <label htmlFor={skipId}>Skip the human steps</label>
-            </span>
-            {!asking && (
-              <button type="button" className="ft-btn ft-btn--sm ft-tl__quiet" disabled={busy} onClick={() => setAsking(true)}>
-                Start over
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        <div className="ft-tl__head">
+          <h2 id="tl-heading" className="ft-tl__title">
+            Sample timeline
+          </h2>
+          {view && (
+            <div className="ft-tl__controls">
+              {nextEvent}
+              {otherControls}
+            </div>
+          )}
+        </div>
+      )}
       {timeline.error && !view ? (
         <p className="ft-error" role="alert">
           {describeError(timeline.error).message}
@@ -503,10 +550,6 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
         <p className="ft-empty">Loading…</p>
       ) : (
         <>
-          {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
-          {view.on_run_through === false && (
-            <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>
-          )}
           {problem && (
             <p className="ft-error ft-tl__note" role="alert">
               {problem.text}
@@ -521,15 +564,20 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
               )}
             </p>
           )}
-          {showTrail && (
-            <div id={trailId} className="ft-tl__track">
-              <JustHappened
-                grantId={grantId}
-                played={view.just_happened ?? []}
-                waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
-              />
-              <Now grantId={grantId} view={view} busy={busy} act={act} />
-              <ComingUp events={view.coming_up ?? []} finished={view.finished} />
+          {view.on_run_through === false && <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>}
+          {open && (
+            <div id={trailId} className="ft-tl__body">
+              {compact && <div className="ft-tl__controls">{otherControls}</div>}
+              {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
+              <div className="ft-tl__track">
+                <JustHappened
+                  grantId={grantId}
+                  played={view.just_happened ?? []}
+                  waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
+                />
+                <Now grantId={grantId} view={view} busy={busy} act={act} />
+                <ComingUp events={view.coming_up ?? []} finished={view.finished} />
+              </div>
             </div>
           )}
         </>

@@ -151,3 +151,131 @@
     gap: var(--space-2);
   }
 }
+
+/* --- The filter as pills, for a page's head --- */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pill:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+.pill[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper-raised);
+}
+.pill[aria-pressed="true"] .tabCount {
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* --- The narrow list, beside the picked item: name and amount, one reason, then the bucket --- */
+
+.list[data-variant="narrow"] .row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: 14px var(--space-4);
+}
+.list[data-variant="narrow"] .row :global(.ft-problem__main),
+.list[data-variant="narrow"] .row :global(.ft-problem__side) {
+  display: contents;
+}
+.list[data-variant="narrow"] .mark,
+.list[data-variant="narrow"] .when {
+  display: none;
+}
+.list[data-variant="narrow"] .row > :global(.ft-problem__main) > *,
+.list[data-variant="narrow"] .row > :global(.ft-problem__side) > * {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.list[data-variant="narrow"] .row :global(.ft-problem__name) {
+  grid-row: 1;
+  grid-column: 1;
+}
+.list[data-variant="narrow"] .row .amount {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+  font-size: 14px;
+}
+.list[data-variant="narrow"] .row :global(.ft-problem__text) {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.list[data-variant="narrow"] .row :global(.ft-problem__side) > :not(.amount) {
+  margin-top: 6px;
+}
+.list[data-variant="narrow"] .row :global(.ft-problem__waiting) {
+  font-size: 12px;
+}
+
+/* --- One problem in brief: a whole row that links to it --- */
+
+.brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--space-5);
+  padding: 13px 22px;
+  border-top: 1px solid var(--rule);
+  color: inherit;
+  text-decoration: none;
+}
+.brief:hover {
+  background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
+}
+.brief:focus-visible {
+  outline-offset: -2px;
+}
+.briefMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.briefName {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.briefMain :global(.ft-problem__text) {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.briefSide {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+@media (max-width: 640px) {
+  .brief {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 13px var(--space-4);
+  }
+  .briefSide {
+    justify-content: flex-start;
+  }
+}

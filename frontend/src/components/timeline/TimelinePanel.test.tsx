@@ -30,7 +30,7 @@ describe("TimelinePanel", () => {
     expect(within(part("Just happened")).getByText("extension_notice.txt")).toBeInTheDocument();
     expect(within(part("Just happened")).getByText("The agent wrote: Period of performance.")).toBeInTheDocument();
     expect(within(part("Now")).getByText("Apr 9, 2026")).toBeInTheDocument();
-    expect(within(part("Now")).getByRole("link", { name: "3 waiting on the problem list" })).toHaveAttribute("href", "/grants/grant-sample#problem-list");
+    expect(within(part("Now")).getByRole("link", { name: "3 waiting on the problem list" })).toHaveAttribute("href", "/grants/grant-sample/problems");
     expect(within(part("Coming up")).getByText("The timeline has played to its end.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next event" })).toBeDisabled();
   });
@@ -96,17 +96,36 @@ describe("a refused move", () => {
 });
 
 describe("the compact form", () => {
-  it("keeps to one row with where the clock stands, and opens the trail in place", async () => {
+  it("folds to one quiet line, and More opens every other control and the trail in place", async () => {
     const { Wrapper } = harness();
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} compact />, { wrapper: Wrapper });
-    const toggle = await screen.findByRole("button", { name: "Show the timeline" });
+    const more = await screen.findByRole("button", { name: "More" });
+    expect(screen.getByRole("heading", { name: "Sample timeline" })).toBeInTheDocument();
     expect(screen.getByText("Apr 9, 2026")).toBeInTheDocument();
     expect(screen.getByText("extension_notice.txt")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Just happened" })).toBeNull();
+    expect(screen.getByText("An extension notice")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "3 waiting on the problem list" })).toHaveAttribute("href", "/grants/grant-sample/problems");
     expect(screen.getByRole("button", { name: "Next event" })).toBeDisabled();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("button", { name: "Next highlight" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Just happened" })).toBeNull();
+    fireEvent.click(more);
+    expect(screen.getByRole("button", { name: "Less" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Next highlight" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Skip the human steps")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start over" })).toBeInTheDocument();
     expect(within(part("Just happened")).getByText("The agent wrote: Period of performance.")).toBeInTheDocument();
+  });
+
+  it("shows a refused move on the folded line", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    vi.spyOn(client, "moveTimeline").mockRejectedValueOnce(new SampleRefusalError({ reason: "another_sample_working", message: "Another sample is still working.", grant: null }));
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} compact />, { wrapper: Wrapper });
+    const next = await screen.findByRole("button", { name: "Next event" });
+    await waitFor(() => expect(next).toBeEnabled());
+    fireEvent.click(next);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Another sample is still working.");
+    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "false");
   });
 });
 

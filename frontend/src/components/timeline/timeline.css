@@ -107,28 +107,87 @@
   border-color: transparent;
 }
 
-/* The compact form: one row, where the clock stands beside the title, the trail behind its toggle. */
-.ft-tl[data-compact] .ft-tl__title {
-  margin-right: 0;
+/* --- The compact form: one quiet line, everything else under More --- */
+
+.ft-tl[data-compact] {
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  border: 0;
+  border-radius: 10px;
+  background: var(--paper-sunken);
+}
+.ft-tl__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.ft-tl__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--hl);
 }
 .ft-tl__where {
   display: flex;
+  flex: 1 1 320px;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 2px 6px;
-  margin: 0 auto 0 0;
-  padding-top: 6px;
+  min-width: 0;
+  margin: 0;
   font-size: 13px;
 }
-.ft-tl[data-compact] .ft-tl__controls {
-  flex-basis: 100%;
-  justify-content: flex-start;
-}
-.ft-tl__where .ft-tl__toggle {
-  margin-left: var(--space-2);
+.ft-tl__sep {
+  color: var(--ink-muted);
 }
 .ft-tl__where-stop {
   overflow-wrap: anywhere;
+}
+.ft-tl__where .ft-id {
+  font-size: 12px;
+}
+.ft-tl__flag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--hl);
+  color: var(--on-hl);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ft-tl__lineActions {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+}
+.ft-tl[data-compact] .ft-btn {
+  border-color: var(--rule-strong);
+}
+.ft-tl[data-compact] .ft-btn:disabled {
+  border-color: var(--rule-strong);
+}
+.ft-tl[data-compact] .ft-btn.ft-tl__quiet {
+  border-color: transparent;
+}
+.ft-tl__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ft-tl[data-compact] .ft-tl__body {
+  padding: var(--space-3) 0 var(--space-1);
+  border-top: 1px solid var(--rule);
+}
+.ft-tl[data-compact] .ft-tl__controls {
+  justify-content: flex-start;
+}
+.ft-tl[data-compact] .ft-tl__ev--next::after,
+.ft-tl[data-compact] .ft-tl__ev--more::after {
+  background: var(--paper-sunken);
 }
 
 /* --- Notes, errors and Start over's confirm, between the header and the trail --- */
@@ -407,16 +466,18 @@
   .ft-tl__controls {
     justify-content: flex-start;
   }
-  /* The compact row stacks: now, what it stopped on, then the toggle. */
-  .ft-tl__where {
-    flex-direction: column;
+  /* The quiet line wraps: what it says, then its two buttons. */
+  .ft-tl__line {
     align-items: flex-start;
   }
-  .ft-tl__sep {
-    display: none;
+  .ft-tl__dot {
+    margin-top: 4px;
   }
-  .ft-tl__where .ft-tl__toggle {
-    margin: var(--space-1) 0 0;
+  .ft-tl__where {
+    flex-basis: calc(100% - 26px);
+  }
+  .ft-tl__lineActions {
+    margin-left: 26px;
   }
   .ft-tl__track,
   .ft-tl__part,

@@ -8,8 +8,12 @@ import { routes } from "@/lib/routes";
 import { ChargeStatusBadge } from "./BucketBadge";
 import styles from "./ProblemList.module.css";
 
-/** Picks a row to show beside the list. Absent, the rows only link to their pages. */
-export type OnSelectRow = (key: string) => void;
+/**
+ * Picks a row for the page to show. Returning false lets the row's link open
+ * its own page instead (a page too narrow to show the item beside the list).
+ * Absent, the rows only link to their pages.
+ */
+export type OnSelectRow = (key: string) => boolean | void;
 
 /** A reason's text as the server sends it, with when a missing item is expected and whether it was accepted. */
 function ReasonLine({ reason, chargedCents }: { reason: Reason; chargedCents?: Cents }) {
@@ -46,8 +50,7 @@ function heldSender(held: HeldMail): string | null {
 function RowLink({ href, selectKey, onSelect, current, children }: { href: string; selectKey: string; onSelect?: OnSelectRow; current?: boolean; children: ReactNode }) {
   function click(event: MouseEvent<HTMLAnchorElement>) {
     if (!onSelect || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    onSelect(selectKey);
+    if (onSelect(selectKey) !== false) event.preventDefault();
   }
   return (
     <Link className="ft-link" href={href} onClick={click} aria-current={current ? "true" : undefined}>
@@ -260,17 +263,139 @@ function Row({
 
 const BUCKET_ORDER: Bucket[] = ["possible_conflict", "needs_human", "missing_evidence", "evidence_complete"];
 
+/** Which rows show: all of them, or one bucket's. */
+export type ProblemFilter = Bucket | "all";
+
+/** How many rows the server sent in each bucket, in the buckets' order. Only charge rows have a bucket. */
+function bucketCounts(rows: ProblemRow[]): Map<Bucket, number> {
+  const counts = new Map<Bucket, number>();
+  for (const b of BUCKET_ORDER) {
+    const n = rows.filter((row) => rowBucket(row) === b).length;
+    if (n > 0) counts.set(b, n);
+  }
+  return counts;
+}
+
+/**
+ * The filter over the problem list: All, and one per bucket the rows are in,
+ * each with its count of the rows the server sent. Shown only when a filter
+ * would hide something. `look` draws it as tabs over the list or as pills in a
+ * page's head.
+ */
+export function ProblemFilters({
+  rows,
+  value,
+  onChange,
+  look = "tabs",
+}: {
+  rows: ProblemRow[];
+  value: ProblemFilter;
+  onChange: (filter: ProblemFilter) => void;
+  look?: "tabs" | "pills";
+}) {
+  const counts = bucketCounts(rows);
+  if (![...counts.values()].some((n) => n < rows.length)) return null;
+  const shown = value !== "all" && counts.has(value) ? value : "all";
+  const cls = look === "pills" ? styles.pill : styles.tab;
+  return (
+    <div className={look === "pills" ? styles.pills : styles.tabs} role="group" aria-label="Show on the problem list">
+      <button type="button" className={cls} aria-pressed={shown === "all"} onClick={() => onChange("all")}>
+        All <span className={styles.tabCount}>{rows.length}</span>
+      </button>
+      {[...counts].map(([b, n]) => (
+        <button key={b} type="button" className={cls} aria-pressed={shown === b} onClick={() => onChange(b)}>
+          {BUCKET_LABELS[b]} <span className={styles.tabCount}>{n}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The page a row opens on its own, or null for a grant problem, which has none. */
+export function problemRowHref(row: ProblemRow): string | null {
+  switch (row.kind) {
+    case "grant":
+      return null;
+    case "terms_waiting":
+      return routes.terms(row.file.grant_id);
+    case "record":
+      if (row.record) return routes.record(row.status.grant_id, row.record.id);
+      return row.file ? routes.file(row.status.grant_id, row.file.id) : null;
+    case "charge":
+      return routes.charge(row.charge.grant_id, row.charge.id);
+    case "held_mail":
+      return routes.mail(row.held.workspace_id);
+  }
+}
+
+/**
+ * One problem in brief, for a page that shows a few: its name, the reason the
+ * server lists first, and its amount with its bucket, or a neutral tag for
+ * anything that isn't a charge. The whole row is one link to `href`.
+ */
+export function ProblemBrief({ row, href }: { row: ProblemRow; href: string }) {
+  let name: ReactNode = null;
+  let reason: ReactNode = null;
+  let side: ReactNode = null;
+  switch (row.kind) {
+    case "grant":
+      name = row.problem.text;
+      side = <span className={`ft-tag ${styles.kind}`}>Grant</span>;
+      break;
+    case "terms_waiting":
+      name = row.file.name;
+      reason = <p className="ft-problem__text">{row.text}</p>;
+      side = <span className={`ft-tag ${styles.kind}`}>Terms</span>;
+      break;
+    case "record": {
+      name = row.file ? row.file.name : row.record ? recordName(row.record) : null;
+      const first = row.status.problems[0];
+      reason = first ? <p className="ft-problem__text">{first.text}</p> : null;
+      side = <span className={`ft-tag ${styles.kind}`}>{row.file && !row.record ? "File" : "Record"}</span>;
+      break;
+    }
+    case "charge": {
+      name = row.charge.description;
+      const first = failing(row.status.reasons)[0];
+      reason = first ? <ReasonLine reason={first} chargedCents={row.status.net_cents ?? row.charge.amount_cents} /> : null;
+      side = (
+        <>
+          <span className={`ft-amount ${styles.amount}`}>{money(row.charge.amount_cents)}</span>
+          <ChargeStatusBadge status={row.status} />
+        </>
+      );
+      break;
+    }
+    case "held_mail":
+      name = row.held.subject || "No subject";
+      reason = <p className="ft-problem__text">{heldSender(row.held) ? `${HOLD_REASON_LABELS[row.held.reason]} · ${heldSender(row.held)}` : UNREADABLE_FROM_LABEL}</p>;
+      side = <span className={`ft-tag ${styles.kind}`}>Mail</span>;
+      break;
+  }
+  return (
+    <Link className={styles.brief} href={href} data-kind={row.kind}>
+      <span className={styles.briefMain}>
+        <span className={styles.briefName}>{name}</span>
+        {reason}
+      </span>
+      <span className={styles.briefSide}>{side}</span>
+    </Link>
+  );
+}
+
 /**
  * The problem list, in the order the server sends it: grant problems, then
  * records, files and held mail, then charges by bucket, oldest first (answer
  * 1 of #22). Each row links to its page through routes.
- * The screen never sorts it. The tabs only hide rows on screen: All, and one
- * per bucket the rows are in, counted from the rows the server sent.
+ * The screen never sorts it. The filter only hides rows on screen.
  *
  * With `onSelect`, clicking a row picks it, for the page to show where it
  * likes; `selected` is the key of the picked row. With `reasons="first"` a
  * row shows only the reason the server lists first, with a count of the
- * rest; the item's own view shows them all.
+ * rest; the item's own view shows them all. `variant="narrow"` lays each row
+ * out for a column beside the picked item: name and amount, one reason line,
+ * then the bucket. A page that puts the filter in its own head passes
+ * `filter` and `onFilter` and turns the list's own tabs off with `tabs={false}`.
  */
 export function ProblemList({
   rows,
@@ -278,48 +403,42 @@ export function ProblemList({
   selected = null,
   onSelect,
   reasons = "all",
+  variant = "full",
+  filter,
+  onFilter,
+  tabs = true,
 }: {
   rows: ProblemRow[];
   charges?: Record<Id, Charge>;
   selected?: string | null;
   onSelect?: OnSelectRow;
   reasons?: ReasonsShown;
+  variant?: "full" | "narrow";
+  filter?: ProblemFilter;
+  onFilter?: (filter: ProblemFilter) => void;
+  tabs?: boolean;
 }) {
-  const [tab, setTab] = useState<Bucket | "all">("all");
+  const [ownFilter, setOwnFilter] = useState<ProblemFilter>("all");
   if (rows.length === 0) {
     return <p className={`ft-empty ${styles.empty}`}>Nothing on the problem list.</p>;
   }
-  const counts = new Map<Bucket, number>();
-  for (const row of rows) {
-    const bucket = rowBucket(row);
-    if (bucket) counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
-  }
-  // Tabs only when one would hide something: a list of one bucket's rows needs no tabs.
-  const tabs = [...counts.values()].some((n) => n < rows.length) ? BUCKET_ORDER.filter((b) => counts.has(b)) : [];
-  // A tab whose rows have all gone falls back to All.
-  const shown = tab !== "all" && counts.has(tab) ? tab : "all";
+  const value = filter ?? ownFilter;
+  const setFilter = onFilter ?? setOwnFilter;
+  const counts = bucketCounts(rows);
+  // A filter whose rows have all gone falls back to All.
+  const shown = value !== "all" && counts.has(value) ? value : "all";
 
   function clickRow(event: MouseEvent<HTMLLIElement>, key: string) {
     if (!onSelect) return;
     // Links and buttons inside the row do their own thing.
     if ((event.target as HTMLElement).closest("a, button, input, label, summary")) return;
-    onSelect(key);
+    // A page that can't show the item beside the list opens the row's own page.
+    if (onSelect(key) === false) event.currentTarget.querySelector<HTMLAnchorElement>(".ft-problem__name a")?.click();
   }
 
   return (
-    <div className={styles.list}>
-      {tabs.length > 0 && (
-        <div className={styles.tabs} role="group" aria-label="Show on the problem list">
-          <button type="button" className={styles.tab} aria-pressed={shown === "all"} onClick={() => setTab("all")}>
-            All <span className={styles.tabCount}>{rows.length}</span>
-          </button>
-          {tabs.map((b) => (
-            <button key={b} type="button" className={styles.tab} aria-pressed={shown === b} onClick={() => setTab(b)}>
-              {BUCKET_LABELS[b]} <span className={styles.tabCount}>{counts.get(b)}</span>
-            </button>
-          ))}
-        </div>
-      )}
+    <div className={styles.list} data-variant={variant}>
+      {tabs && <ProblemFilters rows={rows} value={shown} onChange={setFilter} />}
       <ol className="ft-problems" aria-label="Problem list">
         {rows.map((row, i) => {
           const key = problemRowKey(row, i);
