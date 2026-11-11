@@ -23,8 +23,11 @@ export const routes = {
 
   // A grant
   grant: (grantId: Id) => `/grants/${e(grantId)}`,
-  /** The problem list, a section of the grant page. */
-  problemList: (grantId: Id) => `/grants/${e(grantId)}#problem-list`,
+  /** The problem list, its own page. With `item`, that row is the one shown beside the list. */
+  problemList: (grantId: Id, item?: string) =>
+    `/grants/${e(grantId)}/problems${item ? `?${new URLSearchParams({ item }).toString()}` : ""}`,
+  /** Every charge on the grant. */
+  charges: (grantId: Id) => `/grants/${e(grantId)}/charges`,
   terms: (grantId: Id) => `/grants/${e(grantId)}/terms`,
   /** The reusable notes, a section of the terms page. */
   reusableNotes: (grantId: Id) => `/grants/${e(grantId)}/terms#reusable-notes`,
