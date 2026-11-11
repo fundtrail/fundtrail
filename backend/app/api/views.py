@@ -15,6 +15,7 @@ from app.checks import budget_figures, note_limit
 from app.checks.benefits import waiting_on
 from app.checks.history import history_line
 from app.contracts.api import (
+    AcceptedGrantProblem,
     AnswerView,
     BudgetLineView,
     BudgetView,
@@ -350,6 +351,8 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
     grant_status = snap.statuses.get(("grant", None))
     if isinstance(grant_status, GrantStatus) and grant_status.flagged:
         for problem in grant_status.problems:
+            if problem.accepted_by is not None:
+                continue  # ruling 84: an accepted grant problem shows on the overview
             rows.append(
                 GrantProblemRow(
                     problem=GrantProblem(
@@ -548,6 +551,29 @@ def reusable_notes(snap: GrantSnapshot) -> list[ReusableNoteView]:
     return out
 
 
+def accepted_grant_problems(conn: Conn, snap: GrantSnapshot) -> list[AcceptedGrantProblem]:
+    """Ruling 84: the grant's own problems the accountant accepted, oldest acceptance first."""
+    grant_status = snap.statuses.get(("grant", None))
+    if not isinstance(grant_status, GrantStatus):
+        return []
+    out: list[AcceptedGrantProblem] = []
+    for problem in grant_status.problems:
+        acceptance = snap.state.by_id.get(problem.accepted_by or "")
+        if acceptance is None or not isinstance(acceptance.data, AcceptedReason):
+            continue
+        user = store.get_user(conn, acceptance.author_user_id or "")
+        out.append(
+            AcceptedGrantProblem(
+                problem=problem,
+                acceptance_id=acceptance.id,
+                note=acceptance.data.note,
+                accepted_by=(user.name or user.email) if user else "The accountant",
+                accepted_at=acceptance.written_at,
+            )
+        )
+    return sorted(out, key=lambda a: a.accepted_at)
+
+
 def grant_detail(conn: Conn, snap: GrantSnapshot) -> GrantDetail:
     return GrantDetail(
         summary=summary(snap),
@@ -556,6 +582,7 @@ def grant_detail(conn: Conn, snap: GrantSnapshot) -> GrantDetail:
         grant_notes=tuple(n for n in snap.output.notes if n.grant_id == snap.grant.id),
         reusable_notes=tuple(reusable_notes(snap)),
         sign_off=sign_off_view(snap),
+        accepted_problems=tuple(accepted_grant_problems(conn, snap)),
     )
 
 

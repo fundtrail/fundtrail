@@ -277,6 +277,22 @@ class SignOffState(Model):
     unavailable_reason: Text | None = None
 
 
+class AcceptedGrantProblem(Model):
+    """A problem on the grant itself that the accountant accepted (ruling 84).
+
+    It leaves the problem list and shows on the grant overview beside the budget it's
+    about, with the note, who accepted it and when, and Reopen.
+    """
+
+    problem: Problem  # check, problem and text, in the server's words
+    # The accepted_reason record that accepts it. Reopen retracts it, and the problem
+    # comes back to the problem list.
+    acceptance_id: Id
+    note: Text  # the accountant's note
+    accepted_by: Text  # who accepted it: the member's name, else their email address
+    accepted_at: UtcDatetime  # when, on the grant's clock (the acceptance's written_at)
+
+
 class GrantDetail(Model):
     """GET /grants/{grant_id}. Carries no flagged charges: the problem list has its own response."""
 
@@ -286,6 +302,9 @@ class GrantDetail(Model):
     grant_notes: tuple[GrantNote, ...]
     reusable_notes: tuple[ReusableNoteView, ...] = ()
     sign_off: SignOffState
+    # Ruling 84: the grant's own problems the accountant accepted, oldest acceptance
+    # first. Empty when none is accepted.
+    accepted_problems: tuple[AcceptedGrantProblem, ...] = ()
 
 
 # The problem list (answers 1 to 4 and 6). The server sorts the rows.

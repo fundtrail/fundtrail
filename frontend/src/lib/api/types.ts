@@ -933,6 +933,19 @@ export interface SignOffState {
 }
 
 /** GET /grants/{grant_id}. Carries no flagged charges: the problem list has its own response. */
+/** A problem on the grant itself that the accountant accepted (ruling 84): off the problem list, on the overview. */
+export interface AcceptedGrantProblem {
+  /** check, problem and text, in the server's words. */
+  problem: Problem;
+  /** The accepted_reason record; Reopen retracts it. */
+  acceptance_id: Id;
+  note: string;
+  /** Who accepted it: the member's name, else their email address. */
+  accepted_by: string;
+  /** When, on the grant's clock. */
+  accepted_at: IsoDatetime;
+}
+
 export interface GrantDetail {
   summary: GrantSummary;
   terms: TermView[];
@@ -940,6 +953,8 @@ export interface GrantDetail {
   grant_notes: GrantNote[];
   reusable_notes?: ReusableNoteView[];
   sign_off: SignOffState;
+  /** Ruling 84: accepted grant problems, oldest acceptance first. */
+  accepted_problems?: AcceptedGrantProblem[];
 }
 
 // --- api.py: the problem list. The server sorts the rows. ---
