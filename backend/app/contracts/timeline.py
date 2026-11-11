@@ -125,10 +125,10 @@ class TimelineMove(Model):
     # accountant performs it through the ordinary write paths, as its author. A
     # scripted action whose target isn't there is left for the user.
     skip_human_steps: bool = False
-    # Ruling 77: "Next highlight". The server moves to the next highlight's stop point
-    # itself: the highlight event, or the later event it names to show at. It makes
-    # the scripted steps before that point with the sample accountant, leaves the
-    # highlight's own step for the user, and never makes a sign-off on this move.
+    # Ruling 77: "Next highlight". The server moves to the next highlighted event or
+    # ledger line itself (a charge that posts later carries its label on its ledger
+    # line). It makes the scripted steps before it with the sample accountant, leaves
+    # the highlight's own step for the user, and never makes a sign-off on this move.
     # `to` is ignored when this is true.
     next_highlight: bool = False
 
