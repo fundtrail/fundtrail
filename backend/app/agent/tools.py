@@ -52,6 +52,7 @@ from .desk import (
     charge_in_full,
     charge_lines,
     document_lines,
+    files_of,
     money,
     record_in_full,
     record_summary,
@@ -522,6 +523,8 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     data = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.label is not None:
         data["label"] = a.label
+    if a.kind == "note":
+        _one_note_per_document(ctx, data, a.replaces_id)
     text, error = _saved(ctx, data, a.replaces_id, "write_fact")
     if error or a.kind != "bill":
         return text, error
@@ -541,6 +544,41 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
             record_summary(r) for r in dupes
         )
     return text, False
+
+
+def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: str | None) -> None:
+    """One document, one note, with every value cited inside it (ruling 81).
+
+    A note citing more than one file is refused, and so is a second note on a document that
+    already has one, unless it corrects that note.
+    """
+    files = {
+        v["citation"]["file_id"]
+        for key, v in data.items()
+        if key != "kind" and isinstance(v, dict) and isinstance(v.get("citation"), dict)  # pyright: ignore[reportUnknownMemberType]
+    }
+    period = data.get("period")
+    if isinstance(period, dict):
+        for part in period.values():  # pyright: ignore[reportUnknownVariableType]
+            if isinstance(part, dict) and isinstance(part.get("citation"), dict):  # pyright: ignore[reportUnknownMemberType]
+                files.add(part["citation"]["file_id"])  # pyright: ignore[reportUnknownArgumentType]
+    if len(files) > 1:
+        raise WriteProblem(
+            "A note is about one document: cite all its values from the same file, and write "
+            "another document's note on its own"
+        )
+    if not files:
+        return
+    [file_id] = files
+    for r in ctx.state().current():
+        if r.kind != RecordKind.NOTE or r.id == replaces_id or file_id not in files_of(r):
+            continue
+        label = getattr(r.data, "label", "")
+        raise WriteProblem(
+            f'file {file_id} already has its note ({r.id}, "{label}"). One document is one '
+            "note: if this fact belongs on it, correct that note with replaces_id and a statement "
+            "that holds it; otherwise leave it out"
+        )
 
 
 def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:

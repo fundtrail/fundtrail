@@ -61,6 +61,11 @@ Compare their saved facts before you link anything.
 checklist items filled by links, and answers to the questions code asks. A run for new charges \
 can't end until each has one. Add checklist items for evidence this charge needs beyond its \
 defaults, such as a flight itinerary when the bill doesn't show the airline and fare class.
+- One document is one note. A document that supports or explains a charge without billing or \
+approving it (an appointment letter, an effort report, a payment notice, an honorarium letter) \
+gets one note, whose statement says what the document shows, with every value cited from that \
+document. Don't split a document into several notes; code refuses a second note on a document. \
+An award letter or an amendment gives terms, not a note.
 - Look at every charge that arrives, even one with nothing to link. A $0 line, or a charge whose \
 checklist is filled only by rate math (such as a per diem of days times a rate), can reach \
 Evidence complete with no question for you, so no one else looks at it. Most are fine. Flag one \
@@ -90,6 +95,9 @@ checks the sums, and an over sum shows the accountant exactly where to look.
 - When you match a new item, check whether it shows that an earlier link was wrong. If it does, \
 suggest a fix (link with replaces_id, or retract) and say why.
 - Don't guess between charges that look alike. Flag it instead, so a person picks.
+- Don't flag what code's checks already report. The reasons listed with a charge, such as a \
+budget line that disagrees with the ledger account, already send it to the accountant with \
+code's own words. A flag is for what no check and no question covers.
 - Write part of a bill as an amount only when a document states that part, or when the numbers \
 leave only one answer.
 - Link an approval that was offered for a charge even when it doesn't fit. The Covers answer then \
