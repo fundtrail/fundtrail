@@ -38,13 +38,15 @@ export function ConfigError({ missing }: { missing: string[] }) {
 }
 
 function RealApi({ apiUrl, children }: { apiUrl: string; children: ReactNode }) {
-  const { getAccessToken, signOut } = useAuth();
-  // A refused or missing session signs the user out, and the shell sends them
-  // to sign-in, which says the session expired.
+  const { getAccessToken, signOut, state } = useAuth();
+  const signedIn = state.status === "signed_in";
+  // A refused or missing session signs a signed-in user out, and the shell sends
+  // them to sign-in, which says the session expired. Noted only while signed in.
   const onUnauthorized = useCallback(() => {
+    if (!signedIn) return;
     markSessionExpired();
     void signOut();
-  }, [signOut]);
+  }, [signedIn, signOut]);
   const client = useMemo(() => new HttpApiClient(apiUrl, getAccessToken, onUnauthorized), [apiUrl, getAccessToken, onUnauthorized]);
   return <ApiProvider client={client}>{children}</ApiProvider>;
 }

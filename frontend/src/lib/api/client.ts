@@ -93,12 +93,11 @@ export interface ApiClient {
 
 /** An error from the API, with FastAPI's `detail` when it sent one. A 422 from the write check carries its problems. */
 export class ApiError extends Error {
-  /** `status` is 0 when no response came back: a connection problem. */
   constructor(
     readonly status: number,
     readonly detail: unknown,
   ) {
-    super(typeof detail === "string" ? detail : status === 0 ? "No response from the server" : `Request failed with status ${status}`);
+    super(typeof detail === "string" ? detail : `Request failed with status ${status}`);
     this.name = "ApiError";
   }
 
@@ -160,17 +159,13 @@ export class HttpApiClient implements ApiClient {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.json);
     }
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
-        headers,
-        ...(init.method ? { method: init.method } : {}),
-        ...(body !== undefined ? { body } : {}),
-      });
-    } catch {
-      // No response at all: the network or the server is unreachable.
-      throw new ApiError(0, null);
-    }
+    // A network failure throws fetch's own error (a TypeError), not an ApiError:
+    // callers tell a connection problem from a server's answer that way.
+    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
+      headers,
+      ...(init.method ? { method: init.method } : {}),
+      ...(body !== undefined ? { body } : {}),
+    });
     if (response.status === 401) this.onUnauthorized?.();
     if (!response.ok) {
       let detail: unknown = null;

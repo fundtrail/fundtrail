@@ -54,8 +54,13 @@ export default function SignIn() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  // Read once: whether the user lands here because the server refused the session.
-  const [expired] = useState(() => (typeof window === "undefined" ? false : takeSessionExpired()));
+  // Whether the user lands here because the server refused the session, read once.
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    // Storage is read after mount: it isn't there while rendering on the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (takeSessionExpired()) setExpired(true);
+  }, []);
 
   useEffect(() => {
     if (auth.state.status === "signed_in") router.replace("/");

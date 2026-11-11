@@ -88,8 +88,11 @@ function useSupabaseAuth(url: string, anonKey: string, devEmailSignIn: boolean):
 
   useEffect(() => {
     const client = supabaseClient(url, anonKey);
-    const show = (session: Session | null) =>
+    const show = (session: Session | null) => {
+      // A successful sign-in clears any note that the last session expired.
+      if (session) clearSessionExpired();
       setState(session ? { status: "signed_in", user: userFrom(session) } : { status: "signed_out" });
+    };
     client.auth.getSession().then(({ data }) => show(data.session));
     const { data } = client.auth.onAuthStateChange((_event, session) => show(session));
     return () => data.subscription.unsubscribe();
@@ -241,6 +244,15 @@ export function markSessionExpired() {
     window.sessionStorage.setItem(EXPIRED_KEY, "1");
   } catch {
     // Storage is blocked: the sign-in page just won't say why.
+  }
+}
+
+/** Forgets that the last session expired. */
+export function clearSessionExpired() {
+  try {
+    window.sessionStorage.removeItem(EXPIRED_KEY);
+  } catch {
+    // Storage is blocked: nothing was noted.
   }
 }
 

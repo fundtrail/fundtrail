@@ -16,7 +16,6 @@ describe("describeError", () => {
     expect(describeError(new ApiError(403, null)).kind).toBe("not_found");
     expect(describeError(new ApiError(500, null)).kind).toBe("server");
     expect(describeError(new ApiError(503, null)).kind).toBe("server");
-    expect(describeError(new ApiError(0, null)).kind).toBe("connection");
     expect(describeError(new TypeError("Failed to fetch")).kind).toBe("connection");
     expect(describeError(new ApiError(401, null)).kind).toBe("session");
     expect(describeError(new ApiError(422, ["The amount is missing."]))).toEqual({ kind: "rejected", message: "The amount is missing." });
@@ -24,11 +23,12 @@ describe("describeError", () => {
 });
 
 describe("HttpApiClient", () => {
-  it("turns a failed connection into a status-0 ApiError", async () => {
+  it("lets a network failure through as fetch's own error, not an ApiError, and words it as a connection problem", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
     const error = await new HttpApiClient("https://api.example", async () => "t").listWorkspaces().catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(0);
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).not.toBeInstanceOf(ApiError);
+    expect(describeError(error)).toEqual({ kind: "connection", message: "Couldn't reach the server. Check your connection and try again." });
   });
 
   it("reports a refused session before throwing, and a missing one too", async () => {
@@ -56,7 +56,7 @@ describe("Loadable", () => {
 });
 
 describe("the sign-in page after an expired session", () => {
-  it("says the session expired, once", () => {
+  it("says the session expired, once", async () => {
     const auth: Auth = { state: { status: "signed_out" }, fake: false, signIn: async () => {}, signOut: async () => {}, getAccessToken: async () => null };
     markSessionExpired();
     const { unmount } = render(
@@ -64,7 +64,7 @@ describe("the sign-in page after an expired session", () => {
         <SignIn />
       </StaticAuthProvider>,
     );
-    expect(screen.getByText("Your session has expired. Sign in again.")).toBeInTheDocument();
+    expect(await screen.findByText("Your session has expired. Sign in again.")).toBeInTheDocument();
     unmount();
     render(
       <StaticAuthProvider value={auth}>
