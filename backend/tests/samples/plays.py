@@ -116,7 +116,9 @@ def _pointed_first(raw: list[Any]) -> list[Any]:
     waiting = list(raw)
     while waiting:
         for r in waiting:
-            needs = {r["data"].get("record_id"), r.get("replaces_id")} & ids
+            points_to = {r["data"].get("record_id"), r.get("replaces_id")}
+            points_to |= set(r["data"].get("rests_on") or ())
+            needs = points_to & ids
             if needs <= done:
                 out.append(r)
                 done.add(r["id"])

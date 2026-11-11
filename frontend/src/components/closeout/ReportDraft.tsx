@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, useApi, type Id, type SignOffState } from "@/lib/api";
 import { date } from "@/lib/format";
+import "./closeout.css";
 
 function errorText(error: unknown): string {
   if (error instanceof ApiError) {
@@ -47,8 +48,8 @@ export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOf
 
   const signed = signOff.sign_off ?? null;
   return (
-    <section className="ft-panel" aria-labelledby="report-heading">
-      <div className="ft-panel__head">
+    <section className="ft-co-report" aria-labelledby="report-heading">
+      <div className="ft-co-report__head">
         <h2 id="report-heading" className="ft-heading">
           Evidence report
         </h2>
@@ -63,28 +64,27 @@ export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOf
           <>Draft. It&apos;s made fresh from the records each time you open it.</>
         )}
       </p>
-      <p>
-        <button type="button" className={`ft-btn${busy ? " is-busy" : ""}`} disabled={busy} onClick={() => void load()}>
+      <div className="ft-co-actions">
+        <button type="button" className={`ft-btn ft-btn--sm${busy ? " is-busy" : ""}`} disabled={busy} onClick={() => void load()}>
           {busy ? "Making the draft…" : url ? "Make the draft again" : "Make the draft"}
-        </button>{" "}
+        </button>
         {url && (
           <>
             <a className="ft-link" href={url} target="_blank" rel="noopener">
               Open the draft (PDF)
             </a>
-            {" · "}
             <a className="ft-link" href={url} download={`evidence-report-draft-${grantId}.pdf`}>
               Save it
             </a>
           </>
         )}
-      </p>
+      </div>
       {error && (
         <p className="ft-error" role="alert">
           {error}
         </p>
       )}
-      <p className="ft-caption">
+      <p className="ft-co-foot">
         Attach the signed report to the university&apos;s closeout step, next to its own ledger report. FundTrail files
         nothing with the university or the funder.
       </p>
