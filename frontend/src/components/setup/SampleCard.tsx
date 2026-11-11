@@ -41,15 +41,23 @@ type OpenState =
  * chosen at first, with the chosen one's description, and Open. An option that
  * needs a confirm step asks for it first; an unavailable one shows its reason.
  * A sample opens as one grant in the user's own workspace.
+ *
+ * `main` says whether this side carries the page's one main button, which
+ * goes to the side the accountant used last; `onUse` says a sample was chosen.
+ * Alone, the card carries it once a sample is chosen.
  */
 export function SampleCard({
   options,
   openSample,
   onOpened,
+  main = true,
+  onUse,
 }: {
   options: SampleOption[];
   openSample: (body: SampleCreate) => Promise<GrantSummary>;
   onOpened: (grantId: Id) => void;
+  main?: boolean;
+  onUse?: () => void;
 }) {
   const selectId = useId();
   const [choice, setChoice] = useState<SampleChoice | "">("");
@@ -99,6 +107,7 @@ export function SampleCard({
           value={choice}
           onChange={(e) => {
             setChoice(e.target.value as SampleChoice | "");
+            if (e.target.value !== "") onUse?.();
             setNudge(false);
             setState({ status: "idle" });
           }}
@@ -124,7 +133,7 @@ export function SampleCard({
         <div className="ft-sample-confirm" role="group" aria-label="Confirm the sample">
           <p>{option.name} is read live by the agent from the start. Start it?</p>
           <div className="ft-actions">
-            <button type="button" className="ft-btn ft-btn--main" onClick={() => void open(true)}>
+            <button type="button" className={`ft-btn${main ? " ft-btn--main" : ""}`} onClick={() => void open(true)}>
               Start it
             </button>
             <button type="button" className="ft-btn ft-btn--quiet" onClick={() => setState({ status: "idle" })}>
@@ -136,7 +145,7 @@ export function SampleCard({
         <div className="ft-choice-card__actions">
           <button
             type="button"
-            className={`ft-btn${option ? " ft-btn--main" : ""}${busy ? " is-busy" : ""}`}
+            className={`ft-btn${option && main ? " ft-btn--main" : ""}${busy ? " is-busy" : ""}`}
             disabled={busy || (option !== null && !option.available)}
             onClick={clickOpen}
           >

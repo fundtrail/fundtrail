@@ -124,6 +124,69 @@ describe("GrantTerms", () => {
   });
 });
 
+describe("issue 269: the empty Terms panel and the waiting problem", () => {
+  it("says none are in force yet while terms wait, and no terms yet when none do", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const onlyWaiting = detail.terms.filter((t) => t.state === "waiting");
+    const { unmount } = render(<GrantTerms terms={onlyWaiting} rows={rows} />, { wrapper: Wrapper });
+    expect(screen.getByText("No terms in force yet. Confirm the ones waiting above.")).toBeInTheDocument();
+    unmount();
+    render(<GrantTerms terms={[]} rows={[]} />, { wrapper: Wrapper });
+    expect(screen.getByText("No terms yet. They appear as the agent reads the award letter.")).toBeInTheDocument();
+  });
+
+  it("doesn't repeat the waiting problem's line on a waiting term, and keeps any other problem", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const waitingProblem = { check: "terms", problem: "waiting", text: "This term waits for the accountant to confirm it." };
+    const other = { check: "check-x", problem: "problem-x", text: "Another problem with this term." };
+    const terms = detail.terms.map((t) =>
+      t.record.id === "rec-period-extension"
+        ? { ...t, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [waitingProblem, other], flagged: true } }
+        : t,
+    );
+    render(<GrantTerms terms={terms} rows={rows} />, { wrapper: Wrapper });
+    expect(within(waitingGroup()).queryByText("This term waits for the accountant to confirm it.")).not.toBeInTheDocument();
+    expect(within(waitingGroup()).getByText("Another problem with this term.")).toBeInTheDocument();
+  });
+});
+
+describe("issue 274: Open the source opens the value's spot", () => {
+  it("links each value to the viewer at its record and value", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    expect(within(waitingGroup()).getByRole("link", { name: "Open the source of end date" })).toHaveAttribute(
+      "href",
+      "/grants/grant-sample/files/file-extension-notice?record=rec-period-extension&value=end",
+    );
+  });
+});
+
+describe("the page's one main button", () => {
+  const mains = () => document.querySelectorAll(".ft-btn--main");
+
+  it("is the single waiting term's Confirm when there's nothing to confirm all of", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    expect(mains()).toHaveLength(1);
+    expect(mains()[0]).toHaveTextContent("Confirm");
+    expect(within(waitingGroup()).getByRole("button", { name: "Reject" })).toHaveClass("ft-btn--reject");
+  });
+
+  it("is Confirm all when it shows, each term's own Confirm an outlined approve button", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const ids = ["rec-period-extension", "rec-person-pi"];
+    const terms = detail.terms.map((t) => (ids.includes(t.record.id) ? { ...t, state: "waiting" as const } : t));
+    const notice = (await fakeHarness().client.getProblemList("grant-sample")).rows.find((r) => r.kind === "terms_waiting")!;
+    render(<GrantTerms terms={terms} rows={[{ ...notice, record_ids: ids } as ProblemRow]} />, { wrapper: Wrapper });
+    expect(mains()).toHaveLength(1);
+    expect(mains()[0]).toHaveTextContent("Confirm all 2");
+    for (const confirm of within(waitingGroup()).getAllByRole("button", { name: "Confirm" })) {
+      expect(confirm).toHaveClass("ft-btn--approve");
+      expect(confirm).not.toHaveClass("ft-btn--main");
+    }
+  });
+});
+
 describe("which terms open by themselves", () => {
   /** A term row's disclosure button, found by the values the closed row shows. */
   const rowOf = (name: RegExp) => screen.getByRole("button", { name });

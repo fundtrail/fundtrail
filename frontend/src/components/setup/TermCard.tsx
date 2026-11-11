@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
-import { viewerHref } from "@/components/evidence/links";
 import { pageCaption } from "@/components/viewer/placement";
 import type { Citation, FtRecord, RecordData, RecordDataInput, RecordState, TermView } from "@/lib/api";
 import { date, recordKindLabel } from "@/lib/format";
@@ -162,8 +161,10 @@ function sharedSpans(group: ShownField[]): Span[] | null {
  * confirmed it and when, its thread, and, while it waits, Confirm, Reject and
  * Type the right value. It opens by itself when it needs the accountant: it
  * waits, a value couldn't be found in the file, or the term has a problem.
+ * `lead` makes its Confirm the page's one main button, for a group with a
+ * single waiting term and so no Confirm all.
  */
-export function TermCard({ term, settled = false }: { term: TermView; settled?: boolean }) {
+export function TermCard({ term, settled = false, lead = false }: { term: TermView; settled?: boolean; lead?: boolean }) {
   const { record } = term;
   const kind = record.data.kind;
   const detailId = useId();
@@ -171,8 +172,9 @@ export function TermCard({ term, settled = false }: { term: TermView; settled?: 
   const [typing, setTyping] = useState(false);
   const [done, setDone] = useState<keyof typeof SAVED_LABELS | null>(null);
   const unconfirmed = (term.values ?? []).filter((v) => !v.confirmed);
-  const problems = term.status?.problems ?? [];
   const waiting = term.state === "waiting";
+  // The card already says "Waiting for you", so the waiting problem's line isn't repeated (issue 269).
+  const problems = (term.status?.problems ?? []).filter((p) => !(waiting && p.check === "terms" && p.problem === "waiting"));
   const [open, setOpen] = useState(waiting || unconfirmed.length > 0 || problems.length > 0);
 
   if (!isTermKind(kind)) return null;
@@ -241,7 +243,7 @@ export function TermCard({ term, settled = false }: { term: TermView; settled?: 
                               {page && <>{page} · </>}
                               <Link
                                 className="ft-link"
-                                href={viewerHref(record.grant_id, c.file_id, record.id, field.path)}
+                                href={routes.file(record.grant_id, c.file_id, { recordId: record.id, value: field.path })}
                                 aria-label={`Open the source of ${field.label.toLowerCase()}`}
                               >
                                 Open the source
@@ -304,7 +306,12 @@ export function TermCard({ term, settled = false }: { term: TermView; settled?: 
               )}
               {deciding && (
                 <>
-                  <button type="button" className="ft-btn ft-btn--sm ft-btn--approve" disabled={saving} onClick={() => void decide("confirmed")}>
+                  <button
+                    type="button"
+                    className={`ft-btn ft-btn--sm ft-btn--approve${lead ? " ft-btn--main" : ""}`}
+                    disabled={saving}
+                    onClick={() => void decide("confirmed")}
+                  >
                     Confirm
                   </button>
                   <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={saving} onClick={() => void decide("rejected")}>

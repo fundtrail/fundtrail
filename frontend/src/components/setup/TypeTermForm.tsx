@@ -228,7 +228,8 @@ export function TypeTermForm({
         </ul>
       )}
       <div className="ft-actions">
-        <button type="submit" className="ft-btn ft-btn--main ft-btn--sm" disabled={saving}>
+        {/* Outlined, not main: the page's one main button stays the set's Confirm. */}
+        <button type="submit" className="ft-btn ft-btn--sm" disabled={saving}>
           Save typed value
         </button>
         <button type="button" className="ft-btn ft-btn--quiet ft-btn--sm" onClick={onCancel} disabled={saving}>

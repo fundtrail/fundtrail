@@ -13,8 +13,12 @@ type AddState = { status: "idle" } | { status: "sending" } | { status: "added"; 
  * Adding a grant: the accountant drops in the award letter (product.md,
  * Grants). The grant comes back at once and its terms appear as the agent
  * writes them (contracts.md section 12), so this points to the terms page.
+ *
+ * `main` says whether this side carries the page's one main button, which
+ * goes to the side the accountant used last; `onUse` says a file was chosen.
+ * Alone, the form carries it once a file is chosen.
  */
-export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
+export function AddGrantForm({ workspaceId, main = true, onUse }: { workspaceId: Id; main?: boolean; onUse?: () => void }) {
   const api = useApi();
   const refresh = useRefresh();
   const inputId = useId();
@@ -41,7 +45,7 @@ export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
         <p className="ft-strong">Grant added.</p>
         <p>The agent is reading the award letter. Its terms appear as it writes them, and wait for you to confirm them.</p>
         <p className="ft-actions">
-          <Link className="ft-btn ft-btn--main" href={routes.terms(state.grant.id)}>
+          <Link className={`ft-btn${main ? " ft-btn--main" : ""}`} href={routes.terms(state.grant.id)}>
             Confirm its terms
           </Link>
           <Link className="ft-link" href={routes.grant(state.grant.id)}>
@@ -62,7 +66,16 @@ export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
           Award letter
         </label>
         <DropWell file={file} what="the award letter">
-          <input id={inputId} type="file" aria-describedby={`${inputId}-help`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <input
+            id={inputId}
+            type="file"
+            aria-describedby={`${inputId}-help`}
+            onChange={(e) => {
+              const chosen = e.target.files?.[0] ?? null;
+              setFile(chosen);
+              if (chosen) onUse?.();
+            }}
+          />
         </DropWell>
         <p id={`${inputId}-help`} className="ft-caption">
           The agent reads the terms from it: dates, budget lines, people, approval rules and anything else it says.
@@ -74,8 +87,7 @@ export function AddGrantForm({ workspaceId }: { workspaceId: Id }) {
         </p>
       )}
       <div className="ft-choice-card__actions">
-        {/* The main action only once a file is chosen: the side the accountant acted on carries it. */}
-        <button type="submit" className={`ft-btn${file ? " ft-btn--main" : ""}${sending ? " is-busy" : ""}`} disabled={!file || sending}>
+        <button type="submit" className={`ft-btn${file && main ? " ft-btn--main" : ""}${sending ? " is-busy" : ""}`} disabled={!file || sending}>
           Add the grant
         </button>
       </div>

@@ -24,7 +24,17 @@ function byKind(terms: TermView[]): [TermKind, TermView[]][] {
 }
 
 /** A list of terms under a quiet heading per kind, with its count when there's more than one. */
-function KindGroups({ terms, settled = false, heading: Heading }: { terms: TermView[]; settled?: boolean; heading: "h3" | "h4" }) {
+function KindGroups({
+  terms,
+  settled = false,
+  lead = false,
+  heading: Heading,
+}: {
+  terms: TermView[];
+  settled?: boolean;
+  lead?: boolean;
+  heading: "h3" | "h4";
+}) {
   return (
     <div className="ft-tgroups">
       {byKind(terms).map(([kind, group]) => (
@@ -34,7 +44,7 @@ function KindGroups({ terms, settled = false, heading: Heading }: { terms: TermV
             {group.length > 1 && <span className="ft-count">{group.length}</span>}
           </Heading>
           {group.map((t) => (
-            <TermCard key={t.record.id} term={t} settled={settled} />
+            <TermCard key={t.record.id} term={t} settled={settled} lead={lead} />
           ))}
         </div>
       ))}
@@ -42,8 +52,12 @@ function KindGroups({ terms, settled = false, heading: Heading }: { terms: TermV
   );
 }
 
-/** One source document's waiting terms, as one problem list row names them. */
-function WaitingGroup({ file, text, terms }: { file: EvidenceFile | null; text: string | null; terms: TermView[] }) {
+/**
+ * One source document's waiting terms, as one problem list row names them.
+ * The first group on the page carries its one main button: Confirm all, or
+ * its single term's Confirm when there's nothing to confirm all of.
+ */
+function WaitingGroup({ file, text, terms, primary }: { file: EvidenceFile | null; text: string | null; terms: TermView[]; primary: boolean }) {
   const { state, write } = useWrite();
   const [confirmedAll, setConfirmedAll] = useState(false);
   const waitingIds: Id[] = terms.filter((t) => t.state === "waiting").map((t) => t.record.id);
@@ -79,7 +93,7 @@ function WaitingGroup({ file, text, terms }: { file: EvidenceFile | null; text: 
         {waitingIds.length > 1 && !confirmedAll && (
           <button
             type="button"
-            className={`ft-btn ft-btn--approve ft-btn--main${saving ? " is-busy" : ""}`}
+            className={`ft-btn ft-btn--approve${primary ? " ft-btn--main" : ""}${saving ? " is-busy" : ""}`}
             disabled={saving}
             onClick={() => void confirmAll()}
           >
@@ -97,7 +111,7 @@ function WaitingGroup({ file, text, terms }: { file: EvidenceFile | null; text: 
           <WriteProblems state={state} />
         </div>
       )}
-      <KindGroups terms={terms} settled={confirmedAll} heading="h4" />
+      <KindGroups terms={terms} settled={confirmedAll} lead={primary && waitingIds.length === 1} heading="h4" />
     </section>
   );
 }
@@ -150,15 +164,16 @@ export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRo
           Waiting for you
         </h2>
         {waitingRows.length === 0 && ungrouped.length === 0 && <p className="ft-waiting__none">No terms are waiting to be confirmed.</p>}
-        {waitingRows.map((row) => (
+        {waitingRows.map((row, i) => (
           <WaitingGroup
             key={row.file.id}
             file={row.file}
             text={row.text}
             terms={row.record_ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []))}
+            primary={i === 0}
           />
         ))}
-        {ungrouped.length > 0 && <WaitingGroup file={null} text={null} terms={ungrouped} />}
+        {ungrouped.length > 0 && <WaitingGroup file={null} text={null} terms={ungrouped} primary={waitingRows.length === 0} />}
       </section>
 
       <section className="ft-panel" aria-labelledby="terms-heading">
@@ -168,7 +183,9 @@ export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRo
           </h2>
         </div>
         {rest.length === 0 ? (
-          <p className="ft-empty">No terms yet. They appear as the agent reads the award letter.</p>
+          <p className="ft-empty">
+            {termTerms.some((t) => t.state === "waiting") ? "No terms in force yet. Confirm the ones waiting above." : "No terms yet. They appear as the agent reads the award letter."}
+          </p>
         ) : (
           <>
             {inForce.length > 0 && <KindGroups terms={inForce} heading="h3" />}
