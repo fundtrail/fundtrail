@@ -159,7 +159,21 @@ function sampleGrantState(events: TimelineEvent[]): TimelineState {
   return state;
 }
 
-function view(events: TimelineEvent[], state: TimelineState, problemRows: number): TimelineView {
+/** Ruling 86: the highlight's own step due and unmade that Next highlight waits for, in plain words. */
+function ownStepWaiting(events: TimelineEvent[], state: TimelineState, marks: Record<string, string>): string | null {
+  const step = scriptedSteps(events).find(
+    (s) => !!marks[s.id] && s.decision?.data.kind !== "sign_off" && !isDone(s, state) && time(s.at) <= time(state.now),
+  );
+  if (!step) return null;
+  const what = step.delivery
+    ? `Bring in ${step.delivery.name}`
+    : step.decision?.data.kind === "confirmation"
+      ? "Confirm the terms"
+      : "Make this highlight's decision";
+  return `${what} first: that's this highlight's step.`;
+}
+
+function view(events: TimelineEvent[], state: TimelineState, problemRows: number, marks: Record<string, string> = {}): TimelineView {
   const byId = new Map(events.map((e) => [e.id, e]));
   const deliveries = events
     .filter((e) => e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id))
@@ -184,6 +198,8 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     catching_up: false,
     // The fake's samples are read live, so there's no run-through.
     on_run_through: null,
+    // Ruling 86 only; the fake has never given a reason for no highlight being left.
+    next_highlight_unavailable_reason: ownStepWaiting(events, state, marks),
   };
 }
 
@@ -249,7 +265,8 @@ function skipHumanSteps(
   for (const step of scriptedSteps(events)) {
     if (isDone(step, state)) continue;
     const signOff = step.decision?.data.kind === "sign_off";
-    const ownStep = !!nextHighlight && marks[step.id] === nextHighlight;
+    // On a Next highlight move, every highlight's own step is held (ruling 86).
+    const ownStep = !!nextHighlight && !!marks[step.id];
     if (inThisMove(step) && (signOff || ownStep)) {
       state.held.add(step.id);
       continue;
@@ -310,7 +327,8 @@ export function samplesFake(hooks: {
   const stepHighlights = hooks.stepHighlights ?? STEP_HIGHLIGHTS;
   const timelines = new Map<Id, { state: TimelineState }>([[SAMPLE_GRANT_ID, { state: sampleGrantState(events) }]]);
   const notASample = () => served<TimelineView>(undefined);
-  const show = (grantId: Id) => served(view(events, timelines.get(grantId)!.state, grantId === SAMPLE_GRANT_ID ? hooks.problemRows : 0));
+  const show = (grantId: Id) =>
+    served(view(events, timelines.get(grantId)!.state, grantId === SAMPLE_GRANT_ID ? hooks.problemRows : 0, stepHighlights));
 
   return {
     listSamples: () => served(SAMPLE_OPTIONS),
@@ -348,19 +366,29 @@ export function samplesFake(hooks: {
         // later of H's event and the due times of H's own steps.
         const target = events.find((e) => !state.played.has(e.id) && e.highlight);
         if (!target) return Promise.reject(new ApiError(409, "No highlight is left to play."));
-        // A sign-off never moves the stop: it's held, and Closeout stops on its own event.
-        const ownDue = scriptedSteps(events)
-          .filter(
-            (step) =>
-              stepHighlights[step.id] === target.highlight &&
-              step.decision?.data.kind !== "sign_off" &&
-              !isDone(step, state),
-          )
-          .map((step) => step.at);
-        const stop = [target.at, ...ownDue].reduce((a, b) => (time(b) > time(a) ? b : a));
-        playTo(events, state, stop);
-        // Ruling 85: Now names the highlight the move reached, even where it stopped later.
-        state.stoppedOn = target.id;
+        // Ruling 86: while a highlight's own step is due and unmade, it waits for the user.
+        const waiting = ownStepWaiting(events, state, stepHighlights);
+        if (waiting) return Promise.reject(new ApiError(409, waiting));
+        // The highlights' own steps still to come. A sign-off never moves the stop: it's
+        // held, and Closeout stops on its own event.
+        const own = scriptedSteps(events).filter(
+          (step) =>
+            !!stepHighlights[step.id] &&
+            step.decision?.data.kind !== "sign_off" &&
+            !isDone(step, state) &&
+            time(step.at) > time(state.now),
+        );
+        const earlier = own.filter((step) => stepHighlights[step.id] !== target.highlight && time(step.at) <= time(target.at));
+        if (earlier.length > 0) {
+          // An earlier highlight's own step comes due first: the move stops there and holds it.
+          playTo(events, state, earlier[0].at);
+        } else {
+          const ownDue = own.filter((step) => stepHighlights[step.id] === target.highlight).map((step) => step.at);
+          const stop = [target.at, ...ownDue].reduce((a, b) => (time(b) > time(a) ? b : a));
+          playTo(events, state, stop);
+          // Ruling 85: Now names the highlight the move reached, even where it stopped later.
+          state.stoppedOn = target.id;
+        }
         skipHumanSteps(events, state, stepHighlights, from, target.highlight);
         return show(grantId);
       }
