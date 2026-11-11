@@ -600,6 +600,24 @@ p {
   width: 100%;
 }
 
+/* Local development's email sign-in (ruling 63), under the Google button. */
+.ft-si__email {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+.ft-si__email input {
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+}
+
 /* Ruling 62: benefit charges waiting on a salary line, listed under its row. */
 .ft-problem__waiting {
   margin: var(--space-1) 0 0;

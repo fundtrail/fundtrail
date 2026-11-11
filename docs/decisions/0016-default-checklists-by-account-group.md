@@ -1,6 +1,6 @@
 # 0016. Default checklists hang on groups of accounts
 
-**Date:** 2026-11-10 · **Status:** accepted. Amends [0011](0011-evidence-checklist.md).
+**Date:** 2026-11-10 · **Status:** accepted. Amends [0011](0011-evidence-checklist.md). Amended by [0030](0030-benefit-charges.md) (the benefits group's "Benefit rate" item is filled by code's recalculation).
 
 ## Context
 
