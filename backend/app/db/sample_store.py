@@ -17,9 +17,15 @@ from .store import Conn
 
 @dataclass(frozen=True)
 class SampleMove:
-    moved_from: datetime | None  # None when the sample was opened
+    """One move of a sample grant's clock. `moved_from` is the clock when the move was
+    made (None when the sample was opened): what the clock passes from there while the
+    move is the grant's last is what the move played, a walk's later steps included.
+    `moved_to` is where it's going."""
+
+    moved_from: datetime | None
     moved_to: datetime
     id: int = 0
+    walk_stopped: str | None = None  # why its walk stopped short of moved_to
 
 
 @dataclass(frozen=True)
@@ -53,11 +59,13 @@ def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to
 
 def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     row = conn.execute(
-        """select id, moved_from, moved_to from public.sample_moves
+        """select id, moved_from, moved_to, walk_stopped from public.sample_moves
            where grant_id = %s order by id desc limit 1""",
         (grant_id,),
     ).fetchone()
-    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"])) if row else None
+    if row is None:
+        return None
+    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"]), row["walk_stopped"])
 
 
 _SCRIPTED = "step, move_id, at, state, record_id, file_id"
@@ -111,6 +119,50 @@ def start_walk(conn: Conn, grant_id: str, target: datetime) -> None:
 
 def end_walk(conn: Conn, grant_id: str) -> None:
     conn.execute("delete from public.sample_walks where grant_id = %s", (grant_id,))
+
+
+def stop_walk(conn: Conn, grant_id: str, reason: str) -> None:
+    """End the walk short of its date: its steps not yet made are left for the user, and
+    the grant's last move keeps the reason."""
+    end_walk(conn, grant_id)
+    conn.execute(
+        """update public.sample_scripted set state = 'left'
+           where grant_id = %s and state = 'pending'""",
+        (grant_id,),
+    )
+    conn.execute(
+        """update public.sample_moves set walk_stopped = %s
+           where id = (select max(id) from public.sample_moves where grant_id = %s)""",
+        (reason, grant_id),
+    )
+
+
+def walking_grants(conn: Conn) -> list[str]:
+    """The grants with a walk under way."""
+    rows = conn.execute("select grant_id from public.sample_walks order by grant_id").fetchall()
+    return [r["grant_id"] for r in rows]
+
+
+def idle_check(conn: Conn, grant_id: str, idle: bool) -> int:
+    """Count one more check that found the walk waiting on runs no job will run (`idle`),
+    or start the count again. Returns the count."""
+    row = conn.execute(
+        """update public.sample_walks
+             set idle_checks = case when %s then idle_checks + 1 else 0 end
+           where grant_id = %s returning idle_checks""",
+        (idle, grant_id),
+    ).fetchone()
+    return int(row["idle_checks"]) if row else 0
+
+
+def live_run_jobs(conn: Conn, grant_id: str) -> bool:
+    """Whether a job of the grant's agent runs is waiting to start or running."""
+    row = conn.execute(
+        """select 1 from procrastinate_jobs
+           where lock = %s and status in ('todo', 'doing') limit 1""",
+        (grant_lock(grant_id),),
+    ).fetchone()
+    return row is not None
 
 
 def catch_up_runs_before(conn: Conn, grant_id: str, at: datetime) -> bool:

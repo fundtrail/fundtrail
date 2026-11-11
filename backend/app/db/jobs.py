@@ -284,7 +284,6 @@ def save_run(
 
         return step_after_catch_up(p, conn, grant, run).questions
     output = recheck_grant(conn, p.checks, grant, now, run.trigger)
-    clock.continue_walk(p, conn, grant)
     return output.questions
 
 
@@ -361,6 +360,8 @@ def _attempt(p: Platform, run: AgentRun, attempt: int, catch_up: bool) -> None:
         for follow_up in follow_ups:
             ping_run(p.pinger, follow_up)
         ping_changed(p.pinger, run.workspace_id, run.grant_id, "records", "statuses", "thread")
+        # The run has committed: a sample grant's walk goes on now, apart from it.
+        clock.continue_walk(p, run.grant_id)
         return
 
 
@@ -442,7 +443,8 @@ def _fail_for_good(
     time, as its save would have.
 
     Two transactions: the run ends `failed` even when the checks themselves raise, which is
-    logged; the next recheck on the grant raises the problem then."""
+    logged; the next recheck on the grant raises the problem then. A sample grant's walk
+    goes on after both, in a third."""
     with transaction(p.pool) as conn:
         run = store.get_run(conn, run_id, lock=True)
         if run is None or run.status in (RunStatus.DONE, RunStatus.FAILED):
@@ -460,11 +462,12 @@ def _fail_for_good(
             else:
                 now = clock.grant_now(conn, grant.id)
                 recheck_grant(conn, p.checks, grant, now, run.trigger)
-                clock.continue_walk(p, conn, grant)
     except Exception as error:  # noqa: BLE001 - the run is failed already; say so and go on
         log.warning("checks after run %s failed for good raised %s", run.id, type(error).__name__)
+        clock.continue_walk(p, run.grant_id)
         return
     ping_changed(p.pinger, run.workspace_id, run.grant_id, "statuses")
+    clock.continue_walk(p, run.grant_id)
 
 
 # Procrastinate.
@@ -493,6 +496,14 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
     in the queue once its worker has stopped sending heartbeats (Procrastinate's recipe)."""
     for job in await context.app.job_manager.get_stalled_jobs(task_name=TASK_NAME):
         await context.app.job_manager.retry_job(job)
+
+
+@app.periodic(cron="* * * * *", periodic_id="check_walks")
+@app.task(name="check_walks", queue=QUEUE, lock="walk_checker", pass_context=False)
+def check_walks_task(timestamp: int) -> None:
+    """Every minute: a sample grant's walk that nothing is taking on goes on, or stops
+    with a reason when the agent runs it waits for have no job left to run them."""
+    clock.check_walks(get_platform())
 
 
 @app.periodic(cron="5 0 * * *", periodic_id="daily_recheck")
