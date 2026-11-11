@@ -117,7 +117,9 @@ describe("the agent's duplicate mark on the copy's card", () => {
     ] as const) {
       const api = createFakeApiClient();
       const before = await api.getCharge("chg-l-1002");
-      expect(before.waiting?.map((w) => w.record.id)).toEqual([DUPLICATE_MARK.id]);
+      // As on the server, L-1002 links the original, so its waiting list leaves the mark out: the reason names it.
+      expect(before.waiting).toEqual([]);
+      expect(before.records?.[DUPLICATE_MARK.id]).toEqual(DUPLICATE_MARK);
       expect(before.status?.reasons.some((r) => r.check === "suggestion" && r.record_ids?.includes(DUPLICATE_MARK.id))).toBe(true);
       expect(before.status?.bucket).toBe("possible_conflict");
 
@@ -126,10 +128,9 @@ describe("the agent's duplicate mark on the copy's card", () => {
       const copy = (await api.listEvidence(GRANT)).find((c) => c.file.name === COPY);
       expect(copy?.duplicate?.state ?? null).toBe(after);
       const charge = await api.getCharge("chg-l-1002");
-      expect(charge.waiting).toEqual([]);
       expect(charge.status?.reasons.some((r) => r.check === "suggestion")).toBe(false);
       // Each client keeps its own: a fresh one still has the mark waiting.
-      expect((await createFakeApiClient().getCharge("chg-l-1002")).waiting).toHaveLength(1);
+      expect((await createFakeApiClient().getCharge("chg-l-1002")).status?.reasons.some((r) => r.check === "suggestion")).toBe(true);
     }
   });
 

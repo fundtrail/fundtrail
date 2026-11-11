@@ -119,6 +119,29 @@ describe("the Evidence page", () => {
   });
 });
 
+describe("deciding the agent's duplicate mark on the Evidence page (issue 353)", () => {
+  it("after a saved decision whose refetch fails, shows the error and Try again, which reloads without writing", async () => {
+    const client = createFakeApiClient();
+    const writeRecord = vi.spyOn(client, "writeRecord");
+    const listEvidence = vi.spyOn(client, "listEvidence");
+    renderPage("file=file-syn-sequencing-statement-forwarded", client);
+    const group = await within(await screen.findByRole("region", { name: "The selected file" })).findByRole("group", { name: "The agent's duplicate mark" });
+    // The write goes through; the refetch after it fails.
+    listEvidence.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.click(within(group).getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
+    // Try again only loads: the card comes back in the server's new state, and nothing is written again.
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(within(screen.getByRole("region", { name: "The selected file" })).getByText("Copy of sequencing_statement.eml")).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("group", { name: "The agent's duplicate mark" })).toBeNull();
+    expect(writeRecord).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("the build's lines in the evidence screens", () => {
   const read = (p: string) => readFileSync(resolve(process.cwd(), "src/app/grants/[grantId]/files", p), "utf8");
 

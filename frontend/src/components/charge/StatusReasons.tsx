@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Bucket, Cents, ChargeStatus, FtRecord, Id, Reason, SuggestionView } from "@/lib/api";
+import type { Bucket, Cents, ChargeStatus, FtRecord, Id, Reason } from "@/lib/api";
 import { date, money } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
 import type { OnWrite } from "../thread/useThreadActions";
@@ -21,17 +21,27 @@ function reasonKey(r: Reason): string {
   return `${r.check}:${r.problem}`;
 }
 
-/** The check code gives a reason that shows one of the agent's suggestions waiting for the accountant. */
+/**
+ * The check code gives a reason that shows one of the agent's suggestions
+ * waiting for the accountant, and how it names that suggestion in the
+ * reason's problem: "waiting:<record id>" (backend/app/checks/charge_checks.py).
+ * Code writes this reason only while the record waits.
+ */
 const SUGGESTION_CHECK = "suggestion";
+const WAITING_PREFIX = "waiting:";
 
 /**
- * The waiting record a reason shows, to decide on the reason's row: one the
- * server lists as waiting on this charge (`decideHere`) and that the reason
- * names. Undefined for any other reason.
+ * The waiting record a reason shows, to decide on the reason's row: the one
+ * its problem names, when the reason also lists it and it's the agent's.
+ * Undefined for any other reason, an accepted one, or a record the review
+ * thread already offers to decide (`inThread`).
  */
-function waitingOn(r: Reason, decideHere: SuggestionView[]): Id | undefined {
-  if (r.check !== SUGGESTION_CHECK || r.accepted_by) return undefined;
-  return decideHere.find((w) => (r.record_ids ?? []).includes(w.record.id))?.record.id;
+function waitingOn(r: Reason, records: Record<Id, FtRecord>, inThread: readonly Id[]): Id | undefined {
+  if (r.check !== SUGGESTION_CHECK || r.accepted_by || !r.problem.startsWith(WAITING_PREFIX)) return undefined;
+  const id = r.problem.slice(WAITING_PREFIX.length);
+  if (!id || !(r.record_ids ?? []).includes(id) || inThread.includes(id)) return undefined;
+  const record = records[id];
+  return record && record.author !== "agent" ? undefined : id;
 }
 
 /**
@@ -82,15 +92,15 @@ function AcceptedBy({
  * them; then the reasons that pass, closed to one line that opens in place.
  * The screen builds no status text of its own. With `onWrite`, each failing
  * reason can be accepted with a note, and the charge can be snoozed. A
- * reason that shows one of the agent's records waiting in `decideHere` also
- * offers Confirm and Reject for that record.
+ * reason that shows one of the agent's records waiting also offers Confirm
+ * and Reject for that record, unless the review thread offers them.
  */
 export function StatusReasons({
   status,
   chargeId,
   chargedCents,
   records = {},
-  decideHere = [],
+  inThread = [],
   onWrite,
 }: {
   status: ChargeStatus | null;
@@ -98,8 +108,8 @@ export function StatusReasons({
   /** The charge's amount, to set beside an amount code expected (ruling 61). */
   chargedCents?: Cents;
   records?: Record<Id, FtRecord>;
-  /** The agent's records waiting on this charge that nothing else on the page offers to decide. */
-  decideHere?: SuggestionView[];
+  /** The agent's waiting records the review thread already offers to decide. */
+  inThread?: readonly Id[];
   onWrite?: OnWrite;
 }) {
   const reasons = status?.reasons ?? [];
@@ -129,7 +139,7 @@ export function StatusReasons({
       {failing.length > 0 && (
         <TrailGroup label="Reasons">
           {failing.map((r) => {
-            const waiting = waitingOn(r, decideHere);
+            const waiting = waitingOn(r, records, inThread);
             const hasDetail = (r.expected_cents != null && chargedCents !== undefined) || r.expected_by || r.accepted_by || onWrite;
             return (
               <TrailNode

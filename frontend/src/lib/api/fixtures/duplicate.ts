@@ -3,10 +3,13 @@
 //
 // The contract's sample has no copy, so this adds one synthetic file: the
 // sequencing statement forwarded a second time. The agent marks it as a copy
-// of sequencing_statement.eml and the mark waits. The fake shows the mark on
-// L-1002, the charge the statement pays for; that charge is already in
-// Possible conflict, which is more serious than the Needs a human reason the
-// mark adds, so its bucket doesn't change. A confirmation naming the mark
+// of sequencing_statement.eml and the mark waits. The checks give a reason for
+// it to L-1002, the charge the original statement pays for: they follow links
+// from the copy or the original. The charge's `waiting` list doesn't include
+// the mark, as the server's doesn't when only the original is linked, so the
+// screen finds the mark through the reason. L-1002 is already in Possible
+// conflict, which is more serious than the Needs a human reason the mark adds,
+// so its bucket doesn't change. A confirmation naming the mark
 // settles it: confirmed, the card says only what the copy is; rejected, the
 // card says nothing about a copy. Either way the charge's reason goes. The
 // fake has no checks, so nothing else changes.
@@ -66,13 +69,12 @@ export function duplicateFake() {
       if (!data.record_ids.includes(DUPLICATE_MARK.id)) return;
       state = data.decision === "rejected" ? "rejected" : "counts";
     },
-    /** The charge's detail with the waiting mark on it, while it waits. */
+    /** The charge's detail with the waiting mark's reason on it, and the mark among the records it rests on, while it waits. */
     onCharge(detail: ChargeDetail): ChargeDetail {
       if (state !== "waiting" || detail.charge.id !== DUPLICATE_CHARGE_ID || !detail.status) return detail;
       return {
         ...detail,
         status: { ...detail.status, reasons: [...detail.status.reasons, DUPLICATE_REASON] },
-        waiting: [...(detail.waiting ?? []), { record: DUPLICATE_MARK, replaces: null, charge_ids: [DUPLICATE_CHARGE_ID] }],
         records: { ...(detail.records ?? {}), [DUPLICATE_MARK.id]: DUPLICATE_MARK },
       };
     },
