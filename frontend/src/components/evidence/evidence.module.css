@@ -49,6 +49,13 @@
   border-bottom: 1px solid var(--rule);
 }
 
+/* The file's name as the page's heading for the card: the same size, no heading margins. */
+.fileHeading {
+  margin: 0;
+  font-size: inherit;
+  line-height: 1.35;
+}
+
 .fileName {
   font-family: var(--mono);
   font-size: 14px;
@@ -167,6 +174,15 @@
 @media (max-width: 640px) {
   .valueRow {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* A card in a narrow column (beside a list) stacks its label over its value, as a phone does. */
+@container (max-width: 520px) {
+  .valueRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sharedQuote dd {
+    grid-column: 1;
   }
 }
 

@@ -17,6 +17,8 @@ import { createFakeApiClient } from "@/lib/api/fake";
 import { FakeAuthProvider } from "@/lib/auth";
 import { ConfirmValues } from "./ConfirmValues";
 import { EvidenceCardView } from "./EvidenceCardView";
+import { fileFacts } from "./fileFacts";
+import { fileTags } from "./FileList";
 import { findCitation } from "./findCitation";
 import { excerptWindow, unionRanges, valueRanges } from "./quote";
 import { QuoteLink } from "./QuoteLink";
@@ -261,6 +263,71 @@ describe("QuoteLink", () => {
     // A reading-text passage of a different length: stored positions don't count in it.
     expect(valueRanges({ ...c, passage: `${PASSAGE} (forwarded)` })).toBeNull();
     expect(excerptWindow(PASSAGE, null)).toBeNull();
+  });
+});
+
+describe("the file list's tags", () => {
+  it("says a copy as the card says it, whole, with the copy mark's state while it waits", async () => {
+    const cards = await sampleCards();
+    const base = card(cards, "invoice_1001.txt");
+    const original = card(cards, "award_letter.txt").file;
+    const copy: EvidenceCard = {
+      ...base,
+      duplicate: {
+        mark: { ...base.facts![0].record, id: "rec-dup", data: { kind: "duplicate", copy_file_id: base.file.id, original_file_id: original.id } },
+        state: "waiting",
+      } as EvidenceCard["duplicate"],
+      files: { [original.id]: original },
+    };
+    expect(fileTags(copy).map((t) => t.text)).toContain("Copy of award_letter.txt · Waiting for the accountant");
+    render(<EvidenceCardView grantId={GRANT} card={copy} />);
+    expect(screen.getByText("Copy of award_letter.txt · Waiting for the accountant")).toBeInTheDocument();
+    // Once the copy counts, both say only what it is.
+    const counted = { ...copy, duplicate: { ...copy.duplicate!, state: "counts" as const } };
+    expect(fileTags(counted).map((t) => t.text)).toContain("Copy of award_letter.txt");
+  });
+});
+
+describe("In this file", () => {
+  it("lists only the values whose citation is in this file", () => {
+    const cite = (fileId: string, passage: string) => ({
+      file_id: fileId,
+      passage,
+      location: { type: "char_location" as const, start_char_index: 0, end_char_index: passage.length },
+      match: "exact" as const,
+    });
+    // One record whose values cite two files: it's on both files' cards.
+    const record = {
+      id: "rec-two-files",
+      data: {
+        kind: "bill",
+        total: { value: 12_000, text: "$120.00", citation: cite("file-a", "Total: $120.00") },
+        vendor: { value: "Example Supply", text: "Example Supply", citation: cite("file-b", "Example Supply") },
+        dated: { value: "2026-03-01", text: "March 1, 2026", citation: null, uncited: true },
+      },
+    } as unknown as FtRecord;
+    const onA = {
+      file: { id: "file-a", name: "a.txt" },
+      facts: [
+        {
+          record,
+          state: "counts",
+          values: [
+            { path: "total", confirmed: true },
+            { path: "vendor", confirmed: true },
+            { path: "dated", confirmed: false },
+          ],
+        },
+      ],
+    } as unknown as EvidenceCard;
+    const groups = fileFacts(GRANT, onA, { recordId: "rec-two-files", value: "total" });
+    expect(groups).toHaveLength(1);
+    expect(groups[0].values.map((v) => v.label)).toEqual(["Total"]);
+    expect(groups[0].values[0].href).toBe("/grants/grant-sample/files/file-a?record=rec-two-files&value=total");
+    expect(groups[0].values[0].current).toBe(true);
+    // On the other file's card, only the value from that file.
+    const onB = { ...onA, file: { id: "file-b", name: "b.txt" } } as unknown as EvidenceCard;
+    expect(fileFacts(GRANT, onB, { recordId: null, value: null })[0].values.map((v) => v.label)).toEqual(["Vendor"]);
   });
 });
 
