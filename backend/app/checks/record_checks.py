@@ -278,7 +278,6 @@ def record_problems(
                 )
             )
 
-    taken: dict[tuple[str | None, str | None], set[str]] = {}
     for r in view.judgments:
         j = r.data
         assert isinstance(j, Judgment)
@@ -299,9 +298,7 @@ def record_problems(
                 subject,
                 Finding(
                     "flag",
-                    flag_code(
-                        view, r, taken.setdefault((subject.record_id, subject.file_id), set())
-                    ),
+                    flag_code(view, r),
                     ANSWER_BUCKET[j.answer],
                     f"{who}: {j.text}",
                     [r.id, *j.rests_on],

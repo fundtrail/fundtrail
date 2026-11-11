@@ -609,7 +609,6 @@ def _budget_line_check(charge: Charge, view: GrantView) -> list[Finding]:
 
 def _flags(charge: Charge, view: GrantView) -> list[Finding]:
     out: list[Finding] = []
-    taken: set[str] = set()
     for r in view.judgments:
         j = r.data
         assert isinstance(j, Judgment)
@@ -622,7 +621,7 @@ def _flags(charge: Charge, view: GrantView) -> list[Finding]:
         out.append(
             Finding(
                 "flag",
-                flag_code(view, r, taken),
+                flag_code(view, r),
                 ANSWER_BUCKET[j.answer],
                 text,
                 [r.id, *j.rests_on],

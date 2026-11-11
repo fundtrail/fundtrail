@@ -209,3 +209,75 @@ def test_one_approval_filling_two_items_is_one_reason_per_code() -> None:
     codes = [(r.check, r.problem) for r in g.status("stip", at(2024, 6, 4)).reasons]
     assert len(codes) == len(set(codes))
     assert any(p.startswith("approval_late:") for c, p in codes if c == "approval")
+
+
+def _two_flags() -> tuple[Grant, str, str]:
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("c1", date(2024, 3, 1), 10000)
+    f = g.file("f1", at(2024, 3, 1))
+    b = g.bill(10000, f, at(2024, 3, 1))
+    g.link(b, "c1", at(2024, 3, 1), amount=10000, default="bill")
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
+    f1 = g.answer("c1", "unsure", at(2024, 3, 1), question="flag", rule="refund")
+    f2 = g.answer("c1", "unsure", at(2024, 3, 2), question="flag", rule="refund")
+    return g, f1, f2
+
+
+def _flag_codes(g: Grant, day: int) -> dict[str, str]:
+    """Each flag's code, by the root of the flag it belongs to."""
+    status = g.status("c1", at(2024, 3, day))
+    return {r.record_ids[0]: r.problem for r in status.reasons if r.check == "flag"}
+
+
+def test_a_flags_code_never_moves_when_another_flag_is_answered_or_withdrawn() -> None:
+    g, f1, f2 = _two_flags()
+    assert _flag_codes(g, 3) == {f1: "flag:refund", f2: f"flag:refund:{f2}"}
+    # The accountant answers flag 1: flag 2 keeps its own code.
+    answer = g.answer("c1", "unsure", at(2024, 3, 4), question="flag", author="user", replaces=f1)
+    codes = _flag_codes(g, 5)
+    assert codes[f2] == f"flag:refund:{f2}" and codes[answer] == "flag:refund"
+    # The agent withdraws flag 2 and the accountant confirms: flag 1's code stays too.
+    g2, a1, a2 = _two_flags()
+    retraction = g2.agent({"kind": "retraction"}, at(2024, 3, 4), replaces=a1)
+    g2.confirm(retraction, when=at(2024, 3, 4, 13))
+    assert _flag_codes(g2, 5) == {a2: f"flag:refund:{a2}"}
+
+
+def test_a_snooze_or_acceptance_of_one_flag_stays_with_that_flag() -> None:
+    from datetime import date as d
+
+    g, f1, f2 = _two_flags()
+    g.user(
+        {
+            "kind": "accepted_reason",
+            "charge_id": "c1",
+            "reason": {"check": "flag", "problem": f"flag:refund:{f2}"},
+            "note": "The refund is expected.",
+            "rests_on": [f2],
+        },
+        at(2024, 3, 3),
+    )
+    g.user(
+        {
+            "kind": "snooze",
+            "charge_id": "c1",
+            "until": d(2024, 9, 1),
+            "note": "Waiting on the vendor.",
+            "reasons": [{"check": "flag", "problem": "flag:refund"}],
+        },
+        at(2024, 3, 3),
+    )
+    g.answer("c1", "unsure", at(2024, 3, 4), question="flag", author="user", replaces=f1)
+    status = g.status("c1", at(2024, 3, 5))
+    second = next(r for r in status.reasons if r.problem == f"flag:refund:{f2}")
+    assert second.accepted_by is not None
+
+
+def test_a_reusable_note_on_a_second_flag_reaches_a_later_charges_flag() -> None:
+    from app.checks.codes import same_family
+
+    assert same_family("flag", "flag:refund:r16", "flag", "flag:refund")
+    assert same_family("flag", "flag:refund", "flag", "flag:refund:r40")
+    assert not same_family("flag", "flag:refund", "flag", "flag:late")
