@@ -7,7 +7,6 @@ import { AppShell } from "@/components/AppShell";
 import { Loadable } from "@/components/Loadable";
 import { BudgetFigures } from "@/components/BudgetFigures";
 import { ProblemBrief, problemRowKey } from "@/components/ProblemList";
-import { SampleTimeline } from "@/components/timeline/TimelinePanel";
 import { useGrantDisplayName } from "@/lib/grantName";
 import {
   useCharges,
@@ -57,7 +56,7 @@ function Head({ summary, start }: { summary: GrantSummary; start: IsoDate | null
   return (
     <header className={styles.head}>
       <div className={styles.headText}>
-        <h1 className={styles.title}>{grantName(summary)}</h1>
+        <h1 className={`ft-title ${styles.title}`}>{grantName(summary)}</h1>
         <p className={styles.meta}>
           {grant.award_number && <span className="ft-id">{grant.award_number}</span>}
           <span>{FUNDER_LABELS[grant.funder ?? "NSF"] ?? grant.funder}</span>
@@ -287,8 +286,6 @@ export function GrantScreen() {
             return (
               <>
                 <Head summary={data.summary} start={start} />
-                {/* Only a sample grant has a timeline to play. */}
-                <SampleTimeline summary={data.summary} />
                 <NeedsYou grantId={grantId} summary={data.summary} rows={problems.data?.rows} />
                 {problems.error && <Loadable result={problems}>{() => null}</Loadable>}
                 <div className={styles.facts}>

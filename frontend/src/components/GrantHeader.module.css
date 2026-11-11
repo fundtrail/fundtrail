@@ -21,11 +21,8 @@
   font-size: 12px;
   line-height: inherit;
 }
+/* The page heading's type is .ft-title, shared by every page. */
 .title {
-  margin: 0;
-  font: 700 30px/1.1 var(--display);
-  letter-spacing: -0.02em;
-  text-wrap: balance;
   overflow-wrap: anywhere;
 }
 .links {
@@ -121,8 +118,5 @@
   }
   .buckets {
     justify-content: flex-start;
-  }
-  .title {
-    font-size: 26px;
   }
 }

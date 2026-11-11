@@ -1,5 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiProvider, type ApiClient } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { FAKE_USER, StaticAuthProvider, type Auth } from "@/lib/auth";
@@ -171,6 +171,63 @@ describe("the account block and the breadcrumbs", () => {
     const crumbs = screen.getByRole("list", { name: "Breadcrumbs" });
     expect(within(crumbs).getByText("Low-Cost Nitrate Sensors")).toHaveAttribute("title", "Low-Cost Nitrate Sensors");
     expect(within(crumbs).getByText("L-1958-0004")).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("the sample timeline toggle (issue 348)", () => {
+  const toggle = () => within(nav()).queryByRole("button", { name: "Sample timeline" });
+  const box = () => document.querySelector<HTMLElement>(".ft-float");
+
+  beforeEach(() => window.localStorage.clear());
+
+  it.each(["/grants/grant-sample", "/grants/grant-sample/charges/chg-l-1002", "/grants/grant-sample/files/file-award-letter", "/grants/grant-sample/ledger"])(
+    "sits among a sample grant's pages and opens its timeline over %s",
+    async (path) => {
+      await renderAt(path);
+      expect(toggle()).toHaveAttribute("aria-expanded", "true");
+      expect(toggle()!.closest(".ft-nav__section")).toHaveTextContent("SYN-2300117");
+      expect(toggle()).toHaveAttribute("aria-controls", box()!.id);
+      expect(await screen.findByRole("heading", { name: "Sample timeline" })).toBeInTheDocument();
+    },
+  );
+
+  it("closes and opens the box, moves focus, and remembers it", async () => {
+    await renderAt("/grants/grant-sample");
+    fireEvent.click(toggle()!);
+    expect(box()).not.toBeVisible();
+    expect(toggle()).toHaveAttribute("aria-expanded", "false");
+    expect(window.localStorage.getItem("ft.sampleTimeline.open")).toBe("0");
+    fireEvent.click(toggle()!);
+    expect(box()).toBeVisible();
+    expect(screen.getByRole("button", { name: "Hide" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(box()).not.toBeVisible();
+    expect(toggle()).toHaveFocus();
+  });
+
+  it("shows neither the toggle nor the box on a grant that isn't a sample", async () => {
+    const client = createFakeApiClient();
+    const real = client.listGrants.bind(client);
+    vi.spyOn(client, "listGrants").mockImplementation(async (id) => (await real(id)).map((g) => ({ ...g, grant: { ...g.grant, sample: null } })));
+    renderShell("/grants/grant-sample", client);
+    await within(nav()).findByText("SYN-2300117");
+    expect(toggle()).toBeNull();
+    expect(box()).toBeNull();
+  });
+
+  it.each(["/w/ws-sample", "/w/ws-sample/mail", "/w/ws-sample/grants/new"])("shows neither outside a grant, on %s", async (path) => {
+    await renderAt(path);
+    expect(toggle()).toBeNull();
+    expect(box()).toBeNull();
+  });
+
+  it("shows neither while the grant list loads", async () => {
+    const client = createFakeApiClient();
+    vi.spyOn(client, "listGrants").mockReturnValue(new Promise(() => {}));
+    renderShell("/grants/grant-sample", client);
+    await within(nav()).findByText("All grants");
+    expect(toggle()).toBeNull();
+    expect(box()).toBeNull();
   });
 });
 

@@ -9,8 +9,6 @@
   flex-direction: column;
   gap: 28px;
   width: 100%;
-  max-width: 1120px;
-  padding: var(--space-1) var(--space-5) var(--space-6);
 }
 
 /* --- Head --- */
@@ -26,11 +24,8 @@
   min-width: 0;
   flex: 1 1 420px;
 }
+/* The page heading's type is .ft-title, shared by every page. */
 .title {
-  margin: 0;
-  font: 700 28px/1.15 var(--display);
-  letter-spacing: -0.02em;
-  text-wrap: balance;
   overflow-wrap: anywhere;
 }
 .meta {
@@ -266,7 +261,6 @@
 @media (max-width: 760px) {
   .page {
     gap: var(--space-5);
-    padding: 0;
   }
   .needHead,
   .needFoot {

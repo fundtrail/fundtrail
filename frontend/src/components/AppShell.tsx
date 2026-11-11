@@ -8,6 +8,7 @@ import { signedInWith, useAuth } from "@/lib/auth";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
 import { WorkingIndicator } from "./AgentProgress";
+import { SampleTimelineBox, SampleTimelineToggle, useSampleTimelineDock, type SampleTimelineDock } from "./timeline/FloatingTimeline";
 
 /** The wordmark's glyph: a trail with a dot, a ring, a dashed stretch and the now diamond. */
 function TrailMark() {
@@ -177,9 +178,10 @@ function isInside(pathname: string, grantId: Id): boolean {
  * marked, or the page above it: a charge sits under Charges, a record under
  * the Problem list, a file under Evidence. The grant's own page is its
  * Overview, marked only there. All of it is read from the path against
- * routes.ts, and exactly one item is marked.
+ * routes.ts, and exactly one item is marked. A sample grant ends with the
+ * toggle that opens and closes its timeline (issue 348).
  */
-function GrantPages({ grantId, name, count }: { grantId: Id; name: string; count: number }) {
+function GrantPages({ grantId, name, count, timeline }: { grantId: Id; name: string; count: number; timeline?: SampleTimelineDock }) {
   const pathname = usePathname();
   const grant = routes.grant(grantId);
   const page = (href: string) => standing(pathname, href);
@@ -229,6 +231,11 @@ function GrantPages({ grantId, name, count }: { grantId: Id; name: string; count
             Closeout
           </NavLink>
         </li>
+        {timeline && (
+          <li className="ft-nav__timeline">
+            <SampleTimelineToggle dock={timeline} />
+          </li>
+        )}
       </ul>
     </div>
   );
@@ -247,7 +254,7 @@ function Email({ address }: { address: string }) {
   );
 }
 
-function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
+function Sidebar({ workspaceId, timeline }: { workspaceId: Id | null; timeline: SampleTimelineDock }) {
   const grantName = useGrantDisplayName();
   const auth = useAuth();
   const pathname = usePathname();
@@ -290,6 +297,7 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
               grantId={open.grant.id}
               name={open.grant.award_number ?? grantName(open)}
               count={open.on_problem_list}
+              timeline={open.grant.sample ? timeline : undefined}
             />
           ) : (
             !onGrantPage && (
@@ -383,8 +391,24 @@ export function AppShell({
     return <p className="ft-empty">Loading…</p>;
   }
   return (
+    <SignedInShell workspaceId={workspaceId} crumbs={crumbs}>
+      {children}
+    </SignedInShell>
+  );
+}
+
+/**
+ * The shell for a signed-in user. Inside a sample grant, the sample timeline
+ * floats over every one of its pages, opened and closed from the sidebar.
+ */
+function SignedInShell({ workspaceId, crumbs, children }: { workspaceId: Id | null; crumbs: string[]; children: ReactNode }) {
+  const pathname = usePathname();
+  const grants = useGrants(workspaceId);
+  const open = grants.data?.find((g) => isInside(pathname, g.grant.id));
+  const timeline = useSampleTimelineDock();
+  return (
     <div className="ft-app">
-      <Sidebar workspaceId={workspaceId} />
+      <Sidebar workspaceId={workspaceId} timeline={timeline} />
       <div className="ft-main">
         <div className="ft-topbar">
           <ol className="ft-crumbs" aria-label="Breadcrumbs">
@@ -398,6 +422,7 @@ export function AppShell({
         </div>
         <main className="ft-content">{children}</main>
       </div>
+      {open?.grant.sample && <SampleTimelineBox key={open.grant.id} summary={open} dock={timeline} />}
     </div>
   );
 }
