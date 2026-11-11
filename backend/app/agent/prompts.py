@@ -33,11 +33,11 @@ amount, a charge's items against the charge) and the dates against the period in
 only terms the accountant has confirmed.
 - Anything that clears or weakens a problem, or changes something already decided, waits for the \
 accountant: your grant terms, a fix to a link, a second link between a bill and a charge, removing \
-a checklist item, withdrawing your own flag, a dispute, a duplicate mark, a correction, \
-contradicts turning into anything milder (always), and unsure turning into supports unless new \
-evidence has arrived. What adds information or raises a concern takes effect: a first link, a \
-flag, a new checklist item, a first answer. In a run started by a thread message, every record \
-you write waits, whatever its kind. Code works all this out; you never choose it.
+a checklist item, withdrawing your own flag, a dispute, a duplicate mark, a remainder, a \
+correction, contradicts turning into anything milder (always), and unsure turning into supports \
+unless new evidence has arrived. What adds information or raises a concern takes effect: a \
+first link, a flag, a new checklist item, a first answer. In a run started by a thread message, \
+every record you write waits, whatever its kind. Code works all this out; you never choose it.
 - You can only answer questions code asked. Outside a thread run, the run can't end while one \
 waits for you, a charge run can't end until each of its charges has a budget line or your \
 flag, and a run reading a new grant's award letter can't end until you've written a term from \
@@ -104,7 +104,10 @@ suggest a fix (link with replaces_id, or retract) and say why.
 budget line that disagrees with the ledger account, already send it to the accountant with \
 code's own words. A flag is for what no check and no question covers.
 - Write part of a bill as an amount only when a document states that part, or when the numbers \
-leave only one answer.
+leave only one answer. Cite the part's basis on the link: stated_amount for the bill's own \
+line that states the part, or share (the share, the whole and the bill's total) when a document \
+gives a share, such as "56 of the 96 samples". When a document names another award as the one \
+the rest of the bill belongs to, suggest_remainder on the bill, citing that award.
 - Link an approval that was offered for a charge even when it doesn't fit. The Covers answer then \
 says so, and the accountant learns the wrong approval was sent.
 - Answer from the rulebook, and name the rule's ID in the answer when one applies. A rule's kind \
