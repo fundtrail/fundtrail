@@ -43,6 +43,8 @@ from app.contracts.records import Author, Record
 from app.contracts.rules import RecordState
 from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.timeline import (
+    GuideOpen,
+    GuideStep,
     PlayedEvent,
     TimelineEvent,
     TimelineEventKind,
@@ -73,6 +75,7 @@ from .pack import (
     PackError,
     SamplePack,
     ScheduledEvent,
+    UserAction,
     load_pack,
     message_id_of,
 )
@@ -912,6 +915,7 @@ def view(
         catching_up=grant_catching_up(conn, grant.id),
         on_run_through=on_run_through,
         expected_prerun=prerun.opened_from_expected(conn, grant),
+        **_guide(p, conn, grant, pack, items, now, files, charges),
         leaves_run_through_at=_leaves_at(conn, grant.id, pack, now) if on_run_through else None,
         move_unavailable_reason=move_reason,
         next_highlight_unavailable_reason=highlight_reason,
@@ -936,9 +940,19 @@ _OWN_STEP = {
 
 def own_step_waiting(p: Platform, conn: Conn, grant: Grant, pack: SamplePack) -> str | None:
     """Ruling 86: while a highlight's own step (but the sign-off) is due and nobody has
-    made it, Next highlight waits for it. The reason, naming the step, or None. A step is
-    made when the sample accountant or the user made it as scripted, or when there's
-    nothing left for it to do (the user did it their own way, say)."""
+    made it, Next highlight waits for it. The reason, naming the step, or None."""
+    a = waiting_step(p, conn, grant, pack)
+    if a is None:
+        return None
+    target = a.file or a.line_id or "the grant"
+    what = _OWN_STEP.get(a.action, "Make this highlight's step").format(target=target)
+    return f"{what} first: that's this highlight's step."
+
+
+def waiting_step(p: Platform, conn: Conn, grant: Grant, pack: SamplePack) -> UserAction | None:
+    """The highlight's own step (but the sign-off) that's due and nobody has made, if any.
+    A step is made when the sample accountant or the user made it as scripted, or when
+    there's nothing left for it to do (the user did it their own way, say)."""
     from .script import resolve
 
     now = clock.grant_now(conn, grant.id)
@@ -955,10 +969,65 @@ def own_step_waiting(p: Platform, conn: Conn, grant: Grant, pack: SamplePack) ->
         except Exception:  # noqa: BLE001 - a step that can't be worked out doesn't hold anything up
             needed = False
         if needed:
-            target = a.file or a.line_id or "the grant"
-            what = _OWN_STEP.get(a.action, "Make this highlight's step").format(target=target)
-            return f"{what} first: that's this highlight's step."
+            return a
     return None
+
+
+def _guide(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    pack: SamplePack,
+    items: Sequence[TimelineItem],
+    now: datetime,
+    files: Sequence[EvidenceFile],
+    charges: Sequence[Charge],
+) -> dict[str, Any]:
+    """What the timeline guide shows: which highlight the clock has reached, of how many,
+    the step of the user's it waits for and what to open for it, and the scripted
+    sign-off's date."""
+    labelled = [i for i in items if i.event is not None and i.event.highlight]
+    reached = [i for i in labelled if i.at <= now]
+    step = waiting_step(p, conn, grant, pack)
+    sign = next((a.at for a in pack.actions if a.action == "sign_off"), None)
+    return {
+        "highlight_index": len(reached) if labelled else None,
+        "highlight_total": len(labelled) or None,
+        "highlight_event": _event(reached[-1], pack, files, charges) if reached else None,
+        "your_step": _your_step(step, pack, items, files, charges) if step else None,
+        "sign_off_at": sign,
+    }
+
+
+def _your_step(
+    a: UserAction,
+    pack: SamplePack,
+    items: Sequence[TimelineItem],
+    files: Sequence[EvidenceFile],
+    charges: Sequence[Charge],
+) -> GuideStep:
+    """The user's waiting step, and what the guide opens for it."""
+    charge = next((c.id for c in charges if a.line_id and c.ledger_line_id == a.line_id), None)
+    file = None
+    if a.file:
+        sha = pack.sha256(a.file)
+        file = next((f.id for f in files if f.sha256 == sha), None)
+    match a.action:
+        case "confirm_terms":
+            return GuideStep(action=a.action, open=GuideOpen.TERMS)
+        case "deliver_file":
+            event = next((e.id for e in pack.events if e.name == a.file), None)
+            return GuideStep(action=a.action, open=GuideOpen.DELIVERY, id=event)
+        case "let_in_mail":
+            return GuideStep(action=a.action, open=GuideOpen.HELD_MAIL)
+        case "sign_off":
+            return GuideStep(action=a.action, open=GuideOpen.CLOSEOUT)
+        case _:
+            if charge is not None:
+                return GuideStep(action=a.action, open=GuideOpen.CHARGE, id=charge)
+            if file is not None:
+                return GuideStep(action=a.action, open=GuideOpen.FILE, id=file)
+            return GuideStep(action=a.action, open=GuideOpen.PROBLEMS)
 
 
 def _unavailable(
