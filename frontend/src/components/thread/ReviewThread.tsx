@@ -304,10 +304,14 @@ export function ReviewThread({
   const decisions = decisionsFrom(thread, ctx.records);
   const scroller = useRef<HTMLDivElement>(null);
   const count = thread.entries.length;
-  // Newest entry last, and scrolled to it when one arrives.
+  // Newest entry last, and scrolled to it when one arrives, unless something
+  // waits for the accountant: then the first waiting entry is what's in view.
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const waiting = el.querySelector<HTMLElement>("[data-waiting]");
+    // The scroll area is positioned, so an entry's offsetTop is measured from its top.
+    el.scrollTop = waiting ? Math.max(0, waiting.offsetTop - 12) : el.scrollHeight;
   }, [count]);
   return (
     <div className={styles.thread}>

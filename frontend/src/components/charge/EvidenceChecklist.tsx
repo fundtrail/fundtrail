@@ -168,7 +168,6 @@ export function MissingItems({ checklist }: { checklist: ChecklistEntry[] }) {
           broken
           title={<span className={styles.label}>{entry.needed}</span>}
           status="Missing"
-          sub={entry.expected_by ? <>Expected by {date(entry.expected_by)}</> : undefined}
         />
       ))}
     </TrailGroup>

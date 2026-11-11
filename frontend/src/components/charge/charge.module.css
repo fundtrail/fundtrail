@@ -69,15 +69,18 @@
   gap: 6px;
 }
 
+/* The meta line and the bucket badge share a row while the meta line keeps
+   room for whole items; below that the badge drops under it. */
 .headerTop {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-2) var(--space-3);
 }
 
 .headerTop > .meta {
-  flex: 1 1 0;
+  flex: 1 1 18rem;
   padding-top: 2px;
 }
 
@@ -85,9 +88,11 @@
   flex: none;
 }
 
-/* Items separated by a middle dot. Every item carries the dot before it and
-   the line is shifted left by one dot's width, then clipped, so no line ever
-   starts with a dot when it wraps. */
+/* Items separated by a middle dot. Every item hangs its dot in its own left
+   padding, and the line is shifted left by one dot's width and clipped there,
+   so no line starts with a dot when items wrap, and an item that wraps inside
+   itself continues after its dot, never under the clip. The dots are
+   decoration, with empty alternative text. */
 .meta {
   margin: 0 0 0 -14px;
   display: flex;
@@ -99,10 +104,16 @@
   clip-path: inset(0 0 0 14px);
 }
 
+.meta > * {
+  min-width: 0;
+  padding-left: 14px;
+}
+
 .meta > *::before {
-  content: "·";
+  content: "·" / "";
   display: inline-block;
   width: 14px;
+  margin-left: -14px;
   text-align: center;
 }
 
@@ -123,14 +134,14 @@
   margin: 0;
   flex: 1 1 16rem;
   min-width: 0;
-  font: 700 21px/1.2 var(--display, var(--sans));
+  font: 700 21px/1.2 var(--display);
   letter-spacing: -0.01em;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
 
 .amount {
-  font: 700 21px/1.2 var(--display, var(--sans));
+  font: 700 21px/1.2 var(--display);
   white-space: nowrap;
 }
 
@@ -165,14 +176,28 @@
   margin-top: var(--space-3);
 }
 
-/* A reason's actions: small, in one row at the end of its detail. A form
-   that opens takes the whole row. */
-.reasonActions {
+/* Actions on the whole charge, such as Snooze: their own row at the end of
+   the trail, in line with the nodes' text. A form that opens takes the row. */
+.chargeActions {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 0 28px;
+}
+
+/* The result of accepting a reason; focus lands here after the accept. */
+.result {
+  display: flex;
+  flex-direction: column;
   align-items: flex-start;
   gap: var(--space-2);
-  width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.uses {
+  color: var(--ink);
+  font-size: 13px;
+  max-width: 68ch;
 }
 
 .closedLines {
@@ -279,7 +304,7 @@
   top: 0;
   width: 4px;
   height: 8px;
-  border: solid var(--complete);
+  border: solid var(--ink);
   border-width: 0 2px 2px 0;
   transform: rotate(40deg);
 }

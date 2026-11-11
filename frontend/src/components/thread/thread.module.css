@@ -3,6 +3,7 @@
    code's or the accountant's, and the ask box pinned at the bottom. */
 
 .thread {
+  container: thread / inline-size;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -11,6 +12,7 @@
 
 /* The entries scroll in their own area; the dock sets how tall it may get. */
 .scroll {
+  position: relative;
   max-height: var(--thread-max, none);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -43,6 +45,20 @@
   flex-direction: column;
   gap: 1px;
   padding-top: 1px;
+}
+
+/* On a phone the author and date sit on one line above the entry. */
+@container thread (max-width: 420px) {
+  .entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .who {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
 }
 
 .whoName {
@@ -172,22 +188,36 @@
 
 .quote blockquote {
   margin: 0;
-  font: 400 16px/1.5 var(--serif, Georgia, "Times New Roman", serif);
+  font: 400 16px/1.5 var(--serif);
   white-space: pre-wrap;
   color: var(--ink);
 }
 
 .quote blockquote::before {
-  content: "\201C";
+  content: "\201C" / "";
 }
 
 .quote blockquote::after {
-  content: "\201D";
+  content: "\201D" / "";
+}
+
+/* A quote that opens the viewer reads as a link before hover: a quiet
+   underline in the rule color, ink on hover. */
+.quoteLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--underline-offset);
+}
+
+.quoteLink:hover {
+  text-decoration-color: var(--ink);
 }
 
 .quote mark {
-  background: var(--hl, #ffe45c);
-  color: var(--on-hl, #1d1a05);
+  background: var(--hl);
+  color: var(--on-hl);
   padding: 1px 3px;
   border-radius: 2px;
   box-decoration-break: clone;
@@ -200,11 +230,11 @@
 }
 
 .quote[data-highlight] mark::before {
-  content: "\201C";
+  content: "\201C" / "";
 }
 
 .quote[data-highlight] mark::after {
-  content: "\201D";
+  content: "\201D" / "";
 }
 
 /* --- The foot: the agent's state and the ask box, always in view --- */
@@ -336,7 +366,7 @@
 
 .recordName {
   margin: 0;
-  font: 700 21px/1.2 var(--display, var(--sans));
+  font: 700 21px/1.2 var(--display);
   letter-spacing: -0.01em;
 }
 

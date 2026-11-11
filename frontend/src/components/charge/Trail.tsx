@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useId, useState, type ReactNode } from "react";
 import styles from "./trail.module.css";
 
 /**
@@ -11,10 +13,18 @@ export type Mark = "ledger" | "holds" | "conflict" | "human" | "missing" | "plai
 
 /**
  * One node on the evidence trail: its mark on the line, a head line with the
- * name on the left and its status on the right, and optional detail under it.
- * Detail is open by default only when it needs the accountant (`open`); a
- * closed one opens in place from its head line. `broken` turns the line dashed
- * from this node on.
+ * name on the left and its status on the right, lines always shown under it
+ * (`sub`), and optional detail. Detail is open by default only when it needs
+ * the accountant (`open`); a closed one opens in place from its head line.
+ * `broken` turns the line dashed from this node on.
+ *
+ * The head line is the toggle when its title holds no link. When it does
+ * (`toggleLabel` set), the link and a small toggle at the end of the line are
+ * siblings: one tab stop each, and the link is never inside a control.
+ *
+ * A node opened by default stays open when it no longer needs the accountant,
+ * so the result of what they just did stays in view; it opens again when it
+ * comes to need them.
  */
 export function TrailNode({
   mark,
@@ -25,43 +35,75 @@ export function TrailNode({
   sub,
   children,
   testId,
+  toggleLabel,
 }: {
   mark: Mark;
   title: ReactNode;
   status?: ReactNode;
   open?: boolean;
   broken?: boolean;
-  /** A short line always shown under the head, such as an expected date. */
+  /** Lines always shown under the head, such as what a bill is and how much of it the charge uses. */
   sub?: ReactNode;
   children?: ReactNode;
   testId?: string;
+  /** The toggle's name when the title is a link, so the toggle stands beside it. */
+  toggleLabel?: string;
 }) {
-  const head = (
-    <>
-      <span className={styles.title}>{title}</span>
-      {status !== undefined && status !== null && status !== false && <span className={styles.status}>{status}</span>}
-    </>
-  );
+  const [isOpen, setIsOpen] = useState(open);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setIsOpen(true);
+  }
+  const detailId = useId();
+  const hasDetail = Boolean(children);
+  const statusEl = status !== undefined && status !== null && status !== false && <span className={styles.status}>{status}</span>;
+  const chevron = <span className={styles.chevron} aria-hidden="true" />;
+  const toggle = { "aria-expanded": isOpen, "aria-controls": detailId, onClick: () => setIsOpen((o) => !o) };
+
+  let head: ReactNode;
+  if (!hasDetail) {
+    head = (
+      <div className={styles.head}>
+        <span className={styles.title}>{title}</span>
+        {statusEl}
+      </div>
+    );
+  } else if (toggleLabel) {
+    head = (
+      <div className={styles.head}>
+        <span className={styles.title}>{title}</span>
+        {statusEl}
+        <button type="button" className={styles.chevronButton} aria-label={toggleLabel} {...toggle}>
+          {chevron}
+        </button>
+      </div>
+    );
+  } else {
+    head = (
+      <button type="button" className={`${styles.head} ${styles.headButton}`} {...toggle}>
+        <span className={styles.title}>{title}</span>
+        {statusEl}
+        {chevron}
+      </button>
+    );
+  }
   return (
-    <li className={styles.node} data-mark={mark} data-break={broken || undefined} data-testid={testId}>
+    <li
+      className={styles.node}
+      data-mark={mark}
+      data-break={broken || undefined}
+      data-open={hasDetail ? isOpen : undefined}
+      data-testid={testId}
+    >
       <span className={styles.mark} aria-hidden="true" />
       <div className={styles.content}>
-        {children ? (
-          <details className={styles.details} open={open}>
-            <summary className={styles.summary}>
-              <span className={styles.head}>
-                {head}
-                <span className={styles.chevron} aria-hidden="true" />
-              </span>
-              {sub && <span className={styles.sub}>{sub}</span>}
-            </summary>
-            <div className={styles.more}>{children}</div>
-          </details>
-        ) : (
-          <>
-            <div className={styles.head}>{head}</div>
-            {sub && <span className={styles.sub}>{sub}</span>}
-          </>
+        {head}
+        {sub && <div className={styles.sub}>{sub}</div>}
+        {hasDetail && (
+          <div id={detailId} className={styles.more}>
+            {children}
+          </div>
         )}
       </div>
     </li>
@@ -89,8 +131,9 @@ export function TrailNote({ children }: { children: ReactNode }) {
 
 /**
  * A closed line that opens in place: "Evidence checklist · 2 of 3 filled",
- * "3 checks pass". Open by default only when something in it needs the
- * accountant.
+ * "Passing · 3". Open by default only when something in it needs the
+ * accountant; like a trail node, it stays open once opened until the
+ * accountant closes it.
  */
 export function Disclosure({
   label,
@@ -98,6 +141,7 @@ export function Disclosure({
   open = false,
   attention = false,
   children,
+  testId,
 }: {
   label: ReactNode;
   count?: ReactNode;
@@ -105,9 +149,22 @@ export function Disclosure({
   /** Something in it needs the accountant: the line reads in ink, not muted. */
   attention?: boolean;
   children: ReactNode;
+  testId?: string;
 }) {
+  const [isOpen, setIsOpen] = useState(open);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setIsOpen(true);
+  }
   return (
-    <details className={styles.disclosure} open={open} data-attention={attention || undefined}>
+    <details
+      className={styles.disclosure}
+      open={isOpen}
+      onToggle={(e) => setIsOpen(e.currentTarget.open)}
+      data-attention={attention || undefined}
+      data-testid={testId}
+    >
       <summary className={styles.disclosureHead}>
         <span>
           <span className={styles.disclosureLabel}>{label}</span>
@@ -122,5 +179,3 @@ export function Disclosure({
     </details>
   );
 }
-
-export { styles as trailStyles };

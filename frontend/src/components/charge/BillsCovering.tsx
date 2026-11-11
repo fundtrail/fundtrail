@@ -3,6 +3,7 @@ import type { LinkView } from "@/lib/api";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { citedValue, field } from "./labels";
 import { TrailGroup, TrailNode, TrailNote } from "./Trail";
+import styles from "./charge.module.css";
 
 /** One line on what the linked record gives: "$5,000.00 of $10,000.00" for a bill. */
 function uses(view: LinkView): string | null {
@@ -28,9 +29,14 @@ function source(view: LinkView): string | null {
 
 /**
  * The bills, approvals and explaining notes linked to the charge, as nodes on
- * the evidence trail, with how much of each bill it uses. Each name opens the
- * viewer at the link's part. A link with values still unconfirmed shows its
- * detail; the rest are single lines that open in place.
+ * the evidence trail. How much of each bill the charge uses is always on the
+ * bill's line; what an approval covers or a note states is always under it.
+ * Each name opens the viewer at the link's part.
+ *
+ * A link holds (a check, the line solid) only when every value it rests on is
+ * confirmed. A link with values not yet confirmed can't make anything pass:
+ * it gets the needs-a-human ring, the line turns dashed from it, and its
+ * unconfirmed values are named on the line.
  */
 export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewerHref?: (view: LinkView) => string | undefined }) {
   return (
@@ -43,13 +49,16 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
         const reason = field<string | null>(view.link, "reason");
         const what = uses(view);
         const from = source(view);
-        // A long statement or approval scope reads as detail, not as a status.
-        const shortWhat = what && what.length <= 28 ? what : null;
+        const isBill = view.record.data.kind === "bill";
+        const holds = unconfirmed.length === 0;
         return (
           <TrailNode
             key={view.link.id}
-            mark="holds"
-            open={unconfirmed.length > 0}
+            testId="link"
+            mark={holds ? "holds" : "human"}
+            broken={!holds}
+            open={!holds}
+            toggleLabel={href ? `Details, ${name}` : undefined}
             title={
               href ? (
                 <Link className="ft-link" href={href}>
@@ -59,15 +68,18 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
                 <span className="ft-strong">{name}</span>
               )
             }
-            status={shortWhat && <span className="ft-num">{shortWhat}</span>}
+            status={what && isBill ? <span className="ft-num">{what}</span> : undefined}
             sub={
               <>
-                {recordKindLabel(view.record.data.kind)}
-                {from && <> · {from}</>}
+                <p>
+                  {recordKindLabel(view.record.data.kind)}
+                  {from && <> · {from}</>}
+                </p>
+                {what && !isBill && <p className={styles.uses}>{what}</p>}
+                {!holds && <p className={styles.waitingWord}>Not confirmed: {unconfirmed.join(", ")}</p>}
               </>
             }
           >
-            {what && !shortWhat && <p className="ft-num">{what}</p>}
             {reason && (
               <p>
                 <span className="ft-label">{view.link.author === "agent" ? "Agent's reason: " : "Accountant's reason: "}</span>
@@ -76,7 +88,6 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
             )}
             <p className="ft-caption">
               Linked by {view.link.author === "agent" ? "the agent" : "the accountant"}, {date(view.link.written_at)}
-              {unconfirmed.length > 0 && <> · Not confirmed: {unconfirmed.join(", ")}</>}
             </p>
           </TrailNode>
         );

@@ -1,5 +1,4 @@
 import type { Charge, ChargeDetail, Citation, Id, LinkView } from "@/lib/api";
-import { money } from "@/lib/format";
 import { ReviewThread } from "../thread/ReviewThread";
 import type { OnDecide } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
@@ -52,7 +51,8 @@ export function ChargeDetailView({
   const charges: Record<Id, Charge> = { [charge.id]: charge };
   for (const c of detail.corrections ?? []) charges[c.id] = c;
   const filled = checklist.filter((e) => e.filled).length;
-  const checklistNeedsYou = checklist.some((e) => !e.filled || e.removal_waiting_id);
+  // An empty checklist needs the accountant too: Add item is their next step.
+  const checklistNeedsYou = checklist.length === 0 || checklist.some((e) => !e.filled || e.removal_waiting_id);
   return (
     <div className={styles.view}>
       <div className={styles.layout}>
@@ -71,7 +71,6 @@ export function ChargeDetailView({
                       Ledger line <span className="ft-id">{charge.ledger_line_id}</span>
                     </>
                   }
-                  status={<span className="ft-num">{money(charge.amount_cents)}</span>}
                 />
               </TrailGroup>
               <BillsCovering links={links_} viewerHref={links.link} />
@@ -99,6 +98,7 @@ export function ChargeDetailView({
               count={checklist.length > 0 ? `${filled} of ${checklist.length} filled` : undefined}
               open={checklistNeedsYou}
               attention={checklistNeedsYou}
+              testId="checklist"
             >
               <EvidenceChecklist
                 checklist={checklist}
@@ -111,9 +111,11 @@ export function ChargeDetailView({
                 onWrite={onWrite}
               />
             </Disclosure>
-            <Disclosure label="Status history" count={history.length === 1 ? "1 change" : `${history.length} changes`}>
-              <StatusHistory history={history} records={records} files={files} charges={charges} fileHref={links.file} />
-            </Disclosure>
+            {history.length > 0 && (
+              <Disclosure label="Status history" count={history.length === 1 ? "1 change" : `${history.length} changes`} testId="history">
+                <StatusHistory history={history} records={records} files={files} charges={charges} fileHref={links.file} />
+              </Disclosure>
+            )}
           </div>
           </section>
         </article>
