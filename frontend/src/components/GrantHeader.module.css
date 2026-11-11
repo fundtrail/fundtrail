@@ -23,7 +23,7 @@
 }
 .title {
   margin: 0;
-  font: 700 30px/1.1 var(--display, var(--sans));
+  font: 700 30px/1.1 var(--display);
   letter-spacing: -0.02em;
   text-wrap: balance;
   overflow-wrap: anywhere;
@@ -48,7 +48,7 @@
   text-align: right;
 }
 .count {
-  font: 800 44px/1 var(--display, var(--sans));
+  font: 800 44px/1 var(--display);
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
@@ -109,84 +109,6 @@
   grid-column: 1 / -1;
 }
 
-/* The period: solid up to today, dashed after it. */
-.span {
-  position: relative;
-  grid-column: 1 / -1;
-  height: 40px;
-  margin-top: 2px;
-}
-.line {
-  position: absolute;
-  top: 9px;
-  left: 0;
-  right: 0;
-  border-top: 2px dashed var(--rule-strong);
-}
-.done {
-  position: absolute;
-  top: 9px;
-  left: 0;
-  border-top: 2px solid var(--ink);
-}
-.pt {
-  position: absolute;
-  top: 4px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--ink);
-  transform: translateX(-50%);
-}
-.ptStart {
-  left: 6px;
-}
-.ptEnd {
-  left: calc(100% - 6px);
-  border: 2px solid var(--ink);
-  background: var(--paper-raised);
-}
-.ptNow {
-  top: 3px;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--ink);
-  background: var(--now);
-}
-.lb {
-  position: absolute;
-  top: 22px;
-  color: var(--ink-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.lb b {
-  color: var(--ink);
-  font-weight: 600;
-}
-.lbStart {
-  left: 0;
-}
-.lbEnd {
-  right: 0;
-}
-.lbNow {
-  transform: translateX(-50%);
-}
-/* Near either end, today's label moves above its dot, clear of the end's label. */
-.span[data-edge] {
-  margin-top: 20px;
-}
-.lbNow[data-edge] {
-  top: -18px;
-}
-.lbNow[data-edge="start"] {
-  transform: none;
-}
-.lbNow[data-edge="end"] {
-  transform: translateX(-100%);
-}
-
 @media (max-width: 820px) {
   .head {
     grid-template-columns: minmax(0, 1fr);
@@ -202,19 +124,5 @@
   }
   .title {
     font-size: 26px;
-  }
-}
-@media (max-width: 560px) {
-  /* Too narrow for three labels on one line: today's moves under the others. */
-  .span,
-  .span[data-edge] {
-    height: 58px;
-    margin-top: 2px;
-  }
-  .lbNow,
-  .lbNow[data-edge] {
-    top: 40px;
-    left: 0 !important;
-    transform: none;
   }
 }

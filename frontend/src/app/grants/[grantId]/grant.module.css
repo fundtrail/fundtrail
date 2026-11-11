@@ -45,34 +45,6 @@
   line-height: inherit;
 }
 
-/* --- The grant's own problems --- */
-
-.notice {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 12px var(--space-4);
-  border-radius: 10px;
-  background: var(--conflict-tint);
-  color: var(--ink);
-  font-size: 13px;
-  list-style: none;
-}
-.notice li {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.noticeMark {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 1px;
-  background: var(--conflict);
-  transform: rotate(45deg) translateY(-1px);
-}
-
 /* --- What needs you --- */
 
 .need {
@@ -173,7 +145,6 @@
 }
 .big small {
   display: inline-block;
-  margin-left: 6px;
   color: var(--ink-muted);
   font: 400 14px/1.4 var(--sans);
   letter-spacing: 0;
@@ -241,76 +212,6 @@
   color: var(--ink-muted);
   font-size: 13px;
   list-style: none;
-}
-
-/* The grant's period: solid up to today, dashed after it. */
-.period {
-  position: relative;
-  height: 52px;
-  margin-top: 4px;
-}
-.periodToday {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.periodToday[data-edge="start"] {
-  transform: translateX(-5px);
-}
-.periodToday[data-edge="end"] {
-  transform: translateX(calc(-100% + 5px));
-}
-.periodLine {
-  position: absolute;
-  top: 24px;
-  left: 0;
-  right: 0;
-  border-top: 2px dashed var(--rule-strong);
-}
-.periodDone {
-  position: absolute;
-  top: 24px;
-  left: 0;
-  border-top: 2px solid var(--ink);
-}
-.pt {
-  position: absolute;
-  top: 20px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--ink);
-  transform: translateX(-50%);
-}
-.ptStart {
-  left: 5px;
-}
-.ptEnd {
-  left: calc(100% - 5px);
-  border: 2px solid var(--ink);
-  background: var(--paper);
-}
-.ptNow {
-  border: 2px solid var(--ink);
-  background: var(--now);
-}
-.periodStart,
-.periodEnd {
-  position: absolute;
-  top: 34px;
-  color: var(--ink-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.periodStart {
-  left: 0;
-}
-.periodEnd {
-  right: 0;
 }
 
 /* --- Budget and the grant's file --- */

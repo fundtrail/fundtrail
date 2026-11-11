@@ -39,11 +39,6 @@ function periodStart(terms: TermView[]): IsoDate | null {
   return (inForce[0].record.data as PeriodOfPerformance).start?.value ?? null;
 }
 
-/** Milliseconds since the epoch of a date the server sent. Never the browser's clock. */
-function at(value: string): number {
-  return new Date(value.length === 10 ? `${value}T00:00:00Z` : value).getTime();
-}
-
 /** A plain share of two amounts, held to a bar's length. */
 function share(part: number, whole: number): number {
   if (whole <= 0) return part > 0 ? 100 : 0;
@@ -87,31 +82,16 @@ function Head({ summary, start }: { summary: GrantSummary; start: IsoDate | null
   );
 }
 
-/** The grant's own problems, flagged on the grant itself, in the server's words. */
-function GrantNotice({ rows }: { rows: ProblemRow[] }) {
-  const own = rows.filter((r) => r.kind === "grant");
-  if (own.length === 0) return null;
-  return (
-    <ul className={styles.notice} aria-label="Problems with the grant itself">
-      {own.map((r, i) => (
-        <li key={problemRowKey(r, i)}>
-          <span className={styles.noticeMark} aria-hidden="true" />
-          {r.problem.text}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /**
- * What needs the accountant: the server's count, and the first three rows of
- * the problem list as it sent them, each opening the problem list with that
- * row picked.
+ * What needs the accountant: the first three rows of the problem list as the
+ * server sent them, each opening the problem list with that row picked. Every
+ * count here is the number of rows sent; until they arrive, the head shows the
+ * grant summary's count.
  */
-function NeedsYou({ grantId, summary, rows }: { grantId: string; summary: GrantSummary; rows: ProblemRow[] }) {
-  const n = summary.on_problem_list;
-  const first = rows.slice(0, 3);
-  if (n === 0 && rows.length === 0) {
+function NeedsYou({ grantId, summary, rows }: { grantId: string; summary: GrantSummary; rows: ProblemRow[] | undefined }) {
+  const n = rows ? rows.length : summary.on_problem_list;
+  const first = (rows ?? []).slice(0, 3);
+  if (rows && rows.length === 0) {
     return (
       <section className={`${styles.need} ${styles.needDone}`} aria-labelledby="need-heading">
         <span className={styles.doneMark} aria-hidden="true" />
@@ -131,12 +111,14 @@ function NeedsYou({ grantId, summary, rows }: { grantId: string; summary: GrantS
           Open the problem list
         </Link>
       </div>
-      <div className={styles.needRows}>
-        {first.map((row, i) => (
-          <ProblemBrief key={problemRowKey(row, i)} row={row} href={routes.problemList(grantId, problemRowKey(row, i))} />
-        ))}
-      </div>
-      {n > first.length && (
+      {rows && (
+        <div className={styles.needRows}>
+          {first.map((row, i) => (
+            <ProblemBrief key={problemRowKey(row, i)} row={row} href={routes.problemList(grantId, problemRowKey(row, i))} />
+          ))}
+        </div>
+      )}
+      {rows && n > first.length && (
         <div className={styles.needFoot}>
           <span className="ft-num">{n - first.length} more on the problem list</span>
           <Link className="ft-link" href={routes.problemList(grantId)}>
@@ -155,9 +137,9 @@ function Ready({ summary }: { summary: GrantSummary }) {
   const shown = READY_ORDER.filter((b) => (counts?.[b] ?? 0) > 0);
   return (
     <div className={styles.fact}>
-      <h3 className={styles.factLabel}>Ready for closeout</h3>
+      <h2 className={styles.factLabel}>Ready for closeout</h2>
       <p className={styles.big}>
-        <span className="ft-num">{summary.charges_ready}</span>
+        <span className="ft-num">{summary.charges_ready}</span>{" "}
         <small>of {summary.charges_total} charges</small>
       </p>
       {summary.charges_total > 0 && (
@@ -183,10 +165,15 @@ function Charged({ budget, notes }: { budget: BudgetView; notes: GrantNote[] }) 
   const limit = budget.limit_cents;
   return (
     <div className={styles.fact}>
-      <h3 className={styles.factLabel}>Charged</h3>
+      <h2 className={styles.factLabel}>Charged</h2>
       <p className={styles.big}>
         <span className="ft-num">{money(budget.spent_cents)}</span>
-        {limit != null && <small>of the award&apos;s {money(limit)} limit</small>}
+        {limit != null && (
+          <>
+            {" "}
+            <small>of the award&apos;s {money(limit)} limit</small>
+          </>
+        )}
       </p>
       {limit != null && limit > 0 && (
         <div className={styles.meter} aria-hidden="true">
@@ -204,44 +191,17 @@ function Charged({ budget, notes }: { budget: BudgetView; notes: GrantNote[] }) 
   );
 }
 
-/**
- * The grant's period as a small trail: start, today on the grant's own clock
- * (decision 0028) and the end date in force. Today sits by plain proportion of
- * the three server dates; without a start date, the three marks are evenly
- * spaced.
- */
-function Period({ start, now, end }: { start: IsoDate | null; now: string; end: IsoDate }) {
-  let pct = 50;
-  if (start) {
-    const from = at(start);
-    const to = at(end);
-    const today = at(now);
-    if (to > from && !Number.isNaN(today)) pct = share(today - from, to - from);
-  }
-  const left = `clamp(5px, ${pct.toFixed(2)}%, calc(100% - 5px))`;
-  return (
-    <div className={styles.period} role="group" aria-label="The grant's period">
-      <span className={styles.periodToday} style={{ left }} data-edge={pct < 12 ? "start" : pct > 88 ? "end" : undefined}>
-        Today
-      </span>
-      <div className={styles.periodLine} aria-hidden="true" />
-      <div className={styles.periodDone} style={{ width: left }} aria-hidden="true" />
-      <span className={`${styles.pt} ${styles.ptStart}`} aria-hidden="true" />
-      <span className={`${styles.pt} ${styles.ptNow}`} style={{ left }} aria-hidden="true" />
-      <span className={`${styles.pt} ${styles.ptEnd}`} aria-hidden="true" />
-      <span className={styles.periodStart}>{start ? <span className="ft-num">{date(start)}</span> : "Start"}</span>
-      <span className={styles.periodEnd}>
-        <span className="ft-num">{date(end)}</span>
-      </span>
-    </div>
-  );
+/** The grant's period as the server gives it, and the grant's today, as plain text. Each part only when it's there. */
+function periodWords(summary: GrantSummary, start: IsoDate | null): string {
+  const period = summary.end_date ? (start ? `${date(start)} to ${date(summary.end_date)}` : `Ends ${date(summary.end_date)}`) : "End date not confirmed yet";
+  return summary.now ? `${period} · Today ${date(summary.now)}` : period;
 }
 
 function NextCloseout({ summary, start }: { summary: GrantSummary; start: IsoDate | null }) {
   const next = summary.next_closeout;
   return (
     <div className={styles.fact}>
-      <h3 className={styles.factLabel}>Next closeout date</h3>
+      <h2 className={styles.factLabel}>Next closeout date</h2>
       {next && (
         <>
           <p className={styles.big}>
@@ -250,7 +210,7 @@ function NextCloseout({ summary, start }: { summary: GrantSummary; start: IsoDat
           <p className={styles.factSub}>{next.label}</p>
         </>
       )}
-      {summary.end_date ? <Period start={start} now={summary.now} end={summary.end_date} /> : <p className={styles.factSub}>End date not confirmed yet</p>}
+      <p className={`ft-num ${styles.factSub}`}>{periodWords(summary, start)}</p>
     </div>
   );
 }
@@ -304,9 +264,10 @@ function GrantFile({ grantId, detail, charges }: { grantId: string; detail: Gran
 /**
  * A grant's overview: where it stands, with detail one click in. Its name and
  * period, a sample grant's timeline folded to one line, what needs the
- * accountant with the way into the problem list, three facts (ready for
- * closeout, charged, the next closeout date), then the budget and the grant's
- * file. Each part is its own request, so a refetch of one doesn't wait on the
+ * accountant with the way into the problem list (the one place that lists
+ * problems), three facts (ready for closeout, charged with the grant's notes,
+ * the next closeout date with the period and today), then the budget and the
+ * grant's file. Each part is its own request, so a refetch of one doesn't wait on the
  * others. Every date is the server's, on the grant's own clock.
  */
 export function GrantScreen() {
@@ -329,15 +290,9 @@ export function GrantScreen() {
               <>
                 <Head summary={data.summary} start={start} />
                 {/* Only a sample grant has a timeline to play. */}
-                <SampleTimeline summary={data.summary} compact />
-                <Loadable result={problems}>
-                  {(list) => (
-                    <>
-                      <NeedsYou grantId={grantId} summary={data.summary} rows={list.rows} />
-                      <GrantNotice rows={list.rows} />
-                    </>
-                  )}
-                </Loadable>
+                <SampleTimeline summary={data.summary} />
+                <NeedsYou grantId={grantId} summary={data.summary} rows={problems.data?.rows} />
+                {problems.error && <Loadable result={problems}>{() => null}</Loadable>}
                 <div className={styles.facts}>
                   <Ready summary={data.summary} />
                   <Charged budget={data.budget} notes={data.grant_notes} />
