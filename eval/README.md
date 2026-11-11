@@ -22,6 +22,11 @@ uv run python ../eval/run.py --fake                       # a fake model: no cal
 
 - The server comes from `--database-url` or `TEST_DATABASE_URL`. The runner makes a throwaway database there with every migration, and drops it at the end.
 - The model key is read from the environment, the same way the app reads it. It's never printed. When `ANTHROPIC_BASE_URL` is set, calls go there, for example to a local counting proxy.
+- **Nothing hosted.** The runner refuses any database server that isn't on this machine: localhost, 127.0.0.1, ::1 or a socket. It drops `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` from its own environment before it starts. Don't source a whole `.env` to get the key. Take only the key, for example:
+
+  ```
+  export ANTHROPIC_API_KEY="$(sed -n 's/^ANTHROPIC_API_KEY=//p' ../.env)"
+  ```
 - **The spend cap.** Before each model call, the runner adds the largest call so far (or $0.25 before the first) to what's been spent. If that would pass the cap, it refuses the call. That fails the run, and the eval stops there. Cost is estimated from each call's token use at claude-opus-5-5's prices: $4 per million input tokens, $20 output, $0.20 cache read, $5 cache write.
 - `--out results.json` saves the results.
 - CI runs the runner on every case with a fake model (`backend/tests/ev_runner/`), so no paid calls are made there.

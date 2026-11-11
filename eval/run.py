@@ -18,9 +18,13 @@ Run it from backend/, with a Postgres server where the user may create databases
 
 The database server comes from --database-url or TEST_DATABASE_URL. The model key comes from
 the environment as the app reads it (never printed), and ANTHROPIC_BASE_URL, when set, is where
-the calls go. Before each model call the runner checks the spend cap: it refuses a call when the
-spend so far plus the largest call so far (or $0.25 before the first) would pass the cap, which
-fails that run, and stops the eval there.
+the calls go. The runner reads nothing else from the environment: the database server is
+only ever a local one (it refuses any other host), and it drops DATABASE_URL and the Supabase
+settings from its own environment before it starts.
+
+Before each model call the runner checks the spend cap: it refuses a call when the spend so far
+plus the largest call so far (or $0.25 before the first) would pass the cap, which fails that
+run, and stops the eval there.
 """
 
 from __future__ import annotations
@@ -204,6 +208,41 @@ class MemoryStorage:
 # The throwaway database.
 
 
+# The settings the app reads for a hosted project. The runner never uses them, and drops
+# them from its own environment so nothing it imports can read them either.
+HOSTED_SETTINGS = (
+    "DATABASE_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_JWT_SECRET",
+)
+LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
+
+
+class NotLocal(Exception):
+    """The database server isn't on this machine."""
+
+
+def check_local(server_url: str) -> None:
+    """Refuse a database server that isn't on this machine: the eval only ever makes and
+    drops throwaway databases on a local server."""
+    from psycopg import conninfo
+
+    hosts = (conninfo.conninfo_to_dict(server_url).get("host") or "").split(",")
+    for host in hosts:
+        host = str(host).strip()
+        if host not in LOCAL_HOSTS and not host.startswith("/"):
+            raise NotLocal(
+                "The eval runs only against a Postgres server on this machine "
+                "(localhost, 127.0.0.1, ::1 or a socket), never a hosted one."
+            )
+
+
+def drop_hosted_settings() -> None:
+    for name in HOSTED_SETTINGS:
+        os.environ.pop(name, None)
+
+
 @contextmanager
 def throwaway_database(server_url: str) -> Iterator[str]:
     """A fresh database with the Supabase stubs and every migration, dropped afterwards."""
@@ -211,6 +250,8 @@ def throwaway_database(server_url: str) -> Iterator[str]:
 
     import psycopg
     from psycopg import conninfo, sql
+
+    check_local(server_url)
 
     from tests.db.conftest import SUPABASE_STUBS
     from tests.db.conftest import _migration_files as migration_files  # noqa: PLC2701
@@ -710,6 +751,8 @@ def run_eval(
     from app.db.pool import open_pool, transaction
     from app.db.ports import ModuleChecks, NoPings
 
+    check_local(server_url)
+    drop_hosted_settings()
     dirs = sorted(d for d in CASES.iterdir() if (d / "answer_key.json").is_file())
     if case_names:
         unknown = set(case_names) - {d.name for d in dirs}

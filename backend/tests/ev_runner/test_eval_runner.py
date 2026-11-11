@@ -121,6 +121,29 @@ def test_the_cap_refuses_a_call_before_it_could_pass() -> None:
     assert meter.used.calls == 9
 
 
+def test_only_a_local_database_server_is_used() -> None:
+    for url in (
+        "postgresql://postgres@127.0.0.1:5432/postgres",
+        "postgresql://postgres:postgres@localhost:5432/postgres",
+        "postgresql://postgres@[::1]/postgres",
+        "host=/tmp dbname=postgres",
+    ):
+        ev.check_local(url)
+    for url in (
+        "postgresql://postgres:secret@db.project.supabase.example:5432/postgres",
+        "postgresql://postgres@127.0.0.1,db.example.org/postgres",
+    ):
+        with pytest.raises(ev.NotLocal):
+            ev.check_local(url)
+
+
+def test_the_hosted_settings_are_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ev.HOSTED_SETTINGS:
+        monkeypatch.setenv(name, "set")
+    ev.drop_hosted_settings()
+    assert not any(name in os.environ for name in ev.HOSTED_SETTINGS)
+
+
 def _server() -> str:
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
