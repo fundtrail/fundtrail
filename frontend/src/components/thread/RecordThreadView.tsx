@@ -47,59 +47,59 @@ export function RecordThreadView({
   const records: Record<Id, FtRecord> = record ? { [record.id]: record } : {};
   for (const entry of thread.entries) if (entry.kind === "record") records[entry.record.id] = entry.record;
   return (
-    <>
-      <header className="ft-panel ft-grant-head">
-        <div>
-          <p className="ft-caption">
-            <span className="ft-id">{recordId}</span>
-            {record && <> · Written by {record.author === "agent" ? "the agent" : "the accountant"}, {date(record.written_at)}</>}
-          </p>
-          <h1 className="ft-title">{name}</h1>
-          {file && (
+    <div className={styles.recordView}>
+      <div className={styles.recordCard}>
+        <header className={styles.recordTop}>
+          <div>
             <p className="ft-caption">
-              From{" "}
-              {fileHref ? (
-                <Link className="ft-link" href={fileHref(file.id)}>
-                  {file.name}
-                </Link>
-              ) : (
-                file.name
-              )}
+              <span className="ft-id">{recordId}</span>
+              {record && <> · Written by {record.author === "agent" ? "the agent" : "the accountant"}, {date(record.written_at)}</>}
             </p>
+            <h1 className={styles.recordName}>{name}</h1>
+            {file && (
+              <p className="ft-caption">
+                From{" "}
+                {fileHref ? (
+                  <Link className="ft-link" href={fileHref(file.id)}>
+                    {file.name}
+                  </Link>
+                ) : (
+                  file.name
+                )}
+              </p>
+            )}
+          </div>
+          {state && (
+            <span className={styles.recordState} data-state={state}>
+              {STATE_LABELS[state]}
+            </span>
           )}
-        </div>
-        {state && <span className="ft-tag">{STATE_LABELS[state]}</span>}
-      </header>
-      {status && status.problems.length > 0 && (
-        <section className="ft-panel" aria-labelledby="record-problems-heading">
-          <div className="ft-panel__head">
-            <h2 id="record-problems-heading" className="ft-heading">
+        </header>
+        {status && status.problems.length > 0 && (
+          <section aria-labelledby="record-problems-heading">
+            <h2 id="record-problems-heading" className={styles.sectionHeading}>
               Problems
             </h2>
-          </div>
-          <ul className={styles.reasons}>
-            {status.problems.map((p) => (
-              <li key={`${p.check}:${p.problem}`}>{p.text}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section className="ft-panel" aria-labelledby="record-thread-heading">
-        <div className="ft-panel__head">
-          <h2 id="record-thread-heading" className="ft-heading">
-            Review thread
-          </h2>
-        </div>
-        <div className={styles.padded}>
-          <ReviewThread
-            thread={thread}
-            about="this record"
-            ctx={{ records, files, checklist: [], reasons: [], waiting: [], quoteHref }}
-            onDecide={onDecide}
-            onAsk={onAsk}
-          />
-        </div>
+            <ul className={styles.problems}>
+              {status.problems.map((p) => (
+                <li key={`${p.check}:${p.problem}`}>{p.text}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      <section className={styles.recordDock} aria-labelledby="record-thread-heading">
+        <h2 id="record-thread-heading" className={`${styles.sectionHeading} ${styles.dockHeading}`}>
+          Review thread
+        </h2>
+        <ReviewThread
+          thread={thread}
+          about="this record"
+          ctx={{ records, files, checklist: [], reasons: [], waiting: [], quoteHref }}
+          onDecide={onDecide}
+          onAsk={onAsk}
+        />
       </section>
-    </>
+    </div>
   );
 }

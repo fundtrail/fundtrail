@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LinkView } from "@/lib/api";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { citedValue, field } from "./labels";
+import { TrailGroup, TrailNode, TrailNote } from "./Trail";
 import styles from "./charge.module.css";
 
 /** One line on what the linked record gives: "$5,000.00 of $10,000.00" for a bill. */
@@ -27,13 +28,20 @@ function source(view: LinkView): string | null {
 }
 
 /**
- * The bills, approvals and explaining notes linked to the charge, with how much
- * of each bill it uses. Each name opens the viewer at the link's part.
+ * The bills, approvals and explaining notes linked to the charge, as nodes on
+ * the evidence trail. How much of each bill the charge uses is always on the
+ * bill's line; what an approval covers or a note states is always under it.
+ * Each name opens the viewer at the link's part.
+ *
+ * A link holds (a check, the line solid) only when every value it rests on is
+ * confirmed. A link with values not yet confirmed can't make anything pass:
+ * it gets the needs-a-human ring, the line turns dashed from it, and its
+ * unconfirmed values are named on the line.
  */
 export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewerHref?: (view: LinkView) => string | undefined }) {
-  if (links.length === 0) return <p className="ft-empty">Nothing is linked to this charge yet.</p>;
   return (
-    <ul className={styles.list} aria-label="Bills and evidence covering this charge">
+    <TrailGroup label="Bills and evidence covering this charge">
+      {links.length === 0 && <TrailNote>Nothing is linked to this charge yet.</TrailNote>}
       {links.map((view) => {
         const name = view.file?.name ?? `${recordKindLabel(view.record.data.kind)} typed by the accountant`;
         const href = viewerHref?.(view);
@@ -41,33 +49,49 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
         const reason = field<string | null>(view.link, "reason");
         const what = uses(view);
         const from = source(view);
+        const isBill = view.record.data.kind === "bill";
+        const holds = unconfirmed.length === 0;
         return (
-          <li key={view.link.id} className={styles.row}>
-            <p className={styles.line}>
-              <span className="ft-tag">{recordKindLabel(view.record.data.kind)}</span>
-              {href ? (
+          <TrailNode
+            key={view.link.id}
+            testId="link"
+            mark={holds ? "holds" : "human"}
+            broken={!holds}
+            open={!holds}
+            toggleLabel={href ? `Details, ${name}` : undefined}
+            title={
+              href ? (
                 <Link className="ft-link" href={href}>
                   {name}
                 </Link>
               ) : (
-                <span>{name}</span>
-              )}
-              {from && <span className="ft-caption">{from}</span>}
-            </p>
-            {what && <p className="ft-num">{what}</p>}
+                <span className="ft-strong">{name}</span>
+              )
+            }
+            status={what && isBill ? <span className="ft-num">{what}</span> : undefined}
+            sub={
+              <>
+                <p>
+                  {recordKindLabel(view.record.data.kind)}
+                  {from && <> · {from}</>}
+                </p>
+                {what && !isBill && <p className={styles.uses}>{what}</p>}
+                {!holds && <p className={styles.waitingWord}>Not confirmed: {unconfirmed.join(", ")}</p>}
+              </>
+            }
+          >
             {reason && (
-              <p className="ft-caption">
-                {view.link.author === "agent" ? "Agent's reason: " : "Accountant's reason: "}
+              <p>
+                <span className="ft-label">{view.link.author === "agent" ? "Agent's reason: " : "Accountant's reason: "}</span>
                 {reason}
               </p>
             )}
             <p className="ft-caption">
               Linked by {view.link.author === "agent" ? "the agent" : "the accountant"}, {date(view.link.written_at)}
-              {unconfirmed.length > 0 && <> · Not confirmed: {unconfirmed.join(", ")}</>}
             </p>
-          </li>
+          </TrailNode>
         );
       })}
-    </ul>
+    </TrailGroup>
   );
 }
