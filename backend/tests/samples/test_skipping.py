@@ -15,11 +15,14 @@ import pytest
 
 from app.contracts.records import Author, Record
 from app.contracts.workspaces import Grant
-from app.db import store
+from app.db import sample_store, store
+from app.db.actions import WriteRejected
+from app.db.jobs import grant_lock
 from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult, ModuleChecks
-from app.samples import player
+from app.samples import player, skipping
 from app.samples.pack import SamplePack, UserAction
+from app.samples.script import WriteRecord, resolve
 from tests.api.conftest import Api
 from tests.db.platform_fixtures import FakeAgent, run_worker_until_idle
 
@@ -224,14 +227,6 @@ def _emails_arrive_at_their_own_time(api: Api, grant_id: str, sample: str) -> No
 
 LARGER = "salt-marsh-carbon"
 
-# agent_records.json's link for L-1835-0015 (highlight 5) carries an amount but fills no
-# checklist item that carries one, so the save's write check refuses it, and the run that
-# writes it fails. The checks-only play stores the records directly and doesn't meet it.
-# Strict: once the seed's record is fixed, this marker must go.
-SEED_LINK = pytest.mark.xfail(
-    strict=True, reason="agent_records.json: L-1835-0015's link carries an amount"
-)
-
 
 @pytest.mark.parametrize("sample", [SMALL, LARGER])
 def test_skipping_through_a_sample_brings_every_email_at_its_own_time(
@@ -245,7 +240,7 @@ def test_skipping_through_a_sample_brings_every_email_at_its_own_time(
     _emails_arrive_at_their_own_time(api, grant_id, sample)
 
 
-@pytest.mark.parametrize("sample", [SMALL, pytest.param(LARGER, marks=SEED_LINK)])
+@pytest.mark.parametrize("sample", [SMALL, LARGER])
 def test_skipping_through_a_sample_gives_the_keys_buckets(
     api: Api, real_checks: None, sample: str
 ) -> None:
@@ -295,3 +290,255 @@ def test_a_scripted_sign_off_waits_for_every_run(
         record = next(r for r in store.list_records(conn, grant_id) if r.id == signed["record_id"])
     assert record.kind.value == "sign_off" and record.written_at == sign.at
     assert record.author_user_id == _accountant(api, grant_id)
+
+
+# What the walk has played, and a walk that goes wrong.
+
+
+def _walk(api: Api, grant_id: str) -> tuple[datetime | None, str | None]:
+    """Where the grant's walk is going (None when there's none), and why the last move's
+    walk stopped short (None when it didn't)."""
+    with transaction(api.platform.pool) as conn:
+        target = sample_store.walk_target(conn, grant_id)
+        last = sample_store.last_move(conn, grant_id)
+    return target, last.walk_stopped if last else None
+
+
+def _runs(api: Api, grant_id: str) -> set[str]:
+    with transaction(api.platform.pool) as conn:
+        return {r.status.value for r in store.list_runs(conn, grant_id)}
+
+
+def test_just_happened_and_coming_up_follow_the_walks_clock(api: Api, real_checks: None) -> None:
+    """While the walk waits at a decision, Just happened lists only what it has played and
+    Coming up still lists the rest. A plain Next event during the walk takes on what the
+    walk plays after it, so every played event is under exactly one move."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    after = [e for e in pack.events if e.at > confirm.at]
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    waiting = _skip(api, grant_id, after[1].at)  # the walk waits at the confirmation
+    assert waiting["now"]["now"] == _iso(confirm.at)
+    assert waiting["just_happened"] == []
+    coming = [e["name"] for e in waiting["coming_up"]]
+    assert after[0].name in coming and after[1].name in coming
+    # Next event during the walk: from the walk's date to the next item after it.
+    moved = _post(api, f"/grants/{grant_id}/timeline", {})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["just_happened"] == []  # still nothing played
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(after[2].at)
+    shown = [p["event"]["name"] for p in timeline["just_happened"]]
+    assert shown == [e.name for e in after[:3]]  # played after the later move: listed there
+    assert sum(len(p["scripted_decisions"]) for p in timeline["just_happened"]) == 1
+    assert all(e["name"] not in shown for e in timeline["coming_up"])
+
+
+def test_a_failing_decision_is_left_and_the_walk_goes_on(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+
+    def fails(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("the write broke")
+
+    monkeypatch.setattr(skipping, "write_record", fails)
+    _skip(api, grant_id, end)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    [left] = _scripted(api, grant_id)
+    assert left["state"] == "left" and left["record_id"] is None
+    assert _walk(api, grant_id) == (None, None)  # it went on to its end
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+    assert _runs(api, grant_id) == {"done"}
+
+
+def test_a_refused_decision_is_left_and_the_walk_goes_on(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+
+    def refused(*_args: Any, **_kwargs: Any) -> Any:
+        raise WriteRejected(["refused by the write check"])
+
+    monkeypatch.setattr(skipping, "write_record", refused)
+    _skip(api, grant_id, end)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["left"]
+    assert _walk(api, grant_id) == (None, None)
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+
+
+def test_a_failing_delivery_is_left_and_the_walk_goes_on(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack = player.pack_for(SMALL)
+    deliver = next(a for a in pack.actions if a.action == "deliver_file")
+    end = deliver.at + timedelta(hours=1)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+
+    def fails(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("storage is down")
+
+    monkeypatch.setattr(skipping, "arrive_files", fails)
+    _skip(api, grant_id, end)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    states = {pack.actions[s["step"]].action: s["state"] for s in _scripted(api, grant_id)}
+    assert states == {"confirm_terms": "done", "deliver_file": "left"}
+    assert _walk(api, grant_id) == (None, None)
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(end)
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == [deliver.file]
+
+
+def test_a_walk_that_cant_play_stops_with_a_reason_and_the_run_stands(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Playing fails in the walk going on after the letter's run: the run is saved, the
+    decision made before it stands, and the walk stops where it is, with the reason."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, end)  # waits for the letter's run
+
+    def fails(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("a broken event")
+
+    monkeypatch.setattr(player, "store_events", fails)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _runs(api, grant_id) == {"done"}
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["done"]
+    target, stopped = _walk(api, grant_id)
+    assert target is None
+    assert stopped is not None and "couldn't be played (RuntimeError)" in stopped
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(confirm.at)
+
+
+def test_an_error_going_on_with_the_walk_never_undoes_the_run(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The walk raises after the letter's run saves: the run and its records stand. The
+    check every minute takes the walk on once nothing breaks it."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, end)
+
+    def breaks(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("the walk broke")
+
+    monkeypatch.setattr(skipping, "advance", breaks)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _runs(api, grant_id) == {"done"}
+    with transaction(api.platform.pool) as conn:
+        assert any(r.author is Author.AGENT for r in store.list_records(conn, grant_id))
+    assert _walk(api, grant_id) == (end, None)  # still under way, nothing taking it on
+    monkeypatch.undo()
+    skipping.check_walks(api.platform)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["done"]
+    assert _walk(api, grant_id) == (None, None)
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+
+
+def test_a_walk_waiting_on_a_run_with_no_job_stops(api: Api, real_checks: None) -> None:
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    grant_id = _open(api)
+    _skip(api, grant_id, confirm.at + timedelta(minutes=1))  # waits for the letter's run
+    skipping.check_walks(api.platform)
+    assert _walk(api, grant_id)[0] is not None  # its run's job is waiting: nothing to do
+    with transaction(api.platform.pool) as conn:
+        conn.execute("delete from procrastinate_jobs where lock = %s", (grant_lock(grant_id),))
+    skipping.check_walks(api.platform)
+    assert _walk(api, grant_id)[0] is not None  # once could be a run ending as it checked
+    skipping.check_walks(api.platform)
+    target, stopped = _walk(api, grant_id)
+    assert target is None
+    assert stopped is not None and "nothing left to run it" in stopped
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["left"]
+
+
+def test_a_users_upload_during_a_walk(api: Api, real_checks: None) -> None:
+    """The user uploads while the walk waits: the file arrives at the walk's clock, its run
+    is waited for like any other, and the walk goes on to its end."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, end)
+    uploaded = api.client.post(
+        f"/grants/{grant_id}/evidence",
+        files={"file": ("lab_note.txt", b"A note from the lab, synthetic.", "text/plain")},
+        headers=api.headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["arrived_at"] == _iso(confirm.at)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["done"]
+    assert _walk(api, grant_id) == (None, None)
+    assert _runs(api, grant_id) == {"done"}
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+
+
+def test_a_users_own_move_during_a_walk_extends_it(api: Api, real_checks: None) -> None:
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    after = [e for e in pack.events if e.at > confirm.at]
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, after[0].at)
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(after[3].at)})
+    assert moved.status_code == 200, moved.text
+    assert _walk(api, grant_id) == (after[3].at, None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(after[3].at)
+    assert [p["event"]["name"] for p in timeline["just_happened"]] == [e.name for e in after[:4]]
+    assert _walk(api, grant_id) == (None, None)
+
+
+def test_a_users_own_decision_during_a_walk(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The user confirms the letter's terms before the walk gets to it: the scripted step
+    finds nothing left to confirm and is left, and the walk goes on to its end."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, end)
+    # Hold the walk where it is while the letter's run saves.
+    monkeypatch.setattr(skipping, "go_on", lambda *_args: None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    monkeypatch.undo()
+    with transaction(api.platform.pool) as conn:
+        step = resolve(api.platform, conn, _grant(api, grant_id), pack, confirm, confirm.at)
+    assert isinstance(step, WriteRecord)
+    mine = _post(api, f"/grants/{grant_id}/records", {"data": step.data})
+    assert mine.status_code == 201, mine.text
+    skipping.check_walks(api.platform)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    [left] = _scripted(api, grant_id)
+    assert left["state"] == "left"
+    assert _walk(api, grant_id) == (None, None)
+    with transaction(api.platform.pool) as conn:
+        records = {r.id: r for r in store.list_records(conn, grant_id)}
+    assert records[mine.json()["id"]].author_user_id != _accountant(api, grant_id)
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)

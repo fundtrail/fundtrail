@@ -499,7 +499,13 @@ async def retry_stalled_runs(context: procrastinate.JobContext, timestamp: int) 
 
 
 @app.periodic(cron="* * * * *", periodic_id="check_walks")
-@app.task(name="check_walks", queue=QUEUE, lock="walk_checker", pass_context=False)
+@app.task(
+    name="check_walks",
+    queue=QUEUE,
+    lock="walk_checker",
+    queueing_lock="walk_checker",
+    pass_context=False,
+)
 def check_walks_task(timestamp: int) -> None:
     """Every minute: a sample grant's walk that nothing is taking on goes on, or stops
     with a reason when the agent runs it waits for have no job left to run them."""
