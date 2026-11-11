@@ -1,59 +1,216 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R /F4 5 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 774 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(UNIVERSITY OF EXAMPLE) Tj T*
-(Example Stable Isotope Facility) Tj T*
-(Campus Core Facilities) Tj T*
-() Tj T*
-(RECHARGE USAGE STATEMENT) Tj T*
-() Tj T*
-(Statement number: SIF-2610-70) Tj T*
-(Statement date: November 2, 2026) Tj T*
-(Service period: October 1, 2026 to October 31, 2026) Tj T*
-(Principal investigator: Harper Fixture) Tj T*
-(Award charged: SYN-2401835) Tj T*
-() Tj T*
-(Service                                         Units        Rate        Amount) Tj T*
-(Carbon and nitrogen isotopes, per sample           19      $18.00       $342.00) Tj T*
-() Tj T*
-(Total charged to award                                                  $342.00) Tj T*
-() Tj T*
-(Rates are the facility's approved recharge rates for the fiscal year.) Tj T*
-ET
-endstream
+<<
+/BaseFont /Courier /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/BaseFont /Courier-Bold /Encoding /WinAnsiEncoding /Name /F4 /Subtype /Type1 /Type /Font
+>>
 endobj
 6 0 obj
-<< /Title (Usage statement SIF-2610-70) /Producer (FundTrail seed generator) >>
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+7 0 obj
+<<
+/PageMode /UseNone /Pages 9 0 R /Type /Catalog
+>>
+endobj
+8 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (Usage statement SIF-2610-70) /Trapped /False
+>>
+endobj
+9 0 obj
+<<
+/Count 1 /Kids [ 6 0 R ] /Type /Pages
+>>
+endobj
+10 0 obj
+<<
+/Length 3839
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.909804 .913725 .921569 rg
+n 42 728 528 24 re f*
+.066667 .066667 .066667 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 50 736.5 Tm (HALDEN UNIVERSITY) Tj T* ET
+.066667 .066667 .066667 RG
+.8 w
+n 42 728 m 570 728 l S
+.066667 .066667 .066667 rg
+BT /F2 11 Tf 13.2 TL ET
+BT 1 0 0 1 42 710 Tm (Halden Stable Isotope Facility) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 42 697 Tm (Campus Core Facilities) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 11 Tf 13.2 TL ET
+BT 1 0 0 1 386.605 736 Tm (RECHARGE USAGE STATEMENT) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 42 661 264 21 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 48 668.5 Tm (Statement number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 114.282 668.5 Tm (SIF-2610-70) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 306 661 264 21 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 312 668.5 Tm (Statement date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 367.452 668.5 Tm (November 2, 2026) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 42 640 528 21 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 48 647.5 Tm (Service period:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 100.5195 647.5 Tm (October 1, 2026 to October 31, 2026) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 42 619 264 21 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 48 626.5 Tm (Principal investigator:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 121.7745 626.5 Tm (Maren Holloway) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 306 619 264 21 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 312 626.5 Tm (Award charged:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 367.0245 626.5 Tm (SYN-2401835) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 48 593.5 Tm (Service) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 533.784 593.5 Tm (Amount) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 468.664 593.5 Tm (Rate) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 388 593.5 Tm (Units) Tj T* ET
+.066667 .066667 .066667 RG
+.6 w
+n 42 589 m 570 589 l S
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 48 575 Tm (Carbon and nitrogen isotopes, per sample) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 397.8 575 Tm (15) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 455.4 575 Tm ($18.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 528.3 575 Tm ($270.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 42 570 m 570 570 l S
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 48 556 Tm (Tin capsule packing, per sample) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 397.8 556 Tm (16) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 460.5 556 Tm ($4.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 533.4 556 Tm ($72.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 42 551 m 570 551 l S
+.72549 .741176 .756863 RG
+.5 w
+n 42 551 528 54 re S
+.066667 .066667 .066667 rg
+BT /F4 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 48 537 Tm (Total charged to award) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F4 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 528.3 537 Tm ($342.00) Tj T* ET
+.066667 .066667 .066667 RG
+.6 w
+n 42 532 m 570 532 l S
+.72549 .741176 .756863 RG
+.5 w
+n 42 532 528 19 re S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 42 516 Tm (Rates are the facility's approved recharge rates for the fiscal year.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 531.6375 40 Tm (Page 1 of 1) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 11
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000001041 00000 n 
-0000001167 00000 n 
+0000000061 00000 n 
+0000000122 00000 n 
+0000000229 00000 n 
+0000000341 00000 n 
+0000000446 00000 n 
+0000000556 00000 n 
+0000000750 00000 n 
+0000000818 00000 n 
+0000001103 00000 n 
+0000001162 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<b55e8295a6f841e39d9cc52aa723e9b6><b55e8295a6f841e39d9cc52aa723e9b6>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 8 0 R
+/Root 7 0 R
+/Size 11
+>>
 startxref
-1262
+5053
 %%EOF

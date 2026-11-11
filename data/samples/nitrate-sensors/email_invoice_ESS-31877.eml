@@ -1,43 +1,45 @@
-From: Emery Testwell <emery.testwell@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Owen Marchetti <omarchetti@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Mon, 20 Apr 2026 15:10:00 -0700
 Subject: Fwd: Invoice ESS-31877
-Message-ID: <fwd-ess-31877@university.example>
+Message-ID: <fwd-ess-31877@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice ESS-31877 for SYN-2511958.
 
-Emery
+Owen
 
 ---------- Forwarded message ----------
-From: Example Scientific Supply Billing <billing@scisupply.example>
+From: Kittredge Scientific Billing <billing@kittredgescientific.example>
 Date: Mon, 20 Apr 2026 12:10:00 -0700
 Subject: Invoice ESS-31877
-To: emery.testwell@university.example
+To: omarchetti@halden.example
 
-EXAMPLE SCIENTIFIC SUPPLY
-55 Example Road, Example Town, CA 94010
-billing@scisupply.example
+KITTREDGE SCIENTIFIC
+55 Foundry Road, Marlow Junction, CA 94010
+billing@kittredgescientific.example
 
 INVOICE
 
 Invoice number: ESS-31877
 Invoice date: April 20, 2026
 Customer PO: PO-26-7313
+Account No.: 118820
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Emery Testwell
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Owen Marchetti
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2511958, nitrate sensors
 
-Item  Description                                   Qty   Unit price      Amount
-1     Nitrate standard solution, 1000 ppm             3       $89.50     $268.50
-2     Ionic strength adjuster, 500 mL                 2       $26.50      $53.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     KS-903-NO3   Nitrate standard solution, 1000 ppm              3  EA        $79.50     $238.50
+2     KS-905-ISA   Ionic strength adjuster, 500 mL                  2  EA        $26.50      $53.00
+3     KS-310-100   Volumetric flasks, 100 mL, class A, 2 pack       1  PK        $30.00      $30.00
 
-Subtotal                                                                 $321.50
-Shipping                                                                   $0.00
-Total due                                                                $321.50
+Subtotal                                                                                    $321.50
+Shipping                                                                                      $0.00
+Total due                                                                                   $321.50
 
 Terms: net 30

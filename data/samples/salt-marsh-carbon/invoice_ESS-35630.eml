@@ -1,42 +1,44 @@
-From: Harper Fixture <harper.fixture@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Maren Holloway <mholloway@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Sun, 30 Jun 2024 13:20:00 -0700
 Subject: Fwd: Invoice ESS-35630
-Message-ID: <fwd-ess-35630@university.example>
+Message-ID: <fwd-ess-35630@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice ESS-35630 for SYN-2401835, salt marsh carbon burial, for the files.
 
-Harper
+Maren
 
 ---------- Forwarded message ----------
-From: Example Scientific Supply Billing <billing@scisupply.example>
+From: Kittredge Scientific Billing <billing@kittredgescientific.example>
 Date: Tue, 18 Jun 2024 11:20:00 -0700
 Subject: Invoice ESS-35630
-To: harper.fixture@university.example
+To: mholloway@halden.example
 
-EXAMPLE SCIENTIFIC SUPPLY
-55 Example Road, Example Town, CA 94010
-billing@scisupply.example
+KITTREDGE SCIENTIFIC
+55 Foundry Road, Marlow Junction, CA 94010
+billing@kittredgescientific.example
 
 INVOICE
 
 Invoice number: ESS-35630
 Invoice date: June 18, 2024
 Customer PO: PO-24-7473
+Account No.: 118820
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Harper Fixture
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Maren Holloway
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2401835, salt marsh carbon burial
 
-Item  Description                                   Qty   Unit price      Amount
-1     Crucibles, porcelain, 50 count                  1      $189.00     $189.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     KS-204-050   Crucibles, porcelain, 50 count                   1  CS       $129.00     $129.00
+2     KS-205-050   Crucible lids, porcelain, 50 count               1  CS        $60.00      $60.00
 
-Subtotal                                                                 $189.00
-Shipping                                                                  $24.00
-Total due                                                                $213.00
+Subtotal                                                                                    $189.00
+Shipping                                                                                     $24.00
+Total due                                                                                   $213.00
 
 Terms: net 30

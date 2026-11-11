@@ -1,42 +1,44 @@
-From: Emery Testwell <emery.testwell@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Owen Marchetti <omarchetti@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Thu, 19 Nov 2026 09:20:00 -0800
 Subject: Fwd: Invoice ESS-32410
-Message-ID: <fwd-ess-32410@university.example>
+Message-ID: <fwd-ess-32410@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice ESS-32410 for SYN-2511958.
 
-Emery
+Owen
 
 ---------- Forwarded message ----------
-From: Example Scientific Supply Billing <billing@scisupply.example>
+From: Kittredge Scientific Billing <billing@kittredgescientific.example>
 Date: Thu, 19 Nov 2026 06:20:00 -0800
 Subject: Invoice ESS-32410
-To: emery.testwell@university.example
+To: omarchetti@halden.example
 
-EXAMPLE SCIENTIFIC SUPPLY
-55 Example Road, Example Town, CA 94010
-billing@scisupply.example
+KITTREDGE SCIENTIFIC
+55 Foundry Road, Marlow Junction, CA 94010
+billing@kittredgescientific.example
 
 INVOICE
 
 Invoice number: ESS-32410
 Invoice date: November 13, 2026
 Customer PO: PO-26-4487
+Account No.: 118820
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Emery Testwell
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Owen Marchetti
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2511958, nitrate sensors
 
-Item  Description                                   Qty   Unit price      Amount
-1     Nitrate standard solution, 1000 ppm             4       $89.50     $358.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     KS-903-NO3   Nitrate standard solution, 1000 ppm              4  EA        $79.50     $318.00
+2     KS-920-PHB   pH buffer set, 4, 7 and 10, 500 mL               1  EA        $40.00      $40.00
 
-Subtotal                                                                 $358.00
-Shipping                                                                  $12.50
-Total due                                                                $370.50
+Subtotal                                                                                    $358.00
+Shipping                                                                                     $12.50
+Total due                                                                                   $370.50
 
 Terms: net 30
