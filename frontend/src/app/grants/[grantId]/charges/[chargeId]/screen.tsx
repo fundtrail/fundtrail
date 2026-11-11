@@ -52,7 +52,7 @@ export function ChargeScreen() {
           Back to the problem list
         </Link>
       </p>
-      <Loadable result={detail}>
+      <Loadable result={detail} onRetry={() => void detail.mutate()}>
         {(data) => (
           <ChargeDetailView
             detail={thread.data ? { ...data, thread: thread.data } : data}

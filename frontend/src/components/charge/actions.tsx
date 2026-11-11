@@ -309,6 +309,40 @@ export function RemoveChecklistItem({ chargeId, entry, onWrite }: { chargeId: Id
   );
 }
 
+// --- Deciding one of the agent's waiting records ---
+
+/**
+ * Confirm and Reject for one of the agent's records that the server says waits
+ * for the accountant, on the reason that shows it, when nothing else on the
+ * page offers that decision (a duplicate mark is about files, so it isn't in
+ * the charge's thread). Each writes a confirmation naming that record and
+ * shows nothing of its own after: the page refetches and shows the server's
+ * new state. After a write goes through, both stay off until that new state
+ * replaces this row, so a stale row can't send a second decision.
+ */
+export function DecideWaiting({ recordId, onWrite }: { recordId: Id; onWrite: OnWrite }) {
+  const write = useWrite(onWrite);
+  const [sent, setSent] = useState(false);
+  async function decide(decision: "confirmed" | "rejected") {
+    if (sent) return;
+    if (await write.run({ data: { kind: "confirmation", record_ids: [recordId], decision } })) setSent(true);
+  }
+  const off = write.busy || sent;
+  return (
+    <>
+      <div className={styles.actions} role="group" aria-label="Decide the agent's suggestion">
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--approve" disabled={off} onClick={() => void decide("confirmed")}>
+          Confirm
+        </button>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={off} onClick={() => void decide("rejected")}>
+          Reject
+        </button>
+      </div>
+      <Errors errors={write.errors} />
+    </>
+  );
+}
+
 // --- Accepting a reason, and reopening it ---
 
 /**

@@ -113,7 +113,7 @@ export function EvidenceScreen() {
             </div>
           </div>
         </header>
-        <Loadable result={evidence}>
+        <Loadable result={evidence} onRetry={() => void evidence.mutate()}>
           {(data) =>
             data.length === 0 ? (
               <p className={styles.empty}>No evidence on this grant yet.</p>

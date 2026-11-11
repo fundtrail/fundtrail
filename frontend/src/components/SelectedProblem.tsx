@@ -38,7 +38,7 @@ function ChargePane({ grantId, chargeId }: { grantId: Id; chargeId: Id }) {
     <>
       <Bar href={routes.charge(grantId, chargeId)} />
       <div className={styles.charge}>
-        <Loadable result={detail}>
+        <Loadable result={detail} onRetry={() => void detail.mutate()}>
           {(data) => (
             <ChargeDetailView
               detail={thread.data ? { ...data, thread: thread.data } : data}
