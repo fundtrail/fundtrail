@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { date } from "@/lib/format";
 import { field } from "../charge/labels";
+import { pageCaption } from "@/components/viewer/placement";
 import type { Change } from "./describe";
 import styles from "./thread.module.css";
 
@@ -34,11 +35,21 @@ export interface DecisionMade {
   at: string;
 }
 
-/** Accept and Reject, in that order, with the write's problems shown if the server refuses it. */
+/**
+ * Accept and Reject, in that order, with the write's problems shown if the
+ * server refuses it. Never sends twice at once: a decision made while one is
+ * in flight (two clicks in the same task, before the buttons re-render
+ * disabled) does nothing at all, and leaves `busy` and the error lines as the
+ * first one set them. The guard is set before `onDecide` is called and
+ * released in `finally`, after a refusal or a synchronous throw too.
+ */
 function DecideButtons({ recordId, onDecide, what }: { recordId: Id; onDecide: OnDecide; what: string }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const inFlight = useRef(false);
   async function decide(decision: Decision) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -46,16 +57,17 @@ function DecideButtons({ recordId, onDecide, what }: { recordId: Id; onDecide: O
     } catch (error) {
       setErrors(errorLines(error));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
   return (
     <>
       <div className={styles.actions}>
-        <button type="button" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy} onClick={() => void decide("confirmed")}>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--approve" disabled={busy} onClick={() => void decide("confirmed")}>
           Accept<span className="ft-sr"> {what}</span>
         </button>
-        <button type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={() => void decide("rejected")}>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={busy} onClick={() => void decide("rejected")}>
           Reject<span className="ft-sr"> {what}</span>
         </button>
       </div>
@@ -91,21 +103,67 @@ export function stateLabel(state: RecordState, decision: DecisionMade | null | u
   }
 }
 
-/** A quoted passage with the file it's from. Opening the viewer is the viewer's link. */
-export function Quote({ citation, files, href }: { citation: Citation; files: Record<Id, EvidenceFile>; href?: string }) {
+/**
+ * Whether a quote may go on the highlighter: only a passage the server found
+ * exactly as the file writes it. A close match, a passage it didn't find, and
+ * a box on a photo or scan are never yellow. The viewer and the evidence cards
+ * keep the same rule.
+ */
+export function isExactPassage(citation: Citation): boolean {
+  return Boolean(citation.passage) && citation.match === "exact" && citation.location?.type !== "image_box";
+}
+
+/**
+ * A quoted passage in the serif, with the file it's from, where in it, and
+ * the viewer's words for a close match. When it opens the viewer, the passage
+ * itself is the link, underlined quietly so it reads as one before hover.
+ * `highlight` asks for the passage on the highlighter, for a quote that
+ * decides something waiting or failing; it goes there only for an exact match.
+ */
+export function Quote({
+  citation,
+  files,
+  href,
+  highlight = false,
+}: {
+  citation: Citation;
+  files: Record<Id, EvidenceFile>;
+  href?: string;
+  highlight?: boolean;
+}) {
   const file = files[citation.file_id];
   const name = file?.name ?? "a file";
+  const where = pageCaption(citation);
+  const marked = highlight && isExactPassage(citation);
+  const captionId = useId();
+  let passage: ReactNode = null;
+  if (citation.passage) passage = marked ? <mark>{citation.passage}</mark> : citation.passage;
   return (
-    <figure className={styles.quote}>
-      {citation.passage ? <blockquote>{citation.passage}</blockquote> : <p className="ft-caption">A marked area, with no text to quote.</p>}
-      <figcaption className="ft-caption">
-        {href ? (
+    <figure className={styles.quote} data-highlight={marked || undefined} data-match={citation.match ?? undefined}>
+      {passage ? (
+        <blockquote>
+          {href ? (
+            // The passage is the link; the caption naming the file and where in it describes it.
+            <Link className={styles.quoteLink} href={href} aria-describedby={captionId}>
+              {passage}
+            </Link>
+          ) : (
+            passage
+          )}
+        </blockquote>
+      ) : (
+        <p className="ft-caption">A marked area, with no text to quote.</p>
+      )}
+      <figcaption id={captionId} className="ft-caption">
+        {href && !passage ? (
           <Link className="ft-link" href={href}>
             {name}
           </Link>
         ) : (
           name
         )}
+        {where && <>, {where}</>}
+        {citation.match === "close" && <> · Close match on the page</>}
       </figcaption>
     </figure>
   );
@@ -132,7 +190,7 @@ export function SuggestionBox({
   return (
     <div className={`${styles.box} ${waiting ? styles.waiting : ""}`} data-testid="suggestion" data-state={state}>
       <p className={styles.boxHead}>
-        <span className="ft-label">Suggestion</span> <span className="ft-tag">{stateLabel(state, decision)}</span>
+        <span className="ft-label">Suggestion</span> <span className={styles.state}>{stateLabel(state, decision)}</span>
       </p>
       <p className="ft-strong">{change.title}</p>
       {(change.now || change.suggested) && (
@@ -190,7 +248,7 @@ export function DisputeBox({
   return (
     <div className={`${styles.box} ${waiting ? styles.waiting : ""}`} data-testid="dispute" data-state={state}>
       <p className={styles.boxHead}>
-        <span className="ft-label">Dispute</span> <span className="ft-tag">{stateLabel(state, decision)}</span>
+        <span className="ft-label">Dispute</span> <span className={styles.state}>{stateLabel(state, decision)}</span>
       </p>
       {reasonText ? (
         <>
@@ -208,7 +266,7 @@ export function DisputeBox({
         <span className="ft-label">Agent&apos;s reasoning</span> {field<string>(record, "reasoning")}
       </p>
       {quotes.map((q, i) => (
-        <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} />
+        <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} highlight={waiting} />
       ))}
       {waiting && (
         <p className="ft-caption">Accepting accepts this reason, with the agent&apos;s reasoning as the note.</p>

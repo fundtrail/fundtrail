@@ -1,4 +1,4 @@
-UNIVERSITY OF EXAMPLE
+HALDEN UNIVERSITY
 Contracts and Grants Accounting
 
 AWARD CLOSEOUT CERTIFICATION RECEIVED
@@ -6,3 +6,5 @@ AWARD CLOSEOUT CERTIFICATION RECEIVED
 Award: SYN-2401835
 Date received: March 12, 2027
 The certification and its attachments are on file.
+
+Synthetic sample document for a software demonstration. Not issued by any university.

@@ -1,65 +1,244 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R /F4 5 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 1030 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(EXAMPLE GENOMICS SUPPLY) Tj T*
-(410 Example Boulevard, Example City, CA 94003) Tj T*
-(billing@genomicssupply.example) Tj T*
-() Tj T*
-(INVOICE) Tj T*
-() Tj T*
-(Invoice number: EGS-20931) Tj T*
-(Invoice date: May 12, 2025) Tj T*
-(Customer PO: PO-25-3381) Tj T*
-() Tj T*
-(Bill to:) Tj T*
-(  University of Example, Department of Earth and Ocean Sciences) Tj T*
-(  Attn: Harper Fixture) Tj T*
-(  100 Example Hall, Example City, CA 94000) Tj T*
-(Project reference: Fixture and Dummy labs, shared order) Tj T*
-() Tj T*
-(Item  Description                                   Qty   Unit price      Amount) Tj T*
-(1     16S library prep kit, 96 reactions              1   $10,000.00  $10,000.00) Tj T*
-() Tj T*
-(Subtotal                                                              $10,000.00) Tj T*
-(Shipping                                                                   $0.00) Tj T*
-(Total due                                                             $10,000.00) Tj T*
-() Tj T*
-(Terms: net 30) Tj T*
-ET
-endstream
+<<
+/BaseFont /Courier /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/BaseFont /Courier-Bold /Encoding /WinAnsiEncoding /Name /F4 /Subtype /Type1 /Type /Font
+>>
 endobj
 6 0 obj
-<< /Title (Invoice EGS-20931) /Producer (FundTrail seed generator) >>
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+7 0 obj
+<<
+/PageMode /UseNone /Pages 9 0 R /Type /Catalog
+>>
+endobj
+8 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (Invoice EGS-20931) /Trapped /False
+>>
+endobj
+9 0 obj
+<<
+/Count 1 /Kids [ 6 0 R ] /Type /Pages
+>>
+endobj
+10 0 obj
+<<
+/Length 5285
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.180392 .352941 .376471 rg
+BT /F2 14 Tf 16.8 TL ET
+BT 1 0 0 1 54 734 Tm (LOOMIS BIOSCIENCE) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 8 Tf 9.6 TL ET
+BT 1 0 0 1 54 720.48 Tm (410 Tidewater Boulevard, Port Calloway, CA 94003) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 8 Tf 9.6 TL ET
+BT 1 0 0 1 54 709.6 Tm (billing@loomisbio.example) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 15 Tf 18 TL ET
+BT 1 0 0 1 496.32 734 Tm (INVOICE) Tj T* ET
+.180392 .352941 .376471 RG
+1 w
+n 54 696.72 m 558 696.72 l S
+.372549 .388235 .407843 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 445.572 674.72 Tm (Invoice number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 512.1 674.72 Tm (EGS-20931) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 443.268 661.72 Tm (Invoice date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 496.8 661.72 Tm (May 12, 2025) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 447.483 648.72 Tm (Customer PO:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 507 648.72 Tm (PO-25-3381) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 473.373 635.72 Tm (Account No.:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 527.4 635.72 Tm (077103) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F2 7.5 Tf 9 TL ET
+BT 1 0 0 1 54 674.72 Tm (Bill to:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 54 661.72 Tm (Halden University, Department of Earth and Ocean Sciences) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 54 649.22 Tm (Attn: Maren Holloway) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 54 636.72 Tm (1 University Drive, Port Calloway, CA 94000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9 Tf 10.8 TL ET
+BT 1 0 0 1 54 616.72 Tm (Project reference:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 133.029 616.72 Tm (Holloway and Brandt labs, shared order) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 59 584.22 Tm (Line) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 87 584.22 Tm (Cat. No.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 155 584.22 Tm (Description) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 377.664 584.22 Tm (Qty) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 401 584.22 Tm (U/M) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 445.656 584.22 Tm (Unit Price) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 516.536 584.22 Tm (Ext. Price) Tj T* ET
+.066667 .066667 .066667 RG
+.8 w
+n 54 598.22 m 558 598.22 l S
+.066667 .066667 .066667 RG
+.8 w
+n 54 578.22 m 558 578.22 l S
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 59 563.52 Tm (1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 87 563.52 Tm (LB-16S-096) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 155 563.52 Tm (16S library prep kit, 96 reactions) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 385.9 563.52 Tm (1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 401 563.52 Tm (EA) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 432 563.52 Tm ($10,000.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 502 563.52 Tm ($10,000.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 54 557.52 m 558 557.52 l S
+.066667 .066667 .066667 RG
+.8 w
+n 54 368.22 m 558 368.22 l S
+.066667 .066667 .066667 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 374 350.47 Tm (Subtotal) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 501 350.47 Tm ($10,000.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 374 334.72 Tm (Shipping) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 526.5 334.72 Tm ($0.00) Tj T* ET
+.066667 .066667 .066667 RG
+1 w
+n 368 330.47 m 558 330.47 l S
+.066667 .066667 .066667 rg
+BT /F2 9 Tf 10.8 TL ET
+BT 1 0 0 1 374 318.97 Tm (Total due) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F4 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 501 318.97 Tm ($10,000.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9 Tf 10.8 TL ET
+BT 1 0 0 1 54 331.97 Tm (Terms:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 86.508 331.97 Tm (net 30) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 54 81 m 558 81 l S
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 54 70 Tm (Remit to: Loomis Bioscience, 410 Tidewater Boulevard, Port Calloway, CA 94003) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 54 62 Tm (Payment is due within 30 days of the invoice date.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 54 54 Tm (Show our invoice number on your remittance. A late charge may be added to past due balances.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 54 46 Tm (Report shortages or freight damage when the goods are received. Returns need our authorization.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F1 7.5 Tf 9 TL ET
+BT 1 0 0 1 519.6375 70 Tm (Page 1 of 1) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 11
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000001298 00000 n 
-0000001424 00000 n 
+0000000061 00000 n 
+0000000122 00000 n 
+0000000229 00000 n 
+0000000341 00000 n 
+0000000446 00000 n 
+0000000556 00000 n 
+0000000750 00000 n 
+0000000818 00000 n 
+0000001093 00000 n 
+0000001152 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<0866f691038cfae6488b04da36aad119><0866f691038cfae6488b04da36aad119>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 8 0 R
+/Root 7 0 R
+/Size 11
+>>
 startxref
-1509
+6489
 %%EOF

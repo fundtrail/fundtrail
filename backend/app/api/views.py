@@ -34,9 +34,12 @@ from app.contracts.api import (
     LinkView,
     MessageThreadEntry,
     ProblemRow,
+    ReadingProgress,
     RecordProblemRow,
     RecordThreadEntry,
     ReusableNoteView,
+    RuleSource,
+    RuleView,
     SignOffState,
     StatusThreadEntry,
     SuggestionView,
@@ -66,11 +69,13 @@ from app.contracts.checks import (
 from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import HeldMail
 from app.contracts.records import (
+    CATEGORY_PARENT,
     FOUND,
     TERM_KINDS,
     AcceptedReason,
     Author,
     BudgetAssignment,
+    BudgetLine,
     Confirmation,
     Decision,
     Duplicate,
@@ -90,6 +95,7 @@ from app.contracts.signoff import sign_off_state as signed_state
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, Workspace
 from app.db import store, terms
+from app.db.actions import AGENT_WORKING
 from app.db.clock import grant_now
 from app.db.held_mail import still_held_mail
 from app.db.platform import Platform
@@ -112,6 +118,8 @@ class GrantSnapshot:
     messages: list[ThreadMessage]
     output: ChecksOutput
     held: list[HeldMail]  # the grant's messages still held at "now" (rules.still_held)
+    reading: ReadingProgress | None = None  # ruling 71
+    last_run_summary: str | None = None  # ruling 71
     state: RecordState = field(init=False)
 
     def __post_init__(self) -> None:
@@ -145,6 +153,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
             skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
+    pending = store.pending_runs(conn, grant.id)
     return GrantSnapshot(
         workspace=workspace,
         grant=grant,
@@ -153,10 +162,27 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
         files=files,
         records=records,
         statuses=store.current_statuses(conn, grant.id),
-        pending=store.pending_runs(conn, grant.id),
+        pending=pending,
         messages=store.grant_messages(conn, grant.id, now),
         output=output,
         held=still_held_mail(conn, grant, now, RecordState(records, files)),
+        # Only while the agent has work queued or running: an idle grant asks nothing.
+        reading=_reading(store.reading_counts(conn, grant.id)) if pending else None,
+        last_run_summary=store.last_run_summary(conn, grant.id),
+    )
+
+
+def _reading(counts: dict[str, int] | None) -> ReadingProgress | None:
+    """Ruling 71: how far the agent is, while it has anything queued or running. The
+    counts come from one query over one set of runs, and read is clamped to total, so a
+    run finishing meanwhile can't push read past it."""
+    if counts is None:
+        return None
+    return ReadingProgress(
+        files_read=min(counts["files_read"], counts["files_total"]),
+        files_total=counts["files_total"],
+        lines_read=min(counts["lines_read"], counts["lines_total"]),
+        lines_total=counts["lines_total"],
     )
 
 
@@ -200,6 +226,26 @@ def value_states(state: RecordState, record: Record) -> list[ValueState]:
                 )
             )
     return out
+
+
+def _rule_view(funder: str, rule_id: str | None) -> RuleView | None:
+    """The rule an answer names, from the funder's rulebook, in plain words (issue 303)."""
+    from app.agent.rulebook import load_rulebook, rule_entry
+
+    if rule_id is None:
+        return None
+    try:
+        entry = rule_entry(load_rulebook(funder), rule_id)
+    except FileNotFoundError:  # no rulebook for this funder
+        return None
+    if entry is None or not entry.text:
+        return None
+    return RuleView(
+        id=entry.id,
+        title=(entry.kind[:1].upper() + entry.kind[1:]) or entry.id,
+        text=entry.text,
+        sources=tuple(RuleSource(label=label, url=url) for label, url in entry.sources),
+    )
 
 
 def _link_view(snap: GrantSnapshot, link: Record) -> LinkView | None:
@@ -265,6 +311,8 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         bucket_counts=counts,
         next_closeout=CloseoutDate(date=step.date, label=step.label) if step else None,
         now=snap.now,
+        reading=snap.reading,
+        last_run_summary=snap.last_run_summary,
     )
 
 
@@ -419,6 +467,8 @@ def budget(snap: GrantSnapshot) -> BudgetView:
                 line=snap.state.by_id[f.record_ids[-1]],
                 amount_cents=f.budget_cents,
                 spent_cents=f.spent_cents,
+                # Ruling 74: a sub-line sits inside its parent category.
+                parent=CATEGORY_PARENT.get(f.category),
             )
             for f in figures.categories
         ),
@@ -436,9 +486,14 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
     """Decision 0022: not signed, signed, or changed since, comparing the snapshot the
     sign-off stored with one taken now (each charge's bucket, accepted and reversed state,
     the problem list row by row, and the totals)."""
+    # Ruling 72: why signing off can't be done now, the same words the refusal uses. Only a
+    # run queued or running blocks it; anything open asks for a note instead.
+    unavailable = AGENT_WORKING if snap.pending else None
     signed = [r for r in snap.state.current() if isinstance(r.data, SignOff)]
     if not signed:
-        return SignOffState(state=signed_state(None, snapshot_now(snap)))
+        return SignOffState(
+            state=signed_state(None, snapshot_now(snap)), unavailable_reason=unavailable
+        )
     sign_off = signed[-1]
     assert isinstance(sign_off.data, SignOff)
     now = snapshot_now(snap)
@@ -446,6 +501,7 @@ def sign_off_view(snap: GrantSnapshot) -> SignOffState:
         state=signed_state(sign_off.data.snapshot, now),
         sign_off=sign_off,
         changes=changes_since(sign_off.data.snapshot, now),
+        unavailable_reason=unavailable,
     )
 
 
@@ -647,6 +703,23 @@ def record_chain(snap: GrantSnapshot, record_id: str) -> list[str]:
     return chain
 
 
+def _record_file_ids(snap: GrantSnapshot, record: Record) -> list[str]:
+    """Every file a record names: its citations' (values, a link's part, an answer's
+    quotes), a duplicate mark's two files, a budget line's notice, and for a link with no
+    part, its target's file as the link view shows it."""
+    data = record.data
+    found = [c.file_id for c in citations(data)]
+    if isinstance(data, Duplicate):
+        found += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id:
+        found.append(data.notice_file_id)
+    if isinstance(data, Link) and data.part is None:
+        target = snap.state.current_version(data.record_id)
+        if target is not None:
+            found += [c.file_id for c in citations(target.data)][:1]
+    return found
+
+
 def charge_detail(
     p: Platform, snap: GrantSnapshot, charge: Charge, rows: Sequence[StatusRow]
 ) -> ChargeDetail:
@@ -666,7 +739,11 @@ def charge_detail(
     questions = [q for q in snap.output.questions if q.charge_id == charge.id]
     open_keys = {(q.question, q.record_id) for q in questions}
     answers = [
-        AnswerView(judgment=r, out_of_date=(r.data.question, r.data.record_id) in open_keys)
+        AnswerView(
+            judgment=r,
+            out_of_date=(r.data.question, r.data.record_id) in open_keys,
+            rule=_rule_view(snap.grant.funder, r.data.rule),
+        )
         for r in state.current()
         if isinstance(r.data, Judgment) and r.data.charge_id == charge.id
     ]
@@ -681,6 +758,20 @@ def charge_detail(
     rest_on = {i for reason in (status.reasons if status else ()) for i in reason.record_ids}
     records = {i: state.by_id[i] for i in sorted(rest_on) if i in state.by_id}
     files = {v.file.id: v.file for v in links if v.file is not None}
+    waiting = [
+        _suggestion(snap, r)
+        for r in state.waiting()
+        if r.author == Author.AGENT and charge.id in _touched_charges(snap, r)
+    ]
+    # Issue 275: every file the page's records cite (the answers' quotes, the waiting
+    # suggestions, what the reasons rest on), so the screen can name each one. Only files
+    # on this grant and visible at its now.
+    citing = [a.judgment for a in answers] + list(records.values())
+    citing += [r for w in waiting for r in (w.record, w.replaces) if r is not None]
+    for r in citing:
+        for file_id in _record_file_ids(snap, r):
+            if file_id in snap.files_by_id:
+                files.setdefault(file_id, snap.files_by_id[file_id])
     corrections = [
         snap.charges_by_id[i]
         for i in (status.corrections if status else ())
@@ -696,11 +787,7 @@ def charge_detail(
         links=tuple(links),
         answers=tuple(answers),
         questions=tuple(questions),
-        waiting=tuple(
-            _suggestion(snap, r)
-            for r in state.waiting()
-            if r.author == Author.AGENT and charge.id in _touched_charges(snap, r)
-        ),
+        waiting=tuple(waiting),
         thread=thread(snap, charge_id=charge.id, history=rows),
         records=records,
         files=files,

@@ -14,6 +14,12 @@ describe("routes", () => {
     expect(routes.confirmValues("g", "f", "rec-1")).toBe("/grants/g/files/f/confirm?record=rec-1");
   });
 
+  it("names the problem list and the charges, each its own page", () => {
+    expect(routes.problemList("g")).toBe("/grants/g/problems");
+    expect(routes.problemList("g", "charge:chg-1")).toBe("/grants/g/problems?item=charge%3Achg-1");
+    expect(routes.charges("g")).toBe("/grants/g/charges");
+  });
+
   it("encodes IDs", () => {
     expect(routes.charge("g/1", "c 2")).toBe("/grants/g%2F1/charges/c%202");
   });

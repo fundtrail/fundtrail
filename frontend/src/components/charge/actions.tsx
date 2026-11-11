@@ -5,18 +5,32 @@
 // screen refetches after the write and shows the server's result. A write the
 // server refuses shows its problems and keeps what was typed.
 
-import { useState, type FormEvent, type ReactNode } from "react";
-import type { Answer, ChecklistEntry, FtRecord, Id, NewRecordInput, OpenQuestion, Question, Reason } from "@/lib/api";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import type { Answer, ChecklistEntry, FtRecord, Id, NewRecordInput, OpenQuestion, Problem, Question, Reason } from "@/lib/api";
 import { errorLines } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
 import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
 import styles from "./charge.module.css";
 
-/** Runs one write, with its busy state and the lines to show if it's refused. */
+/**
+ * Runs one write, with its busy state and the lines to show if it's refused.
+ *
+ * Never sends twice at once: a call made while one from the same hook is in
+ * flight sends nothing and resolves false without touching `busy` or
+ * `errors`, so its form stays open and nothing shows as done. A disabled
+ * button stops a real double click, but two submits in the same task
+ * (`requestSubmit()` twice, say) would otherwise both send before the button
+ * re-renders. The guard is set before `onWrite` is called, so even a
+ * synchronous throw finds it set, and it is released in `finally` whether the
+ * write went through, was refused or threw.
+ */
 function useWrite(onWrite: OnWrite) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const inFlight = useRef(false);
   async function run(input: NewRecordInput): Promise<boolean> {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -26,6 +40,7 @@ function useWrite(onWrite: OnWrite) {
       setErrors(errorLines(error));
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -61,7 +76,7 @@ function Opener({ label, children }: { label: string; children: (close: () => vo
 function FormButtons({ busy, submit, onCancel }: { busy: boolean; submit: string; onCancel: () => void }) {
   return (
     <div className={styles.actions}>
-      <button type="submit" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy}>
+      <button type="submit" className="ft-btn ft-btn--sm" disabled={busy}>
         {submit}
       </button>
       <button type="button" className="ft-btn ft-btn--sm" onClick={onCancel} disabled={busy}>
@@ -308,8 +323,10 @@ export function AcceptReason({
   reusesId = null,
   label = "Accept with a note",
 }: {
-  chargeId: Id;
-  reason: Reason;
+  /** The charge the reason is on; null for a problem on the grant itself, which is always accepted as a one-off. */
+  chargeId: Id | null;
+  /** The problem being accepted: a charge's reason or a grant's problem. */
+  reason: Pick<Problem, "check" | "problem" | "text" | "record_ids">;
   onWrite: OnWrite;
   /** The offered note this acceptance reuses, when the accountant takes an offer by writing the note out. */
   reusesId?: Id | null;
@@ -329,10 +346,11 @@ export function AcceptReason({
           const ok = await write.run({
             data: {
               kind: "accepted_reason",
-              charge_id: chargeId,
+              // Without a charge, record or file, an acceptance is about the grant itself.
+              ...(chargeId ? { charge_id: chargeId } : {}),
               reason: { check: reason.check, problem: reason.problem },
               note: note.trim(),
-              reusable,
+              reusable: chargeId ? reusable : false,
               ...(reusesId ? { reuses_id: reusesId } : {}),
               rests_on: reason.record_ids ?? [],
             },
@@ -346,15 +364,18 @@ export function AcceptReason({
             </label>
             <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} />
             {missing && !note.trim() && <p className="ft-error">Write a note.</p>}
-            <fieldset className={styles.choices}>
-              <legend className="ft-label">Use the note</legend>
-              <label>
-                <input type="radio" name={`${id}-reuse`} checked={!reusable} onChange={() => setReusable(false)} /> Just this charge
-              </label>
-              <label>
-                <input type="radio" name={`${id}-reuse`} checked={reusable} onChange={() => setReusable(true)} /> This and similar charges
-              </label>
-            </fieldset>
+            {/* A reusable note is about charges; a grant's own problem is always accepted once. */}
+            {chargeId && (
+              <fieldset className={styles.choices}>
+                <legend className="ft-label">Use the note</legend>
+                <label>
+                  <input type="radio" name={`${id}-reuse`} checked={!reusable} onChange={() => setReusable(false)} /> Just this charge
+                </label>
+                <label>
+                  <input type="radio" name={`${id}-reuse`} checked={reusable} onChange={() => setReusable(true)} /> This and similar charges
+                </label>
+              </fieldset>
+            )}
             <FormButtons busy={write.busy} submit="Accept" onCancel={close} />
             <Errors errors={write.errors} />
           </form>
@@ -406,7 +427,7 @@ export function OfferedNote({ chargeId, reason, note, onWrite }: { chargeId: Id;
       </p>
       <p className="ft-caption">Accept this the same way?</p>
       <div className={styles.actions}>
-        <button type="button" className="ft-btn ft-btn--sm ft-btn--main" disabled={write.busy} onClick={() => void accept(false)}>
+        <button type="button" className="ft-btn ft-btn--sm" disabled={write.busy} onClick={() => void accept(false)}>
           Just this charge
         </button>
         <button type="button" className="ft-btn ft-btn--sm" disabled={write.busy} onClick={() => void accept(true)}>

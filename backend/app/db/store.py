@@ -23,7 +23,7 @@ from app.contracts.checks import ChargeStatus, GrantStatus, RecordStatus
 from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import CheckerProgress, HeldMail, SkippedFile
 from app.contracts.records import Record
-from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
+from app.contracts.runs import CHARGE_BATCH, AgentRun, RunStatus, Trigger, TriggerKind
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, User, Workspace
 
@@ -1008,3 +1008,62 @@ def sample_accountant_id(conn: Conn, workspace_id: str) -> str:
     ).fetchone()
     assert row is not None, "every workspace has its Sample accountant"
     return row["id"]
+
+
+def reading_counts(conn: Conn, grant_id: str) -> dict[str, int] | None:
+    """Ruling 71: the files and ledger lines of the grant's current stretch of work, and how
+    many of them a finished run has read. None while nothing is queued or running, or when
+    the stretch has no file or ledger line to read (only thread or record runs).
+
+    The stretch starts at the last run queued after every earlier run had finished, so it
+    holds the runs queued since the grant last had none queued or running. A window over
+    the runs in queued order finds it, so this isn't quadratic in the grant's runs. A file
+    run covers its file; a charge run covers its batch (the charges that arrived with its
+    trigger charge, from it in ledger line order, at most CHARGE_BATCH). One query, so read
+    and total are counted over the same runs.
+    """
+    row = conn.execute(
+        """with runs as (
+             select id, status, trigger_kind, trigger_id, queued_at,
+               max(coalesce(finished_at, 'infinity'::timestamptz)) over (
+                 order by queued_at, id rows between unbounded preceding and 1 preceding
+               ) as earlier_done_by
+             from public.agent_runs where grant_id = %(grant)s
+           ),
+           start as (
+             select max(queued_at) as at from runs
+             where earlier_done_by is null or queued_at > earlier_done_by
+           ),
+           stretch as (
+             select r.status, r.status in ('done', 'failed') as read,
+               case when r.trigger_kind = 'file' then 1 else 0 end as files,
+               case when r.trigger_kind = 'charge' then (
+                 select least(%(batch)s, count(*)) from public.charges c2
+                 join public.charges c on c.id = r.trigger_id
+                 where c2.grant_id = %(grant)s and c2.arrived_at = c.arrived_at
+                   and c2.ledger_line_id >= c.ledger_line_id
+               ) else 0 end as lines
+             from runs r where r.queued_at >= (select at from start)
+           )
+           select count(*) filter (where status in ('queued', 'running')) as pending,
+             coalesce(sum(files), 0)::int as files_total,
+             coalesce(sum(files) filter (where read), 0)::int as files_read,
+             coalesce(sum(lines), 0)::int as lines_total,
+             coalesce(sum(lines) filter (where read), 0)::int as lines_read
+           from stretch""",
+        {"grant": grant_id, "batch": CHARGE_BATCH},
+    ).fetchone()
+    if row is None or not row["pending"] or not (row["files_total"] or row["lines_total"]):
+        return None
+    return {k: int(row[k]) for k in ("files_read", "files_total", "lines_read", "lines_total")}
+
+
+def last_run_summary(conn: Conn, grant_id: str) -> str | None:
+    """Ruling 71: the summary the grant's last finished run left, if any."""
+    row = conn.execute(
+        """select summary from public.agent_runs
+           where grant_id = %s and finished_at is not null
+           order by finished_at desc, id desc limit 1""",
+        (grant_id,),
+    ).fetchone()
+    return row["summary"] if row and row["summary"] else None

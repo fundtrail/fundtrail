@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
+from names import LEGACY, Org
+
 EVIDENCE_COMPLETE = "evidence_complete"
 POSSIBLE_CONFLICT = "possible_conflict"
 MISSING_EVIDENCE = "missing_evidence"
@@ -58,6 +60,13 @@ class Doc:
     # delivers it. The clock never delivers it. In the play the key assumes,
     # the user delivers it on that date, so `at` is also when it arrives.
     deliver: str | None = None
+    # For a typeset PDF: the first and last page each row of `text` is on, counted
+    # from 1, and None for a blank row (typeset.locate). None for any other file.
+    pages: list[tuple[int, int] | None] | None = None
+    # For a picture of paper (images.py), a photo or a scan: for each row of `text`, its
+    # words and each one's box on the picture as (left, top, width, height) in fractions
+    # of it, and None for a blank row. None for any other file.
+    words: list[list[tuple[str, tuple[float, float, float, float]]] | None] | None = None
 
 
 @dataclass
@@ -121,6 +130,15 @@ class Grant:
     # (confirmed at, new end date): a later end date confirmed by the accountant
     extensions: list[tuple[datetime, date]] = field(default_factory=list)
     horizon: datetime | None = None
+    # A sample's documents are typeset PDFs (ordinary.put). The unused seed grants
+    # keep the plain text and the typewriter PDFs they were built with.
+    typeset: bool = False
+    # The university, the funder's officials and the airline its documents name. The
+    # samples set names.SAMPLES; the unused seed grants keep the placeholder names.
+    org: Org = LEGACY
+    # The documents that arrive as a scan or a phone photo of their typeset page, by
+    # file name: an images.Scan or an images.Photo (issue 312).
+    pictures: dict = field(default_factory=dict)
     _seq: int = 0
 
     # ------------------------------------------------------------ building
@@ -177,22 +195,28 @@ class Grant:
         self.lines.append(ln)
         return ln
 
-    def confirm(self, file: str, when: datetime, note: str) -> None:
+    def confirm(self, file: str, when: datetime, note: str, highlight: str | None = None) -> None:
         """The user confirms the terms read from a file: a user action, not an event."""
-        self.user_actions.append(
-            {"at": when, "action": "confirm_terms", "file": file, "note": note}
-        )
+        self.script("confirm_terms", when, note, highlight, file=file)
 
-    def deliver_file(self, file: str, when: datetime, note: str) -> None:
+    def deliver_file(
+        self, file: str, when: datetime, note: str, highlight: str | None = None
+    ) -> None:
         """The user brings in a file marked for them to deliver, by upload."""
-        self.user_actions.append({"at": when, "action": "deliver_file", "file": file, "note": note})
+        self.script("deliver_file", when, note, highlight, file=file)
 
-    def script(self, action: str, when: datetime, note: str, **refs: str) -> None:
-        """Any other step of the accountant script (ruling 47): decide_suggestion,
-        answer_flag or enter_share. `refs` are stable references (a ledger line
-        ID, a file name, a record kind) and the expected decision or values,
-        never record IDs."""
-        self.user_actions.append({"at": when, "action": action, **refs, "note": note})
+    def script(
+        self, action: str, when: datetime, note: str, highlight: str | None = None, **refs: str
+    ) -> None:
+        """A step of the accountant script (ruling 47). `refs` are stable references
+        (a ledger line ID, a file name, a record kind) and the expected decision or
+        values, never record IDs. `highlight` marks the step as a highlight's own, the
+        user's part of it, with the label that highlight's timeline event carries
+        (ruling 77): Next highlight leaves the step to the user."""
+        step = {"at": when, "action": action, **refs}
+        if highlight:
+            step["highlight"] = highlight
+        self.user_actions.append({**step, "note": note})
 
     def record(self, kind: str, file: str, **fields: str) -> None:
         self.records.append({"kind": kind, "file": file, "fields": dict(fields)})
@@ -321,8 +345,7 @@ class Grant:
                 "at": self.ledger_at,
                 "kind": "ledger",
                 "file": "ledger.csv",
-                "note": "The ledger file arrives. Each line arrives at the later of this "
-                "and 00:00 UTC on its posting date (decision 0023).",
+                "note": "The ledger file arrives. Each line posts on its date.",
             }
             if "ledger.csv" in self.highlights:
                 ev["highlight"] = self.highlights["ledger.csv"]

@@ -74,6 +74,17 @@ export const TERM_KIND_LABELS: Record<TermKind, string> = {
   other_term: "Other term",
 };
 
+/** The heading over a group of terms of one kind on the terms page. */
+export const TERM_GROUP_LABELS: Record<TermKind, string> = {
+  period_of_performance: "Dates",
+  budget_line: "Budget lines",
+  person: "People",
+  approval_rule: "Approval rules",
+  rate: "Rates",
+  notice: "Funding notices",
+  other_term: "Other",
+};
+
 export const SCOPE_LABELS: Record<ApprovalScope, string> = {
   every_charge: "Every charge in the category",
   moved_out: "Only money moved out of the category",

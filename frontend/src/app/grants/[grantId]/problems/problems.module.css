@@ -1,0 +1,102 @@
+/*
+ * The problem list page: a quiet head with the filter, then one bordered
+ * container, the list on the left and the picked item on the right. Under
+ * 980px the list is the page.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 1240px;
+  padding: var(--space-1) var(--space-5) var(--space-6);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-5);
+}
+.crumb {
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+.crumb:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
+.title {
+  margin: 2px 0 0;
+  font: 700 28px/1.15 var(--display);
+  letter-spacing: -0.02em;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+/* The list is the one bordered block; the picked item sits beside it in its own panels. */
+.list {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper-raised);
+}
+.detail {
+  min-width: 0;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 28px 22px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+.empty p {
+  margin: 0;
+}
+/* A drawn check: the list is clear. */
+.doneMark {
+  flex: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ledger);
+  border-radius: 50%;
+}
+.doneMark::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--ledger);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+
+@media (max-width: 980px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .detailFirst {
+    order: -1;
+  }
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 0;
+  }
+}

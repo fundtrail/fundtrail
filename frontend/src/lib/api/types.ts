@@ -276,6 +276,8 @@ export interface OtherTerm {
   dated: CitedDate;
   label: string;
   statement: CitedText;
+  /** Only names the funder's standard conditions; the checks never ask the unusual-term question about it (ruling 81). */
+  standard_conditions?: boolean;
 }
 
 export interface BillItem {
@@ -538,6 +540,10 @@ export interface ChecklistEntry {
   rate_id?: Id | null;
   /** Ruling 61: and the salary lines' charges. Such an item has no links. */
   charge_ids?: Id[];
+  /** For an item with an amount that's only partly covered: how much is covered. */
+  covered_cents?: Cents | null;
+  /** And its wording, from the server. Both are set together, or neither. */
+  partly_filled_text?: string | null;
 }
 
 export interface ChargeStatus {
@@ -746,6 +752,15 @@ export interface CloseoutDate {
   label: string;
 }
 
+/** How far the agent is through the files and ledger lines it has to read (ruling 71). */
+export interface ReadingProgress {
+  files_read: number;
+  files_total: number;
+  /** Ledger lines. */
+  lines_read: number;
+  lines_total: number;
+}
+
 /** One row of GET /workspaces/{workspace_id}/grants (issue 22, answer 7). */
 export interface GrantSummary {
   grant: Grant;
@@ -759,6 +774,10 @@ export interface GrantSummary {
   next_closeout?: CloseoutDate | null;
   /** The grant's now, so screens never ask the browser for the date (ruling 40). */
   now: IsoDatetime;
+  /** Ruling 71: how far the agent is through what it has to read now. */
+  reading?: ReadingProgress | null;
+  /** The last finished run's summary line. */
+  last_run_summary?: string | null;
 }
 
 // --- Sample grants: choosing one, and its timeline (ruling 40). ---
@@ -853,6 +872,10 @@ export interface TimelineView {
   catching_up: boolean;
   /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
   on_run_through?: boolean | null;
+  /** Why the timeline can't move now, worded by the server; null when it can. */
+  move_unavailable_reason?: string | null;
+  /** Why Next highlight can't move now; null when it can. */
+  next_highlight_unavailable_reason?: string | null;
 }
 
 /** POST /grants/{grant_id}/timeline. No `to` plays to the next event. Forward only: earlier is a 409. */
@@ -860,6 +883,8 @@ export interface TimelineMove {
   to?: IsoDatetime | null;
   /** The sample accountant performs the scripted human steps as the clock passes them (ruling 47). */
   skip_human_steps?: boolean;
+  /** Move to the next event marked as a highlight. */
+  next_highlight?: boolean;
 }
 
 /** POST /grants/{grant_id}/timeline/start-over. */
@@ -881,6 +906,8 @@ export interface BudgetLineView {
   line: FtRecord<BudgetLine>;
   amount_cents: Cents;
   spent_cents: Cents;
+  /** A sub-line's parent category; its amount and spending are already inside the parent's. */
+  parent?: BudgetCategory | null;
 }
 
 export interface BudgetView {
@@ -901,6 +928,8 @@ export interface SignOffState {
   state: SignOffStateName;
   sign_off?: FtRecord<SignOff> | null;
   changes?: SnapshotChange[];
+  /** Why signing off isn't available now, worded by the server; null when it is. */
+  unavailable_reason?: string | null;
 }
 
 /** GET /grants/{grant_id}. Carries no flagged charges: the problem list has its own response. */

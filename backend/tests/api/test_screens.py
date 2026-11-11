@@ -3,6 +3,7 @@ section 15), with the checks faked."""
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -12,7 +13,7 @@ import pytest
 from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecksInput, ChecksOutput, Problem
 from app.contracts.fixtures import SampleGrant
-from app.contracts.records import DefaultItem, Record
+from app.contracts.records import DefaultItem, Judgment, Record
 from app.contracts.runs import Trigger, TriggerKind
 from app.db import store
 from app.db.clock import ClockError, grant_now, move_grant_clock, next_arrival
@@ -82,7 +83,12 @@ def test_the_grant_page_shows_terms_in_force_budget_and_closeout(api: Api) -> No
     }
     assert (budget["limit_cents"], budget["spent_cents"]) == (12000000, 342000)
     assert [n["text"] for n in detail["grant_notes"]] == ["Other is over its budget."]
-    assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}
+    assert detail["sign_off"] == {
+        "state": "not_signed",
+        "sign_off": None,
+        "changes": [],
+        "unavailable_reason": None,
+    }
 
     [row] = _get(api, f"/workspaces/{sample.workspace.id}/grants")
     assert row == s
@@ -599,7 +605,12 @@ def test_the_grant_page_lists_reusable_notes_and_term_values(api: Api) -> None:
         t for t in detail["terms"] if t["record"]["data"]["kind"] == "period_of_performance"
     )
     assert period["values"] and all(v["confirmed"] for v in period["values"])
-    assert detail["sign_off"] == {"state": "not_signed", "sign_off": None, "changes": []}
+    assert detail["sign_off"] == {
+        "state": "not_signed",
+        "sign_off": None,
+        "changes": [],
+        "unavailable_reason": None,
+    }
 
 
 def test_a_second_move_during_a_catch_up_records_no_late_flag(api: Api) -> None:
@@ -833,3 +844,192 @@ def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None
     assert tampered.status_code == 409
     assert b"%PDF changed" not in tampered.content
     assert tampered.json()["detail"].startswith("The stored report doesn't match the checksum")
+
+
+def test_the_grant_page_says_why_sign_off_cant_be_done_now(api: Api) -> None:
+    """Ruling 72: while a run is queued or running, the sign-off state carries the same
+    words the sign-off route refuses with; once the agent is done, none."""
+    sample = _sample(api)
+    path = f"/grants/{sample.grant.id}/records"
+    with transaction(api.platform.pool) as conn:
+        from app.db.jobs import queue_run
+
+        queue_run(conn, sample.grant, Trigger(kind=TriggerKind.CLOCK), APRIL_10)
+    reason = _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"]
+    refused = api.client.post(
+        path, json={"data": {"kind": "sign_off", "note": "Done."}}, headers=api.headers
+    )
+    assert refused.status_code == 422 and refused.json()["detail"] == [reason]
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (sample.grant.id,)
+        )
+    assert _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"] is None
+
+
+def test_the_charge_page_names_every_file_its_records_cite(api: Api) -> None:
+    """Issue 275: a file an answer's quote cites is in the charge page's files, not only
+    the links' files."""
+    sample = _sample(api)
+    l1001 = _id(sample, "chg-l-1001")
+    letter = _id(sample, "file-award-letter")
+    original = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(original.data, Judgment)
+    quote = original.data.quotes[0].model_copy(update={"file_id": letter})
+    answer = original.model_copy(
+        update={
+            "id": str(uuid.uuid4()),
+            "replaces_id": original.id,
+            "stored_seq": None,
+            "data": original.data.model_copy(update={"quotes": (quote,)}),
+        }
+    )
+    with transaction(api.platform.pool) as conn:
+        store.insert_records(conn, [answer])
+    detail = _get(api, f"/charges/{l1001}")
+    assert letter in detail["files"]
+    assert detail["files"][letter]["name"] == "award_letter.txt"
+
+
+def _agent_record(sample: SampleGrant, data: dict[str, Any], at: datetime) -> Record:
+    return Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "agent",
+            "written_at": at,
+            "read_through_seq": 1,
+            "data": data,
+        }
+    )
+
+
+def _store(api: Api, *records: Record) -> None:
+    with transaction(api.platform.pool) as conn:
+        store.insert_records(conn, list(records))
+
+
+def test_a_waiting_duplicate_mark_names_both_its_files(api: Api) -> None:
+    """Highlight 10: the likely duplicate. A waiting duplicate mark on L-1001's invoice
+    names its copy and its original on the charge page."""
+    sample = _sample(api)
+    invoice, statement = _id(sample, "file-invoice-1001"), _id(sample, "file-sequencing-statement")
+    mark = _agent_record(
+        sample,
+        {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": statement},
+        APRIL_10,
+    )
+    _store(api, mark)
+    detail = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}")
+    assert [w["record"]["id"] for w in detail["waiting"]] == [mark.id]
+    assert {invoice, statement} <= set(detail["files"])
+
+
+def test_a_waiting_suggestion_names_the_file_of_the_link_it_replaces(api: Api) -> None:
+    """An agent's link always has a part (the contract refuses one without), so a link with
+    no part is the accountant's, which never waits. Its file is its target's, as the link
+    view shows it, and it stays named while an agent's link waits to replace it."""
+    sample = _sample(api)
+    l1001 = _id(sample, "chg-l-1001")
+    statement = _id(sample, "file-sequencing-statement")
+    theirs = Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "user",
+            "author_user_id": api.user_id,
+            "written_at": APRIL_10,
+            "data": {
+                "kind": "link",
+                "charge_id": l1001,
+                "record_id": _id(sample, "rec-bill-seq-0207"),
+                "amount_cents": 124000,
+            },
+        }
+    )
+    quote = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(quote.data, Judgment)
+    mine = _agent_record(
+        sample,
+        {
+            "kind": "link",
+            "charge_id": l1001,
+            "record_id": _id(sample, "rec-bill-inv-1001"),
+            "amount_cents": 124000,
+            "part": quote.data.quotes[0].model_dump(mode="json"),
+        },
+        APRIL_10,
+    ).model_copy(update={"replaces_id": theirs.id})
+    _store(api, theirs, mine)
+    detail = _get(api, f"/charges/{l1001}")
+    assert mine.id in [w["record"]["id"] for w in detail["waiting"]]
+    assert statement in detail["files"]
+
+
+def test_a_file_from_another_grant_or_not_yet_arrived_stays_out(api: Api) -> None:
+    march = datetime(2026, 3, 1, tzinfo=UTC)
+    sample = _sample(api, march)  # the extension notice arrives on April 9
+    other = sample_into_db(api.platform, api.user_id, march)
+    notice = _id(sample, "file-extension-notice")
+    elsewhere = _id(other, "file-invoice-1001")
+    invoice = _id(sample, "file-invoice-1001")
+    _store(
+        api,
+        _agent_record(
+            sample,
+            {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": notice},
+            march,
+        ),
+        _agent_record(
+            sample,
+            {"kind": "duplicate", "copy_file_id": invoice, "original_file_id": elsewhere},
+            march,
+        ),
+    )
+    files = _get(api, f"/charges/{_id(sample, 'chg-l-1001')}")["files"]
+    assert invoice in files
+    assert notice not in files and elsewhere not in files
+
+
+def test_a_suggestion_moving_the_accountants_link_names_that_links_file(api: Api) -> None:
+    """The no-part branch: the accountant linked L-1002 to the sequencing statement's bill
+    with no part; an agent's link waiting to move it to L-1001 is on L-1001's page, and
+    names the statement through the link it would replace."""
+    sample = _sample(api)
+    l1001, l1002 = _id(sample, "chg-l-1001"), _id(sample, "chg-l-1002")
+    statement = _id(sample, "file-sequencing-statement")
+    theirs = Record.model_validate(
+        {
+            "id": str(uuid.uuid4()),
+            "workspace_id": sample.grant.workspace_id,
+            "grant_id": sample.grant.id,
+            "author": "user",
+            "author_user_id": api.user_id,
+            "written_at": APRIL_10,
+            "data": {
+                "kind": "link",
+                "charge_id": l1002,
+                "record_id": _id(sample, "rec-bill-seq-0207"),
+                "amount_cents": 218000,
+            },
+        }
+    )
+    quote = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(quote.data, Judgment)
+    mine = _agent_record(
+        sample,
+        {
+            "kind": "link",
+            "charge_id": l1001,
+            "record_id": _id(sample, "rec-bill-inv-1001"),
+            "amount_cents": 124000,
+            "part": quote.data.quotes[0].model_dump(mode="json"),
+        },
+        APRIL_10,
+    ).model_copy(update={"replaces_id": theirs.id})
+    _store(api, theirs, mine)
+    detail = _get(api, f"/charges/{l1001}")
+    assert mine.id in [w["record"]["id"] for w in detail["waiting"]]
+    assert statement in detail["files"]

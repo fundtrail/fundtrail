@@ -2,7 +2,9 @@
 
 About 30 charges. Most are ordinary and clear on their own. Twelve highlights
 each show a part of the app the others don't (the sample content brief, ruling
-58). Each highlight's events carry a short `highlight` label in timeline.json:
+58). Each highlight's events carry a short `highlight` label in timeline.json,
+on the event where the highlight is whole, and a scripted step that is the
+highlight's own carries the same label (ruling 77):
 
  1. The award letter: terms tied to their passages, confirmed.
  2. An invoice emailed before its ledger line posts: it waits, then links.
@@ -20,7 +22,7 @@ each show a part of the app the others don't (the sample content brief, ruling
  8. Spending goes over a budget line and the award's total; accepted with a
     note; a notice adding money raises the limit.
  9. Closeout: the notice of expiration, the closeout review, and sign-off with
-    one item open and a note.
+    two items open and a note that names them.
 10. The same invoice twice: emailed, then a scan in Drive.
 11. One effort report clears six salary lines.
 12. A bill under its charge: the item still open at sign-off.
@@ -34,7 +36,8 @@ import random
 from datetime import date, timedelta
 from decimal import Decimal
 
-from demo import FIELD, HARPER, JAMIE, LAB, ROWAN, RTC, SASHA, SCI, SUPPLIES_ACCOUNT
+from demo import RTC, SUPPLIES_ACCOUNT
+from images import Photo, Row, Scan, put_image, receipt
 from model import (
     EVIDENCE_COMPLETE,
     MISSING_EVIDENCE,
@@ -44,21 +47,55 @@ from model import (
     at,
     business_day,
 )
-from ordinary import (
+from names import (
+    CALDER,
     DEPARTMENT,
-    GRANTS_INBOX,
+    ESTUARIES_AIRPORT,
+    ESTUARIES_CITY,
+    ESTUARIES_HOTEL,
+    ESTUARIES_MEETING,
+    FALL_MEETING,
+    FALL_MEETING_AIRPORT,
+    FALL_MEETING_CITY,
+    FALL_MEETING_HOTEL,
+    GAIL,
+    IMOGEN,
+    ISOTOPE_FACILITY,
+    KITTREDGE,
+    LOOMIS,
+    MAREN,
+    MARINE_STATION,
+    MARSH_DIVISION,
+    MARSH_LISTING,
+    MARSH_SITE,
+    MARSH_TITLE,
+    RENATA,
+    SALTGRASS,
+    SAMPLES,
+    SHARED_LABS,
+    SIMONE,
+    SOCIETY,
+    SOCIETY_EMAIL,
+    SOCIETY_MEETING,
+    TAXI,
+    TAXI_CITY,
+    TOBIAS,
+    UNIVERSITY,
+    UNIVERSITY_ADDRESS,
+    lines,
+)
+from ordinary import (
     Trip,
     appointment_letter,
     award_letter,
     effort_report,
     months,
+    put,
     recharges,
     supplies,
     trip,
 )
-from photo import photo, scan
 from render import (
-    UNIVERSITY,
     award_notice,
     eml,
     extension_notice,
@@ -66,13 +103,14 @@ from render import (
     invoice,
     long_date,
     money,
-    pdf,
     usage_statement,
 )
+from typeset import SYNTHETIC
 
 SLUG = "salt-marsh-carbon"
 AWARD = "SYN-2401835"
-TITLE = "Salt Marsh Carbon Burial at Example Point"
+TITLE = MARSH_TITLE
+GRANTS_INBOX = SAMPLES.grants_inbox
 START, OLD_END, NEW_END = date(2024, 2, 1), date(2026, 7, 31), date(2027, 1, 31)
 AWARD_DATE = date(2024, 1, 16)
 OTHER_AWARD = "SYN-2507264"  # the award the shared kit's rest belongs to (another lab's)
@@ -85,7 +123,7 @@ RATE_AGREEMENT = "rate_agreement_2025-05-28.pdf"
 # The benefit check's table puts the Limited group's pay on 51232 (PR 219); the
 # postdoc is in the Limited group.
 POSTDOC_SALARY = "51232 Salaries-Limited Benefit Staff"
-EMS = "Example Marine Station"
+EMS = MARINE_STATION
 
 # The budget of amendment 000 and of the increment, 001. Names are unique, so a
 # budget line is found by its name.
@@ -129,17 +167,38 @@ BUDGET_001 = [
     ),
 ]
 
+# The documents that arrive as paper: three scanned by the department, each a little
+# crooked at its own angle, and one photographed with a phone (issue 312). None is a
+# document a highlight's own result rests on. The invoices carry the department's
+# received stamp, a tick and a pen scrawl, and the letter a scrawl for a signature. The
+# marks state nothing.
+PICTURES = {
+    "invoice_INV-12655.pdf": Scan(seed=12655, turn=0.7),
+    "invoice_EFG-56443.pdf": Scan(seed=56443, turn=-1.1),
+    f"appointment_letter_{IMOGEN.name.split()[-1].lower()}.pdf": Scan(
+        seed=2025, turn=0.4, stamp=False, tick=False, sign=True
+    ),
+    "hotel_folio_egu-2024.jpg": Photo(seed=2024),
+    # The scan of invoice ESS-55120 that turns up in Drive (highlight 10). Its stamp
+    # carries the day the invoice was forwarded, not the day the scan arrives.
+    "scan_invoice_ESS-55120.jpg": Scan(seed=55120, turn=0.9, received=date(2025, 10, 8)),
+}
+
 DESCRIPTION = (
-    "This amendment funds the first increment of a new continuing grant for the period "
-    "of performance shown below. The project measures how fast salt marshes at Example "
-    "Point bury carbon as sea level rises. Participant support costs: funds budgeted for "
-    "participant support may not be diverted by the awardee to other categories of expense "
-    "without the prior written approval of the cognizant NSF Program Officer."
+    f"The National Science Foundation hereby awards a continuing grant to {UNIVERSITY} for "
+    "support of the project described in the proposal referenced above. This amendment "
+    "funds the first increment for the period of performance shown below. The project "
+    f"measures how fast salt marshes at {MARSH_SITE} bury carbon as sea level rises. Funds "
+    "provided for participant support may not be diverted by the awardee to other categories "
+    "of expense without the prior written approval of the cognizant NSF Program Officer."
 )
 
 
 def build() -> Grant:
     g = Grant(SLUG, AWARD, START, OLD_END, horizon=at(NEW_END + timedelta(days=60), 23, 59))
+    g.typeset = True
+    g.org = SAMPLES
+    g.pictures = dict(PICTURES)
     rng = random.Random(2401835)
     g.agent_extras = {"rules": {}, "remainders": [], "duplicates": []}
     letter(g)
@@ -170,8 +229,8 @@ def letter(g: Grant) -> None:
         award_date=AWARD_DATE,
         arrives=at(date(2024, 1, 18), 17),
         confirm_at=at(date(2024, 1, 19), 18),
-        personnel=[HARPER, SASHA],
-        program_officer=JAMIE,
+        personnel=[MAREN, TOBIAS],
+        program_officer=RENATA,
         conditions=RTC,
         description=DESCRIPTION,
         budget=BUDGET_000,
@@ -179,17 +238,90 @@ def letter(g: Grant) -> None:
         intended_cents=12000000,
         instrument="Continuing Grant",
         highlight="Terms tied to their passages",
+        name="award_letter.pdf",
+        division=MARSH_DIVISION,
+        listing=MARSH_LISTING,
     )
 
 
 # ---------------------------------------------------------------- ordinary charges
+
+# The ordinary purchases' lines, by invoice number, in place of the ones the seed
+# draws: the same subtotal, with the lines a real order of this kind carries. An item
+# has one unit price at a vendor, on every invoice.
+SUPPLY_LINES = {
+    "INV-12655": lines(
+        ("Sediment core liners, 50 count", 1, 16400),
+        ("Nitrile gloves, powder free, medium, 10 boxes", 1, 8400),
+    ),
+    "INV-77772": lines(
+        ("Cryovials, 2 mL, 500 count", 2, 11250),
+        ("Ethanol, 200 proof, 4 L", 2, 15600),
+        ("Cryogenic storage boxes, 81 place, 5 pack", 1, 7250),
+        ("Cryogenic labels, 1000 count", 1, 4000),
+    ),
+    "ESS-35630": lines(
+        ("Crucibles, porcelain, 50 count", 1, 12900),
+        ("Crucible lids, porcelain, 50 count", 1, 6000),
+    ),
+    "ESS-20042": lines(
+        ("Crucibles, porcelain, 50 count", 1, 12900),
+        ("Crucible tongs, stainless, 9 in", 2, 3000),
+    ),
+    "ESS-11567": lines(
+        ("Balance calibration weights, set", 1, 31000),
+        ("Weighing boats, aluminum, 250 count", 2, 3600),
+        ("Forceps, anti-static, stainless", 2, 2400),
+    ),
+    "EFG-56443": lines(
+        ("Field notebooks, waterproof, 12 pack", 5, 7200),
+        ("Waders, chest, size L", 3, 18900),
+        ("Dry bags, 20 L, 4 pack", 3, 8800),
+        ("Wading boots, size 10", 2, 6400),
+        ("Wader repair kit", 4, 1200),
+    ),
+    "EFG-89662": lines(
+        ("Waders, chest, size L", 2, 18900),
+        ("Dry bags, 20 L, 4 pack", 1, 8800),
+        ("Sediment corer replacement head", 3, 42500),
+        ("Piston seals, corer, 10 pack", 5, 8500),
+    ),
+}
+# The isotope facility's statements, by number: the analysis and the sample
+# preparation it bills with it, at one rate for each service.
+ISOTOPE_ROWS = {
+    "SIF-2408-98": [
+        ("Total organic carbon, per sample", 8, 1250),
+        ("Sample grinding and weighing, per sample", 8, 625),
+    ],
+    "SIF-2509-82": [
+        ("Total organic carbon, per sample", 22, 1250),
+        ("Sample grinding and weighing, per sample", 18, 625),
+    ],
+    "SIF-2610-70": [
+        ("Carbon and nitrogen isotopes, per sample", 15, 1800),
+        ("Tin capsule packing, per sample", 16, 450),
+    ],
+}
+
+
+def fare(base_cents: int, transportation_tax_cents: int) -> tuple[tuple[str, int], ...]:
+    """A domestic round trip's fare as an airline itemizes it: the base fare, the
+    transportation tax on it, and the three fixed charges."""
+    return (
+        ("Base fare", base_cents),
+        ("U.S. transportation tax", transportation_tax_cents),
+        ("U.S. flight segment tax", 1000),
+        ("Passenger facility charges", 900),
+        ("September 11th security fee", 1120),
+    )
 
 
 def ordinary_charges(g: Grant, rng: random.Random) -> None:
     supplies(
         g,
         rng,
-        vendors=[LAB, SCI, FIELD],
+        vendors=[CALDER, KITTREDGE, SALTGRASS],
         dates=[
             date(2024, 3, 12),
             date(2024, 6, 18),
@@ -199,15 +331,16 @@ def ordinary_charges(g: Grant, rng: random.Random) -> None:
             date(2026, 9, 15),
             date(2026, 12, 8),
         ],
-        attn=HARPER,
+        attn=MAREN,
         project_ref=f"{AWARD}, salt marsh carbon burial",
         account=SUPPLIES_ACCOUNT,
-        forwarder=HARPER,
+        forwarder=MAREN,
+        lines_for=SUPPLY_LINES,
     )
     recharges(
         g,
         rng,
-        facility="Example Stable Isotope Facility",
+        facility=ISOTOPE_FACILITY,
         unit="Campus Core Facilities",
         prefix="SIF",
         service_months=[date(2024, 8, 31), date(2025, 9, 30), date(2026, 10, 31)],
@@ -216,26 +349,34 @@ def ordinary_charges(g: Grant, rng: random.Random) -> None:
             ("Total organic carbon, per sample", 1250),
         ],
         qty=(12, 40),
-        pi=HARPER,
+        pi=MAREN,
+        rows_for=ISOTOPE_ROWS,
     )
     trip(
         g,
         rng,
         Trip(
             "estuaries-2026",
-            "Example Estuaries Conference, talk on marsh cores",
-            "Example Harbor Convention Center, Example Harbor, MA",
-            "EXH",
+            f"{ESTUARIES_MEETING}, talk on marsh cores",
+            ESTUARIES_CITY,
+            ESTUARIES_AIRPORT,
             date(2026, 5, 11),
             3,
             41200,
             5200,
-            "Example Harbor Inn",
+            ESTUARIES_HOTEL,
             22900,
             date(2026, 3, 30),
             "EXR8MV",
+            fare_lines=fare(40353, 3027),
+            ticket="0002614408831",
+            night_lines=(
+                ("Room, standard queen", 19900),
+                ("Room occupancy tax", 2250),
+                ("Convention center fee", 750),
+            ),
         ),
-        traveler=HARPER,
+        traveler=MAREN,
     )
 
 
@@ -243,53 +384,73 @@ def ordinary_charges(g: Grant, rng: random.Random) -> None:
 
 
 def taxi_trip(g: Grant, rng: random.Random) -> None:
-    lines = [
-        "EXAMPLE CAB CO.",
-        "CAB 118   DRIVER 2207",
-        "12/09/2024   18:15",
-        "FROM: EXS AIRPORT",
-        "TO: EXAMPLE SUMMIT HOTEL",
-        "",
-        "FARE                $52.00",
-        "TOTAL               $52.00",
-        "",
-        "PAID: CARD ****4417",
-        "THANK YOU",
+    rows = [
+        Row(TAXI.upper(), style="big", align="center"),
+        Row(TAXI_CITY, style="small", align="center"),
+        Row(rule=True),
+        Row("CAB 118", "DRIVER 2207"),
+        Row("TRIP 004417", "12/09/2024"),
+        Row("START 17:38", "END 18:15"),
+        Row("DIST 24.6 MI", "RATE 1"),
+        Row(rule=True),
+        Row(f"FROM: {FALL_MEETING_AIRPORT} AIRPORT", style="small"),
+        Row(f"TO: {FALL_MEETING_HOTEL.upper()}", style="small"),
+        Row(rule=True),
+        Row("METER FARE", "$44.50"),
+        Row("AIRPORT ACCESS FEE", "$4.50"),
+        Row("TOLLS", "$3.00"),
+        Row(rule=True),
+        Row("TOTAL", "$52.00", style="big"),
+        Row(rule=True),
+        Row("CARD ************4417", style="small"),
+        Row("AUTH 06214B   SALE", style="small"),
+        Row("CUSTOMER COPY", style="small", align="center"),
+        Row("THANK YOU", style="small", align="center"),
     ]
     name = "taxi_receipt_egu_2024.jpg"
-    taxi = g.doc(
+    taxi = put_image(
+        g,
         name,
-        photo(name, lines, seed=2024),
+        receipt(name, rows, seed=118),
         at(date(2024, 12, 30), 18),
         "upload",
         note="The PI's phone photo of the paper taxi receipt: hers to deliver.",
-        text="\n".join(lines),
         deliver="user",
     )
     g.highlights[name] = "Receipt photo you deliver"
     g.deliver_file(
-        name, at(date(2024, 12, 30), 18), "The PI uploads her taxi receipt photo on its date."
+        name,
+        at(date(2024, 12, 30), 18),
+        "The PI uploads her taxi receipt photo on its date.",
+        g.highlights[name],
     )
-    g.record("bill", name, total="5200", dated="2024-12-09", vendor="Example Cab Co.")
+    g.record("bill", name, total="5200", dated="2024-12-09", vendor=TAXI)
     trip(
         g,
         rng,
         Trip(
             "egu-2024",
-            "Example Geophysical Union Fall Meeting, poster",
-            "Example Summit Convention Center, Example Springs, CO",
-            "EXS",
+            f"{FALL_MEETING}, poster",
+            FALL_MEETING_CITY,
+            FALL_MEETING_AIRPORT,
             date(2024, 12, 9),
             4,
             38600,
             4800,
-            "Example Summit Hotel",
+            FALL_MEETING_HOTEL,
             18900,
             date(2024, 10, 28),
             "EXK2PD",
-            extra=("Taxi, airport to hotel, Example Cab Co.", 5200, taxi),
+            extra=(f"Taxi, airport to hotel, {TAXI}", 5200, taxi),
+            fare_lines=fare(37563, 2817),
+            ticket="0002418770254",
+            night_lines=(
+                ("Room, standard queen", 16400),
+                ("State and city lodging tax", 1837),
+                ("Tourism improvement fee", 663),
+            ),
         ),
-        traveler=HARPER,
+        traveler=MAREN,
     )
 
 
@@ -298,57 +459,63 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
 
 def invoice_before_line(g: Grant) -> None:
     text, total = invoice(
-        vendor=LAB.name,
-        vendor_address=LAB.address,
-        vendor_email=LAB.email,
+        vendor=CALDER.name,
+        vendor_address=CALDER.address,
+        vendor_email=CALDER.email,
         number="INV-20514",
         dated=date(2025, 2, 6),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
         project_ref=f"{AWARD}, salt marsh carbon burial",
-        items=[
-            ("Sediment core liners, 50 count", 1, 24800),
+        items=lines(
+            ("Sediment core liners, 50 count", 1, 16400),
             ("Sample bags, sterile, 500 count", 1, 9600),
-        ],
+            ("Core liner end caps, 100 count", 1, 4600),
+            ("Labeling tape, 19 mm, 12 rolls", 1, 3800),
+        ),
         shipping_cents=1250,
         po="PO-25-1102",
+        org=SAMPLES,
+        account=CALDER.account,
     )
+    assert total == 35650
     arrives = at(date(2025, 2, 10), 18, 20)
     name = "invoice_INV-20514.eml"
-    body = f"Invoice INV-20514 for {AWARD}, for the files.\n\nHarper\n\n" + forwarded(
-        sender=("Example Lab Supply Co. Billing", LAB.email),
+    body = f"Invoice INV-20514 for {AWARD}, for the files.\n\n{MAREN.first}\n\n" + forwarded(
+        sender=(f"{CALDER.name} Billing", CALDER.email),
         at=at(date(2025, 2, 6), 23, 5),
         subject="Invoice INV-20514",
-        to=HARPER.email,
+        to=MAREN.email,
         body=text,
     )
     g.doc(
         name,
         eml(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             to=GRANTS_INBOX,
             at=arrives,
             subject="Fwd: Invoice INV-20514",
-            message_id="fwd-inv-20514@university.example",
+            message_id="fwd-inv-20514@halden.example",
             body=body,
         ),
         arrives,
         "gmail",
-        sender=HARPER.email,
+        sender=MAREN.email,
         note="The invoice arrives before its ledger line exists, and waits unlinked.",
     )
-    g.highlights[name] = "Invoice before its line"
     ln = g.line(
         date(2025, 2, 6),
         date(2025, 2, 18),
         total,
         "Core liners, sample bags",
         SUPPLIES_ACCOUNT,
-        vendor=LAB.name,
+        vendor=CALDER.name,
         reference="INV-20514",
         note="The line posts eight days after its invoice arrived. They link now.",
     )
-    g.record("bill", name, total=str(total), dated="2025-02-06", vendor=LAB.name)
+    # The highlight sits where the charge posts, so the charge is on screen (ruling 77).
+    g.highlights[ln.line_id] = "Invoice before its line"
+    g.record("bill", name, total=str(total), dated="2025-02-06", vendor=CALDER.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "supports")
@@ -362,70 +529,75 @@ def shared_invoice(g: Grant) -> None:
     """Decision 0021 (unreviewed): this grant's part of a shared bill, on an email's
     basis, with the agent's suggestion about the rest waiting on the bill."""
     text, total = invoice(
-        vendor="Example Genomics Supply",
-        vendor_address="410 Example Boulevard, Example City, CA 94003",
-        vendor_email="billing@genomicssupply.example",
+        vendor=LOOMIS.name,
+        vendor_address=LOOMIS.address,
+        vendor_email=LOOMIS.email,
         number="EGS-20931",
         dated=date(2025, 5, 12),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
-        project_ref="Fixture and Dummy labs, shared order",
-        items=[("16S library prep kit, 96 reactions", 1, 1000000)],
+        project_ref=f"{SHARED_LABS}, shared order",
+        items=lines(("16S library prep kit, 96 reactions", 1, 1000000)),
         po="PO-25-3381",
+        org=SAMPLES,
+        account=LOOMIS.account,
     )
     assert total == 1000000
     inv = "invoice_EGS-20931.pdf"
-    g.doc(
+    put(
+        g,
         inv,
-        pdf(text, title="Invoice EGS-20931"),
+        text,
+        "Invoice EGS-20931",
         at(date(2025, 5, 13), 17, 45),
         "upload",
+        look=LOOMIS.look,
         note="The shared kit's invoice.",
-        text=text,
     )
     sent = at(date(2025, 5, 14), 21, 12)
     body = "\n".join(
         [
-            "Hi Sam,",
+            f"Hi {GAIL.first},",
             "",
-            "The Example Genomics Supply invoice EGS-20931, for $10,000.00, is for one",
+            f"The {LOOMIS.name} invoice EGS-20931, for $10,000.00, is for one",
             "96-reaction library prep kit that two projects shared. 56 of the 96",
             f"samples were marsh cores for {AWARD}, and the other 40 samples were",
-            f"field samples for {OTHER_AWARD}, Kendall Dummy's award. Please split the",
+            f"field samples for {OTHER_AWARD}, {SIMONE.name}'s award. Please split the",
             "cost on that basis.",
             "",
             "Thanks,",
-            "Harper",
+            MAREN.first,
         ]
     )
     note = "email_kit_split_basis.eml"
     g.doc(
         note,
         eml(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             to=GRANTS_INBOX,
             at=sent,
             subject="Splitting invoice EGS-20931 between two awards",
-            message_id="kit-split-egs-20931@university.example",
+            message_id="kit-split-egs-20931@halden.example",
             body=body,
         ),
         sent,
         "gmail",
-        sender=HARPER.email,
+        sender=MAREN.email,
         note="The email that gives the basis: 56 of the 96 samples.",
     )
-    g.highlights[note] = "Shared invoice, 56 of 96"
     ln = g.line(
         date(2025, 5, 12),
         date(2025, 5, 19),
         583333,
         "16S library prep kit, shared",
         SUPPLIES_ACCOUNT,
-        vendor="Example Genomics Supply",
+        vendor=LOOMIS.name,
         reference="EGS-20931",
-        note="This grant's part of the shared $10,000.00 invoice: $5,833.33.",
+        note="This grant's part of the shared $10,000.00 invoice: $5,833.33, for 56 of the "
+        "96 samples.",
     )
-    g.record("bill", inv, total="1000000", dated="2025-05-12", vendor="Example Genomics Supply")
+    g.highlights[ln.line_id] = "Shared invoice, 56 of 96"
+    g.record("bill", inv, total="1000000", dated="2025-05-12", vendor=LOOMIS.name)
     g.record("note", note)
     g.link(inv, ln, 583333)
     g.link(note, ln)
@@ -441,31 +613,32 @@ def shared_invoice(g: Grant) -> None:
 def own_fee(g: Grant) -> None:
     receipt = "\n".join(
         [
-            "EXAMPLE COASTAL SCIENCE SOCIETY",
-            "Example Coastal Science Meeting 2025, June 23 to 26, 2025",
+            SOCIETY.upper(),
+            f"{SOCIETY_MEETING} 2025, June 23 to 26, 2025",
             "",
             "REGISTRATION RECEIPT",
             "",
             "Confirmation: REG-2025-0311",
             "Receipt date: June 2, 2025",
-            f"Registrant: {HARPER.name}, University of Example",
+            f"Registrant: {MAREN.name}, {UNIVERSITY}",
             "Registration category: Faculty member, full meeting",
             "",
-            f"  {'Registration fee':<36}{money(65000):>12}",
-            f"  {'Total paid':<36}{money(65000):>12}",
+            f"  {'Registration, full meeting, member rate':<40}{money(59500):>10}",
+            f"  {'Abstract submission fee':<40}{money(5500):>10}",
+            f"  {'Total paid':<40}{money(65000):>10}",
             "",
             "Paid by: university card ending 2290",
         ]
     )
     receipt_at = at(date(2025, 6, 4), 17, 40)
     body = (
-        "Sam,\n\nReceipt for my registration at the Example Coastal Science Meeting. Please\n"
-        f"charge it to the participant support line on {AWARD}.\n\nHarper\n\n"
+        f"{GAIL.first},\n\nReceipt for my registration at the {SOCIETY_MEETING}. Please\n"
+        f"charge it to the participant support line on {AWARD}.\n\n{MAREN.first}\n\n"
         + forwarded(
-            sender=("Example Coastal Science Society", "registration@coastalsociety.example"),
+            sender=(SOCIETY, SOCIETY_EMAIL),
             at=at(date(2025, 6, 2), 18, 2),
             subject="Your registration receipt, REG-2025-0311",
-            to=HARPER.email,
+            to=MAREN.email,
             body=receipt,
         )
     )
@@ -473,48 +646,48 @@ def own_fee(g: Grant) -> None:
     g.doc(
         name,
         eml(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             to=GRANTS_INBOX,
             at=receipt_at,
             subject="Fwd: Your registration receipt, REG-2025-0311",
-            message_id="fwd-reg-2025-0311@university.example",
+            message_id="fwd-reg-2025-0311@halden.example",
             body=body,
         ),
         receipt_at,
         "gmail",
-        sender=HARPER.email,
+        sender=MAREN.email,
         note="The PI forwards the receipt for her own conference registration.",
     )
     fee = g.line(
         date(2025, 6, 2),
         date(2025, 6, 9),
         65000,
-        "Conference registration - Fixture H - Example Coastal Science Meeting",
+        f"Conference registration - {MAREN.last_first} - {SOCIETY_MEETING}",
         "56714 Participant Support-Other",
-        vendor="Example Coastal Science Society",
+        vendor=SOCIETY,
         reference="REG-2025-0311",
         note="The PI's own conference fee, posted to participant support.",
     )
     approval = "\n".join(
         [
-            "Sam,",
+            f"{GAIL.first},",
             "",
-            "Approved. Please charge my registration for the Example Coastal Science",
-            f"Meeting to the participant support line on {AWARD}.",
+            f"Approved. Please charge my registration for the {SOCIETY_MEETING}",
+            f"to the participant support line on {AWARD}.",
             "",
-            "Harper Fixture",
+            MAREN.name,
             f"Principal Investigator, {AWARD}",
         ]
     )
     forward_at = at(date(2025, 9, 15), 19, 5)
     body = (
-        "Sam,\n\nFor the files on the registration charge on participant support, here\n"
-        "is my approval from June.\n\nHarper\n\n"
+        f"{GAIL.first},\n\nFor the files on the registration charge on participant support, "
+        f"here\nis my approval from June.\n\n{MAREN.first}\n\n"
         + forwarded(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             at=at(date(2025, 6, 1), 17, 14),
             subject="Registration on participant support",
-            to="Sam Bursar <sam.bursar@university.example>",
+            to=f"{GAIL.name} <{GAIL.email}>",
             body=approval,
         )
     )
@@ -522,24 +695,22 @@ def own_fee(g: Grant) -> None:
     g.doc(
         approval_name,
         eml(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             to=GRANTS_INBOX,
             at=forward_at,
             subject="Fwd: Registration on participant support",
-            message_id="fwd-registration-approval@university.example",
+            message_id="fwd-registration-approval@halden.example",
             body=body,
         ),
         forward_at,
         "gmail",
-        sender=HARPER.email,
+        sender=MAREN.email,
         note='The PI forwards her own email saying "Approved": the wrong approver, and the '
         "wrong channel.",
     )
     g.highlights[approval_name] = "Own fee, own approval"
-    g.record(
-        "bill", name, total="65000", dated="2025-06-02", vendor="Example Coastal Science Society"
-    )
-    g.record("approval", approval_name, approver_email=HARPER.email, approved_on="2025-06-01")
+    g.record("bill", name, total="65000", dated="2025-06-02", vendor=SOCIETY)
+    g.record("approval", approval_name, approver_email=MAREN.email, approved_on="2025-06-01")
     g.link(name, fee, 65000)
     g.link(approval_name, fee)
     g.answer(fee, "allowable", "contradicts")
@@ -552,13 +723,13 @@ def own_fee(g: Grant) -> None:
 
 
 def salaries(g: Grant) -> None:
-    appt = "appointment_letter_mockley.txt"
+    appt = f"appointment_letter_{IMOGEN.name.split()[-1].lower()}.pdf"
     appointment_letter(
         g,
         name=appt,
-        person=ROWAN,
+        person=IMOGEN,
         title="Postdoctoral Scholar",
-        pi=HARPER,
+        pi=MAREN,
         start=date(2025, 7, 1),
         end=date(2025, 12, 31),
         monthly_cents=POSTDOC_MONTHLY,
@@ -569,13 +740,13 @@ def salaries(g: Grant) -> None:
         project_title=TITLE,
     )
     month_ends = months(date(2025, 7, 1), date(2025, 12, 31))
-    report = "effort_report_mockley_2025_07.txt"
+    report = f"effort_report_{IMOGEN.name.split()[-1].lower()}_2025_07.pdf"
     effort_report(
         g,
         name=report,
-        person=ROWAN,
+        person=IMOGEN,
         title="Postdoctoral Scholar",
-        pi=HARPER,
+        pi=MAREN,
         period=(date(2025, 7, 1), date(2025, 12, 31)),
         salary=[(m, POSTDOC_MONTHLY) for m in month_ends],
         certified=date(2026, 2, 17),
@@ -592,7 +763,7 @@ def salaries(g: Grant) -> None:
             me,
             posting,
             POSTDOC_MONTHLY,
-            f"Salary - {ROWAN.last_first} - Postdoctoral Scholar - {me:%b %Y}",
+            f"Salary - {IMOGEN.last_first} - Postdoctoral Scholar - {me:%b %Y}",
             POSTDOC_SALARY,
             reference=f"PAY-{me:%Y-%m}",
         )
@@ -608,7 +779,7 @@ def salaries(g: Grant) -> None:
             me,
             posting,
             benefit_cents,
-            f"Benefits - {ROWAN.last_first} - Postdoctoral Scholar - {me:%b %Y}",
+            f"Benefits - {IMOGEN.last_first} - Postdoctoral Scholar - {me:%b %Y}",
             BENEFITS_LIMITED,
             reference=f"PAY-{me:%Y-%m}",
         )
@@ -649,9 +820,9 @@ def rate_agreement(g: Grant) -> None:
     ]
     text = "\n".join(
         [
-            "EIN: 00-EXAMPLE",
+            "EIN: 00-SAMPLE",
             f"ORGANIZATION: {UNIVERSITY}",
-            "100 Example Hall, Example City, CA 94000",
+            UNIVERSITY_ADDRESS,
             "Date: 05/28/2025",
             "FILING REF.: The preceding agreement was dated 04/10/2024",
             "",
@@ -680,21 +851,22 @@ def rate_agreement(g: Grant) -> None:
             "other agreement only to the extent that funds are available.",
             "",
             f"BY THE INSTITUTION: {UNIVERSITY}",
-            "ON BEHALF OF THE GOVERNMENT: Example Cognizant Agency, Cost Allocation Services",
-            "Signed: Jordan Ratesetter, Director, 05/28/2025",
+            "ON BEHALF OF THE GOVERNMENT: Cognizant Federal Agency, Cost Allocation Services",
+            "Signed: Director, Cost Allocation Services, 05/28/2025",
             "",
             f"ORGANIZATION: {UNIVERSITY}",
             "AGREEMENT DATE: 05/28/2025",
         ]
     )
-    g.doc(
+    put(
+        g,
         RATE_AGREEMENT,
-        pdf(text, title="Colleges and Universities Rate Agreement"),
+        text,
+        "Colleges and Universities Rate Agreement",
         at(date(2025, 6, 16), 18),
         "upload",
         note="The university's fringe benefit rate agreement, for the fiscal year from "
         "July 1, 2025.",
-        text=text,
     )
     # Each fixed row is a rate term (ruling 61): its group, its rate as a fraction,
     # and the dates it's in effect. The accountant confirms them once.
@@ -733,43 +905,47 @@ def rate_agreement(g: Grant) -> None:
 
 def same_invoice_twice(g: Grant) -> None:
     text, total = invoice(
-        vendor=SCI.name,
-        vendor_address=SCI.address,
-        vendor_email=SCI.email,
+        vendor=KITTREDGE.name,
+        vendor_address=KITTREDGE.address,
+        vendor_email=KITTREDGE.email,
         number="ESS-55120",
         dated=date(2025, 10, 6),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
         project_ref=f"{AWARD}, salt marsh carbon burial",
-        items=[
-            ("Crucibles, porcelain, 50 count", 2, 18900),
+        items=lines(
+            ("Crucibles, porcelain, 50 count", 2, 12900),
             ("Tin capsules, 5 x 9 mm, 1000 count", 4, 9875),
-        ],
+            ("Crucible lids, porcelain, 50 count", 2, 6000),
+        ),
         shipping_cents=1875,
         po="PO-25-4410",
+        org=SAMPLES,
+        account=KITTREDGE.account,
     )
+    assert total == 79175
     first = "invoice_ESS-55120.eml"
     sent = at(date(2025, 10, 8), 17, 30)
-    body = f"Invoice ESS-55120 for {AWARD}, for the files.\n\nHarper\n\n" + forwarded(
-        sender=("Example Scientific Supply Billing", SCI.email),
+    body = f"Invoice ESS-55120 for {AWARD}, for the files.\n\n{MAREN.first}\n\n" + forwarded(
+        sender=(f"{KITTREDGE.name} Billing", KITTREDGE.email),
         at=at(date(2025, 10, 6), 22, 0),
         subject="Invoice ESS-55120",
-        to=HARPER.email,
+        to=MAREN.email,
         body=text,
     )
     g.doc(
         first,
         eml(
-            sender=(HARPER.name, HARPER.email),
+            sender=(MAREN.name, MAREN.email),
             to=GRANTS_INBOX,
             at=sent,
             subject="Fwd: Invoice ESS-55120",
-            message_id="fwd-ess-55120@university.example",
+            message_id="fwd-ess-55120@halden.example",
             body=body,
         ),
         sent,
         "gmail",
-        sender=HARPER.email,
+        sender=MAREN.email,
         note="Invoice ESS-55120, forwarded by email.",
     )
     ln = g.line(
@@ -778,22 +954,23 @@ def same_invoice_twice(g: Grant) -> None:
         total,
         "Crucibles, tin capsules",
         SUPPLIES_ACCOUNT,
-        vendor=SCI.name,
+        vendor=KITTREDGE.name,
         reference="ESS-55120",
     )
-    rows = text.rstrip("\n").split("\n")
     copy = "scan_invoice_ESS-55120.jpg"
-    g.doc(
+    put(
+        g,
         copy,
-        scan(copy, rows, seed=55120),
+        text,
+        "Scan of invoice ESS-55120",
         at(date(2025, 11, 20), 19),
         "drive",
+        look=KITTREDGE.look,
         note="A scan of the same invoice, saved to the lab's Drive folder six weeks later.",
-        text="\n".join(rows),
     )
     g.highlights[copy] = "Same invoice twice"
-    g.record("bill", first, total=str(total), dated="2025-10-06", vendor=SCI.name)
-    g.record("bill", copy, total=str(total), dated="2025-10-06", vendor=SCI.name)
+    g.record("bill", first, total=str(total), dated="2025-10-06", vendor=KITTREDGE.name)
+    g.record("bill", copy, total=str(total), dated="2025-10-06", vendor=KITTREDGE.name)
     g.link(first, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "supports")
@@ -803,6 +980,7 @@ def same_invoice_twice(g: Grant) -> None:
         "decide_suggestion",
         at(date(2025, 11, 21), 17),
         "The accountant confirms the scan is a copy of the emailed invoice.",
+        "Same invoice twice",
         suggestion="duplicate",
         decision="accept",
         file=copy,
@@ -814,33 +992,47 @@ def same_invoice_twice(g: Grant) -> None:
 
 def bill_under_charge(g: Grant) -> None:
     text, total = invoice(
-        vendor=SCI.name,
-        vendor_address=SCI.address,
-        vendor_email=SCI.email,
+        vendor=KITTREDGE.name,
+        vendor_address=KITTREDGE.address,
+        vendor_email=KITTREDGE.email,
         number="ESS-56204",
         dated=date(2025, 11, 3),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
         project_ref=f"{AWARD}, salt marsh carbon burial",
-        items=[("Sediment trap frames, stainless", 4, 30000)],
+        items=lines(
+            ("Sediment trap frames, stainless", 4, 25500),
+            ("Sediment trap collection tubes, acrylic", 4, 4500),
+        ),
         po="PO-25-4511",
         terms="net 30. Freight billed separately.",
+        org=SAMPLES,
+        account=KITTREDGE.account,
     )
     assert total == 120000
-    name = "invoice_ESS-56204.txt"
-    g.doc(name, text, at(date(2025, 11, 5), 18), "upload", note="Invoice ESS-56204, for $1,200.00.")
+    name = "invoice_ESS-56204.pdf"
+    put(
+        g,
+        name,
+        text,
+        "Invoice ESS-56204",
+        at(date(2025, 11, 5), 18),
+        "upload",
+        look=KITTREDGE.look,
+        note="Invoice ESS-56204, for $1,200.00.",
+    )
     ln = g.line(
         date(2025, 11, 3),
         date(2025, 11, 12),
         126000,
         "Sediment trap frames, with freight",
         SUPPLIES_ACCOUNT,
-        vendor=SCI.name,
+        vendor=KITTREDGE.name,
         reference="ESS-56204",
         note="Charged $1,260.00: $60.00 of freight whose bill never arrives.",
     )
     g.highlights[ln.line_id] = "Bill under its charge"
-    g.record("bill", name, total=str(total), dated="2025-11-03", vendor=SCI.name)
+    g.record("bill", name, total=str(total), dated="2025-11-03", vendor=KITTREDGE.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "supports")
@@ -855,18 +1047,21 @@ def held_vendor_invoice(g: Grant) -> None:
     """Decision 0020 (unreviewed): a correcting line moves the charge off the grant,
     so it shows as Reversed."""
     text, total = invoice(
-        vendor=FIELD.name,
-        vendor_address=FIELD.address,
-        vendor_email=FIELD.email,
+        vendor=SALTGRASS.name,
+        vendor_address=SALTGRASS.address,
+        vendor_email=SALTGRASS.email,
         number="EFG-30418",
         dated=date(2026, 1, 7),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
         project_ref=f"{AWARD}, field crew, January sampling",
-        items=[
+        items=lines(
             ("Field crew dinner with wine, after sampling", 1, 18400),
-            ("Dry bags, 20 L, 4 pack", 2, 8800),
-        ],
+            ("Dry bags, 20 L, 4 pack", 1, 8800),
+            ("Dry bags, 10 L, 4 pack", 2, 4400),
+        ),
+        org=SAMPLES,
+        account=SALTGRASS.account,
     )
     assert total == 36000
     sent = at(date(2026, 1, 12), 19)
@@ -878,7 +1073,7 @@ def held_vendor_invoice(g: Grant) -> None:
             "Please find our invoice EFG-30418 below for the January field crew order.",
             "",
             "Accounts",
-            "Example Field Gear",
+            SALTGRASS.name,
             "",
             text,
         ]
@@ -886,33 +1081,40 @@ def held_vendor_invoice(g: Grant) -> None:
     g.doc(
         name,
         eml(
-            sender=("Example Field Gear Accounts", FIELD.email),
+            sender=(f"{SALTGRASS.name} Accounts", SALTGRASS.email),
             to=GRANTS_INBOX,
             at=sent,
             subject="Invoice EFG-30418",
-            message_id="inv-efg-30418@fieldgear.example",
+            message_id=f"inv-efg-30418@{SALTGRASS.email.split('@')[1]}",
             body=body,
         ),
         sent,
         "gmail",
-        sender=FIELD.email,
+        sender=SALTGRASS.email,
         note="The vendor emails from an address nobody on the grant uses: held until let in.",
     )
-    g.highlights[name] = "Held vendor email"
     let_in = at(date(2026, 1, 15), 17, 30)
     g.held[name] = let_in
-    g.script("let_in_mail", let_in, "The accountant lets in the vendor's held email.", file=name)
+    g.script(
+        "let_in_mail",
+        let_in,
+        "The accountant lets in the vendor's held email.",
+        "Held vendor email",
+        file=name,
+    )
     ln = g.line(
         date(2026, 1, 7),
         date(2026, 1, 13),
         total,
         "Field crew dinner, dry bags",
         SUPPLIES_ACCOUNT,
-        vendor=FIELD.name,
+        vendor=SALTGRASS.name,
         reference="EFG-30418",
-        note="Includes a dinner with wine, which an NSF award can't pay for.",
+        note="The vendor's email with this charge's invoice is held until someone lets it "
+        "in. The charge includes a dinner with wine, which an NSF award can't pay for.",
     )
-    g.record("bill", name, total=str(total), dated="2026-01-07", vendor=FIELD.name)
+    g.highlights[ln.line_id] = "Held vendor email"
+    g.record("bill", name, total=str(total), dated="2026-01-07", vendor=SALTGRASS.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "contradicts")
@@ -920,8 +1122,9 @@ def held_vendor_invoice(g: Grant) -> None:
     g.bucket(ln, at(date(2026, 1, 13), 12), MISSING_EVIDENCE)
     g.bucket(ln, let_in + timedelta(hours=1), POSSIBLE_CONFLICT)
 
-    just = "cost_transfer_justification_CT-26-0042.txt"
-    g.doc(
+    just = "cost_transfer_justification_CT-26-0042.pdf"
+    put(
+        g,
         just,
         "\n".join(
             [
@@ -931,20 +1134,21 @@ def held_vendor_invoice(g: Grant) -> None:
                 "Transfer number: CT-26-0042",
                 f"From award: {AWARD}",
                 "To fund: Department fund EOD-2010",
-                f"Ledger line moved: {ln.line_id}, Example Field Gear invoice EFG-30418, "
+                f"Ledger line moved: {ln.line_id}, {SALTGRASS.name} invoice EFG-30418, "
                 f"{money(total)}",
                 "",
-                "Why the transfer is needed: the invoice includes a field crew dinner with wine,",
+                "Why the transfer is needed: The invoice includes a field crew dinner with wine,",
                 "which the award can't pay for.",
-                "Why the wrong fund was charged: the invoice was coded to the award with the",
+                "Why the wrong fund was charged: The invoice was coded to the award with the",
                 "January field supplies.",
-                "How the expense relates to the project: the dry bags were for the award's field",
+                "How the expense relates to the project: The dry bags were for the award's field",
                 "work and are charged again to the department fund with the dinner.",
                 "",
-                "Prepared by: Sam Bursar, March 5, 2026",
+                f"Prepared by: {GAIL.name}, March 5, 2026",
             ]
         )
         + "\n",
+        "Cost transfer justification CT-26-0042",
         at(date(2026, 3, 6), 18),
         "upload",
         note="The written justification for moving the charge off the grant.",
@@ -953,9 +1157,9 @@ def held_vendor_invoice(g: Grant) -> None:
         date(2026, 3, 6),
         date(2026, 3, 9),
         -total,
-        "Cost transfer off award - Example Field Gear EFG-30418",
+        f"Cost transfer off award - {SALTGRASS.name} EFG-30418",
         SUPPLIES_ACCOUNT,
-        vendor=FIELD.name,
+        vendor=SALTGRASS.name,
         reference="CT-26-0042",
         note="The correcting line names the charge it moves off the grant.",
     )
@@ -974,32 +1178,48 @@ def held_vendor_invoice(g: Grant) -> None:
 
 def over_budget(g: Grant) -> None:
     text, total = invoice(
-        vendor=FIELD.name,
-        vendor_address=FIELD.address,
-        vendor_email=FIELD.email,
+        vendor=SALTGRASS.name,
+        vendor_address=SALTGRASS.address,
+        vendor_email=SALTGRASS.email,
         number="EFG-31207",
         dated=date(2026, 4, 27),
-        attn=HARPER.name,
+        attn=MAREN.name,
         department=DEPARTMENT,
         project_ref=f"{AWARD}, salt marsh carbon burial",
-        items=[("Sediment corer, piston type, 1 m", 1, 495000)],
+        items=lines(
+            ("Sediment corer, piston type, 1 m", 1, 418000),
+            ("Core extruder, 7 cm", 1, 52000),
+            ("Corer extension rod, 1 m", 2, 12500),
+        ),
         po="PO-26-2280",
+        org=SAMPLES,
+        account=SALTGRASS.account,
     )
-    name = "invoice_EFG-31207.txt"
-    g.doc(name, text, at(date(2026, 4, 28), 18), "upload", note="Invoice EFG-31207, for the corer.")
+    assert total == 495000
+    name = "invoice_EFG-31207.pdf"
+    put(
+        g,
+        name,
+        text,
+        "Invoice EFG-31207",
+        at(date(2026, 4, 28), 18),
+        "upload",
+        look=SALTGRASS.look,
+        note="Invoice EFG-31207, for the corer.",
+    )
     ln = g.line(
         date(2026, 4, 27),
         date(2026, 5, 5),
         total,
         "Sediment corer, piston type",
         SUPPLIES_ACCOUNT,
-        vendor=FIELD.name,
+        vendor=SALTGRASS.name,
         reference="EFG-31207",
         note="Spending passes the award's $60,000.00 obligated to date, and Materials "
         "and Supplies passes its line.",
     )
     g.highlights[ln.line_id] = "Over budget"
-    g.record("bill", name, total=str(total), dated="2026-04-27", vendor=FIELD.name)
+    g.record("bill", name, total=str(total), dated="2026-04-27", vendor=SALTGRASS.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
     g.answer(ln, "allowable", "supports")
@@ -1010,6 +1230,7 @@ def over_budget(g: Grant) -> None:
         at(date(2026, 5, 6), 17),
         "The second increment of $60,000.00 is expected in June. The Program Officer "
         "confirmed it by phone on May 4.",
+        "Over budget",
         check="budget",
         problem="over_limit",
     )
@@ -1028,21 +1249,31 @@ def over_budget(g: Grant) -> None:
         obligated_cents=6000000,
         intended_cents=12000000,
         to_date_cents=12000000,
-        personnel=[(HARPER.name, HARPER.role, HARPER.email), (SASHA.name, SASHA.role, SASHA.email)],
-        program_officer=(JAMIE.name, JAMIE.email),
+        personnel=[(MAREN.name, MAREN.role, MAREN.email), (TOBIAS.name, TOBIAS.role, TOBIAS.email)],
+        program_officer=(RENATA.name, RENATA.email),
         conditions=RTC,
         budget=[(b[0], b[1], [(s[0], s[1]) for s in b[3]]) for b in BUDGET_001],
+        org=SAMPLES,
+        division=MARSH_DIVISION,
+        listing=MARSH_LISTING,
     )
-    notice = "notice_001_increment.txt"
-    g.doc(
+    notice = "notice_001_increment.pdf"
+    put(
+        g,
         notice,
         notice_text,
+        f"Award notice {AWARD}, amendment 001",
         at(date(2026, 6, 12), 17),
         "upload",
         note="Amendment 001 adds $60,000.00: the award's limit rises to $120,000.00.",
     )
     g.highlights[notice] = "More money, a higher limit"
-    g.confirm(notice, at(date(2026, 6, 15), 17), "The user confirms the increment's terms.")
+    g.confirm(
+        notice,
+        at(date(2026, 6, 15), 17),
+        "The user confirms the increment's terms.",
+        g.highlights[notice],
+    )
     dated = "2026-06-10"
     g.record(
         "notice",
@@ -1083,14 +1314,21 @@ def extension(g: Grant) -> None:
         number="EMS-2608-21",
         dated=date(2026, 9, 1),
         period="August 1, 2026 to August 31, 2026",
-        pi=HARPER.name,
+        pi=MAREN.name,
         award_number=AWARD,
-        rows=[("Research vessel time, per hour", 18, 17500)],
+        rows=[
+            ("Research vessel time, per hour", 14, 17500),
+            ("Vessel captain, per hour", 14, 5000),
+        ],
+        org=SAMPLES,
     )
-    name = "usage_statement_EMS-2608-21.txt"
-    g.doc(
+    assert total == 315000
+    name = "usage_statement_EMS-2608-21.pdf"
+    put(
+        g,
         name,
         text,
+        "Usage statement EMS-2608-21",
         at(date(2026, 9, 2), 18, 10),
         "drive",
         note="The marine station's statement for August boat time, after the end date.",
@@ -1117,20 +1355,29 @@ def extension(g: Grant) -> None:
         old_end=OLD_END,
         new_end=NEW_END,
         title=TITLE,
-        program_officer=(JAMIE.name, JAMIE.email),
+        program_officer=(RENATA.name, RENATA.email),
+        org=SAMPLES,
+        division=MARSH_DIVISION,
     )
-    notice_name = "extension_notice_002.txt"
+    notice_name = "extension_notice_002.pdf"
     arrives = at(date(2026, 9, 14), 16, 30)
     confirmed = at(date(2026, 9, 15), 17)
-    g.doc(
+    put(
+        g,
         notice_name,
         notice,
+        f"Award notice {AWARD}, amendment 002",
         arrives,
         "drive",
         note="The extension notice, dated 16 days before the old end date, turns up in Drive.",
     )
     g.highlights[notice_name] = "Extension found in Drive"
-    g.confirm(notice_name, confirmed, "The user confirms the new end date, January 31, 2027.")
+    g.confirm(
+        notice_name,
+        confirmed,
+        "The user confirms the new end date, January 31, 2027.",
+        g.highlights[notice_name],
+    )
     g.extensions.append((confirmed, NEW_END))
     g.record("period_of_performance", notice_name, end=NEW_END.isoformat(), dated="2026-07-15")
     g.record(
@@ -1150,8 +1397,9 @@ def extension(g: Grant) -> None:
 
 def closeout(g: Grant) -> None:
     window = NEW_END - timedelta(days=90)
-    notice = "notice_of_expiration.txt"
-    g.doc(
+    notice = "notice_of_expiration.pdf"
+    put(
+        g,
         notice,
         "\n".join(
             [
@@ -1162,7 +1410,7 @@ def closeout(g: Grant) -> None:
                 "",
                 f"Date: {long_date(window)}",
                 f"Award: {AWARD}, {TITLE}",
-                f"Principal investigator: {HARPER.name}",
+                f"Principal investigator: {MAREN.name}",
                 f"End date: {long_date(NEW_END)}",
                 "",
                 "This award ends in 90 days. Please review every charge for completeness,",
@@ -1171,6 +1419,7 @@ def closeout(g: Grant) -> None:
             ]
         )
         + "\n",
+        f"Notice of expiration, {AWARD}",
         at(window, 17),
         "upload",
         note="The university's 90-day notice: the closeout window opens.",
@@ -1180,8 +1429,11 @@ def closeout(g: Grant) -> None:
     g.script(
         "sign_off",
         at(date(2027, 3, 10), 18),
-        "One item is open: invoice ESS-56204 covers $1,200.00 of the $1,260.00 charge, and "
-        "the vendor's freight bill for $60.00 has been requested.",
+        "Two items are open. Invoice ESS-56204 covers $1,200.00 of the $1,260.00 charge, and "
+        "the vendor's freight bill for $60.00 has been requested. The principal "
+        "investigator's own $650.00 registration fee, charged to participant support, is "
+        "still in question.",
+        g.highlights[notice],
     )
     g.doc(
         "closeout_certification_receipt.txt",
@@ -1195,6 +1447,8 @@ def closeout(g: Grant) -> None:
                 f"Award: {AWARD}",
                 f"Date received: {long_date(date(2027, 3, 12))}",
                 "The certification and its attachments are on file.",
+                "",
+                f"{SYNTHETIC} Not issued by any university.",
             ]
         )
         + "\n",

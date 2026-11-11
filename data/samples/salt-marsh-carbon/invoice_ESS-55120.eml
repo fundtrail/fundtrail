@@ -1,43 +1,45 @@
-From: Harper Fixture <harper.fixture@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Maren Holloway <mholloway@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Wed, 8 Oct 2025 10:30:00 -0700
 Subject: Fwd: Invoice ESS-55120
-Message-ID: <fwd-ess-55120@university.example>
+Message-ID: <fwd-ess-55120@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice ESS-55120 for SYN-2401835, for the files.
 
-Harper
+Maren
 
 ---------- Forwarded message ----------
-From: Example Scientific Supply Billing <billing@scisupply.example>
+From: Kittredge Scientific Billing <billing@kittredgescientific.example>
 Date: Mon, 6 Oct 2025 15:00:00 -0700
 Subject: Invoice ESS-55120
-To: harper.fixture@university.example
+To: mholloway@halden.example
 
-EXAMPLE SCIENTIFIC SUPPLY
-55 Example Road, Example Town, CA 94010
-billing@scisupply.example
+KITTREDGE SCIENTIFIC
+55 Foundry Road, Marlow Junction, CA 94010
+billing@kittredgescientific.example
 
 INVOICE
 
 Invoice number: ESS-55120
 Invoice date: October 6, 2025
 Customer PO: PO-25-4410
+Account No.: 118820
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Harper Fixture
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Maren Holloway
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2401835, salt marsh carbon burial
 
-Item  Description                                   Qty   Unit price      Amount
-1     Crucibles, porcelain, 50 count                  2      $189.00     $378.00
-2     Tin capsules, 5 x 9 mm, 1000 count              4       $98.75     $395.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     KS-204-050   Crucibles, porcelain, 50 count                   2  CS       $129.00     $258.00
+2     KS-771-5X9   Tin capsules, 5 x 9 mm, 1000 count               4  PK        $98.75     $395.00
+3     KS-205-050   Crucible lids, porcelain, 50 count               2  CS        $60.00     $120.00
 
-Subtotal                                                                 $773.00
-Shipping                                                                  $18.75
-Total due                                                                $791.75
+Subtotal                                                                                    $773.00
+Shipping                                                                                     $18.75
+Total due                                                                                   $791.75
 
 Terms: net 30

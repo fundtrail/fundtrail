@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type {
   ChargeStatus,
   ChecklistEntry,
@@ -20,6 +20,7 @@ import { BucketBadge } from "../BucketBadge";
 import { ANSWER_LABELS, AUTHOR_LABELS, field } from "../charge/labels";
 import { DisputeBox, errorLines, SuggestionBox, type Decision, type DecisionMade, type OnDecide } from "./Decide";
 import { changeFor } from "./describe";
+import { scrollTarget, threadShape, type ThreadShape } from "./scrollTarget";
 import styles from "./thread.module.css";
 
 export interface ThreadContext {
@@ -187,7 +188,13 @@ function entryKey(entry: ThreadEntry, i: number): string {
 function Entry({ entry, ctx, decisions, onDecide }: { entry: ThreadEntry; ctx: ThreadContext; decisions: Decisions; onDecide?: OnDecide }) {
   const { who, at } = entryWho(entry);
   return (
-    <li className={styles.entry} data-kind={entry.kind} data-who={who}>
+    <li
+      className={styles.entry}
+      data-kind={entry.kind}
+      data-who={who}
+      data-waiting={(entry.kind === "record" && entry.state === "waiting") || undefined}
+      data-record={entry.kind === "record" ? entry.record.id : undefined}
+    >
       <div className={styles.who} data-who={who}>
         <span className={styles.whoName}>{who === "code" ? "Code" : AUTHOR_LABELS[who]}</span>
         <span className="ft-caption">{date(at)}</span>
@@ -218,10 +225,16 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  // Never sends twice at once: `busy` is state, so two sends in the same task
+  // (before a re-render) both see it false. A send made while one is in flight
+  // does nothing at all: no second message, no error line, and the typed text
+  // stays. Set before `onAsk` is called, released in `finally`.
+  const inFlight = useRef(false);
 
   async function send() {
     const message = text.trim();
-    if (!message || busy) return;
+    if (!message || busy || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -230,6 +243,7 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
     } catch (error) {
       setErrors(errorLines(error));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -245,18 +259,27 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
   }
   return (
     <form className={styles.ask} onSubmit={submit}>
-      <label className="ft-label" htmlFor="ask-agent">
+      <label className="ft-sr" htmlFor="ask-agent">
         Ask the agent about {about}
       </label>
-      <textarea id="ask-agent" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={keyDown} disabled={busy} />
-      <p className="ft-caption">
-        The agent answers about {about} only. Any change it proposes comes back as a suggestion for you to accept or reject.
-      </p>
-      <div className={styles.actions}>
-        <button type="submit" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy || text.trim() === ""}>
+      <div className={styles.askRow}>
+        <textarea
+          id="ask-agent"
+          rows={1}
+          placeholder={`Ask the agent about ${about}`}
+          aria-describedby="ask-agent-help"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={keyDown}
+          disabled={busy}
+        />
+        <button type="submit" className="ft-btn ft-btn--sm" disabled={busy || text.trim() === ""}>
           Send
         </button>
       </div>
+      <p id="ask-agent-help" className={styles.help}>
+        The agent answers about {about} only. Any change it proposes comes back as a suggestion for you to accept or reject.
+      </p>
       {errors.length > 0 && (
         <ul className="ft-error" role="alert">
           {errors.map((e, i) => (
@@ -288,19 +311,38 @@ export function ReviewThread({
   onAsk: (text: string) => Promise<void>;
 }) {
   const decisions = decisionsFrom(thread, ctx.records);
+  const scroller = useRef<HTMLDivElement>(null);
+  const shown = useRef<ThreadShape | null>(null);
+  // Newest entry last. scrollTarget decides which entry comes into view, and
+  // leaves the scroll alone when a refetch brings nothing new.
+  useEffect(() => {
+    const el = scroller.current;
+    const next = threadShape(thread);
+    const target = scrollTarget(shown.current, next);
+    shown.current = next;
+    if (!el || target.to === "stay") return;
+    const entry =
+      target.to === "record" ? [...el.querySelectorAll<HTMLElement>("[data-record]")].find((n) => n.dataset.record === target.id) : undefined;
+    // The scroll area is positioned, so an entry's offsetTop is measured from its top.
+    el.scrollTop = entry ? Math.max(0, entry.offsetTop - 12) : el.scrollHeight;
+  }, [thread]);
   return (
     <div className={styles.thread}>
+      <div className={styles.scroll} ref={scroller}>
       {thread.entries.length === 0 ? (
-        <p className="ft-empty">Nothing in this thread yet.</p>
+        <p className={styles.empty}>Nothing in this thread yet.</p>
       ) : (
         <ol className={styles.entries} aria-label="Review thread">
           {thread.entries.map((entry, i) => (
             <Entry key={entryKey(entry, i)} entry={entry} ctx={ctx} decisions={decisions} onDecide={onDecide} />
           ))}
-        </ol>
-      )}
-      <AgentBusy thread={thread} />
-      <AskBox about={about} onAsk={onAsk} />
+          </ol>
+        )}
+      </div>
+      <div className={styles.foot}>
+        <AgentBusy thread={thread} />
+        <AskBox about={about} onAsk={onAsk} />
+      </div>
     </div>
   );
 }

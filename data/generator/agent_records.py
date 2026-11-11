@@ -11,23 +11,23 @@ bill, and an Allowable answer written again each time something new is linked.
 IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the
 grant `grant-<sample>`, a file `file-<name>`, a charge `chg-<line ID>`, and each
 record `rec-...`. Citations are counted, not typed: a text or email file gets a
-`char_location`, a PDF a `page_location`, and a photo an `image_box` around the
-value's line. Confirmations aren't here: they're the accountant's, in
-`user_actions.json`.
+`char_location`, a PDF a `page_location` (the row as the page gives it, with the
+pages the typeset PDF puts it on), and a picture of paper (a photo, a scan, a
+scanned PDF) an `image_box` around the value's own words. Confirmations aren't
+here: they're the accountant's, in `user_actions.json`.
 """
 
 from __future__ import annotations
 
 import re
-import struct
 from datetime import date, datetime
 
 from model import Grant, iso
-from photo import SCAN_LINE, SCAN_MARGIN, SCAN_TOP
 
 ALLOWABLE = "Is this cost necessary and reasonable, and is it for this project?"
-PDF_LINES_PER_PAGE = 60  # render.pdf's default
-PHOTO_SUFFIXES = (".jpg", ".jpeg", ".png")
+# A bill's total is cited on its total's row ("Total due"), not on a subtotal of the
+# same amount.
+TOTAL_ROW = re.compile(r"\btotal\b", re.IGNORECASE)
 WORKSPACE = "ws-sample"
 
 # Default checklist items by account code prefix and document (W2's table on main,
@@ -77,16 +77,36 @@ def standalone(number: int, line: str) -> bool:
     return re.search(rf"(?<![\w$.,-]){number}(?![\w.,-])", line) is not None
 
 
-def jpeg_size(data: bytes) -> tuple[int, int]:
-    """Width and height from a JPEG's start-of-frame marker."""
-    i = 2
-    while i < len(data):
-        marker, length = data[i + 1], struct.unpack(">H", data[i + 2 : i + 4])[0]
-        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-            h, w = struct.unpack(">HH", data[i + 5 : i + 9])
-            return w, h
-        i += 2 + length
-    raise ValueError("no frame in the JPEG")
+def spaced(text: str) -> str:
+    """Text as a PDF's page gives it: runs of spaces as one. The text renderers pad a
+    table's cells with spaces, and a typeset page sets them in columns."""
+    return " ".join(text.split())
+
+
+def value_box(words: list, text: str) -> tuple[float, float, float, float]:
+    """The box around a value on its row of a picture, as (left, top, right, bottom).
+
+    `words` are the row's words and their boxes (left, top, width, height). The value's
+    words are found among them, and the box is the one around those. A value that
+    isn't whole words of the row gets the box of the whole row."""
+    want = text.split()
+    printed = [word for word, _ in words]
+    at = next(
+        (
+            i
+            for i in range(len(printed) - len(want) + 1)
+            if want and printed[i : i + len(want)] == want
+        ),
+        None,
+    )
+    chosen = words if at is None else words[at : at + len(want)]
+    if not chosen:
+        raise LookupError(f"no words on the row for {text!r}")
+    left = min(b[0] for _, b in chosen)
+    top = min(b[1] for _, b in chosen)
+    right = max(b[0] + b[2] for _, b in chosen)
+    bottom = max(b[1] + b[3] for _, b in chosen)
+    return round(left, 4), round(top, 4), round(right, 4), round(bottom, 4)
 
 
 class Builder:
@@ -109,47 +129,57 @@ class Builder:
     def charge_id(self, line_id: str) -> str:
         return f"chg-{line_id}"
 
-    def find(self, name: str, test, prefer: str | None = None) -> tuple[int, str]:
-        """The first line of a file passing `test`, or the first that also holds `prefer`."""
+    def find(self, name: str, test, prefer: str | re.Pattern | None = None) -> tuple[int, str]:
+        """The first line of a file passing `test`, or the first that also holds `prefer`,
+        which is text to find in the line whatever its case, or a pattern."""
         rows = self.docs[name].text.split("\n")
         hits = [(i, r) for i, r in enumerate(rows) if test(r)]
         if not hits:
             raise LookupError(f"{name}: no line passes the test")
-        if prefer:
-            preferred = [h for h in hits if prefer.casefold() in h[1].casefold()]
-            if preferred:
-                return preferred[0]
-        return hits[0]
+        if isinstance(prefer, re.Pattern):
+            preferred = [h for h in hits if prefer.search(h[1])]
+        else:
+            preferred = [h for h in hits if prefer and prefer.casefold() in h[1].casefold()]
+        return preferred[0] if preferred else hits[0]
 
-    def citation(self, name: str, index: int) -> dict:
+    def citation(self, name: str, index: int, text: str = "") -> dict:
         doc = self.docs[name]
         rows = doc.text.split("\n")
         row = rows[index]
         passage = row.strip()
-        if name.endswith(".pdf"):
-            page = index // PDF_LINES_PER_PAGE + 1
-            # Pages count from 1, and the end is exclusive.
-            location = {
-                "type": "page_location",
-                "start_page_number": page,
-                "end_page_number": page + 1,
+        if doc.words is not None:
+            # A picture of paper: the box around the value's own words on this row, so
+            # the box holds the value and nothing else, and a total's box sits on the
+            # total and not on a line's amount that happens to be the same.
+            left, top, right, bottom = value_box(doc.words[index] or [], text)
+            box = {
+                "type": "image_box",
+                "page": 1,
+                "left": left,
+                "top": top,
+                "width": round(right - left, 4),
+                "height": round(bottom - top, 4),
             }
-            return {
-                "file_id": self.file_id(name),
-                "passage": passage,
-                "location": location,
-                "match": "exact",
-            }
-        if name.endswith(PHOTO_SUFFIXES):
-            box = (
-                self.scan_box(doc.data, index)
-                if name.startswith("scan_")
-                else self.photo_box(doc.data, len(rows), index)
-            )
             return {
                 "file_id": self.file_id(name),
                 "passage": None,
                 "location": box,
+                "match": "exact",
+            }
+        if name.endswith(".pdf"):
+            # The pages the typeset PDF puts the row on (typeset.locate). Pages count
+            # from 1, and the end is exclusive.
+            assert doc.pages is not None, f"{name}: a cited PDF has to be a typeset one"
+            first, last = doc.pages[index] or (1, 1)
+            location = {
+                "type": "page_location",
+                "start_page_number": first,
+                "end_page_number": last + 1,
+            }
+            return {
+                "file_id": self.file_id(name),
+                "passage": spaced(passage),
+                "location": location,
                 "match": "exact",
             }
         start = sum(len(r) + 1 for r in rows[:index]) + (len(row) - len(row.lstrip()))
@@ -165,44 +195,13 @@ class Builder:
             "match": "exact",
         }
 
-    def photo_box(self, data: bytes, n_lines: int, index: int) -> dict:
-        """A box around one line of a receipt photo, from photo.py's layout.
-
-        The paper is 620 pixels wide with lines 38 pixels apart from 60 down,
-        turned a few degrees and pasted at (130, 110) on a desk 260 by 220 pixels
-        larger, then scaled to two thirds. The box is wide and tall enough to hold
-        the line at any of those small turns.
-        """
-        w, h = jpeg_size(data)
-        desk_w, desk_h = w * 3 / 2, h * 3 / 2
-        paper_h = 80 + 38 * n_lines + 60
-        rot_w, rot_h = desk_w - 260, desk_h - 220
-        left = 130 + (rot_w - 620) / 2 + 20
-        center = 110 + (rot_h - paper_h) / 2 + 60 + index * 38 + 17
-        box = {
-            "type": "image_box",
-            "page": 1,
-            "left": round(left / desk_w, 4),
-            "top": round(max(0.0, center - 40) / desk_h, 4),
-            "width": round(580 / desk_w, 4),
-            "height": round(80 / desk_h, 4),
-        }
-        return box
-
-    def scan_box(self, data: bytes, index: int) -> dict:
-        """A box around one line of a scanned page, from photo.py's scan layout."""
-        w, h = jpeg_size(data)
-        return {
-            "type": "image_box",
-            "page": 1,
-            "left": round(SCAN_MARGIN / w, 4),
-            "top": round(max(0, SCAN_TOP + index * SCAN_LINE - 6) / h, 4),
-            "width": round((w - 2 * SCAN_MARGIN) / w, 4),
-            "height": round((SCAN_LINE + 12) / h, 4),
-        }
-
     def cited(self, name: str, value, text: str, index: int) -> dict:
-        return {"value": value, "text": text, "citation": self.citation(name, index)}
+        if name.endswith(".pdf") or self.docs[name].words is not None:
+            # A page gives single spaces. A PDF's passage has them, and the value's text
+            # has to be in it.
+            value = spaced(value) if value == text else value
+            text = spaced(text)
+        return {"value": value, "text": text, "citation": self.citation(name, index, text)}
 
     def cited_text(self, name: str, value: str, prefer: str | None = None) -> dict:
         i, row = self.find(name, lambda r: value.casefold() in r.casefold(), prefer)
@@ -215,7 +214,7 @@ class Builder:
         i, row = self.find(name, lambda r: any(t in r for t in texts), prefer)
         return self.cited(name, iso_date, next(t for t in texts if t in row), i)
 
-    def cited_money(self, name: str, cents: int, prefer: str | None = None) -> dict:
+    def cited_money(self, name: str, cents: int, prefer: str | re.Pattern | None = None) -> dict:
         i, row = self.find(name, lambda r: money_in(r, cents) is not None, prefer)
         return self.cited(name, cents, money_in(row, cents), i)
 
@@ -275,7 +274,7 @@ class Builder:
                     data["email"] = self.cited_text(name, f["email"])
                 data["role"] = self.cited_text(name, f["role"], f["name"])
             elif kind == "bill":
-                data["total"] = self.cited_money(name, int(f["total"]), "total")
+                data["total"] = self.cited_money(name, int(f["total"]), TOTAL_ROW)
                 if "vendor" in f:
                     data["vendor"] = self.cited_text(name, f["vendor"])
                 if "dated" in f:
@@ -320,7 +319,7 @@ class Builder:
         """The participant support condition: what it applies to, who approves, and
         its scope, each cited to the clause's words."""
         data = {
-            "applies_to": self.cited_text(name, "participant support", "funds budgeted"),
+            "applies_to": self.cited_text(name, "participant support", "may not be diverted"),
             "approver": self.cited_text(name, "Program Officer", "cognizant"),
         }
         if "scope" in f:
@@ -492,7 +491,7 @@ class Builder:
                     return {
                         "share": self.cited(note, str(k), str(k), i_share),
                         "out_of": self.cited(note, str(whole), str(whole), i_whole),
-                        "total": self.cited_money(name, total, "total"),
+                        "total": self.cited_money(name, total, TOTAL_ROW),
                     }
         return None
 

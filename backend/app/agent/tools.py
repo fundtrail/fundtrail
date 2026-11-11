@@ -28,6 +28,7 @@ from .adapter import (
     Question,
     Record,
     RecordKind,
+    RecordState,
     ThreadMessage,
     applies_to_is_matchable,
     citation_of,
@@ -36,6 +37,7 @@ from .adapter import (
 )
 from .citations import (
     CitationProblem,
+    as_written,
     image_box,
     money_sign_agrees,
     parse_date,
@@ -51,6 +53,7 @@ from .desk import (
     charge_in_full,
     charge_lines,
     document_lines,
+    files_of,
     money,
     record_in_full,
     record_summary,
@@ -58,6 +61,7 @@ from .desk import (
 )
 from .fields import FACT_FIELDS, TERM_FIELDS
 from .files import CantOpen, open_file, reading_now
+from .second_look import boxed_paths
 
 
 class _In(BaseModel):
@@ -135,6 +139,13 @@ class WriteTerm(_In):
     values: list[Value]
     category: BudgetCategory | None = Field(None, description="A budget_line's NSF category.")
     label: str | None = Field(None, description="An other_term's plain short name.")
+    standard_conditions: bool | None = Field(
+        None,
+        description=(
+            "An other_term only: true when its statement only names the funder's standard "
+            "conditions, such as the NSF Grant General Conditions (GC-1)."
+        ),
+    )
     replaces_id: str | None = None
 
 
@@ -391,6 +402,24 @@ def _normalize(
     return text
 
 
+def normalize_value(field: str, text: str, kind: str | None, percent: bool) -> Any:
+    """A field's value read from text, as the text check reads it. Raises WriteProblem."""
+    return _normalize(field, None, text, kind, percent)
+
+
+def get_path(data: dict[str, Any], path: str) -> Any:
+    """The value at a field path such as "items[0].amount" in a record's dumped data."""
+    target: Any = data
+    for part in path.split("."):
+        m = _PATH.fullmatch(part)
+        if not m:
+            raise WriteProblem(f"'{path}' isn't a field path")
+        target = target[m.group(1)]
+        if m.group(2) is not None:
+            target = target[int(m.group(2))]
+    return target
+
+
 def cited(
     ctx: RunContext, v: Value, kind: str | None = None, percent: bool = False
 ) -> dict[str, Any] | None:
@@ -398,22 +427,46 @@ def cited(
     if v.box is not None:
         if not v.text:
             raise WriteProblem(f"{v.field}: a boxed value needs its text as the image shows it")
-        image = ctx.images.get(v.box.file_id)
+        image = ctx.images.get((v.box.file_id, v.box.page))
         if image is None:
             raise WriteProblem(
-                f"{v.field}: file {v.box.file_id} wasn't sent as an image in this run"
+                f"{v.field}: page {v.box.page} of file {v.box.file_id} wasn't sent as an image in "
+                "this run"
             )
-        try:
-            location = image_box(image, v.box.left, v.box.top, v.box.right, v.box.bottom)
-        except CitationProblem as error:
-            raise WriteProblem(f"{v.field}: {error}") from error
-        location["page"] = v.box.page
-        citation: dict[str, Any] = {"file_id": v.box.file_id, "passage": None, "location": location}
-        look = ctx.inputs.second_look
-        citation["match"] = (
-            "exact" if look is not None and look(v.box.file_id, location, v.text) else "not_found"
-        )
         value = _normalize(v.field, v.value, v.text, kind, percent)
+        location = image_box(image, v.box.left, v.box.top, v.box.right, v.box.bottom)
+        if location is not None and location["width"] * location["height"] > MAX_BOX_SHARE:
+            raise WriteProblem(
+                f"{v.field}: the box covers {location['width'] * location['height']:.0%} of the "
+                "image. Box the value itself, tight around its characters: the second look reads "
+                "only the box and has to see just the value in it"
+            )
+        if location is not None and (
+            min(v.box.left, v.box.right) < 0
+            or min(v.box.top, v.box.bottom) < 0
+            or max(v.box.left, v.box.right) > image.width
+            or max(v.box.top, v.box.bottom) > image.height
+        ):
+            ctx.write_notes.append(
+                f"The box for {v.field} ran off the {image.width} by {image.height} image and "
+                "was cut to it; if the value lies partly outside it, write it again with a box "
+                "on the image."
+            )
+        if location is None:
+            # Nothing of the box lies on the image: nothing to read, so the value is unconfirmed.
+            ctx.log_event("box_off_image", field=v.field, box=v.box.model_dump())
+            ctx.write_notes.append(
+                f"The box for {v.field} has nothing of the {image.width} by {image.height} image "
+                "in it, so its value is unconfirmed; write it again with a box on the value."
+            )
+            return uncited_value(value, v.text)
+        # Unconfirmed until the second look reads the boxed area, when the run ends.
+        citation: dict[str, Any] = {
+            "file_id": v.box.file_id,
+            "passage": None,
+            "location": location,
+            "match": "not_found",
+        }
         return {"value": value, "text": v.text, "citation": citation}
     if not v.label:
         raise WriteProblem(
@@ -443,6 +496,9 @@ def cited(
     except CitationProblem as error:
         raise WriteProblem(f"{v.field}: {error}") from error
     passage = citation.get("passage")
+    # The text as the passage writes it: a value that wraps in the document keeps its line
+    # break, so it stays inside its passage (#269).
+    text = as_written(line.text, passage or "")
     money = _leaf(v.field) in MONEY_FIELDS
     if money and passage and not money_sign_agrees(value, passage, line.text):
         # Code's reading of the money and the quote finder's reading of the page disagree on
@@ -451,7 +507,7 @@ def cited(
             f"{v.field}: '{line.text}' reads as {value} cents, but the file signs that amount the "
             "other way. Cite the amount with the sign the file gives it"
         )
-    return {"value": value, "text": line.text, "citation": citation}
+    return {"value": value, "text": text, "citation": citation}
 
 
 def quote(ctx: RunContext, q: Quote) -> dict[str, Any]:
@@ -504,9 +560,18 @@ def _saved(
         return ctx.note_problems(tool, problems), True
     r = staged.record
     note = "It waits for the accountant." if staged.waits else "It takes effect."
-    unconfirmed = ctx.state().unconfirmed_values(r)
+    boxed = set(boxed_paths(r))
+    unconfirmed = [p for p in ctx.state().unconfirmed_values(r) if p not in boxed]
     if unconfirmed:
         note += " Unconfirmed values (not matched in the file): " + ", ".join(unconfirmed) + "."
+    if boxed:
+        note += (
+            " Its boxed values (" + ", ".join(sorted(boxed)) + ") get a second look, reading "
+            "only each box, when the run ends."
+        )
+    for extra in ctx.write_notes:
+        note += " " + extra
+    ctx.write_notes.clear()
     ctx.log_event("staged", record=r)
     return f"Saved as {r.id}. {note}", False
 
@@ -518,6 +583,8 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     data = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.label is not None:
         data["label"] = a.label
+    if a.kind == "note":
+        _one_note_per_document(ctx, data, a.replaces_id)
     text, error = _saved(ctx, data, a.replaces_id, "write_fact")
     if error or a.kind != "bill":
         return text, error
@@ -539,12 +606,106 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     return text, False
 
 
+def _chain(state: RecordState, record_id: str | None) -> set[str]:
+    """Every record in `record_id`'s correction chain: the record it corrects, back to the
+    first, and every correction of any of them, current or waiting. Empty for None."""
+    if record_id is None:
+        return set()
+    by_id = {r.id: r for r in state.records}
+
+    def root(rid: str) -> str:
+        seen: set[str] = set()
+        while rid in by_id and by_id[rid].replaces_id and rid not in seen:
+            seen.add(rid)
+            rid = by_id[rid].replaces_id or rid
+        return rid
+
+    first = root(record_id)
+    return {r.id for r in state.records if root(r.id) == first} | {record_id}
+
+
+def _version_now(state: RecordState, r: Record) -> str:
+    """The version of a record's chain that counts now, or the record itself."""
+    now = state.current_version(r.id)
+    return now.id if now is not None else r.id
+
+
+def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: str | None) -> None:
+    """One document, one note, with every value cited inside it (ruling 81).
+
+    A note citing more than one file is refused, and so is a second note on a document that
+    already has one, unless it corrects that note.
+    """
+    files = {
+        v["citation"]["file_id"]
+        for key, v in data.items()
+        if key != "kind" and isinstance(v, dict) and isinstance(v.get("citation"), dict)  # pyright: ignore[reportUnknownMemberType]
+    }
+    period = data.get("period")
+    if isinstance(period, dict):
+        for part in period.values():  # pyright: ignore[reportUnknownVariableType]
+            if isinstance(part, dict) and isinstance(part.get("citation"), dict):  # pyright: ignore[reportUnknownMemberType]
+                files.add(part["citation"]["file_id"])  # pyright: ignore[reportUnknownArgumentType]
+    if len(files) > 1:
+        raise WriteProblem(
+            "A note is about one document: cite all its values from the same file, and write "
+            "another document's note on its own"
+        )
+    if not files:
+        return
+    [file_id] = files
+    state = ctx.state()
+    own = _chain(state, replaces_id)  # the note this corrects, and its other fixes
+    # Waiting notes count too: every correction the agent writes waits, as does a note
+    # written in a thread run.
+    for r in [*state.current(), *state.waiting()]:
+        if r.kind != RecordKind.NOTE or r.id in own or file_id not in files_of(r):
+            continue
+        label = getattr(r.data, "label", "")
+        raise WriteProblem(
+            f'file {file_id} already has its note ({_version_now(state, r)}, "{label}"). One '
+            "document is one note: if this fact belongs on it, correct that note with "
+            "replaces_id and a statement that holds it; otherwise leave it out"
+        )
+
+
+def _standard_conditions_once(
+    ctx: RunContext, data: dict[str, Any], replaces_id: str | None
+) -> None:
+    """The award's standard conditions are recorded once (ruling 81): a second term naming the
+    same conditions in the same words is refused. One naming other conditions, such as a later
+    version an amendment brings in, is a term of its own."""
+    statement = data.get("statement")
+    said = statement.get("value") if isinstance(statement, dict) else None  # pyright: ignore[reportUnknownMemberType]
+    if not isinstance(said, str):
+        return
+    key = " ".join(said.split()).casefold()
+    state = ctx.state()
+    own = _chain(state, replaces_id)  # the term this corrects, and its other fixes
+    for r in [*state.current(), *state.waiting()]:  # a term the agent writes waits
+        if r.kind != RecordKind.OTHER_TERM or r.id in own:
+            continue
+        if not getattr(r.data, "standard_conditions", False):
+            continue
+        if " ".join(r.data.statement.value.split()).casefold() == key:  # pyright: ignore[reportAttributeAccessIssue]
+            raise WriteProblem(
+                f"these standard conditions are already recorded ({_version_now(state, r)}), and "
+                "they're recorded once: leave this sentence out"
+            )
+
+
 def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:
     data: dict[str, Any] = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.category is not None:
         data["category"] = a.category.value
     if a.label is not None:
         data["label"] = a.label
+    if a.standard_conditions is not None:
+        if a.kind != "other_term":
+            raise WriteProblem("standard_conditions is for an other_term only")
+        data["standard_conditions"] = a.standard_conditions
+        if a.standard_conditions:
+            _standard_conditions_once(ctx, data, a.replaces_id)
     note = ""
     if a.kind == "approval_rule" and "applies_to" in data:
         note = _check_applies_to(ctx, data["applies_to"]["text"])
@@ -879,8 +1040,8 @@ def t_open_file(ctx: RunContext, a: FileRef) -> tuple[list[dict[str, Any]] | str
         return str(error), True
     if opened.document is not None:
         ctx.documents.append(opened.document)
-    if opened.image is not None:
-        ctx.images[f.id] = opened.image
+    for image in opened.images or []:
+        ctx.images[(f.id, image.page)] = image
     return opened.blocks, False
 
 
@@ -1015,6 +1176,43 @@ def tool_definitions() -> list[dict[str, Any]]:
     ]
 
 
+# A box covering more than this share of the image holds more than one value: refused, since
+# the second look reads the whole box and has to see just the value.
+MAX_BOX_SHARE = 0.2
+
+# The fields the accountant reads as the agent's own words (#275).
+PROSE_FIELDS = ("reasoning", "reason", "question", "text", "needed", "label")
+_SHORTEST_ID = 6  # shorter IDs (none in practice) could match ordinary words
+
+
+def ids_in_prose(ctx: RunContext, args: BaseModel) -> str | None:
+    """A problem when a field the accountant reads names a record, file or charge by its ID.
+
+    An ID means nothing to the accountant ("I've filed a correction (rec-afbc6f36)"). Only the
+    IDs this run knows are matched, so a ledger line number such as L-1958-0004, which the
+    accountant does know, passes.
+    """
+    known = {r.id for r in ctx.records}
+    known |= {f.id for f in ctx.inputs.files} | {c.id for c in ctx.inputs.charges}
+    known = {i for i in known if len(i) >= _SHORTEST_ID}
+    found: list[str] = []
+    for field in PROSE_FIELDS:
+        value = getattr(args, field, None)
+        if not isinstance(value, str):
+            continue
+        named = sorted(i for i in known if i in value)
+        if named:
+            found.append(f"{field} ({', '.join(named)})")
+    if not found:
+        return None
+    return (
+        "The accountant reads " + "; ".join(found) + ", where an ID means nothing to them. Name "
+        'each record or file by what it is, such as "the invoice from Example Lab Supply Co.", '
+        '"the award letter" or "my earlier link to this charge". IDs go only in the fields that '
+        "take them, such as record_id, rests_on and quotes"
+    )
+
+
 def run_tool(ctx: RunContext, name: str, raw_input: Any) -> tuple[Any, bool]:
     """Run one tool call. Returns the tool result's content and whether it's an error."""
     entry = TOOLS.get(name)
@@ -1028,6 +1226,9 @@ def run_tool(ctx: RunContext, name: str, raw_input: Any) -> tuple[Any, bool]:
             f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in error.errors()
         )
         return f"The input doesn't fit the tool: {details}", True
+    problem = ids_in_prose(ctx, args)
+    if problem is not None:
+        return ctx.note_problems(name, [problem]), True
     try:
         return handler(ctx, args)
     except WriteProblem as error:
