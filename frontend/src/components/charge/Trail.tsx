@@ -6,10 +6,12 @@ import styles from "./trail.module.css";
 /**
  * A node's mark on the evidence trail. `ledger`: the charge itself, a square.
  * `holds`: a link that holds, a check. `conflict`, `human` and `missing`: the
- * bucket's own mark, a diamond, a ring and a dashed ring. `plain`: a small
- * hollow ring for a line with nothing to say yet.
+ * bucket's own mark, a diamond, a ring and a dashed ring. `partly`: a
+ * checklist item the server says is partly filled, a ring half filled in ink,
+ * neither the check nor the dashed ring. `plain`: a small hollow ring for a
+ * line with nothing to say yet.
  */
-export type Mark = "ledger" | "holds" | "conflict" | "human" | "missing" | "plain";
+export type Mark = "ledger" | "holds" | "conflict" | "human" | "missing" | "partly" | "plain";
 
 /**
  * One node on the evidence trail: its mark on the line, a head line with the

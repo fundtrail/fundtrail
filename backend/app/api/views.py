@@ -71,6 +71,7 @@ from app.contracts.records import (
     AcceptedReason,
     Author,
     BudgetAssignment,
+    BudgetLine,
     Confirmation,
     Decision,
     Duplicate,
@@ -654,6 +655,23 @@ def record_chain(snap: GrantSnapshot, record_id: str) -> list[str]:
     return chain
 
 
+def _record_file_ids(snap: GrantSnapshot, record: Record) -> list[str]:
+    """Every file a record names: its citations' (values, a link's part, an answer's
+    quotes), a duplicate mark's two files, a budget line's notice, and for a link with no
+    part, its target's file as the link view shows it."""
+    data = record.data
+    found = [c.file_id for c in citations(data)]
+    if isinstance(data, Duplicate):
+        found += [data.copy_file_id, data.original_file_id]
+    if isinstance(data, BudgetLine) and data.notice_file_id:
+        found.append(data.notice_file_id)
+    if isinstance(data, Link) and data.part is None:
+        target = snap.state.current_version(data.record_id)
+        if target is not None:
+            found += [c.file_id for c in citations(target.data)][:1]
+    return found
+
+
 def charge_detail(
     p: Platform, snap: GrantSnapshot, charge: Charge, rows: Sequence[StatusRow]
 ) -> ChargeDetail:
@@ -688,6 +706,20 @@ def charge_detail(
     rest_on = {i for reason in (status.reasons if status else ()) for i in reason.record_ids}
     records = {i: state.by_id[i] for i in sorted(rest_on) if i in state.by_id}
     files = {v.file.id: v.file for v in links if v.file is not None}
+    waiting = [
+        _suggestion(snap, r)
+        for r in state.waiting()
+        if r.author == Author.AGENT and charge.id in _touched_charges(snap, r)
+    ]
+    # Issue 275: every file the page's records cite (the answers' quotes, the waiting
+    # suggestions, what the reasons rest on), so the screen can name each one. Only files
+    # on this grant and visible at its now.
+    citing = [a.judgment for a in answers] + list(records.values())
+    citing += [r for w in waiting for r in (w.record, w.replaces) if r is not None]
+    for r in citing:
+        for file_id in _record_file_ids(snap, r):
+            if file_id in snap.files_by_id:
+                files.setdefault(file_id, snap.files_by_id[file_id])
     corrections = [
         snap.charges_by_id[i]
         for i in (status.corrections if status else ())
@@ -703,11 +735,7 @@ def charge_detail(
         links=tuple(links),
         answers=tuple(answers),
         questions=tuple(questions),
-        waiting=tuple(
-            _suggestion(snap, r)
-            for r in state.waiting()
-            if r.author == Author.AGENT and charge.id in _touched_charges(snap, r)
-        ),
+        waiting=tuple(waiting),
         thread=thread(snap, charge_id=charge.id, history=rows),
         records=records,
         files=files,
