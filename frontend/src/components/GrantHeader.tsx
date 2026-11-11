@@ -7,7 +7,7 @@ import { routes } from "@/lib/routes";
 import { useGrantDisplayName } from "@/lib/grantName";
 import styles from "./GrantHeader.module.css";
 
-const BAR_ORDER: Bucket[] = ["possible_conflict", "needs_human", "missing_evidence", "evidence_complete"];
+const BAR_ORDER: Bucket[] = ["evidence_complete", "possible_conflict", "needs_human", "missing_evidence"];
 
 /** Milliseconds since the epoch of a date the server sent. Never the browser's clock. */
 function at(value: string): number {
@@ -49,8 +49,8 @@ function Period({ start, now, end }: { start: IsoDate; now: string; end: IsoDate
 
 /**
  * Where a grant stands, at the top of its pages: its name, readiness and dates.
- * Counts only, never a percentage. The readiness bar is sized by the server's
- * bucket counts. `start` is the confirmed period's start, when the page has
+ * Counts only, never a percentage. The readiness bar is ready of total in one
+ * color; the bucket counts are their own list beneath it. `start` is the confirmed period's start, when the page has
  * it, and `budget` gives the amounts charged and the award's limit.
  */
 export function GrantHeader({ summary, start = null, budget = null }: { summary: GrantSummary; start?: IsoDate | null; budget?: BudgetView | null }) {
@@ -95,15 +95,20 @@ export function GrantHeader({ summary, start = null, budget = null }: { summary:
           <span className={styles.count}>{summary.charges_ready}</span>
           <span className={styles.of}>of {summary.charges_total} charges ready for closeout</span>
         </p>
+        {summary.charges_total > 0 && (
+          <div className={styles.bar} aria-hidden="true">
+            <i style={{ width: `${Math.min(100, (summary.charges_ready / summary.charges_total) * 100).toFixed(1)}%` }} />
+          </div>
+        )}
+        {/* The buckets, as the checks gave them: a list of its own, not parts of the bar. */}
         {segments.length > 0 && (
-          <>
-            <div className={styles.bar} aria-hidden="true">
-              {segments.map((b) => (
-                <i key={b} data-bucket={b} style={{ flexGrow: counts[b] }} title={`${counts[b]} ${BUCKET_LABELS[b]}`} />
-              ))}
-            </div>
-            <p className="ft-sr">{segments.map((b) => `${counts[b]} ${BUCKET_LABELS[b]}`).join(", ")}</p>
-          </>
+          <ul className={styles.buckets} aria-label="Charges by bucket">
+            {segments.map((b) => (
+              <li key={b} data-bucket={b}>
+                <span className="ft-num">{counts[b]}</span> {BUCKET_LABELS[b]}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
       {trail ?? (

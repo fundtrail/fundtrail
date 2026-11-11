@@ -197,22 +197,20 @@
   min-width: 4px;
   border-radius: 3px;
 }
-.meter i[data-bucket="evidence_complete"],
 .legend li[data-bucket="evidence_complete"]::before {
   background: var(--complete);
 }
-.meter i[data-bucket="possible_conflict"],
 .legend li[data-bucket="possible_conflict"]::before {
   background: var(--conflict);
 }
-.meter i[data-bucket="needs_human"],
 .legend li[data-bucket="needs_human"]::before {
   background: var(--needs-human);
 }
-.meter i[data-bucket="missing_evidence"],
 .legend li[data-bucket="missing_evidence"]::before {
   background: var(--missing);
 }
+/* The bars carry one calm color: what's ready, or what's charged. */
+.meter .ready,
 .meter .spent {
   background: var(--ledger);
 }
@@ -220,7 +218,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;
-  margin: 0;
+  margin: 4px 0 0;
   padding: 0;
   color: var(--ink-muted);
   font-size: 12px;
@@ -298,7 +296,7 @@
 }
 .ptNow {
   border: 2px solid var(--ink);
-  background: var(--hl);
+  background: var(--now);
 }
 .periodStart,
 .periodEnd {

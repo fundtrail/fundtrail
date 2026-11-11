@@ -57,30 +57,52 @@
   color: var(--ink-muted);
 }
 .bar {
-  display: flex;
-  gap: 2px;
   width: 320px;
   max-width: 100%;
   height: 6px;
   margin: var(--space-2) 0 0 auto;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--paper-sunken);
 }
+/* Ready of total, in one calm color. */
 .bar i {
   display: block;
-  flex-basis: 0;
-  min-width: 6px;
-  border-radius: 2px;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ledger);
 }
-.bar i[data-bucket="possible_conflict"] {
+/* The buckets: a list of their own, each with its dot. */
+.buckets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  list-style: none;
+}
+.buckets li::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+}
+.buckets li[data-bucket="evidence_complete"]::before {
+  background: var(--complete);
+}
+.buckets li[data-bucket="possible_conflict"]::before {
   background: var(--conflict);
 }
-.bar i[data-bucket="needs_human"] {
+.buckets li[data-bucket="needs_human"]::before {
   background: var(--needs-human);
 }
-.bar i[data-bucket="missing_evidence"] {
+.buckets li[data-bucket="missing_evidence"]::before {
   background: var(--missing);
-}
-.bar i[data-bucket="evidence_complete"] {
-  background: var(--complete);
 }
 
 .dates {
@@ -129,7 +151,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid var(--ink);
-  background: var(--hl, #ffe45c);
+  background: var(--now);
 }
 .lb {
   position: absolute;
@@ -174,6 +196,9 @@
   }
   .bar {
     margin-left: 0;
+  }
+  .buckets {
+    justify-content: flex-start;
   }
   .title {
     font-size: 26px;

@@ -51,6 +51,9 @@ describe("the grant overview", () => {
     ]);
     expect(within(need).getByText("2 more on the problem list")).toBeInTheDocument();
     expect(within(need).getByRole("link", { name: "See all 5" })).toBeInTheDocument();
+    // Readiness is ready of total; the buckets are their own list, as the server counted them.
+    const buckets = screen.getByRole("list", { name: "Charges by bucket" });
+    expect(within(buckets).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["1 Evidence complete", "1 Possible conflict"]);
     // The grant's own problem stays visible above the facts, in the server's words.
     expect(within(screen.getByRole("list", { name: "Problems with the grant itself" })).getAllByText("Spending is over the award's limit.")).toHaveLength(2);
   });

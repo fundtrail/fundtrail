@@ -160,21 +160,20 @@ function Ready({ summary }: { summary: GrantSummary }) {
         <span className="ft-num">{summary.charges_ready}</span>
         <small>of {summary.charges_total} charges</small>
       </p>
+      {summary.charges_total > 0 && (
+        <div className={styles.meter} aria-hidden="true">
+          <i className={styles.ready} style={{ width: `${share(summary.charges_ready, summary.charges_total).toFixed(1)}%` }} />
+        </div>
+      )}
+      {/* The buckets, as the checks gave them: a list of its own, not parts of the bar. */}
       {shown.length > 0 && (
-        <>
-          <div className={styles.meter} aria-hidden="true">
-            {shown.map((b) => (
-              <i key={b} data-bucket={b} style={{ flexGrow: counts[b] }} />
-            ))}
-          </div>
-          <ul className={styles.legend}>
-            {shown.map((b) => (
-              <li key={b} data-bucket={b}>
-                <span className="ft-num">{counts[b]}</span> {BUCKET_LABELS[b]}
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className={styles.legend} aria-label="Charges by bucket">
+          {shown.map((b) => (
+            <li key={b} data-bucket={b}>
+              <span className="ft-num">{counts[b]}</span> {BUCKET_LABELS[b]}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
