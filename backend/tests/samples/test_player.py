@@ -532,3 +532,23 @@ def test_the_move_controls_say_why_they_cant_move(api: Api) -> None:
     end = _move(api, grant_id, "2030-01-01T00:00:00Z")
     assert end["move_unavailable_reason"] == "Nothing is left to play."
     assert end["next_highlight_unavailable_reason"] == "No highlight is left to play."
+
+
+def test_the_view_guides_through_the_highlights(api: Api) -> None:
+    """The timeline guide's data: the highlight reached, of how many, the user's step it
+    waits for and what to open for it, and the scripted sign-off's date."""
+    pack = player.pack_for("nitrate-sensors")
+    labelled = [e for e in pack.events if e.highlight]
+    grant_id = _open(api)
+    _reading(api, grant_id)
+    opening = _get(api, f"/grants/{grant_id}/timeline")
+    assert (opening["highlight_index"], opening["highlight_total"]) == (1, len(labelled))
+    assert opening["highlight_event"]["name"] == labelled[0].name
+    assert opening["your_step"] is None and opening["sign_off_at"] is None
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert moved.status_code == 200, moved.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    waiting = _get(api, f"/grants/{grant_id}/timeline")
+    assert waiting["your_step"] == {"action": "confirm_terms", "open": "terms", "id": None}
+    larger = _open(api, "larger_live")
+    assert _get(api, f"/grants/{larger}/timeline")["sign_off_at"] is not None
