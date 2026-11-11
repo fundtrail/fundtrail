@@ -14,6 +14,46 @@ Everything the script needs is on main as of Nov 10 (PRs 218 to 223 merged), exc
 
 How to record and edit: see [Recording and editing](#recording-and-editing) below.
 
+## Moving the clock
+
+"Next highlight" doesn't work yet (#267), so each beat uses **Go to a date**. It moves the clock to midnight UTC (Coordinated Universal Time) at the start of the day you pick, so each date below is the day after its highlight.
+
+- **"Skip the human steps" off** when the beat's action is yours on camera. The clock stops on anything that's yours to deliver.
+- **On** for every other jump, so the sample accountant makes the scripted decisions in between, such as confirming the rate agreement.
+
+| Beat | Go to | Skip the human steps | What you do on camera |
+|---|---|---|---|
+| 02 Terms | (the sample opens here) | | Confirm the award letter's terms |
+| 03 Receipt photo | Dec 31, 2024 | Off | Deliver for me |
+| 04 Invoice first | Feb 11, 2025, then Feb 19, 2025 | On | |
+| 05 Shared invoice | May 15, 2025 | On | Open the thread's suggestion |
+| 06 Own approval | Sep 16, 2025 | On | |
+| 07 Bill under its charge | Nov 13, 2025 | On | |
+| 08 Same invoice twice | Nov 21, 2025 | On | |
+| 09 Held mail | Jan 13, 2026 | Off | Let in |
+| 10 Salary lines | Feb 20, 2026 | On | |
+| 11 Moved off | Mar 10, 2026 | On | |
+| 12 Over budget | May 6, 2026, then Jun 13, 2026 | Off | Accept with a note; confirm the increment |
+| 13 Extension | Sep 15, 2026 | Off | Confirm the extension |
+| 14 Closeout | Nov 3, 2026 | On | Sign off with a note |
+
+Rehearse once first: check that each jump stops where the table says, and note any that doesn't.
+
+## Fallback: the small sample
+
+If the larger sample can't be played tonight, record the small sample ("Small sample, read live"). It works end to end on main, with three highlights. Target 2:15.
+
+| # | Go to | Shot | Say |
+|---|---|---|---|
+| 01 | | Add a grant, "Small sample, read live", Open | "Automate the Old Way. When a research grant ends, a university has a few months to prove every charge followed the rules. That proof is scattered across email, shared drives and receipts. FundTrail keeps a running evidence file for every grant, so the proof is ready before anyone asks." |
+| 02 | (opens here) | The agent reads the award letter (cut the wait). Grant terms, each value with its quote. Confirm all | "The agent reads the award letter and pulls out every term, each tied to the sentence it came from. Code checks each quote against the file, and nothing is used until the accountant confirms it." |
+| 03 | Nov 17, 2026, skip off | The ledger posts and seven files arrive (cut the wait). The problem list, then the travel charge: its bucket, its checklist, the bills linked | "The ledger posts and the evidence arrives. Every charge gets a bucket and a checklist, and the agent links each bill to the charge it pays for." |
+| 04 | Next event | The clock stops on the receipt photo. Deliver for me | "Some evidence only a person has, like this phone photo of a receipt. The charge waits for it." |
+| 05 | Next event, then Nov 25, 2026 | The invoice arrives by Gmail before its charge. Then the ledger line posts and it links | "This invoice arrived before its charge posted. It waits, and links the moment the line shows up." |
+| 06 | | On the travel charge, ask the agent "Do these cover this trip?" Its answer in the thread | "The accountant can ask the agent about any charge. It answers with its sources, and any change it proposes waits for a person." |
+| 07 | | Closeout: the steps, what's still open, Make the draft, the evidence report | "At closeout, the review is already done, and the evidence report is ready to attach to Berkeley's closeout certification." |
+| 08 | | The report scrolling, then the wordmark | "The agent reads and suggests. Code checks every rule it can. A person makes every final call. That's FundTrail." |
+
 ## Recording and editing
 
 Record the screen first, then the voice. Claude then cuts the video together with ffmpeg.
@@ -87,11 +127,11 @@ Timeline order, as the larger sample plays them. Times are cumulative.
 - **Say:** "We start at the award letter. The agent pulls out the terms, each tied to the exact sentence it came from. Code checks that quote against the file. Nothing is used until the accountant confirms it."
 
 ### 0:30 Highlight 3: Receipt photo you deliver (10 s)
-- **Shot:** Next highlight. The timeline panel's "Now" asks for the taxi receipt. The charge's checklist shows the receipt Missing. Click "Deliver for me".
+- **Shot:** Go to Dec 31, 2024. The timeline panel's "Now" asks for the taxi receipt. The charge's checklist shows the receipt Missing. Click "Deliver for me".
 - **Say:** "A sample grant has its own clock. Here a trip's taxi charge is missing its receipt until the professor sends the photo."
 
 ### 0:40 Highlight 2: Invoice before its line (10 s)
-- **Shot:** Next highlight. The invoice arrives by Gmail and waits on the Evidence page. The ledger line posts, and the charge turns Evidence complete.
+- **Shot:** Go to Feb 11, 2025: the invoice arrives by Gmail and waits on the Evidence page. Go to Feb 19, 2025: the ledger line posts, and the charge turns Evidence complete.
 - **Say:** "An invoice can arrive before its charge posts. It waits, and links the moment the line shows up."
 
 ### 0:50 Highlight 4: Shared invoice, 56 of 96 (12 s)
@@ -123,7 +163,7 @@ Timeline order, as the larger sample plays them. Times are cumulative.
 - **Say:** "The department moves the dinner off the grant, with a written reason, and that correction gets its own evidence."
 
 ### 1:56 Highlight 8: Over budget, then more money (12 s)
-- **Shot:** the grant page's budget figures over the limit, and the problem list's grant row. "Accept with a note". Next highlight: the increment's new limit on the Terms page.
+- **Shot:** the grant page's budget figures over the limit, and the problem list's grant row. "Accept with a note". Go to Jun 13, 2026: confirm the increment's new limit on the Terms page.
 - **Say:** "A field corer pushes spending past what's been awarded so far. The accountant accepts it with a note, and the next funding notice raises the limit."
 
 ### 2:08 Highlight 6: Extension found in Drive (12 s)
