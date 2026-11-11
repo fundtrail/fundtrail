@@ -182,7 +182,54 @@ describe("Viewer: PDF with real text", () => {
     // A passage with real text is a highlighter over the page, not an outlined box.
     expect(boxes[0].parentElement).toHaveAttribute("data-variant", "mark");
     expect(within(screen.getByTestId("pdf-page-1")).queryAllByTestId("highlight-box")).toHaveLength(0);
-    expect(screen.getByText("Close match on the page")).toBeInTheDocument();
+    expect(within(screen.getByTestId("viewer-bar")).getByText("Close match on the page")).toBeInTheDocument();
+  });
+
+  it("names the marked box for a screen reader, once per passage", async () => {
+    const c: CitationLike = {
+      file_id: "f",
+      passage: "Total Amount Obligated to Date: $450,000",
+      location: { type: "page_location", start_page_number: 2, end_page_number: 3 },
+      match: "exact",
+      highlight: [
+        { page: 2, left: 0.1, top: 0.4, width: 0.5, height: 0.03 },
+        { page: 2, left: 0.1, top: 0.43, width: 0.3, height: 0.03 },
+      ],
+    };
+    render(<Viewer file={pdf} url="https://storage.example/a.pdf" citation={c} label="Obligated to date" />);
+    const page2 = await screen.findByTestId("pdf-page-2");
+    expect(within(page2).getByRole("img", { name: "Obligated to date, highlighted passage" })).toBeInTheDocument();
+    expect(within(page2).getAllByRole("img")).toHaveLength(1);
+  });
+
+  it("puts an exact quote on the highlighter in the side panel", async () => {
+    const c: CitationLike = {
+      file_id: "f",
+      passage: "Total Due: $3,400.00",
+      location: { type: "page_location", start_page_number: 2, end_page_number: 3 },
+      match: "exact",
+      highlight: [{ page: 2, left: 0.5, top: 0.4, width: 0.2, height: 0.03 }],
+    };
+    render(<Viewer file={pdf} url="https://storage.example/a.pdf" citation={c} valueText="$3,400.00" />);
+    await screen.findByTestId("pdf-page-2");
+    expect(screen.getByTestId("side-quote").querySelector("mark")).toHaveTextContent("Total Due: $3,400.00");
+    expect(within(screen.getByRole("complementary", { name: "The quote" })).queryByText("Close match on the page")).toBeNull();
+  });
+
+  it("shows a close match's quote plain, with the bar's words for it, and keeps the mark on the page", async () => {
+    const c: CitationLike = {
+      file_id: "f",
+      passage: "Boat and dock use for sediment coring,\ntwo days, March 2 to March 3, 2026",
+      location: { type: "page_location", start_page_number: 1, end_page_number: 2 },
+      match: "close",
+      highlight: [{ page: 1, left: 0.1, top: 0.5, width: 0.4, height: 0.03 }],
+    };
+    render(<Viewer file={pdf} url="https://storage.example/a.pdf" citation={c} valueText="Boat and dock use" />);
+    const page1 = await screen.findByTestId("pdf-page-1");
+    expect(within(page1).getAllByTestId("highlight-box")).toHaveLength(1);
+    const side = screen.getByRole("complementary", { name: "The quote" });
+    expect(screen.getByTestId("side-quote").querySelector("mark")).toBeNull();
+    expect(within(side).getByText("Close match on the page")).toBeInTheDocument();
   });
 
   it("opens an unplaced PDF fact at its page, with the quote beside it and no box", async () => {
@@ -232,6 +279,10 @@ describe("Viewer: photos and scans", () => {
     expect(screen.getByText("200%")).toBeInTheDocument();
     expect(screen.getByText("Box checked by a second look")).toBeInTheDocument();
     expect(screen.getByTestId("side-quote")).toHaveTextContent("$86.40");
+    // A photo has no passage: its value shows once, as the value, never as a quote.
+    expect(screen.getAllByText("$86.40")).toHaveLength(1);
+    expect(screen.queryByRole("blockquote")).toBeNull();
+    expect(screen.getByRole("img", { name: "Value, box checked by a second look" })).toBeInTheDocument();
   });
 
   it("outlines a box on a scanned PDF page", async () => {

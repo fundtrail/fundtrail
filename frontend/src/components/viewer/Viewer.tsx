@@ -1,14 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
 import type { EvidenceFile, ReadingView } from "@/lib/api/types";
 import { date, SOURCE_LABELS } from "@/lib/format";
-import { isFound, pageCaption, placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
+import { pageCaption, placeCitation, zoomForBoxes, type Box, type CitationLike, type Placement } from "./placement";
 import { mapSpansToReading, passageInReading } from "./reading";
 import { splitBySpans } from "./textSpans";
 import styles from "./viewer.module.css";
+import { BOX_CHECKED, CLOSE_MATCH, EXACT_PASSAGE, NOT_PLACED } from "./words";
+import { openingZoom } from "./zoom";
 
 const PdfPages = dynamic(() => import("./PdfPages"), {
   ssr: false,
@@ -41,9 +43,9 @@ function stepZoom(current: number, dir: 1 | -1): number {
 /** What the viewer says about the spot, in the side panel and the bar. */
 function placementCaption(p: Placement | null, match: CitationLike["match"]): string {
   if (!p) return "No fact selected";
-  if (p.kind === "unplaced") return "Couldn't be placed in the file";
-  if (p.kind === "boxes" && p.passage === null) return "Box checked by a second look";
-  return match === "close" ? "Close match on the page" : "Exact passage";
+  if (p.kind === "unplaced") return NOT_PLACED;
+  if (p.kind === "boxes" && p.passage === null) return BOX_CHECKED;
+  return match === "close" ? CLOSE_MATCH : EXACT_PASSAGE;
 }
 
 export interface ViewerProps {
@@ -87,6 +89,19 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   const [readyTick, setReadyTick] = useState(0);
   const onReady = useCallback(() => setReadyTick((t) => t + 1), []);
 
+  // A PDF opens no wider than its document area, so a small value doesn't open
+  // on a page cut off on both sides. Measured once, when the viewer opens.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (kind !== "pdf" || !el) return;
+    const style = getComputedStyle(el);
+    const area = el.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
+    const opening = openingZoom(boxes, area, PAGE_WIDTH);
+    setZoom((z) => (z === zoomForBoxes(boxes) ? opening : z));
+    // Only at opening: the viewer is keyed by the value it opens at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Scroll to the spot once something has drawn, and again after a zoom.
   useEffect(() => {
     const target = scrollRef.current?.querySelector<HTMLElement>('[data-scroll-target="true"]');
@@ -103,9 +118,9 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   } else if (kind === "docx") {
     body = <DocxPassage url={url} placement={placement} zoom={zoom} reading={reading} />;
   } else if (kind === "pdf") {
-    body = <PdfFile url={url} placement={placement} zoom={zoom} onReady={onReady} />;
+    body = <PdfFile url={url} placement={placement} zoom={zoom} label={label} onReady={onReady} />;
   } else if (kind === "image") {
-    body = <ImageFile url={url} name={file.name} boxes={boxes} zoom={zoom} onReady={onReady} />;
+    body = <ImageFile url={url} name={file.name} boxes={boxes} zoom={zoom} label={label} onReady={onReady} />;
   } else {
     body = (
       <p className={styles.docState}>
@@ -117,10 +132,16 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
     );
   }
 
-  const quote = placement?.kind === "unplaced" ? placement.quote : (citation?.passage ?? valueText);
-  // Yellow is only for a verbatim passage that was found in the file. A quote
-  // that couldn't be placed, and a photo's value (which has no passage), show plain.
-  const verbatim = !!citation && citation.passage !== null && isFound(citation) && placement?.kind !== "unplaced";
+  // A photo or scan has no passage: its value shows once, as the value, and
+  // never again in the quote's voice.
+  const noPassage = !!citation && citation.passage === null;
+  const quote = noPassage ? null : placement?.kind === "unplaced" ? placement.quote : (citation?.passage ?? null);
+  // Yellow is only for an exact passage: word for word from the file. A close
+  // match was found but isn't word for word, so its quote shows plain with the
+  // bar's words for it; a quote that couldn't be placed shows plain too. The
+  // mark on the page itself stays, since that's where the passage was found.
+  const exact = !!citation && citation.match === "exact" && placement?.kind !== "unplaced";
+  const close = !!citation && citation.match === "close" && placement?.kind !== "unplaced";
   const location = citation ? pageCaption(citation) : null;
   const source = file.source ? ((SOURCE_LABELS as Record<string, string>)[file.source] ?? file.source) : null;
 
@@ -131,13 +152,13 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
         {(source || file.arrived_at || file.sender) && (
           <p className={styles.meta}>
             {source && <span>{source}</span>}
-            {file.sender && <span>From {file.sender}</span>}
             {file.arrived_at && <span>Arrived {date(file.arrived_at)}</span>}
+            {file.sender && <span>From {file.sender}</span>}
           </p>
         )}
       </header>
 
-      <div className={styles.bar}>
+      <div className={styles.bar} data-testid="viewer-bar">
         <div className={styles.cite}>
           {!citation && <span>Whole file, nothing highlighted</span>}
           {citation && (
@@ -180,7 +201,11 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
           <aside className={styles.side} aria-label="The quote">
             <div className={styles.active}>
               <span className={styles.sideLabel}>{label ?? "Quote"}</span>
-              {valueText && <span className={styles.value}>{valueText}</span>}
+              {valueText && (
+                <span className={styles.value} data-testid={noPassage ? "side-quote" : undefined}>
+                  {valueText}
+                </span>
+              )}
               {location && <span className={styles.sideMeta}>{location}</span>}
               {confirmation && (
                 <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
@@ -196,15 +221,18 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
               </p>
             )}
             {quote && (
-              <blockquote className={styles.quote} data-testid="side-quote">
-                {verbatim && placement?.kind === "text" ? (
-                  <SideQuoteText placement={placement} reading={reading} />
-                ) : verbatim ? (
-                  <mark className={styles.quoteMark}>{quote}</mark>
-                ) : (
-                  quote
-                )}
-              </blockquote>
+              <figure className={styles.quoteFigure}>
+                <blockquote className={styles.quote} data-testid="side-quote">
+                  {exact && placement?.kind === "text" ? (
+                    <SideQuoteText placement={placement} reading={reading} />
+                  ) : exact ? (
+                    <mark className={styles.quoteMark}>{quote}</mark>
+                  ) : (
+                    quote
+                  )}
+                </blockquote>
+                {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
+              </figure>
             )}
           </aside>
         )}
@@ -330,7 +358,7 @@ function MarkedText({
 }) {
   const pieces = splitBySpans(text, spans, offset);
   return (
-    <pre className={styles.text} style={{ fontSize: `${14 * zoom}px`, maxWidth: `${PAGE_WIDTH * zoom}px` }} data-testid="viewer-text">
+    <pre className={styles.text} style={{ fontSize: `${13 * zoom}px`, maxWidth: `${PAGE_WIDTH * zoom}px` }} data-testid="viewer-text">
       {pieces.map((p, i) =>
         p.marked ? (
           <mark key={i} className={styles.mark} data-scroll-target={p.first ? "true" : undefined}>
@@ -406,11 +434,13 @@ function PdfFile({
   url,
   placement,
   zoom,
+  label,
   onReady,
 }: {
   url: string;
   placement: Placement | null;
   zoom: number;
+  label: string | null;
   onReady: () => void;
 }) {
   const boxes = useMemo(() => (placement?.kind === "boxes" ? placement.boxes : []), [placement]);
@@ -420,8 +450,10 @@ function PdfFile({
   // box, checked by a second look, is outlined like a photo's.
   const variant = placement?.kind === "boxes" && placement.passage === null ? "box" : "mark";
   const overlay = useCallback(
-    (page: number) => <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} variant={variant} />,
-    [boxes, variant],
+    (page: number) => (
+      <BoxOverlay boxes={boxes.filter((b) => b.page === page)} first={boxes[0] ?? null} variant={variant} label={label} />
+    ),
+    [boxes, variant, label],
   );
   return <PdfPages url={url} width={PAGE_WIDTH * zoom} overlay={overlay} targetPage={targetPage} onPageReady={onReady} />;
 }
@@ -433,19 +465,21 @@ function ImageFile({
   name,
   boxes,
   zoom,
+  label,
   onReady,
 }: {
   url: string;
   name: string;
   boxes: Box[];
   zoom: number;
+  label: string | null;
   onReady: () => void;
 }) {
   return (
     <div className={styles.page} style={{ width: `${PAGE_WIDTH * zoom}px` }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not a static asset */}
       <img src={url} alt={name} onLoad={onReady} />
-      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} variant="box" />
+      <BoxOverlay boxes={boxes.filter((b) => b.page === 1)} first={boxes[0] ?? null} variant="box" label={label} />
     </div>
   );
 }

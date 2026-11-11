@@ -3,20 +3,15 @@
  * ViewerSheet: a head, a bar that says what's cited and how, the document on a
  * sunken ground, and a side panel with the active value.
  *
- * Yellow is the highlighter and means one thing: a verbatim passage found in
- * the file. It stays yellow with dark text in both themes. The fallbacks below
- * hold until the UI foundation (issue 238) defines the tokens.
+ * Yellow is the highlighter and means one thing: a passage from the file. On
+ * the page it marks where the passage was found (highlight-active, the one
+ * active mark); in the side panel it marks an exact quote. It stays yellow
+ * with on-highlight text in both themes.
  */
 
 .viewer {
-  --v-hl: var(--hl, #ffe45c);
-  --v-on-hl: var(--on-hl, #1d1a05);
-  --v-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
-  --v-float: var(--shadow-float, 0 8px 24px rgb(20 30 25 / 0.14));
-  /* A photo keeps its own colors in both themes, so its box does too. */
-  --v-box-edge: #17201c;
-  --v-box-halo: rgb(255 255 255 / 0.85);
-  --v-paper-white: #ffffff;
+  /* An original PDF page is paper: white in both themes. Defined once, here. */
+  --paper-original: #ffffff;
 
   display: flex;
   flex-direction: column;
@@ -207,17 +202,19 @@
   color: var(--ink-muted);
 }
 
-/* --- Text, email, .docx: the sheet and the highlighter ---------------------- */
+/* --- Text, email, .docx: the sheet and the mark ------------------------------- */
 
+/* The document's own text keeps a monospaced face, so a plain-text file's
+   columns line up as they do in the file. The serif is for quotes. */
 .text {
   margin: 0 auto;
   padding: var(--space-6) var(--space-7);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
-  box-shadow: var(--v-float);
+  box-shadow: var(--shadow-float);
   color: var(--ink);
-  font-family: var(--v-serif);
-  line-height: 1.6;
+  font-family: var(--mono);
+  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -228,11 +225,23 @@
 }
 
 .mark {
-  background: var(--v-hl);
-  color: var(--v-on-hl);
   border-radius: 2px;
+  background: var(--highlight-active);
+  color: var(--on-highlight);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+
+/* Said to a screen reader at the start of a mark, never shown. */
+.mark::before,
+.quoteMark::before {
+  content: "highlighted: ";
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* --- PDF ------------------------------------------------------------------- */
@@ -243,8 +252,8 @@
 }
 /* The page is paper: white in both themes, with the one floating shadow. */
 .pdfPage :global(.react-pdf__Page) {
-  background: var(--v-paper-white);
-  box-shadow: var(--v-float);
+  background: var(--paper-original);
+  box-shadow: var(--shadow-float);
 }
 
 .pageNum {
@@ -256,8 +265,9 @@
 
 /*
  * The highlighter on a PDF page: one layer multiplied over the rendered page,
- * so the printed words show through the yellow. The boxes inside are opaque,
- * so where two lines' boxes meet they read as one stroke, never darker bars.
+ * so the printed words show through the yellow. The boxes inside are opaque
+ * and drawn exactly where they were stored, so overlapping boxes never stack
+ * into darker bars.
  */
 .markLayer {
   position: absolute;
@@ -268,9 +278,8 @@
 }
 .markBox {
   position: absolute;
-  background: var(--v-hl);
   border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--v-hl);
+  background: var(--highlight-active);
 }
 
 /* --- Photo or scan: the checked box ----------------------------------------- */
@@ -278,7 +287,7 @@
 .page {
   position: relative;
   margin: 0 auto;
-  box-shadow: var(--v-float);
+  box-shadow: var(--shadow-float);
 }
 .page img {
   display: block;
@@ -292,14 +301,13 @@
   z-index: 2;
   pointer-events: none;
 }
+/* The photo keeps its own colors in both themes, so the box's edge is the
+   on-highlight ink, dark in both, over the highlight wash. */
 .box {
   position: absolute;
-  border: 2px solid var(--v-box-edge);
+  border: 2px solid var(--on-highlight);
   border-radius: 2px;
-  background: color-mix(in srgb, var(--v-hl) 22%, transparent);
-  box-shadow:
-    0 0 0 1px var(--v-box-halo),
-    inset 0 0 0 1px var(--v-box-halo);
+  background: var(--highlight-wash);
 }
 
 /* --- Side panel ------------------------------------------------------------- */
@@ -353,10 +361,17 @@
   color: var(--needs-human);
 }
 
+.quoteFigure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
 .quote {
   margin: 0;
   max-width: 60ch;
-  font-family: var(--v-serif);
+  font-family: var(--serif);
   font-size: 16px;
   line-height: 1.55;
   color: var(--ink);
@@ -367,8 +382,8 @@
 .quoteMark {
   padding: 1px 3px;
   border-radius: 2px;
-  background: var(--v-hl);
-  color: var(--v-on-hl);
+  background: var(--hl);
+  color: var(--on-hl);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
