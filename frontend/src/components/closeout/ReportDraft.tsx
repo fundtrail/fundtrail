@@ -19,19 +19,31 @@ function errorText(error: unknown): string {
 /**
  * The evidence report (decision 0022). GET /grants/{id}/report gives the
  * current draft as a PDF; the screen fetches it with the accountant's token and
- * offers it to open or save. A signed report is the one stored at sign-off.
+ * offers it to open or save. A signed report is the one stored at sign-off,
+ * fetched through its sign-off record (GET /records/{record_id}/report) and
+ * offered the same way, above the draft, whenever the server sends a sign-off.
  */
 export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOffState }) {
   const api = useApi();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
+  // The signed report, kept with the sign-off it came from: signing again makes a new one.
+  const [signedBusy, setSignedBusy] = useState(false);
+  const [signedError, setSignedError] = useState<string | null>(null);
+  const [signedFile, setSignedFile] = useState<{ recordId: Id; url: string } | null>(null);
 
   useEffect(() => {
     return () => {
       if (url) URL.revokeObjectURL(url);
     };
   }, [url]);
+
+  useEffect(() => {
+    return () => {
+      if (signedFile) URL.revokeObjectURL(signedFile.url);
+    };
+  }, [signedFile]);
 
   async function load() {
     setBusy(true);
@@ -47,6 +59,22 @@ export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOf
   }
 
   const signed = signOff.sign_off ?? null;
+  // A file fetched for an earlier sign-off isn't offered for a newer one.
+  const signedUrl = signed && signedFile?.recordId === signed.id ? signedFile.url : null;
+
+  async function loadSigned(recordId: Id) {
+    setSignedBusy(true);
+    setSignedError(null);
+    try {
+      const pdf = await api.getSignedReport(recordId);
+      setSignedFile({ recordId, url: URL.createObjectURL(pdf) });
+    } catch (e) {
+      setSignedError(errorText(e));
+    } finally {
+      setSignedBusy(false);
+    }
+  }
+
   return (
     <section className="ft-co-report" aria-labelledby="report-heading">
       <div className="ft-co-report__head">
@@ -65,6 +93,37 @@ export function ReportDraft({ grantId, signOff }: { grantId: Id; signOff: SignOf
           <>Draft. It&apos;s made fresh from the records each time you open it.</>
         )}
       </p>
+      {signed && (
+        <>
+          {/* The signed report leads once signed; the draft's controls follow, as before. */}
+          <div className="ft-co-actions" role="group" aria-label="Signed report">
+            {signedUrl ? (
+              <>
+                <a className="ft-link" href={signedUrl} target="_blank" rel="noopener">
+                  Open the signed report (PDF)
+                </a>
+                <a className="ft-link" href={signedUrl} download={`evidence-report-signed-${grantId}.pdf`}>
+                  Save it
+                </a>
+              </>
+            ) : (
+              <button
+                type="button"
+                className={`ft-btn${signedBusy ? " is-busy" : ""}`}
+                disabled={signedBusy}
+                onClick={() => void loadSigned(signed.id)}
+              >
+                {signedBusy ? "Getting the signed report…" : "Get the signed report"}
+              </button>
+            )}
+          </div>
+          {signedError && (
+            <p className="ft-error" role="alert">
+              {signedError}
+            </p>
+          )}
+        </>
+      )}
       <div className="ft-co-actions">
         <button type="button" className={`ft-btn ft-btn--sm${busy ? " is-busy" : ""}`} disabled={busy} onClick={() => void load()}>
           {busy ? "Making the draft…" : url ? "Make the draft again" : "Make the draft"}

@@ -52,6 +52,8 @@ export interface ApiClient {
   listRuns(grantId: Id): Promise<AgentRun[]>;
   /** The evidence report's current draft, a PDF. */
   getReport(grantId: Id): Promise<Blob>;
+  /** The report a sign-off stored, a PDF, fetched through that sign-off record (decision 0022). */
+  getSignedReport(recordId: Id): Promise<Blob>;
 
   // A charge, a file, threads
   getCharge(chargeId: Id): Promise<ChargeDetail>;
@@ -237,6 +239,9 @@ export class HttpApiClient implements ApiClient {
   }
   async getReport(grantId: Id) {
     return (await this.send(`/grants/${e(grantId)}/report`, { accept: "application/pdf" })).blob();
+  }
+  async getSignedReport(recordId: Id) {
+    return (await this.send(`/records/${e(recordId)}/report`, { accept: "application/pdf" })).blob();
   }
   getCharge(chargeId: Id) {
     return this.get<ChargeDetail>(`/charges/${e(chargeId)}`);
