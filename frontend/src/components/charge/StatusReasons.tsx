@@ -111,7 +111,11 @@ export function StatusReasons({
       {failing.length > 0 && (
         <TrailGroup label="Reasons">
           {failing.map((r) => {
-            const hasDetail = (r.expected_cents != null && chargedCents !== undefined) || r.expected_by || r.accepted_by || onWrite;
+            // The date shows once per item: when an unfilled checklist item
+            // on this charge already shows the same expected date, the
+            // reason's own line leaves it out. The server's sentence is never touched.
+            const expectedBy = r.expected_by && !status.checklist.some((e) => !e.filled && e.expected_by === r.expected_by) ? r.expected_by : null;
+            const hasDetail = (r.expected_cents != null && chargedCents !== undefined) || expectedBy || r.accepted_by || onWrite;
             return (
               <TrailNode
                 key={reasonKey(r)}
@@ -134,7 +138,7 @@ export function StatusReasons({
                         Expected {money(r.expected_cents)} · charged {money(chargedCents)}
                       </p>
                     )}
-                    {r.expected_by && <p className="ft-caption">Expected by {date(r.expected_by)}</p>}
+                    {expectedBy && <p className="ft-caption">Expected by {date(expectedBy)}</p>}
                     {r.accepted_by && (
                       <AcceptedBy chargeId={id} reason={r} records={records} onWrite={onWrite} justAccepted={justAccepted.includes(reasonKey(r))} />
                     )}
