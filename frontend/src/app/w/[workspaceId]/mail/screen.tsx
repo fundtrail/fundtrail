@@ -28,7 +28,7 @@ export function HeldMailScreen() {
   return (
     <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "Held mail"]}>
       <header className={page.intro}>
-        <h1 className={page.title}>Held mail</h1>
+        <h1 className="ft-title">Held mail</h1>
         <p className={page.lede}>
           Mail from senders who aren&apos;t known is held: stored, unread by the agent, and used by no check until you let it in.
         </p>

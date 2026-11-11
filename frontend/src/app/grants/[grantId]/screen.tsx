@@ -57,7 +57,7 @@ function Head({ summary, start }: { summary: GrantSummary; start: IsoDate | null
   return (
     <header className={styles.head}>
       <div className={styles.headText}>
-        <h1 className={styles.title}>{grantName(summary)}</h1>
+        <h1 className={`ft-title ${styles.title}`}>{grantName(summary)}</h1>
         <p className={styles.meta}>
           {grant.award_number && <span className="ft-id">{grant.award_number}</span>}
           <span>{FUNDER_LABELS[grant.funder ?? "NSF"] ?? grant.funder}</span>

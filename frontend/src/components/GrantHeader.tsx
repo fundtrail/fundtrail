@@ -32,7 +32,7 @@ export function GrantHeader({ summary }: { summary: GrantSummary }) {
             </span>
           )}
         </p>
-        <h1 className={styles.title}>{grantName(summary)}</h1>
+        <h1 className={`ft-title ${styles.title}`}>{grantName(summary)}</h1>
         <p className={styles.links}>
           <Link className="ft-link" href={routes.terms(grant.id)}>
             Grant terms

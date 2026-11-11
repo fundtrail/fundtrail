@@ -54,15 +54,15 @@ export function WorkspaceScreen() {
     <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "All grants"]}>
       <header className={styles.head}>
         {workspace ? (
-          <h1 className={styles.title}>
+          <h1 className={`ft-title ${styles.title}`}>
             <span className="ft-sr">Grants in</span> {workspace.name}
           </h1>
         ) : missing ? (
-          <h1 className={`${styles.title} ${styles.titleProblem}`}>
+          <h1 className={`ft-title ${styles.title} ${styles.titleProblem}`}>
             <span role="alert">{missing}</span>
           </h1>
         ) : (
-          <h1 className={`${styles.title} ${styles.titleWaiting}`}>Loading…</h1>
+          <h1 className={`ft-title ${styles.title} ${styles.titleWaiting}`}>Loading…</h1>
         )}
         {hasGrants && (
           <Link className="ft-btn ft-btn--main" href={routes.newGrant(workspaceId)}>

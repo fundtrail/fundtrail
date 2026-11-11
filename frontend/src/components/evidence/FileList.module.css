@@ -103,8 +103,6 @@
   flex-direction: column;
   gap: var(--space-5);
   width: 100%;
-  max-width: 1240px;
-  padding: var(--space-1) var(--space-5) var(--space-6);
 }
 .head {
   display: flex;
@@ -130,8 +128,6 @@
 }
 .title {
   margin: 2px 0 0;
-  font: 700 28px/1.15 var(--display);
-  letter-spacing: -0.02em;
 }
 .fileCount {
   color: var(--ink-muted);
