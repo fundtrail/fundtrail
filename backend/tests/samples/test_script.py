@@ -284,6 +284,64 @@ def test_accept_reason_accepts_the_checks_reason_on_the_line(
     assert any(r.kind.value == "accepted_reason" for r in _records(api, golden))
 
 
+def test_accept_reason_on_a_file_finds_its_copy(
+    api: Api, golden: SampleGrant, tmp_path: Path
+) -> None:
+    """A second copy of a file carries the same-file problem: a step naming the file finds
+    it on the copy, the file with the same bytes."""
+    invoice = (DOCUMENTS_DIR / "invoice_1001.txt").read_bytes()
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.grants set clock_now = %s where id = %s", (SOON, golden.grant.id)
+        )
+    copy = api.client.post(
+        f"/grants/{golden.grant.id}/evidence",
+        files={"file": ("invoice_copy.txt", invoice, "text/plain")},
+        headers=api.headers,
+    )
+    assert copy.status_code == 201, copy.text
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.grants set clock_now = %s where id = %s", (APRIL_9, golden.grant.id)
+        )
+    action = step(
+        APRIL_9, "accept_reason", note="A copy, kept.", check="same_file", file="invoice_1001.txt"
+    )
+    pack = golden_pack(tmp_path, [action])
+    resolved = _resolve(api, golden, pack)
+    assert isinstance(resolved, WriteRecord)
+    assert resolved.data["file_id"] == copy.json()["id"]
+    assert resolved.data["reason"] == {"check": "same_file", "problem": "same_file"}
+    _act(api, golden, pack)
+    assert any(r.kind.value == "accepted_reason" for r in _records(api, golden))
+
+
+def test_decide_suggestion_finds_a_duplicate_by_its_copy(
+    api: Api, golden: SampleGrant, tmp_path: Path
+) -> None:
+    """A duplicate mark names its copy by copy_file_id, not a citation (highlight 10)."""
+    from app.contracts.records import Duplicate
+
+    copy, original = _id(golden, "file-extension-notice"), _id(golden, "file-invoice-1001")
+    mark = _insert(
+        api,
+        golden,
+        Duplicate(copy_file_id=copy, original_file_id=original, reason="The same bill."),
+        SOON,
+    )
+    action = step(
+        APRIL_9,
+        "decide_suggestion",
+        suggestion="duplicate",
+        decision="accept",
+        file="extension_notice.txt",
+    )
+    resolved = _resolve(api, golden, golden_pack(tmp_path, [action]))
+    assert resolved == WriteRecord(
+        {"kind": "confirmation", "record_ids": [mark], "decision": "confirmed"}
+    )
+
+
 # let_in_mail
 
 
