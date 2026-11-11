@@ -5,18 +5,32 @@
 // screen refetches after the write and shows the server's result. A write the
 // server refuses shows its problems and keeps what was typed.
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Answer, ChecklistEntry, FtRecord, Id, NewRecordInput, OpenQuestion, Problem, Question, Reason } from "@/lib/api";
 import { errorLines } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
 import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
 import styles from "./charge.module.css";
 
-/** Runs one write, with its busy state and the lines to show if it's refused. */
+/**
+ * Runs one write, with its busy state and the lines to show if it's refused.
+ *
+ * Never sends twice at once: a call made while one from the same hook is in
+ * flight sends nothing and resolves false without touching `busy` or
+ * `errors`, so its form stays open and nothing shows as done. A disabled
+ * button stops a real double click, but two submits in the same task
+ * (`requestSubmit()` twice, say) would otherwise both send before the button
+ * re-renders. The guard is set before `onWrite` is called, so even a
+ * synchronous throw finds it set, and it is released in `finally` whether the
+ * write went through, was refused or threw.
+ */
 function useWrite(onWrite: OnWrite) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const inFlight = useRef(false);
   async function run(input: NewRecordInput): Promise<boolean> {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -26,6 +40,7 @@ function useWrite(onWrite: OnWrite) {
       setErrors(errorLines(error));
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

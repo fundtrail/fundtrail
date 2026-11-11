@@ -1,0 +1,295 @@
+{
+ "cases": [
+  {
+   "case": "credit-memo-spaced-dash",
+   "buckets": {
+    "right": 5,
+    "missing": [],
+    "wrong": []
+   },
+   "links": {
+    "right": 3,
+    "missing": [],
+    "wrong": []
+   },
+   "budget_lines": {
+    "right": 2,
+    "missing": [],
+    "wrong": []
+   },
+   "answers": {
+    "right": 2,
+    "missing": [],
+    "wrong": [
+     "unusual_term about award_letter.txt on L-8101: supports",
+     "unusual_term about award_letter.txt on L-8102: supports"
+    ]
+   },
+   "records": {
+    "right": 11,
+    "missing": [],
+    "wrong": [
+     "other_term from award_letter.txt: dated=2026-01-06, label=governing conditions: nsf gc-1 effective october 1, 2024, plus the terms of this notice, statement=this award is subject to the nsf grant general conditions (gc-1) effective"
+    ]
+   },
+   "false_clears": [],
+   "agent_false_clears": [],
+   "unsure": [],
+   "values_not_found": 0,
+   "steps_left_for_user": [],
+   "usage": {
+    "calls": 41,
+    "input": 110,
+    "output": 18926,
+    "cache_read": 1252225,
+    "cache_write": 108783,
+    "usd": 1.1733200000000001
+   },
+   "stopped": false,
+   "seconds": 192.14613233302953
+  },
+  {
+   "case": "effort-report-six-months",
+   "buckets": {
+    "right": 12,
+    "missing": [],
+    "wrong": []
+   },
+   "links": {
+    "right": 12,
+    "missing": [],
+    "wrong": []
+   },
+   "budget_lines": {
+    "right": 6,
+    "missing": [],
+    "wrong": []
+   },
+   "answers": {
+    "right": 6,
+    "missing": [],
+    "wrong": [
+     "unusual_term about award_letter.txt on L-4101: supports",
+     "unusual_term about award_letter.txt on L-4102: supports",
+     "unusual_term about award_letter.txt on L-4103: supports",
+     "unusual_term about award_letter.txt on L-4104: supports",
+     "unusual_term about award_letter.txt on L-4105: supports",
+     "unusual_term about award_letter.txt on L-4106: supports"
+    ]
+   },
+   "records": {
+    "right": 13,
+    "missing": [],
+    "wrong": [
+     "other_term from award_letter.txt: dated=2025-08-20, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective",
+     "note from appointment_letter.txt: label=postdoc monthly salary (sam mockford), period.end=2026-12-31, period.start=2026-01-01, statement=monthly salary: $8,000.00",
+     "note from appointment_letter.txt: label=postdoc cost-share split: department fund exd-1180, period.end=2026-12-31, period.start=2026-01-01, statement=department fund exd-1180: 50 percent of salary, $4,000.00 per month",
+     "note from appointment_letter.txt: label=postdoc work on award (sam mockford), statement=the analysis of the stream sediment cores",
+     "note from appointment_letter.txt: label=effort certification schedule, statement=effort on sponsored awards is certified twice a year, for january to june",
+     "note from appointment_letter.txt: label=appointment accepted by sam mockford, statement=accepted: sam mockford, november 18, 2025",
+     "approval from appointment_letter.txt: approved_on=2025-11-14, approver_email=taylor.example@university.example, approver_name=taylor example, covers=streams: 50 percent of salary, $4,000.00 per month",
+     "approval from effort_report.txt: approved_on=2026-08-14, approver_email=taylor.example@university.example, approver_name=certified by: taylor example, principal investigator, covers=i certify that the distribution of effort above is a reasonable estimate of"
+    ]
+   },
+   "false_clears": [],
+   "agent_false_clears": [],
+   "unsure": [],
+   "values_not_found": 0,
+   "steps_left_for_user": [],
+   "usage": {
+    "calls": 59,
+    "input": 152,
+    "output": 38337,
+    "cache_read": 1945863,
+    "cache_write": 156085,
+    "usd": 1.9369456000000016
+   },
+   "stopped": false,
+   "seconds": 350.45838491700124
+  },
+  {
+   "case": "guest-speaker-stipend",
+   "buckets": {
+    "right": 2,
+    "missing": [],
+    "wrong": []
+   },
+   "links": {
+    "right": 1,
+    "missing": [
+     "link honorarium_letter.eml -> L-7101"
+    ],
+    "wrong": []
+   },
+   "budget_lines": {
+    "right": 0,
+    "missing": [],
+    "wrong": [
+     "budget line 'Stipends' for L-7101"
+    ]
+   },
+   "answers": {
+    "right": 1,
+    "missing": [
+     "allowable on L-7101: supports"
+    ],
+    "wrong": [
+     "unusual_term about award_letter.txt on L-7101: supports",
+     "allowable on L-7101: unsure"
+    ]
+   },
+   "records": {
+    "right": 13,
+    "missing": [],
+    "wrong": [
+     "other_term from award_letter.txt: dated=2025-10-06, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective",
+     "note from award_letter.txt: label=project scope, statement=the project runs a two-day workshop each spring",
+     "note from honorarium_letter.eml: label=only invited speaker, statement=you are our only invited speaker this year.",
+     "note from honorarium_letter.eml: label=honorarium receipt to be signed, statement=we will ask you to sign a receipt when you receive it.",
+     "note from honorarium_letter.eml: label=keynote speaker honorarium, period.end=2026-04-24, period.start=2026-04-24, statement=as our guest speaker, you will receive an honorarium of $500.00",
+     "note from honorarium_letter.eml: label=workshop attendees are roster participants, statement=are the early-career participants listed on the workshop roster.",
+     "note from honorarium_letter.eml: label=award funding the workshop, statement=funded by award syn-2510664."
+    ]
+   },
+   "false_clears": [],
+   "agent_false_clears": [],
+   "unsure": [
+    "allowable on L-7101: unsure (key: supports)"
+   ],
+   "values_not_found": 0,
+   "steps_left_for_user": [],
+   "usage": {
+    "calls": 25,
+    "input": 74,
+    "output": 18055,
+    "cache_read": 805760,
+    "cache_write": 45100,
+    "usd": 0.7480479999999998
+   },
+   "stopped": false,
+   "seconds": 160.61335554200923
+  },
+  {
+   "case": "laptop-on-participant-stipends",
+   "buckets": {
+    "right": 3,
+    "missing": [],
+    "wrong": []
+   },
+   "links": {
+    "right": 2,
+    "missing": [],
+    "wrong": []
+   },
+   "budget_lines": {
+    "right": 2,
+    "missing": [],
+    "wrong": []
+   },
+   "answers": {
+    "right": 2,
+    "missing": [],
+    "wrong": [
+     "unusual_term about award_letter.txt on L-6101: supports",
+     "unusual_term about award_letter.txt on L-6102: supports",
+     "flag on L-6102: unsure"
+    ]
+   },
+   "records": {
+    "right": 12,
+    "missing": [],
+    "wrong": [
+     "other_term from award_letter.txt: dated=2025-07-15, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective"
+    ]
+   },
+   "false_clears": [],
+   "agent_false_clears": [],
+   "unsure": [],
+   "values_not_found": 0,
+   "steps_left_for_user": [],
+   "usage": {
+    "calls": 27,
+    "input": 80,
+    "output": 18186,
+    "cache_read": 846973,
+    "cache_write": 50301,
+    "usd": 0.7849395999999986
+   },
+   "stopped": false,
+   "seconds": 166.99190991697833
+  },
+  {
+   "case": "trip-airfare-and-per-diem",
+   "buckets": {
+    "right": 1,
+    "missing": [],
+    "wrong": [
+     "L-5201 at 2026-06-24T12:00:00Z: needs_human (key: evidence_complete)"
+    ]
+   },
+   "links": {
+    "right": 2,
+    "missing": [],
+    "wrong": [
+     "link per_diem_rates.txt -> L-5201 for 50000"
+    ]
+   },
+   "budget_lines": {
+    "right": 1,
+    "missing": [],
+    "wrong": []
+   },
+   "answers": {
+    "right": 1,
+    "missing": [],
+    "wrong": [
+     "unusual_term about award_letter.txt on L-5201: supports"
+    ]
+   },
+   "records": {
+    "right": 11,
+    "missing": [
+     "note from expense_report.txt: "
+    ],
+    "wrong": [
+     "other_term from award_letter.txt: dated=2026-01-12, label=governing conditions: nsf gc-1 effective october 1, 2024, statement=this award is subject to the nsf grant general conditions (gc-1) effective",
+     "bill from expense_report.txt: dated=2026-06-15, description=sediment sampling at example creek field station for award, document_number=er-26-0412, items[0].amount=180000, items[0].description=airfare, example air, confirmation exq7rt, paid by traveler, items[1].amount=50000, items[1].description=field site per diem, 5 days at $100.00 per day, total=230000, vendor=jordan placeholder, professor, earth sciences",
+     "note from per_diem_rates.txt: label=per diem day count rule, statement=the per diem is paid for each day of the trip, including the days of",
+     "note from per_diem_rates.txt: label=per diem approved sites include example creek field station, statement=approved field sites for this rate include example creek field station.",
+     "note from per_diem_rates.txt: label=per diem covers lodging, meals and incidentals, statement=the per diem covers lodging, meals",
+     "note from per_diem_rates.txt: label=airfare reimbursed separately against receipts, statement=airfare, rental vehicles and registration fees are",
+     "note from per_diem_rates.txt: label=earth sciences field site per diem rate, statement=field site per diem: $100.00 per day",
+     "note from per_diem_rates.txt: label=per diem policy effective date, statement=july 1, 2025"
+    ]
+   },
+   "false_clears": [],
+   "agent_false_clears": [],
+   "unsure": [],
+   "values_not_found": 0,
+   "steps_left_for_user": [],
+   "usage": {
+    "calls": 44,
+    "input": 108,
+    "output": 23837,
+    "cache_read": 1495262,
+    "cache_write": 75721,
+    "usd": 1.1548293999999997
+   },
+   "stopped": false,
+   "seconds": 242.22085704200435
+  }
+ ],
+ "usage": {
+  "calls": 196,
+  "input": 524,
+  "output": 117341,
+  "cache_read": 6346083,
+  "cache_write": 435990,
+  "usd": 5.7980826
+ },
+ "cap_usd": 10.0,
+ "model": "claude-opus-5-5",
+ "base_url": "http://127.0.0.1:8788",
+ "started_at": "2026-11-11T01:40:33+00:00",
+ "stopped": false
+}

@@ -541,7 +541,12 @@ AWARD_NOTICE_GUIDANCE = (
     "Amount Obligated to Date (obligated_to_date), because code checks each notice's running "
     "total against the one before. Write each budget line and sub-line it prints as its own "
     "budget_line, with its NSF category from the fixed list. Totals such as Total Direct Costs "
-    "are sums, not terms."
+    "are sums, not terms. The sentence that only names the funder's standard conditions, such "
+    'as "This award is subject to the NSF Grant General Conditions (GC-1) effective ..." or '
+    '"... subject to the Research Terms and Conditions and the NSF Agency Specific '
+    'Requirements ...", is one other_term with standard_conditions true, cited as the whole '
+    "sentence: written once, not again when a later notice repeats it, and it changes nothing "
+    "for a charge on its own."
 )
 
 RATE_AGREEMENT_GUIDANCE = (
