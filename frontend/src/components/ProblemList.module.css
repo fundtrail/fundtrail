@@ -1,0 +1,139 @@
+/* The problem list: tabs across the top, one row per problem. The bucket's color is only on its mark and its pill. */
+
+.list {
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: var(--space-1) var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px var(--space-2) 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[aria-pressed="true"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+.tabCount {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* The list's own .ft-problem rows, laid out as in the mock: mark, what and why, amount over its pill. */
+.list .row {
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.list :global(.ft-problems) > .row:first-child {
+  border-top: 0;
+}
+.row[data-selectable] {
+  cursor: pointer;
+}
+.row[data-selectable]:hover {
+  background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
+}
+/* The row shown beside the list: the sunken fill and a heavier name. */
+.row[data-selected] {
+  background: var(--paper-sunken);
+}
+.row[data-selected]:hover {
+  background: var(--paper-sunken);
+}
+.row :global(.ft-problem__name) {
+  font-weight: 600;
+}
+.row[data-selected] :global(.ft-problem__name) {
+  font-weight: 700;
+}
+.row :global(.ft-problem__name .ft-link) {
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.row :global(.ft-problem__name .ft-link:hover),
+.row :global(.ft-problem__name .ft-link:focus-visible) {
+  text-decoration-color: currentColor;
+}
+.row :global(.ft-problem__side) {
+  min-width: 0;
+}
+.when {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.amount {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The bucket's mark, the same shapes as its badge: a diamond, a ring, a dashed ring, a dot. A plain square for everything that isn't a charge. */
+.mark {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+}
+.mark[data-bucket="possible_conflict"] {
+  border: 0;
+  border-radius: 1px;
+  background: var(--conflict);
+  transform: rotate(45deg) scale(0.82);
+}
+.mark[data-bucket="needs_human"] {
+  border: 3px solid var(--needs-human);
+  border-radius: 50%;
+}
+.mark[data-bucket="missing_evidence"] {
+  border: 2px dashed var(--missing);
+  border-radius: 50%;
+}
+.mark[data-bucket="evidence_complete"] {
+  border: 0;
+  border-radius: 50%;
+  background: var(--complete);
+}
+
+@media (max-width: 640px) {
+  .list .row {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+  .list .row :global(.ft-problem__side) {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+}
