@@ -17,8 +17,8 @@ import { StatusReasons } from "./StatusReasons";
 /** A write that stays in flight until the test settles it. */
 function deferredWriter() {
   const settle: { resolve: () => void; reject: (e: unknown) => void }[] = [];
-  const onWrite = vi.fn(
-    (_input: NewRecordInput) =>
+  const onWrite = vi.fn<(input: NewRecordInput) => Promise<void>>(
+    () =>
       new Promise<void>((resolve, reject) => {
         settle.push({ resolve, reject });
       }),
