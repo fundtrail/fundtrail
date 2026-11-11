@@ -19,10 +19,11 @@ opened from (`grants.sample`) and its pack's timeline. Nothing else about it is 
 from __future__ import annotations
 
 import mimetypes
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, time
 from functools import cache
+from typing import Any
 
 from app.checks import upcoming_dates
 from app.checks.upcoming import (
@@ -59,6 +60,7 @@ from app.ingest.email_files import email_parts
 from app.ingest.incoming import IncomingFile
 from app.ingest.ledger import read_ledger_file
 
+from . import skipping
 from .pack import (
     LARGER_SAMPLE,
     SMALL_SAMPLE,
@@ -371,10 +373,13 @@ def check_read_live_limit(conn: Conn, user_id: str, grant: Grant) -> None:
             raise AnotherSampleWorking(other)
 
 
-def move(p: Platform, user_id: str, grant: Grant, to: datetime | None) -> None:
+def move(
+    p: Platform, user_id: str, grant: Grant, to: datetime | None, *, skip: bool = False
+) -> None:
     """Move a sample grant's timeline forward: to `to`, or with None, to the next item.
-    Raises MoveRefused (timeline) for a move backwards or with nothing left, and
-    AnotherSampleWorking for the read-live limit."""
+    With `skip`, the Sample accountant makes the script's steps the move passes (ruling
+    47, app.samples.skipping). Raises MoveRefused (timeline) for a move backwards or with
+    nothing left, and AnotherSampleWorking for the read-live limit."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     with transaction(p.pool) as conn:
@@ -386,9 +391,11 @@ def move(p: Platform, user_id: str, grant: Grant, to: datetime | None) -> None:
         now = clock.grant_now(conn, grant.id)
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
         plan = plan_move(items, now, to)
+        move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
         _store_events(p, conn, locked, pack, [e.id for e in plan.play])
+        if skip:
+            skipping.deliver_and_queue(p, conn, locked, pack, move_id, now, plan.until)
         runs = clock.set_and_replay(p, conn, locked, now, plan.until)
-        sample_store.insert_move(conn, grant.id, now, plan.until)
     _ping(p, grant, runs)
 
 
@@ -545,24 +552,38 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
 
     runs = store.list_runs(conn, grant.id)
     records = store.list_records(conn, grant.id, now)
-    just: list[PlayedEvent] = []
+    by_sample = sample_store.scripted_files(conn, grant.id)
+    played: list[tuple[datetime, PlayedEvent]] = []
     for i in items:
+        at = i.at
         if i.kind is ItemKind.USER_DELIVERY and i.event is not None:
             # A user's item shows here for the move that brought it, by any channel.
             brought = delivered_at(pack, i.event, on_grant)
             if brought is None or not in_move(brought):
                 continue
+            at = brought
         elif not in_move(i.at):
             continue
         event = _event(i, pack, files, charges)
         brought = (event.charge_id,) if event.charge_id else _ledger_charges(i, charges)
-        just.append(
-            PlayedEvent(
-                event=event,
-                agent_records=_agent_records(event, brought, runs, records, charges),
-                charge_ids=brought,
+        played.append(
+            (
+                at,
+                PlayedEvent(
+                    event=event,
+                    agent_records=_agent_records(event, brought, runs, records, charges),
+                    charge_ids=brought,
+                    delivered_by_sample_accountant=i.kind is ItemKind.USER_DELIVERY
+                    and event.file_id in by_sample,
+                ),
             )
         )
+    played.sort(key=lambda x: x[0])
+    just = _with_decisions(
+        played,
+        _decisions(conn, last, records),
+        lambda: _stood_on(items, after, pack, files, charges),
+    )
     stopped = next((i for i in items if i.at == until), None) if until == now else None
     return TimelineView(
         just_happened=tuple(just),
@@ -581,6 +602,52 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
     )
+
+
+def _decisions(conn: Conn, last: Any, records: Sequence[Record]) -> list[Record]:
+    """The decisions the Sample accountant made in the last move, in time order."""
+    if last is None:
+        return []
+    by_id = {r.id: r for r in records}
+    made = sample_store.move_scripted(conn, last.id)
+    return [by_id[s.record_id] for s in made if s.record_id in by_id]
+
+
+def _stood_on(
+    items: Sequence[TimelineItem],
+    before: datetime | None,
+    pack: SamplePack,
+    files: Sequence[EvidenceFile],
+    charges: Sequence[Charge],
+) -> PlayedEvent | None:
+    """The event the clock stood on before the move: the latest at or before its start."""
+    found = [i for i in items if before is not None and i.at <= before]
+    return PlayedEvent(event=_event(found[-1], pack, files, charges)) if found else None
+
+
+def _with_decisions(
+    played: list[tuple[datetime, PlayedEvent]],
+    decisions: list[Record],
+    stood_on: Callable[[], PlayedEvent | None],
+) -> list[PlayedEvent]:
+    """Each decision under the latest event the move played or delivered at or before its
+    time, else under the move's first event (ruling 55); with no event at all, under the
+    event the clock stood on before the move, shown again with only those decisions
+    (ruling 60). Each decision is listed exactly once."""
+    events = [e for _, e in played]
+    under: dict[int, list[Record]] = {}
+    if not events and decisions:
+        anchor = stood_on()
+        if anchor is None:
+            return []
+        return [anchor.model_copy(update={"scripted_decisions": tuple(decisions)})]
+    for d in decisions:
+        before = [n for n, (at, _) in enumerate(played) if at <= d.written_at]
+        under.setdefault(before[-1] if before else 0, []).append(d)
+    return [
+        e.model_copy(update={"scripted_decisions": tuple(under[n])}) if n in under else e
+        for n, e in enumerate(events)
+    ]
 
 
 __all__ = [

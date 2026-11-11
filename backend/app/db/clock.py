@@ -26,6 +26,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Any
 
 from app.contracts.checks import ChecksOutput
 from app.contracts.evidence import Source
@@ -197,13 +198,48 @@ def replay(
     first = min(
         (t for t in (items[0].at if items else None, pending) if t is not None), default=None
     )
-    clock = Trigger(kind=TriggerKind.CLOCK)
     points = [m for m in _midnights(after, until) if first is None or m < first]
     if first is None and until not in points:
         points.append(until)
-    for at in points:
-        recheck_grant(conn, p.checks, grant, at, clock)
+    _step_through(p, conn, grant, points, first)
     return [jobs.queue_run(conn, grant, i.trigger, i.at, catch_up=True) for i in items]
+
+
+def _scripted_due(p: Platform, conn: Conn, grant: Grant, before: datetime | None) -> list[Any]:
+    """A sample grant's scripted decisions waiting to be made before `before` (all with
+    None), from the skip in app.samples (ruling 47). Any other grant has none."""
+    if grant.sample is None:
+        return []
+    from app.samples.skipping import due
+
+    return list(due(p, conn, grant, before))
+
+
+def _step_through(
+    p: Platform, conn: Conn, grant: Grant, points: list[datetime], before: datetime | None
+) -> None:
+    """Work time out at each point, and make each scripted decision due before `before`
+    at its own time among them: a decision first when they share a moment."""
+    clock = Trigger(kind=TriggerKind.CLOCK)
+    steps: list[tuple[datetime, int, Any]] = [(at, 1, None) for at in points]
+    steps += [(d.at, 0, d) for d in _scripted_due(p, conn, grant, before)]
+    for at, _, decision in sorted(steps, key=lambda s: (s[0], s[1])):
+        if decision is None:
+            recheck_grant(conn, p.checks, grant, at, clock)
+        else:
+            decision.make()
+
+
+def make_due_scripted(p: Platform, conn: Conn, grant: Grant, run_id: str) -> None:
+    """After an ordinary run saves or fails: a sample's scripted decision that waited for
+    every run to finish (a sign-off) may be made now, before the next catch-up run."""
+    _step_through(p, conn, grant, [], store.next_catch_up_time(conn, grant.id, run_id))
+
+
+def set_stored_clock(conn: Conn, grant_id: str, at: datetime) -> None:
+    """Set a grant's stored clock, here and nowhere else in the app: a scripted step on a
+    sample grant is written at its own time and the clock set back after."""
+    store.set_grant_clock(conn, grant_id, at)
 
 
 def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) -> ChecksOutput:
@@ -232,12 +268,10 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     )
     following = store.next_catch_up_time(conn, grant.id, run.id)
     end = following or grant_now(conn, grant.id)
-    clock = Trigger(kind=TriggerKind.CLOCK)
     points = [m for m in _midnights(at, end) if following is None or m < following]
     if following is None and end > at and end not in points:
         points.append(end)
-    for point in points:
-        recheck_grant(conn, p.checks, grant, point, clock)
+    _step_through(p, conn, grant, points, following)
     return output
 
 

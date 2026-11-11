@@ -284,6 +284,7 @@ def save_run(
 
         return step_after_catch_up(p, conn, grant, run).questions
     output = recheck_grant(conn, p.checks, grant, now, run.trigger)
+    clock.make_due_scripted(p, conn, grant, run.id)
     return output.questions
 
 
@@ -459,6 +460,7 @@ def _fail_for_good(
             else:
                 now = clock.grant_now(conn, grant.id)
                 recheck_grant(conn, p.checks, grant, now, run.trigger)
+                clock.make_due_scripted(p, conn, grant, run.id)
     except Exception as error:  # noqa: BLE001 - the run is failed already; say so and go on
         log.warning("checks after run %s failed for good raised %s", run.id, type(error).__name__)
         return

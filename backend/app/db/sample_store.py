@@ -19,6 +19,19 @@ from .store import Conn
 class SampleMove:
     moved_from: datetime | None  # None when the sample was opened
     moved_to: datetime
+    id: int = 0
+
+
+@dataclass(frozen=True)
+class Scripted:
+    """One step of the accountant script a skipping move made, or will make."""
+
+    step: int  # its place in the pack's script
+    move_id: int
+    at: datetime
+    state: str  # pending, done or left
+    record_id: str | None = None
+    file_id: str | None = None
 
 
 def set_sample(conn: Conn, grant_id: str, sample: GrantSample) -> None:
@@ -28,20 +41,74 @@ def set_sample(conn: Conn, grant_id: str, sample: GrantSample) -> None:
     )
 
 
-def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to: datetime) -> None:
-    conn.execute(
-        "insert into public.sample_moves (grant_id, moved_from, moved_to) values (%s, %s, %s)",
+def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to: datetime) -> int:
+    row = conn.execute(
+        """insert into public.sample_moves (grant_id, moved_from, moved_to)
+           values (%s, %s, %s) returning id""",
         (grant_id, moved_from, moved_to),
-    )
+    ).fetchone()
+    assert row is not None
+    return int(row["id"])
 
 
 def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     row = conn.execute(
-        """select moved_from, moved_to from public.sample_moves
+        """select id, moved_from, moved_to from public.sample_moves
            where grant_id = %s order by id desc limit 1""",
         (grant_id,),
     ).fetchone()
-    return SampleMove(row["moved_from"], row["moved_to"]) if row else None
+    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"])) if row else None
+
+
+_SCRIPTED = "step, move_id, at, state, record_id, file_id"
+
+
+def insert_scripted(conn: Conn, grant_id: str, s: Scripted) -> None:
+    conn.execute(
+        f"""insert into public.sample_scripted (grant_id, {_SCRIPTED})
+            values (%s, %s, %s, %s, %s, %s, %s)""",
+        (grant_id, s.step, s.move_id, s.at, s.state, s.record_id, s.file_id),
+    )
+
+
+def finish_scripted(
+    conn: Conn, grant_id: str, step: int, state: str, record_id: str | None = None
+) -> None:
+    conn.execute(
+        """update public.sample_scripted set state = %s, record_id = %s
+           where grant_id = %s and step = %s""",
+        (state, record_id, grant_id, step),
+    )
+
+
+def pending_scripted(conn: Conn, grant_id: str, before: datetime | None) -> list[Scripted]:
+    """The steps still to make, in time order: before `before`, or all with None."""
+    rows = conn.execute(
+        f"""select {_SCRIPTED} from public.sample_scripted
+            where grant_id = %s and state = 'pending' and (%s::timestamptz is null or at < %s)
+            order by at, step""",
+        (grant_id, before, before),
+    ).fetchall()
+    return [Scripted(**r) for r in rows]
+
+
+def move_scripted(conn: Conn, move_id: int) -> list[Scripted]:
+    """The steps one move made or will make, in time order."""
+    rows = conn.execute(
+        f"select {_SCRIPTED} from public.sample_scripted where move_id = %s order by at, step",
+        (move_id,),
+    ).fetchall()
+    return [Scripted(**r) for r in rows]
+
+
+def scripted_files(conn: Conn, grant_id: str) -> set[str]:
+    """The files the Sample accountant brought in on the grant."""
+    rows = conn.execute(
+        """select file_id from public.sample_scripted
+           where grant_id = %s and file_id is not null""",
+        (grant_id,),
+    ).fetchall()
+    return {r["file_id"] for r in rows}
 
 
 def drop_queued_jobs(conn: Conn, grant_id: str) -> None:
