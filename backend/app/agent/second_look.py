@@ -173,6 +173,14 @@ def shrink(crop: Image.Image | None) -> Image.Image | None:
     return crop.resize(size, Image.Resampling.LANCZOS)
 
 
+def without_label_colon(reading: str) -> str:
+    """A reading without the label's colon that a crop's margin took in, as in ": INV-12655":
+    a leading colon and the whitespace around it are dropped, and nothing else. A minus sign,
+    a bracket, a currency sign or any other character at either end stays."""
+    rest = reading.lstrip()
+    return rest[1:].lstrip() if rest.startswith(":") else reading
+
+
 def reads_the_same(staged: Staged, item: _Boxed, reading: str) -> bool:
     """Whether what the second look read is the agent's value: the whole reading, not a part.
 
@@ -183,6 +191,7 @@ def reads_the_same(staged: Staged, item: _Boxed, reading: str) -> bool:
     """
     from .tools import DATE_FIELDS, DECIMAL_FIELDS, MONEY_FIELDS, WriteProblem, normalize_value
 
+    reading = without_label_colon(reading)
     leaf = item.path.split(".")[-1].split("[")[0]
     if leaf not in MONEY_FIELDS | DATE_FIELDS | DECIMAL_FIELDS:
         return " ".join(reading.split()).casefold() == " ".join(item.text.split()).casefold()
