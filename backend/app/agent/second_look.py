@@ -22,7 +22,6 @@ from app.quotes.page_images import crop_box, render_pdf_page
 from app.quotes.second_look import SYSTEM, parse_readings, request_content
 
 from .adapter import EvidenceFile, ImageBox, Record, RecordKind, cited_values
-from .citations import value_in
 from .context import RunContext, Staged
 from .files import MAX_IMAGE_EDGE
 from .model import ModelClient, ModelRequest, is_retryable
@@ -32,6 +31,13 @@ EFFORT = "low"
 MAX_TOKENS = 16000
 # Pages of a scan are drawn at this long edge for cropping: sharper than the image sent.
 RENDER_EDGE = 2 * MAX_IMAGE_EDGE
+# Anthropic's vision limits (platform.claude.com/docs/en/build-with-claude/vision, read
+# 2026-11-10): at most 100 images in a request (on a model with a 200k-token context; 600
+# otherwise), and when a request holds more than 20, none may exceed 3,000 pixels on a side.
+# Each crop is shrunk to at most MAX_CROP_EDGE on a side, so one call per page fits however
+# many boxes it has; only past MAX_CROPS_PER_CALL does a page take more than one call.
+MAX_CROP_EDGE = 2000
+MAX_CROPS_PER_CALL = 100
 
 
 class SecondLookFailed(Exception):
@@ -66,8 +72,9 @@ def boxed_paths(record: Record) -> list[str]:
 def run_second_look(ctx: RunContext, model: ModelClient) -> None:
     """Read every boxed value staged in this run: one call per photo or scanned page.
 
-    Updates each staged record in place, confirming the values read the same. Raises
-    SecondLookFailed when a call fails, so the run fails like any other model call.
+    Updates each staged record in place, confirming the values read the same. A call the API
+    rejects (a 400) confirms nothing on its page and the run goes on. Raises SecondLookFailed
+    when a call fails in a way trying again could fix, so the run is retried like any other.
     """
     groups: dict[tuple[str, int], list[_Boxed]] = defaultdict(list)
     for index, s in enumerate(ctx.staged):
@@ -85,13 +92,15 @@ def run_second_look(ctx: RunContext, model: ModelClient) -> None:
         f = files.get(file_id)
         image = _page_image(ctx, f, page) if f is not None else None
         crops = [
-            crop_box(image, i.box.left, i.box.top, i.box.width, i.box.height) if image else None
+            shrink(crop_box(image, i.box.left, i.box.top, i.box.width, i.box.height))
+            if image
+            else None
             for i in items
         ]
         sent = [c for c in crops if c is not None]
         readings: list[str | None] = []
-        if sent:
-            readings = _read(ctx, model, file_id, page, sent)
+        for start in range(0, len(sent), MAX_CROPS_PER_CALL):
+            readings += _read(ctx, model, file_id, page, sent[start : start + MAX_CROPS_PER_CALL])
         it = iter(readings)
         results: list[dict[str, Any]] = []
         for item, crop in zip(items, crops, strict=True):
@@ -122,10 +131,16 @@ def _read(
     try:
         message = model(request)
     except Exception as error:  # the SDK's typed errors, and anything unexpected
-        raise SecondLookFailed(
-            f"the second look's call failed: {type(error).__name__}: {error}",
-            is_retryable(error),
-        ) from error
+        if is_retryable(error):
+            raise SecondLookFailed(
+                f"the second look's call failed: {type(error).__name__}: {error}", True
+            ) from error
+        # Trying again won't help (a request the API rejects): nothing on this page is
+        # confirmed, and the rest of the run stands.
+        ctx.log_event(
+            "second_look_failed", file_id=file_id, page=page, crops=len(crops), error=str(error)
+        )
+        return [None] * len(crops)
     ctx.add_usage(message.usage)
     looks = ctx.log.setdefault("second_look", {"calls": 0})
     looks["calls"] += 1
@@ -149,17 +164,28 @@ def _page_image(ctx: RunContext, f: EvidenceFile, page: int) -> Image.Image | No
         return None
 
 
+def shrink(crop: Image.Image | None) -> Image.Image | None:
+    """The crop at most MAX_CROP_EDGE on a side, so a call with many crops stays within limits."""
+    if crop is None or max(crop.size) <= MAX_CROP_EDGE:
+        return crop
+    scale = MAX_CROP_EDGE / max(crop.size)
+    size = (max(1, int(crop.width * scale)), max(1, int(crop.height * scale)))
+    return crop.resize(size, Image.Resampling.LANCZOS)
+
+
 def reads_the_same(staged: Staged, item: _Boxed, reading: str) -> bool:
-    """Whether what the second look read is the agent's value.
+    """Whether what the second look read is the agent's value: the whole reading, not a part.
 
-    The agent's text standing on its own in the reading counts, as in the text check. Otherwise
-    the reading is normalized as the agent's text was (money in cents, dates, numbers) and
-    compared by value; text is compared ignoring case and spacing.
+    The reading is normalized as the agent's text was, by the field's kind: money to cents,
+    a date to the day, a number (a rate or a quantity) to its value. Any other field is text,
+    compared as written, ignoring only case and spacing: "4417" isn't "004417". A box that
+    holds more than the value ("TOTAL $52.00 FEE $4.50" for "$4.50") doesn't read the same.
     """
-    from .tools import WriteProblem, normalize_value
+    from .tools import DATE_FIELDS, DECIMAL_FIELDS, MONEY_FIELDS, WriteProblem, normalize_value
 
-    if value_in(item.text, reading):
-        return True
+    leaf = item.path.split(".")[-1].split("[")[0]
+    if leaf not in MONEY_FIELDS | DATE_FIELDS | DECIMAL_FIELDS:
+        return " ".join(reading.split()).casefold() == " ".join(item.text.split()).casefold()
     record = staged.record
     kind = record.kind.value
     group = getattr(record.data, "applies_to", None)
@@ -167,16 +193,13 @@ def reads_the_same(staged: Staged, item: _Boxed, reading: str) -> bool:
     try:
         read = normalize_value(item.path, reading, kind, percent)
     except WriteProblem:
-        return False
-    if isinstance(read, int) and not isinstance(read, bool):
-        return read == item.value
-    if isinstance(item.value, str) and isinstance(read, str):
+        return False  # the reading isn't a value of this kind, or holds more than one
+    if leaf in DECIMAL_FIELDS:
         try:
-            return Decimal(read) == Decimal(item.value)
+            return Decimal(str(read)) == Decimal(str(item.value))
         except InvalidOperation:
-            pass
-        return " ".join(read.split()).casefold() == " ".join(item.value.split()).casefold()
-    return False
+            return False
+    return read == item.value  # cents, or the day as YYYY-MM-DD
 
 
 def _at(data: dict[str, Any], path: str) -> dict[str, Any]:

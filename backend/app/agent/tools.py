@@ -426,6 +426,23 @@ def cited(
             )
         value = _normalize(v.field, v.value, v.text, kind, percent)
         location = image_box(image, v.box.left, v.box.top, v.box.right, v.box.bottom)
+        if location is not None and location["width"] * location["height"] > MAX_BOX_SHARE:
+            raise WriteProblem(
+                f"{v.field}: the box covers {location['width'] * location['height']:.0%} of the "
+                "image. Box the value itself, tight around its characters: the second look reads "
+                "only the box and has to see just the value in it"
+            )
+        if location is not None and (
+            min(v.box.left, v.box.right) < 0
+            or min(v.box.top, v.box.bottom) < 0
+            or max(v.box.left, v.box.right) > image.width
+            or max(v.box.top, v.box.bottom) > image.height
+        ):
+            ctx.write_notes.append(
+                f"The box for {v.field} ran off the {image.width} by {image.height} image and "
+                "was cut to it; if the value lies partly outside it, write it again with a box "
+                "on the image."
+            )
         if location is None:
             # Nothing of the box lies on the image: nothing to read, so the value is unconfirmed.
             ctx.log_event("box_off_image", field=v.field, box=v.box.model_dump())
@@ -1053,6 +1070,10 @@ def tool_definitions() -> list[dict[str, Any]]:
         for name, (model, _, description) in TOOLS.items()
     ]
 
+
+# A box covering more than this share of the image holds more than one value: refused, since
+# the second look reads the whole box and has to see just the value.
+MAX_BOX_SHARE = 0.2
 
 # The fields the accountant reads as the agent's own words (#275).
 PROSE_FIELDS = ("reasoning", "reason", "question", "text", "needed", "label")
