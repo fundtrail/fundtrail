@@ -67,6 +67,8 @@ One run, the real agent (claude-opus-5-5) on all five cases. Calls went through 
 
 It ran on main at fa0cbcb (the app, the agent, the checks and the cases), with the runner as committed in 4f2b321. The one difference is that the runner didn't yet print the checks' reasons for a wrong bucket.
 
+**What it shows:** on five synthetic cases, the keys check a charge's bucket 24 times (12 charges in all). The charge was in the expected bucket 23 of those 24 times, and none was marked complete wrongly. Item-level results are mixed, and `results/2026-11-11-first-run-verdicts.md` explains them.
+
 | Case | Buckets | Links | Budget lines | Answers | Records | Calls | Est. cost |
 |---|---|---|---|---|---|---|---|
 | credit-memo-spaced-dash | 5 / 0 / 0 | 3 / 0 / 0 | 2 / 0 / 0 | 2 / 0 / 2 | 11 / 0 / 1 | 41 | $1.17 |
@@ -101,9 +103,9 @@ Whether the agent or the key is at fault is the runner's builder's reading of th
 
 None of the keys lists that term.
 
-- **At fault: unclear.** contracts.md says an `other_term` holds "anything an award letter or amendment says that no other kind holds", and that wording covers this sentence. So the agent followed the contract, and the keys may be missing the term.
-- If standard conditions incorporated by reference aren't meant to be an `other_term`, the agent is at fault, and the docs need to say so.
-- This is a product call. Settling it settles 17 of the 42 wrong items.
+- **At fault: the key.** contracts.md says an `other_term` holds "anything an award letter or amendment says that no other kind holds", and that wording covers this sentence.
+- Ruling 81 settles it. The sentence is recorded once, as an `other_term` marked as the standard conditions, and code never asks `unusual_term` about it.
+- The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these 17 items count as the key's.
 
 **effort-report-six-months: 7 other wrong records.**
 

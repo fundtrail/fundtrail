@@ -38,7 +38,7 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 
 - The sentence is something the letter says that no other kind holds, so the agent's reading follows the contract. The 12 answers follow from code's rule, not from the agent's choice.
 - If standard conditions incorporated by reference shouldn't be a term, the agent is at fault and the docs need a line saying so.
-- **Call needed (product):** is the GC-1 sentence an `other_term`?
+- **Settled by ruling 81.** The sentence is one `other_term` marked as the standard conditions, and it never raises `unusual_term`. The keys will expect that once `OtherTerm.standard_conditions` is on main. Until then, these items count as the key's.
 - Settling this settles 17 of the 42 wrong items.
 
 ## 2. Notes the key doesn't list: 17 wrong records
