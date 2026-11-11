@@ -570,8 +570,8 @@ def match_user_step(
             s = made.get(n)
             if (s is not None and s.state != "held") or (s is None and a.at <= now):
                 continue
-            if a.action in ("sign_off", "let_in_mail"):
-                continue  # the user signs off themselves; a let-in brings in mail live
+            if a.action == "sign_off":
+                continue  # the user signs off themselves
             if sha256 is not None:
                 if a.action == "deliver_file" and a.file and pack.sha256(a.file) == sha256:
                     return n
@@ -728,6 +728,19 @@ def load(
             if old and new:
                 renamed[old] = new
                 theirs.add(old)
+    # What a user's step brought in that the prerun brought in too (the held message a
+    # matching let-in releases, ruling 80): the same bytes from the same message stand
+    # for the prerun's, which aren't copied over them.
+    brought = {
+        (f.sha256, f.source_ref): f.id
+        for f in store.list_files(conn, target.id, store.END_OF_TIME)
+        if f.source_ref
+    }
+    for f in files:
+        on_target = brought.get((f.sha256, f.source_ref)) if f.source_ref else None
+        if on_target is not None and within(f.arrived_at) and f.id not in theirs:
+            renamed[f.id] = on_target
+            theirs.add(f.id)
     seeding_ids = re.compile("|".join(re.escape(k) for k in sorted(renamed, key=len, reverse=True)))
 
     def remap(value: Any) -> Any:
