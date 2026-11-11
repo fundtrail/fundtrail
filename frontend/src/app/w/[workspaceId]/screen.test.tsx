@@ -51,6 +51,26 @@ describe("the workspace home", () => {
     expect(title.closest("header")).toContainElement(links[0]!);
   });
 
+  it("calls the page what the sidebar calls it, in the breadcrumb", async () => {
+    renderScreen(createFakeApiClient(), "ws-sample");
+    await screen.findByRole("heading", { level: 1, name: "Grants in Sample grant" });
+    const crumbs = screen.getByRole("list", { name: "Breadcrumbs" });
+    expect(within(crumbs).getAllByRole("listitem").at(-1)).toHaveTextContent("All grants");
+    expect(screen.getByRole("link", { name: "All grants" })).toBeInTheDocument();
+  });
+
+  it("fills one button, Add a grant, with grants and without", async () => {
+    const client = createFakeApiClient();
+    const { container, unmount } = renderScreen(client, "ws-sample");
+    await screen.findByRole("table", { name: "Grants" });
+    expect([...container.querySelectorAll("main .ft-btn--main")].map((b) => b.textContent)).toEqual(["Add a grant"]);
+    unmount();
+    const workspace = await client.createWorkspace("Biology department");
+    const empty = renderScreen(client, workspace.id);
+    await screen.findByRole("region", { name: "No grants in this workspace yet." });
+    expect([...empty.container.querySelectorAll("main .ft-btn--main")].map((b) => b.textContent)).toEqual(["Add a grant"]);
+  });
+
   it("says it is loading in the title's place, with no action yet", () => {
     renderScreen(createFakeApiClient(), "ws-sample");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Loading…");

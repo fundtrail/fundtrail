@@ -290,3 +290,24 @@
     justify-content: flex-start;
   }
 }
+
+/* A grant row's text picks the row: it reads as text, and as a link on hover and focus. */
+.rowButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.rowButton:hover,
+.rowButton:focus-visible {
+  text-decoration-color: currentColor;
+}
+.row[data-selected] .rowButton {
+  font-weight: 600;
+}
