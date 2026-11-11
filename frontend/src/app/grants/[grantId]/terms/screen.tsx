@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
-import { grantName } from "@/components/GrantList";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { GrantTerms } from "@/components/setup/GrantTerms";
 import { ReusableNotes } from "@/components/setup/ReusableNotes";
 import { NoticeFilesProvider, noticeFilesFor } from "@/components/setup/noticeFiles";
@@ -14,6 +15,7 @@ import { useEvidence, useGrant, useProblemList } from "@/lib/api";
  * First version, may change.
  */
 export function TermsScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId } = useParams<{ grantId: string }>();
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);

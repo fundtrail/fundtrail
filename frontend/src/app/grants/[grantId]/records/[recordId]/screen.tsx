@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
-import { grantName } from "@/components/GrantList";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { RecordThreadView } from "@/components/thread/RecordThreadView";
 import { useThreadActions } from "@/components/thread/useThreadActions";
 import { useEvidence, useGrant, useProblemList, useRecords, useRecordThread, type EvidenceFile, type Id, usePings } from "@/lib/api";
@@ -14,6 +15,7 @@ import { routes } from "@/lib/routes";
  * screens may change.
  */
 export function RecordThreadScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId, recordId } = useParams<{ grantId: string; recordId: string }>();
   // Refetches when the backend pings this grant's channel, such as the agent replying in a thread.
   usePings(`grant:${grantId}`);

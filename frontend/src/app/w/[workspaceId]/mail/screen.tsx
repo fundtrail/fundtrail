@@ -2,8 +2,9 @@
 
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import { AppShell, Loadable } from "@/components/AppShell";
-import { grantName } from "@/components/GrantList";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { HeldMailList } from "@/components/mail/HeldMailList";
 import { useApi, useGrants, useWorkspaces } from "@/lib/api";
 import { useUserId } from "@/lib/auth";
@@ -13,6 +14,7 @@ import { useUserId } from "@/lib/auth";
  * problem list by the client. First version, may change.
  */
 export function HeldMailScreen() {
+  const grantName = useGrantDisplayName();
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const api = useApi();
   const userId = useUserId();

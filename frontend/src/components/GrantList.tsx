@@ -1,11 +1,16 @@
 import Link from "next/link";
 import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
+import { grantDisplayName, useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
 
-/** A grant's name before its award letter has been read. */
+/**
+ * A grant's name, without the sample choices: "Untitled grant" until the award
+ * letter is read. Screens that can should use useGrantDisplayName (lib/grantName),
+ * which names a sample grant by its sample.
+ */
 export function grantName(summary: GrantSummary): string {
-  return summary.grant.title || summary.grant.award_number || "Untitled grant";
+  return grantDisplayName(summary);
 }
 
 /**
@@ -14,6 +19,7 @@ export function grantName(summary: GrantSummary): string {
  * the next closeout date. Rows keep the server's order.
  */
 export function GrantList({ grants }: { grants: GrantSummary[] }) {
+  const nameOf = useGrantDisplayName();
   if (grants.length === 0) {
     return <p className="ft-empty">No grants in this workspace yet.</p>;
   }
@@ -34,7 +40,7 @@ export function GrantList({ grants }: { grants: GrantSummary[] }) {
             <tr key={g.grant.id}>
               <td>
                 <Link className="ft-link ft-strong" href={routes.grant(g.grant.id)}>
-                  {grantName(g)}
+                  {nameOf(g)}
                 </Link>
                 {g.grant.award_number && <div className="ft-id">{g.grant.award_number}</div>}
               </td>
