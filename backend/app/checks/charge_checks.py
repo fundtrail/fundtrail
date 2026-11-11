@@ -189,6 +189,7 @@ def _approval_findings(
     rule = item.rule.data if item.rule is not None else None
     assert rule is None or isinstance(rule, ApprovalRule)
     ids = [approval.id] + ([item.rule.id] if item.rule else [])
+    key = view.root(approval.id)  # issue 307: one code per approval on the charge
     out: list[Finding] = []
     person = view.people_by_email().get(a.approver_email.value.strip().lower())
     right_person = False
@@ -196,7 +197,7 @@ def _approval_findings(
         out.append(
             Finding(
                 APPROVAL,
-                "approver_unknown",
+                f"approver_unknown:{key}",
                 Bucket.NEEDS_HUMAN,
                 f"Code can't match the approver, {a.approver_email.value}, to anyone named on "
                 "the grant.",
@@ -207,7 +208,7 @@ def _approval_findings(
         out.append(
             Finding(
                 APPROVAL,
-                "wrong_approver",
+                f"wrong_approver:{key}",
                 Bucket.POSSIBLE_CONFLICT,
                 f"Approved by {person.name.value} ({person.role.value}), "
                 f"but the rule needs the {rule.approver.value}.",
@@ -218,7 +219,7 @@ def _approval_findings(
         out.append(
             Finding(
                 APPROVAL,
-                "wrong_approver",
+                f"wrong_approver:{key}",
                 Bucket.POSSIBLE_CONFLICT,
                 f"Approved by {person.name.value} ({person.role.value}), "
                 "who isn't one of the NSF officials on the award notice.",
@@ -244,7 +245,7 @@ def _approval_findings(
                 out.append(
                     Finding(
                         APPROVAL,
-                        "email_approval",
+                        f"email_approval:{key}",
                         Bucket.NEEDS_HUMAN,
                         "The approval came by email, outside Research.gov. "
                         "Whether that counts isn't settled.",
@@ -255,7 +256,7 @@ def _approval_findings(
                 out.append(
                     Finding(
                         APPROVAL,
-                        "channel_unknown",
+                        f"channel_unknown:{key}",
                         Bucket.NEEDS_HUMAN,
                         "The approval doesn't say how it was given, and the rule needs "
                         f"{required}.",
@@ -266,7 +267,7 @@ def _approval_findings(
                 out.append(
                     Finding(
                         APPROVAL,
-                        "wrong_channel",
+                        f"wrong_channel:{key}",
                         Bucket.POSSIBLE_CONFLICT,
                         f"The approval came through {got or 'email'}, but the rule needs "
                         f"{required}.",
@@ -277,7 +278,7 @@ def _approval_findings(
         out.append(
             Finding(
                 APPROVAL,
-                "approval_date_unknown",
+                f"approval_date_unknown:{key}",
                 Bucket.NEEDS_HUMAN,
                 "The approval doesn't say when it was given, so code can't tell it came before "
                 "the cost.",
@@ -288,7 +289,7 @@ def _approval_findings(
         out.append(
             Finding(
                 APPROVAL,
-                "approval_late",
+                f"approval_late:{key}",
                 Bucket.POSSIBLE_CONFLICT,
                 f"Approved on {day(a.approved_on.value)}, after the cost on "
                 f"{day(charge.transaction_date)}.",
@@ -342,7 +343,7 @@ def _approval_check(
             out.append(
                 Finding(
                     APPROVAL,
-                    "not_an_approval",
+                    f"not_an_approval:{view.root(fact.id)}",
                     Bucket.NEEDS_HUMAN,
                     f"{item.spec.needed}: it's filled by {describe(fact).lower()}, not an "
                     "approval.",
@@ -410,7 +411,7 @@ def _values_check(
             out.append(
                 Finding(
                     VALUES,
-                    "term_not_confirmed",
+                    f"term_not_confirmed:{view.root(record.id)}",
                     Bucket.NEEDS_HUMAN,
                     f"An answer rests on a {record.kind.value.replace('_', ' ')} "
                     "that isn't confirmed yet.",
@@ -424,7 +425,7 @@ def _values_check(
             out.append(
                 Finding(
                     VALUES,
-                    "unconfirmed",
+                    f"unconfirmed:{view.root(record.id)}",
                     Bucket.NEEDS_HUMAN,
                     f"{describe(record)}: {', '.join(paths)} couldn't be confirmed in its file.",
                     [record.id],
@@ -736,12 +737,14 @@ def evaluate_charge(
             )
         )
 
+    over_named: set[str] = set()
     for link in links:
-        if link.fact.id in over_linked_bills:
+        if link.fact.id in over_linked_bills and link.fact.id not in over_named:
+            over_named.add(link.fact.id)
             findings.append(
                 Finding(
                     CHECKLIST,
-                    "bill_over_linked",
+                    f"bill_over_linked:{view.root(link.fact.id)}",
                     Bucket.NEEDS_HUMAN,
                     f"{describe(link.fact)} is linked for more than its total.",
                     [link.fact.id],

@@ -456,3 +456,33 @@ def failing(status: ChargeStatus) -> list[Reason]:
 
 def problems(status: ChargeStatus) -> set[tuple[str, str]]:
     return {(r.check, r.problem) for r in failing(status)}
+
+
+# Issue 307 keyed these codes by the record they're about ("unsure" became "unsure:{root}").
+_KEYED: dict[str, set[str] | None] = {
+    "covers": None,  # every code
+    "unusual_term": None,
+    "approval": {
+        "approver_unknown",
+        "wrong_approver",
+        "email_approval",
+        "channel_unknown",
+        "wrong_channel",
+        "approval_date_unknown",
+        "approval_late",
+        "not_an_approval",
+    },
+    "values_confirmed": {"term_not_confirmed", "unconfirmed"},
+    "checklist": {"bill_over_linked"},
+}
+
+
+def families(status: ChargeStatus) -> set[tuple[str, str]]:
+    """problems() with issue 307's record keys dropped, for tests about the kind of problem."""
+    out: set[tuple[str, str]] = set()
+    for check, problem in problems(status):
+        base, _, _ = problem.partition(":")
+        bases = _KEYED.get(check, set())
+        keyed = check in _KEYED and (bases is None or base in bases)
+        out.add((check, base if keyed else problem))
+    return out

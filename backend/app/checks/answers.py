@@ -32,6 +32,12 @@ class AnswerState:
     judgment: Record | None
     out_of_date: bool
     answer_by: Author  # who answers it next, when it's open
+    # Issue 307: for a question about a record (covers, unusual_term), the record's root,
+    # so each one's reason has its own code on the charge, for example "unsure:{root}".
+    key: str | None = None
+
+    def _code(self, problem: str) -> str:
+        return f"{problem}:{self.key}" if self.key else problem
 
     @property
     def answer(self) -> Answer | None:
@@ -60,7 +66,10 @@ class AnswerState:
         check = self.question.value
         if self.judgment is None:
             return Finding(
-                check, "not_answered", Bucket.NEEDS_HUMAN, f"{self.label}: not answered yet."
+                check,
+                self._code("not_answered"),
+                Bucket.NEEDS_HUMAN,
+                f"{self.label}: not answered yet.",
             )
         j = self.judgment.data
         assert isinstance(j, Judgment)
@@ -68,7 +77,7 @@ class AnswerState:
         if self.by_user and self.out_of_date:
             return Finding(
                 check,
-                "out_of_date",
+                self._code("out_of_date"),
                 Bucket.NEEDS_HUMAN,
                 f"{self.label}: the accountant's answer is out of date, so it's back with the "
                 "accountant.",
@@ -78,7 +87,7 @@ class AnswerState:
         text = f"{self.label}: {who} answered {j.answer.value}."
         if self.rechecking:
             text += " Something changed since, and the agent is answering again."
-        return Finding(check, j.answer.value, ANSWER_BUCKET[j.answer], text, ids)
+        return Finding(check, self._code(j.answer.value), ANSWER_BUCKET[j.answer], text, ids)
 
     def open_question(self, charge_id: str) -> OpenQuestion:
         return OpenQuestion(
@@ -123,4 +132,5 @@ def answer_state(
         judgment=chosen,
         out_of_date=chosen is not None and _out_of_date(view, chosen),
         answer_by=Author.USER if user_before else Author.AGENT,
+        key=view.root(record_id) if record_id is not None else None,
     )

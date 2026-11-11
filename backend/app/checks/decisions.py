@@ -128,7 +128,7 @@ class Decisions:
             assert isinstance(data, AcceptedReason)
             if _key_of(data) != subject:
                 continue
-            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
+            if not same_reason(data.reason.check, data.reason.problem, finding):
                 continue
             if self._holds(r, finding):
                 return r.id
@@ -229,7 +229,7 @@ class Decisions:
             assert isinstance(data, AcceptedReason)
             if _key_of(data) != subject or data.amount_cents is None:
                 continue
-            if (data.reason.check, data.reason.problem) != (finding.check, finding.problem):
+            if not same_reason(data.reason.check, data.reason.problem, finding):
                 continue
             if finding.amount_cents > data.amount_cents:
                 return data.amount_cents
@@ -275,7 +275,7 @@ class Decisions:
         assert isinstance(data, AcceptedReason) and data.charge_id is not None
         if data.charge_id == charge.id:
             return None
-        if (data.reason.check, data.reason.problem) != (check, problem):
+        if not same_code(data.reason.check, data.reason.problem, check, problem):
             return None
         noted = self.charges[data.charge_id]
         if noted.account != charge.account or not _later(charge, note):
@@ -378,11 +378,11 @@ class Decisions:
         active = [r for r in self.snoozes if _key_of(r.data) == subject and self._active(r)]  # type: ignore[arg-type]
         if not active:
             return False
-        covered: set[tuple[str, str]] = set()
+        covered: list[tuple[str, str]] = []
         for r in active:
             assert isinstance(r.data, Snooze)
-            covered |= {(x.check, x.problem) for x in r.data.reasons}
-        return all((m.finding.check, m.finding.problem) in covered for m in flagging)
+            covered += [(x.check, x.problem) for x in r.data.reasons]
+        return all(any(same_reason(c, p, m.finding) for c, p in covered) for m in flagging)
 
 
 def _decisions_for(
@@ -425,3 +425,22 @@ def note_covers(
     if found is None:
         return None
     return found[0].coverage(found[1], charge, check, problem)
+
+
+def same_code(check: str, problem: str, found_check: str, found_problem: str) -> bool:
+    """Whether a stored reason code names a reason the checks give now.
+
+    Issue 307 made some codes unique on their subject by adding a key after a colon
+    ("unsure" became "unsure:{root}", "approver_unknown" became "approver_unknown:{root}").
+    A code stored before that, with no colon, still names the reasons whose code starts
+    with it; an acceptance among them still covers only the one whose records it rested on.
+    """
+    if check != found_check:
+        return False
+    if problem == found_problem:
+        return True
+    return ":" not in problem and found_problem.split(":", 1)[0] == problem
+
+
+def same_reason(check: str, problem: str, finding: Finding) -> bool:
+    return same_code(check, problem, finding.check, finding.problem)
