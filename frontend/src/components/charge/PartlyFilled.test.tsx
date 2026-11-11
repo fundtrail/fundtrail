@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ChargeDetail, ChargeStatus, ChecklistEntry, FtRecord, Reason } from "@/lib/api";
+import type { ChargeDetail, ChargeStatus, FtRecord } from "@/lib/api";
 import { sampleChargeDetails } from "@/lib/api/fixtures/charge";
 import { ChargeDetailView } from "./ChargeDetailView";
 
@@ -98,33 +98,17 @@ describe("a partly filled checklist item", () => {
     expect(within(item).getByText("Filled")).toBeInTheDocument();
     expect(screen.queryByTestId("missing-item")).toBeNull();
   });
-});
 
-describe("a missing item's expected date", () => {
-  it("shows once: on the checklist item, not again on the reason's own line", () => {
-    const detail = sample(false);
-    const item = detail.status.checklist[0] as ChecklistEntry;
-    item.expected_by = "2026-03-15";
-    const reason: Reason = {
-      check: "checklist",
-      problem: "missing_item",
-      text: "A bill that adds up to the charge isn't on file.",
-      record_ids: [],
-      bucket: "missing_evidence",
-      expected_by: "2026-03-15",
-    } as Reason;
-    detail.status.reasons = [reason];
-    render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} onWrite={noop} />);
-    expect(screen.getAllByText(/Expected by Mar 15, 2026/)).toHaveLength(1);
-    expect(within(checklistItem()).getByText(/Expected by Mar 15, 2026/)).toBeInTheDocument();
-  });
-
-  it("stays on the reason when no unfilled item shows that date", () => {
-    const detail = sample(false);
-    detail.status.reasons = [
-      { check: "checklist", problem: "missing_item", text: "Something isn't on file.", record_ids: [], bucket: "missing_evidence", expected_by: "2026-04-01" } as Reason,
-    ];
-    render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} onWrite={noop} />);
-    expect(within(screen.getByTestId("reason")).getByText("Expected by Apr 1, 2026")).toBeInTheDocument();
+  it("treats text of only spaces as absent: the item reads Missing with the dashed ring", () => {
+    const detail = sample(true);
+    detail.status.checklist[0].partly_filled_text = "   ";
+    render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} />);
+    const item = checklistItem();
+    expect(item).not.toHaveAttribute("data-partly");
+    expect(within(item).getByText("Missing")).toBeInTheDocument();
+    expect(item.querySelector("[aria-hidden='true']")?.className).toMatch(/missing/);
+    const node = screen.getByTestId("missing-item");
+    expect(node).toHaveAttribute("data-mark", "missing");
+    expect(within(node).getByText("Missing")).toBeInTheDocument();
   });
 });

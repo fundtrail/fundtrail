@@ -184,9 +184,10 @@ export function MissingItems({ checklist }: { checklist: ChecklistEntry[] }) {
 
 /**
  * The server's words for an item that is partly filled (ruling 73), or null.
- * Only an item that isn't filled can be partly filled; the screen works out
- * nothing from `covered_cents`.
+ * Only an item that isn't filled can be partly filled, and text of only
+ * spaces counts as none. The screen works out nothing from `covered_cents`.
  */
 function partlyFilledText(entry: ChecklistEntry): string | null {
-  return !entry.filled && entry.partly_filled_text ? entry.partly_filled_text : null;
+  const text = entry.partly_filled_text?.trim();
+  return !entry.filled && text ? text : null;
 }
