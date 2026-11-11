@@ -84,6 +84,26 @@ class TimelineNow(Model):
     waiting_on_problem_list: int  # rows waiting on the grant's problem list
 
 
+class GuideOpen(StrEnum):
+    """What the timeline guide opens for the user's step."""
+
+    TERMS = "terms"  # the grant's terms, to confirm
+    DELIVERY = "delivery"  # the item to deliver: Deliver for me, or Get the file
+    CHARGE = "charge"  # the charge the step is about
+    FILE = "file"  # the file the step is about
+    HELD_MAIL = "held_mail"  # the workspace's held mail
+    PROBLEMS = "problems"  # the grant's problem list
+    CLOSEOUT = "closeout"  # the grant's closeout
+
+
+class GuideStep(Model):
+    """The user's step a highlight waits for (the timeline guide)."""
+
+    action: str  # the scripted step's kind: confirm_terms, deliver_file, ...
+    open: GuideOpen
+    id: Id | None = None  # the event to deliver, or the charge or file to open
+
+
 class TimelineView(Model):
     """GET /grants/{grant_id}/timeline, and what every timeline move returns."""
 
@@ -107,6 +127,14 @@ class TimelineView(Model):
     # time or later takes the grant off the run-through, as it passes a scripted step
     # nobody has made; the panel asks first. None when no move would, or off a run-through.
     leaves_run_through_at: UtcDatetime | None = None
+    # The timeline guide: the highlight the clock has reached (1-based) of how many, its
+    # event, the user's step it waits for, and the scripted sign-off's date. None on a
+    # sample with no highlights.
+    highlight_index: int | None = None
+    highlight_total: int | None = None
+    highlight_event: TimelineEvent | None = None
+    your_step: GuideStep | None = None
+    sign_off_at: UtcDatetime | None = None
     # Ruling 72: why "Next event" and "Go to a date" can't move the clock now, in
     # plain words, for example "Nothing is left to play." or, under the read-live
     # limit, "The agent is still reading <the other sample>."; None when they can.

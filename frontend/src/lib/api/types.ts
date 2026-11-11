@@ -819,6 +819,13 @@ export interface SampleRefusal {
 /** "arrival": a file, the ledger file or a ledger line. "user_delivery": an item the user brings in. "checks_date": a date the checks work out. */
 export type TimelineEventKind = "arrival" | "user_delivery" | "checks_date";
 
+/** The user's step a highlight waits for, and what the timeline guide opens for it. */
+export interface GuideStep {
+  action: string;
+  open: "terms" | "delivery" | "charge" | "file" | "held_mail" | "problems" | "closeout";
+  id?: Id | null;
+}
+
 export interface TimelineEvent {
   id: Id;
   at: IsoDatetime;
@@ -877,6 +884,12 @@ export interface TimelineView {
   expected_prerun?: boolean | null;
   /** On a grant on a prerun's run-through: a move without skipping to this time or later takes it off the run-through. */
   leaves_run_through_at?: IsoDatetime | null;
+  /** The timeline guide: the highlight reached (1-based) of how many, its event, the user's step it waits for, the scripted sign-off's date. */
+  highlight_index?: number | null;
+  highlight_total?: number | null;
+  highlight_event?: TimelineEvent | null;
+  your_step?: GuideStep | null;
+  sign_off_at?: IsoDatetime | null;
   /** Why the timeline can't move now, worded by the server; null when it can. */
   move_unavailable_reason?: string | null;
   /** Why Next highlight can't move now; null when it can. */
