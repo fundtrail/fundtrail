@@ -194,25 +194,41 @@ describe("a shared quote never hides a value", () => {
 });
 
 describe("issue 278: a file that isn't an award letter", () => {
-  it("shows a notice for the file with the server's words, above the waiting terms", async () => {
+  const FLAG = { check: "flag", problem: "not_an_award_letter", text: "This file doesn't read as an award letter." };
+  const DUPLICATE = { check: "duplicate", problem: "same_file", text: "This file is already on the grant." };
+  const FAILED_READ = { check: "read", problem: "failed", text: "The file couldn't be read." };
+
+  async function fileProblem(id: string, name: string, problems: (typeof FLAG)[]) {
     const { rows, Wrapper } = await sampleTerms();
-    const file = { ...(rows.find((r) => r.kind === "terms_waiting") as { file: EvidenceFile }).file, id: "file-not-a-letter", name: "lunch_menu.pdf" };
-    const fileRow: ProblemRow = {
-      kind: "record",
-      status: {
-        grant_id: "grant-sample",
-        file_id: file.id,
-        problems: [{ check: "award_letter", problem: "not_an_award_letter", text: "This file doesn't read as an award letter." }],
-        flagged: true,
-      },
-      file,
-    };
-    render(<GrantTerms terms={[]} rows={[fileRow]} />, { wrapper: Wrapper });
+    const file = { ...(rows.find((r) => r.kind === "terms_waiting") as { file: EvidenceFile }).file, id, name };
+    const row: ProblemRow = { kind: "record", status: { grant_id: "grant-sample", file_id: id, problems, flagged: true }, file };
+    return { row, Wrapper };
+  }
+
+  it("shows a notice for a flagged file no term cites, with only the flag in the server's words, above the waiting terms", async () => {
+    const { row, Wrapper } = await fileProblem("file-not-a-letter", "lunch_menu.pdf", [FLAG, DUPLICATE]);
+    render(<GrantTerms terms={[]} rows={[row]} />, { wrapper: Wrapper });
     const notice = screen.getByRole("region", { name: "Problem with lunch_menu.pdf" });
     expect(within(notice).getByRole("link", { name: "lunch_menu.pdf" })).toHaveAttribute("href", "/grants/grant-sample/files/file-not-a-letter");
     expect(within(notice).getByText("This file doesn't read as an award letter.")).toBeInTheDocument();
+    expect(within(notice).queryByText("This file is already on the grant.")).not.toBeInTheDocument();
     expect(notice.compareDocumentPosition(screen.getByRole("heading", { name: "Waiting for you" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("No terms yet.")).toBeInTheDocument();
+  });
+
+  it("shows no notice for a file with only a duplicate or a failed read", async () => {
+    const duplicate = await fileProblem("file-dup", "invoice_copy.pdf", [DUPLICATE]);
+    const failed = await fileProblem("file-bad", "scan.pdf", [FAILED_READ]);
+    render(<GrantTerms terms={[]} rows={[duplicate.row, failed.row]} />, { wrapper: duplicate.Wrapper });
+    expect(screen.queryByRole("region", { name: /^Problem with/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No terms yet. They appear as the agent reads the award letter.")).toBeInTheDocument();
+  });
+
+  it("shows no notice for a flagged file a term cites", async () => {
+    const { detail } = await sampleTerms();
+    const { row, Wrapper } = await fileProblem("file-award-letter", "award_letter.pdf", [FLAG]);
+    render(<GrantTerms terms={detail.terms} rows={[row]} />, { wrapper: Wrapper });
+    expect(screen.queryByRole("region", { name: /^Problem with/ })).not.toBeInTheDocument();
   });
 });
 
@@ -341,6 +357,40 @@ describe("which terms open by themselves", () => {
     rerender(<GrantTerms terms={later} rows={rows} />);
     expect(rowOf(/Dr\. Jesse Sample/)).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("A problem that came later.")).toBeInTheDocument();
+  });
+
+  it("opens a row the accountant closed when a new problem arrives", async () => {
+    const { detail, rows, Wrapper } = await sampleTerms();
+    const { rerender } = render(<GrantTerms terms={detail.terms} rows={rows} />, { wrapper: Wrapper });
+    const row = rowOf(/Dr\. Jesse Sample/);
+    fireEvent.click(row);
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    const problem = { check: "check-x", problem: "problem-x", text: "A new problem after the row was closed." };
+    const later = detail.terms.map((t) =>
+      t.record.id === "rec-person-program-officer"
+        ? { ...t, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [problem], flagged: true } }
+        : t,
+    );
+    rerender(<GrantTerms terms={later} rows={rows} />);
+    expect(rowOf(/Dr\. Jesse Sample/)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("A new problem after the row was closed.")).toBeInTheDocument();
+  });
+
+  it("opens the Not in force group the accountant closed when a term in it gets a new problem", async () => {
+    const { detail, Wrapper } = await sampleTerms();
+    const replaced = detail.terms.map((t) => (t.record.id === "rec-period" ? { ...t, state: "replaced" as const } : t));
+    const { rerender } = render(<GrantTerms terms={replaced} rows={[]} />, { wrapper: Wrapper });
+    const toggle = screen.getByRole("button", { name: /Not in force/ });
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const problem = { check: "check-x", problem: "problem-x", text: "A new problem on the replaced term." };
+    const later = replaced.map((t) =>
+      t.record.id === "rec-period" ? { ...t, status: { grant_id: "grant-sample", record_id: t.record.id, problems: [problem], flagged: true } } : t,
+    );
+    rerender(<GrantTerms terms={later} rows={[]} />);
+    expect(screen.getByRole("button", { name: /Not in force/ })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("remembers the accountant's own click on a row", async () => {

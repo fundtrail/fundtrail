@@ -170,17 +170,19 @@ function shownProblems(term: TermView) {
 }
 
 /**
- * Whether a term needs the accountant, from the server's data alone: it waits,
- * it was rejected and not yet replaced, a value couldn't be found in the file,
- * or it has a problem. Such a row is open, and so is a group holding one.
+ * The reasons a term needs the accountant, as one key: it waits, it was
+ * rejected and not yet replaced, each value that couldn't be found, and each
+ * problem. Empty when there are none. A row with reasons is open, and so is a
+ * group holding one. The accountant's own click is remembered only while these
+ * stay the same, so a new reason opens the row again.
  */
-export function termNeedsYou(term: TermView): boolean {
-  return (
-    term.state === "waiting" ||
-    term.state === "rejected" ||
-    (term.values ?? []).some((v) => !v.confirmed) ||
-    shownProblems(term).length > 0
-  );
+export function termReasons(term: TermView, rejectedNow = false): string {
+  const reasons: string[] = [];
+  if (term.state === "waiting") reasons.push("waiting");
+  if (term.state === "rejected" || rejectedNow) reasons.push("rejected");
+  for (const v of term.values ?? []) if (!v.confirmed) reasons.push(`unconfirmed:${v.path}`);
+  for (const p of shownProblems(term)) reasons.push(`problem:${p.check}:${p.problem}`);
+  return reasons.join("|");
 }
 
 /**
@@ -206,7 +208,8 @@ export function TermCard({ term, settled = false, lead = false }: { term: TermVi
   const waiting = term.state === "waiting";
   // The card already says "Waiting for you", so the waiting problem's line isn't repeated (issue 269).
   const problems = shownProblems(term);
-  const [toggled, setToggled] = useState<boolean | null>(null);
+  // The accountant's own click, with the reasons to be open when they made it.
+  const [toggled, setToggled] = useState<{ open: boolean; reasons: string } | null>(null);
 
   if (!isTermKind(kind)) return null;
   const fields = TERM_FIELDS[kind];
@@ -230,8 +233,9 @@ export function TermCard({ term, settled = false, lead = false }: { term: TermVi
   }
 
   const muted = term.state === "rejected" || term.state === "replaced" || term.state === "retracted";
-  const needsYou = termNeedsYou(term) || rejectedNow;
-  const open = toggled ?? needsYou;
+  const reasons = termReasons(term, rejectedNow);
+  // A click is kept only while the reasons to be open are the ones it was made over.
+  const open = toggled && toggled.reasons === reasons ? toggled.open : reasons !== "";
   const deciding = waiting && !typing && done === null && !settled;
   const offerTyping = fixable && !typing;
   const summary = termSummary({ record, kind });
@@ -244,7 +248,7 @@ export function TermCard({ term, settled = false, lead = false }: { term: TermVi
 
   return (
     <article className={`ft-trow${open ? " is-open" : ""}${muted ? " is-muted" : ""}`} aria-label={`${TERM_KIND_LABELS[kind]} term`}>
-      <button type="button" className="ft-trow__head" aria-expanded={open} aria-controls={detailId} onClick={() => setToggled(!open)}>
+      <button type="button" className="ft-trow__head" aria-expanded={open} aria-controls={detailId} onClick={() => setToggled({ open: !open, reasons })}>
         <span className="ft-trow__chev" aria-hidden="true" />
         <span className={`ft-trow__main${muted ? " ft-struck" : ""}`}>{summary.main}</span>
         {summary.aside && <span className={`ft-trow__aside${muted ? " ft-struck" : ""}`}>{summary.aside}</span>}

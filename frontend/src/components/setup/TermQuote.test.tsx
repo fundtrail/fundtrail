@@ -5,6 +5,9 @@ import { quoteExcerpt, TermQuote, valueSpans } from "./TermQuote";
 
 // A file's text, and a citation of one passage in it at character 100.
 const BEFORE = "x".repeat(100);
+/** The context TermQuote keeps either side of a value when it cuts a quote. */
+const BEFORE_VALUE = 60;
+const AFTER_VALUE = 100;
 
 function cite(passage: string, match: Match | null, value?: string): Citation & { passage: string } {
   const start = BEFORE.length;
@@ -101,6 +104,25 @@ describe("TermQuote's excerpt", () => {
       { start: LONG.indexOf("Research.gov"), end: LONG.indexOf("Research.gov") + 12 },
     ];
     expect(quoteExcerpt(LONG, spans)).toBeNull();
+  });
+
+  it("shows the whole quote for two values far apart in the middle of a long passage", () => {
+    // Both values are well inside the passage, so without the window the quote would be cut around them.
+    const first = LONG.indexOf("categories");
+    const second = LONG.indexOf("kept with");
+    const spans = [
+      { start: first, end: first + 10 },
+      { start: second, end: second + 9 },
+    ];
+    expect(first).toBeGreaterThan(BEFORE_VALUE);
+    expect(LONG.length - (second + 9)).toBeGreaterThan(AFTER_VALUE);
+    expect(second + 9 - first).toBeGreaterThan(120);
+    expect(quoteExcerpt(LONG, spans)).toBeNull();
+    const { container } = show({
+      ...cite(LONG, "exact"),
+      highlight: spans.map((s) => ({ start_char_index: BEFORE.length + s.start, end_char_index: BEFORE.length + s.end })),
+    });
+    expect(container.querySelector("blockquote")!.textContent).toBe(LONG);
   });
 
   it("shows the whole quote for a single value whose ranges are far apart", () => {
