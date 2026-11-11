@@ -6,6 +6,8 @@
  */
 
 .ft-tl {
+  /* The trail stacks by the panel's own width, so it also stacks inside the floating box. */
+  container: timeline / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -478,7 +480,7 @@
 
 /* --- Narrow screens: the trail runs down the page --- */
 
-@media (max-width: 720px) {
+@container timeline (max-width: 720px) {
   .ft-tl__controls {
     justify-content: flex-start;
   }
@@ -589,4 +591,112 @@
     width: auto;
     height: 12px;
   }
+}
+
+/* --- The floating box (wide screens): moves by its handle, hides to a button --- */
+
+.ft-float--floating {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 96px);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-float);
+  cursor: grab;
+  touch-action: none;
+}
+.ft-float--floating:active {
+  cursor: grabbing;
+}
+/* Controls inside keep their own pointer; only the box's bare areas grab. */
+.ft-float--floating :is(a, button, input, select, textarea, label) {
+  cursor: pointer;
+}
+.ft-float--floating input[type="date"] {
+  cursor: text;
+}
+.ft-float__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2) 0;
+}
+.ft-float__handle {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.ft-float__handle:active {
+  cursor: grabbing;
+}
+.ft-float__handle:hover,
+.ft-float__hide:hover {
+  background: var(--paper-sunken);
+  color: var(--ink);
+}
+.ft-float__hide {
+  padding: 2px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ft-float__body {
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Inside the box the panel drops its own grey card: the box is the card. */
+.ft-float--floating .ft-tl[data-compact] {
+  padding: var(--space-1) var(--space-4) var(--space-4);
+  border-radius: 0;
+  background: none;
+}
+.ft-float--floating .ft-tl[data-compact] .ft-tl__ev--next::after,
+.ft-float--floating .ft-tl[data-compact] .ft-tl__ev--more::after {
+  background: var(--paper-raised);
+}
+/* Hidden, the box becomes one button at the top left of the page, beside the sidebar. */
+.ft-float__show {
+  position: fixed;
+  top: calc(var(--topbar-height) + var(--space-3));
+  left: calc(var(--sidebar-width) + var(--space-4));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+}
+.ft-float__show:hover {
+  background: var(--paper-sunken);
+}
+.ft-float__dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--now);
 }
