@@ -590,3 +590,78 @@
     height: 12px;
   }
 }
+
+/* --- The timeline guide: where you are among the highlights, your step, one main button.
+   Sized for a 480px box as well as the overview's width. --- */
+
+.ft-guide__heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ft-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ft-guide__where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ft-guide__chip {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.ft-guide__label {
+  min-width: 0;
+}
+.ft-guide__date {
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.ft-guide__bar {
+  display: flex;
+  gap: 2px;
+}
+.ft-guide__seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+.ft-guide__seg--done {
+  background: var(--brand-action);
+}
+.ft-guide__says {
+  margin: 0;
+}
+.ft-guide__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ft-guide__step > p {
+  margin: 0;
+}
+.ft-guide__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ft-guide__next {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
