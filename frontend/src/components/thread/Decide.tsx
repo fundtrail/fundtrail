@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { date } from "@/lib/format";
 import { field } from "../charge/labels";
@@ -35,11 +35,21 @@ export interface DecisionMade {
   at: string;
 }
 
-/** Accept and Reject, in that order, with the write's problems shown if the server refuses it. */
+/**
+ * Accept and Reject, in that order, with the write's problems shown if the
+ * server refuses it. Never sends twice at once: a decision made while one is
+ * in flight (two clicks in the same task, before the buttons re-render
+ * disabled) does nothing at all, and leaves `busy` and the error lines as the
+ * first one set them. The guard is set before `onDecide` is called and
+ * released in `finally`, after a refusal or a synchronous throw too.
+ */
 function DecideButtons({ recordId, onDecide, what }: { recordId: Id; onDecide: OnDecide; what: string }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const inFlight = useRef(false);
   async function decide(decision: Decision) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -47,6 +57,7 @@ function DecideButtons({ recordId, onDecide, what }: { recordId: Id; onDecide: O
     } catch (error) {
       setErrors(errorLines(error));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
