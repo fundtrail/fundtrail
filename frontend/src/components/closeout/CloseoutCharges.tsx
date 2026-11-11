@@ -16,6 +16,7 @@ import {
 import { useUserId } from "@/lib/auth";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import "./closeout.css";
 
 function isChargeStatus(status: StatusEntry["status"]): status is ChargeStatus {
   return "charge_id" in status && "bucket" in status;
@@ -42,7 +43,7 @@ function EvidenceAndHistory({ grantId, chargeId }: { grantId: Id; chargeId: Id }
   const links = detail.data.links ?? [];
   const history = detail.data.history ?? [];
   return (
-    <div>
+    <div className="ft-co-evidence">
       <p className="ft-label">Evidence</p>
       {links.length === 0 ? (
         <p className="ft-caption">No evidence linked.</p>
@@ -105,7 +106,7 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
   }
 
   return (
-    <table className="ft-ledger ft-ledger--flush">
+    <table className="ft-ledger ft-co-table">
       <thead>
         <tr>
           <th scope="col">Date</th>
@@ -123,7 +124,7 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
           return (
             <Fragment key={charge.id}>
               <tr>
-                <td>
+                <td className="ft-co-date">
                   <div className="ft-num">{date(charge.transaction_date)}</div>
                   <div className="ft-id">{charge.ledger_line_id}</div>
                 </td>
@@ -133,7 +134,7 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
                   </Link>
                   {charge.vendor && <div className="ft-caption">{charge.vendor}</div>}
                 </td>
-                <td className="ft-right ft-num">{money(charge.amount_cents)}</td>
+                <td className="ft-right ft-co-amount">{money(charge.amount_cents)}</td>
                 <td>
                   <ChargeStatusBadge status={status ?? null} />
                 </td>
@@ -151,7 +152,10 @@ export function CloseoutCharges({ grantId, rows }: { grantId: Id; rows: ChargeRo
                 </td>
               </tr>
               {isOpen && (
-                <tr id={`closeout-detail-${charge.id}`} aria-label={`Evidence and history for ${charge.ledger_line_id}`}>
+                <tr
+                  id={`closeout-detail-${charge.id}`}
+                  className="ft-co-detail"
+                  aria-label={`Evidence and history for ${charge.ledger_line_id}`}>
                   <td colSpan={5}>
                     <EvidenceAndHistory grantId={grantId} chargeId={charge.id} />
                   </td>
