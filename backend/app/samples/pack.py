@@ -124,6 +124,9 @@ class UserAction:
     problem: str | None = None  # accept_reason: the reason's problem, when the check has several
     # A comment on the step; for accept_reason and sign_off, the accountant's note.
     note: str | None = None
+    # Ruling 77: the label of the highlight this step is the user's own step for, as its
+    # timeline event carries it. Next highlight leaves the step to the user.
+    highlight: str | None = None
 
 
 # The record kinds an agent's suggestion can be: the ones that wait for the accountant.
@@ -340,7 +343,8 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
     if action not in ACTION_FIELDS:
         raise PackError(f"{where}: {action!r} isn't one of {sorted(ACTION_FIELDS)}.")
     required, optional = ACTION_FIELDS[action]
-    given = set(raw) - {"at", "action"}
+    given = set(raw) - {"at", "action", "highlight"}
+    highlight = _highlight(raw, where)
     if action not in NOTE_IS_THE_ACCOUNTANTS:
         given -= {"note"}
     if not required <= given or given - required - optional:
@@ -387,6 +391,7 @@ def _action(raw: dict[str, Any], where: str) -> UserAction:
         check=raw.get("check"),
         problem=raw.get("problem"),
         note=raw.get("note"),
+        highlight=highlight,
     )
 
 
@@ -485,8 +490,11 @@ def _check_script(pack: SamplePack, where: str) -> None:
     files = {e.name: e for e in pack.events if e.kind is EventKind.FILE}
     lines = _line_arrivals(pack)
     brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
+    labels = {e.highlight for e in pack.events if e.highlight is not None}
     for a in pack.actions:
         what = f"{where}: {a.action} at {a.at.isoformat()}"
+        if a.highlight is not None and a.highlight not in labels:
+            raise PackError(f"{what}: no timeline event is the highlight {a.highlight!r}.")
         if a.line_id is not None:
             if a.line_id not in lines:
                 raise PackError(f"{what}: {LEDGER_FILE} has no line {a.line_id}.")

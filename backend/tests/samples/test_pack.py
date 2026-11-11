@@ -382,3 +382,25 @@ def test_refuses_a_blank_highlight(tmp_path: Path) -> None:
     blank = {**EVENTS[0], "highlight": "  "}
     with pytest.raises(PackError, match="highlight"):
         load_folder(write_pack(tmp_path / "s", events=[blank, *EVENTS[1:]], actions=[]))
+
+
+def _receipt_highlighted(tmp_path: Path, label: Any) -> Path:
+    receipt = "receipt_R-3.txt"
+    events = [{**e, "highlight": "Receipt"} if e["file"] == receipt else e for e in EVENTS]
+    actions = [{**a, "highlight": label} if a["action"] == "deliver_file" else a for a in ACTIONS]
+    return write_pack(tmp_path / "s", events=events, actions=actions)
+
+
+def test_keeps_a_steps_highlight(tmp_path: Path) -> None:
+    """Ruling 77: a step may name the highlight it's the user's own step for."""
+    pack = load_folder(_receipt_highlighted(tmp_path, "Receipt"))
+    assert {a.action: a.highlight for a in pack.actions} == {
+        "confirm_terms": None,
+        "deliver_file": "Receipt",
+    }
+
+
+@pytest.mark.parametrize("label", ["  ", 3, "Not a highlight"])
+def test_refuses_a_steps_highlight_no_event_carries(tmp_path: Path, label: Any) -> None:
+    with pytest.raises(PackError, match="highlight"):
+        load_folder(_receipt_highlighted(tmp_path, label))
