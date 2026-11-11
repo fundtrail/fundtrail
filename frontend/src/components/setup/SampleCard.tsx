@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { grantName } from "@/components/GrantList";
+import { grantDisplayName } from "@/lib/grantName";
 import { ApiError, SampleRefusalError, type GrantSummary, type Id, type SampleChoice, type SampleCreate, type SampleOption, type SampleRefusal } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import "./setup.css";
@@ -21,12 +21,12 @@ interface BlockingGrant {
  * is refused only for needs_confirm, but any refusal shows the same way.
  * Null when the body isn't a refusal.
  */
-export function readRefusal(detail: unknown): { message: string; blocking: BlockingGrant | null } | null {
+export function readRefusal(detail: unknown, samples?: SampleOption[]): { message: string; blocking: BlockingGrant | null } | null {
   if (typeof detail !== "object" || detail === null) return null;
   const refusal = detail as Partial<SampleRefusal>;
   if (typeof refusal.message !== "string") return null;
   const grant = refusal.grant?.grant;
-  const blocking = grant && typeof grant.id === "string" ? { id: grant.id, name: grantName(refusal.grant!) } : null;
+  const blocking = grant && typeof grant.id === "string" ? { id: grant.id, name: grantDisplayName(refusal.grant!, samples) } : null;
   return { message: refusal.message, blocking };
 }
 
@@ -66,7 +66,7 @@ export function SampleCard({
       onOpened(summary.grant.id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        const refusal = readRefusal(error instanceof SampleRefusalError ? error.refusal : error.detail);
+        const refusal = readRefusal(error instanceof SampleRefusalError ? error.refusal : error.detail, options);
         setState({ status: "refused", message: refusal?.message ?? error.message, blocking: refusal?.blocking ?? null });
       } else {
         setState({ status: "refused", message: error instanceof ApiError ? error.message : "Couldn't open the sample. Try again.", blocking: null });
