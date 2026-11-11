@@ -701,3 +701,94 @@ def test_accepting_a_notes_offer_raises_its_limit_and_isnt_a_note_of_its_own(api
     [view] = _get(api, f"/grants/{sample.grant.id}")["reusable_notes"]
     assert view["note"]["id"] == note_id and view["charge"]["id"] == l1001
     assert view["amount_limit_cents"] == 218000  # L-1002's amount, above L-1001's 124000
+
+
+class _BenefitChecks(FakeChecks):
+    """L-1001 is a salary line that Needs a human; L-1002 is a benefit charge whose only
+    open problem is that it waits on L-1001 (or, with `also_missing`, also lacks an item)."""
+
+    salary_id = ""
+    benefit_id = ""
+    also_missing = False
+
+    def run_checks(self, checks_input: ChecksInput, /) -> ChecksOutput:
+        from app.checks.benefits import BENEFIT_RATE, WAITS_ON_SALARY
+        from app.contracts.checks import ChargeStatus, ChecklistEntry, ItemSource, Reason
+
+        out = super().run_checks(checks_input)
+        statuses = []
+        for st in out.charges:
+            if st.charge_id == self.salary_id:
+                st = st.model_copy(
+                    update={
+                        "bucket": Bucket.NEEDS_HUMAN,
+                        "flagged": True,
+                        "reasons": (
+                            Reason(check="fake", problem="x", text="?", bucket=Bucket.NEEDS_HUMAN),
+                        ),
+                    }
+                )
+            elif st.charge_id == self.benefit_id:
+                reasons = [
+                    Reason(
+                        check="benefits",
+                        problem=WAITS_ON_SALARY,
+                        text="Waits on its salary line.",
+                        bucket=Bucket.NEEDS_HUMAN,
+                    )
+                ]
+                if self.also_missing:
+                    reasons.append(
+                        Reason(
+                            check="fake",
+                            problem="missing",
+                            text="Missing.",
+                            bucket=Bucket.MISSING_EVIDENCE,
+                        )
+                    )
+                st = ChargeStatus.model_validate(
+                    st.model_dump()
+                    | {
+                        "bucket": Bucket.NEEDS_HUMAN,
+                        "flagged": True,
+                        "reasons": tuple(r.model_dump() for r in reasons),
+                        "checklist": (
+                            ChecklistEntry(
+                                default_item=BENEFIT_RATE,
+                                added_by=ItemSource.DEFAULT,
+                                needed="Benefit rate",
+                                filled=False,
+                                charge_ids=(self.salary_id,),
+                            ).model_dump(),
+                        ),
+                    }
+                )
+            statuses.append(st)
+        return out.model_copy(update={"charges": tuple(statuses)})
+
+
+def _benefit_rows(api: Api, also_missing: bool) -> tuple[list[Any], _BenefitChecks]:
+    checks = _BenefitChecks()
+    api.platform.checks = checks
+    sample = sample_into_db(api.platform, api.user_id, APRIL_10)
+    checks.salary_id = _id(sample, "chg-l-1001")
+    checks.benefit_id = _id(sample, "chg-l-1002")
+    checks.also_missing = also_missing
+    with transaction(api.platform.pool) as conn:
+        recheck_grant(conn, checks, sample.grant, APRIL_10, Trigger(kind=TriggerKind.CLOCK))
+    rows = _get(api, f"/grants/{sample.grant.id}/problems")["rows"]
+    return [r for r in rows if r["kind"] == "charge"], checks
+
+
+def test_a_benefit_waiting_only_on_its_salary_line_shows_with_that_row(api: Api) -> None:
+    """Ruling 62."""
+    rows, checks = _benefit_rows(api, also_missing=False)
+    assert [r["charge"]["id"] for r in rows] == [checks.salary_id]
+    assert rows[0]["waiting_charge_ids"] == [checks.benefit_id]
+
+
+def test_a_benefit_with_another_problem_keeps_its_own_row(api: Api) -> None:
+    rows, checks = _benefit_rows(api, also_missing=True)
+    ids = [r["charge"]["id"] for r in rows]
+    assert checks.benefit_id in ids and checks.salary_id in ids
+    assert all(r["waiting_charge_ids"] == [] for r in rows)
