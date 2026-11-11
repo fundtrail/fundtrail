@@ -1220,7 +1220,9 @@ def _inline(schema: dict[str, Any]) -> dict[str, Any]:
     def walk(node: Any) -> Any:
         if isinstance(node, dict):
             if "$ref" in node:
-                return walk(dict(defs[node["$ref"].split("/")[-1]]))
+                # The keys beside the $ref, such as the field's description, are kept.
+                siblings = {k: v for k, v in node.items() if k != "$ref"}
+                return walk({**defs[node["$ref"].split("/")[-1]], **siblings})
             return {k: walk(v) for k, v in node.items() if k != "title"}  # pyright: ignore[reportUnknownVariableType]
         if isinstance(node, list):
             return [walk(x) for x in node]  # pyright: ignore[reportUnknownVariableType]
