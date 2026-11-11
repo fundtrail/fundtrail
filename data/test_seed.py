@@ -117,7 +117,7 @@ TERM_RECORD_KINDS = {
 }
 # SampleChoice, as issue 165 settles it. When the contract code has the enum,
 # test_sample_choices_match_the_contract reads it and compares.
-SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun")
+SAMPLE_CHOICES = ("small_live", "larger_live", "larger_prerun", "larger_expected")
 WORKSPACES_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "workspaces.py"
 SAMPLE_JSON_FIELDS = {
     "sample",
