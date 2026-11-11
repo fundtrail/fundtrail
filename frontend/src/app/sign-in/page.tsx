@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
+import { TrailMark } from "@/components/TrailMark";
 import { takeSessionExpired, useAuth } from "@/lib/auth";
+import styles from "./signin.module.css";
+import { TrailArt } from "./TrailArt";
 
 /**
  * Local development only (ruling 63): an emailed sign-in link through Supabase,
@@ -26,21 +29,23 @@ function EmailSignIn({ send }: { send: (email: string) => Promise<void> }) {
   }
 
   return (
-    <form className="ft-si__email" onSubmit={(e) => void submit(e)} aria-label="Sign in with an email link">
+    <form className={styles.email} onSubmit={(e) => void submit(e)} aria-label="Sign in with an email link">
       <label htmlFor={id} className="ft-label">
         Or, for local development, email me a sign-in link
       </label>
-      <input id={id} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-      <button type="submit" className="ft-btn" aria-disabled={state === "sending"}>
-        {state === "sending" ? "Sending…" : "Email me a link"}
-      </button>
+      <div className={styles.emailRow}>
+        <input id={id} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <button type="submit" className={`ft-btn${state === "sending" ? " is-busy" : ""}`} aria-disabled={state === "sending"}>
+          {state === "sending" ? "Sending…" : "Email me a link"}
+        </button>
+      </div>
       {state === "sent" && (
-        <p className="ft-caption" role="status">
+        <p className={styles.emailNote} role="status">
           Check your email for the sign-in link.
         </p>
       )}
       {state === "failed" && (
-        <p className="ft-error" role="alert">
+        <p className={`ft-error ${styles.emailError}`} role="alert">
           The link wasn&apos;t sent. Try again.
         </p>
       )}
@@ -79,33 +84,44 @@ export default function SignIn() {
   }
 
   return (
-    <div className="ft-si">
-      <div className="ft-si__card">
-        <div className="ft-wordmark">FundTrail</div>
-        <p>A running evidence file for every research grant, so the review is done before closeout.</p>
-        {expired && !failed && (
-          <p className="ft-error" role="status">
-            Your session has expired. Sign in again.
-          </p>
-        )}
-        {failed && (
-          <p className="ft-error" role="alert">
-            Sign-in didn&apos;t finish. Try again.
-          </p>
-        )}
-        <button
-          type="button"
-          className={`ft-btn ft-btn--main ft-si__btn${busy ? " is-busy" : ""}`}
-          aria-disabled={busy}
-          onClick={() => void signIn()}
-        >
-          {busy ? "Signing in…" : "Continue with Google"}
-        </button>
-        {auth.signInWithEmail && <EmailSignIn send={auth.signInWithEmail} />}
-        {auth.fake && (
-          <p className="ft-caption">Fake sign-in: no Supabase project is configured, so this signs in a synthetic demo user.</p>
-        )}
-      </div>
+    <div className={styles.page}>
+      <aside className={styles.brand} aria-label="FundTrail">
+        <p className={styles.wordmark}>
+          <TrailMark className={styles.glyph} width={34} />
+          FundTrail
+        </p>
+        <p className={styles.line}>A running evidence file for every research grant, so the review is done before closeout.</p>
+        <TrailArt className={styles.art} classes={styles} />
+      </aside>
+      <main className={styles.paper}>
+        <div className={styles.panel}>
+          <h1 className={styles.title}>Sign in</h1>
+          {expired && !failed && (
+            <p className={styles.note} role="status">
+              Your session has expired. Sign in again.
+            </p>
+          )}
+          {failed && (
+            <p className={styles.alert} role="alert">
+              Sign-in didn&apos;t finish. Try again.
+            </p>
+          )}
+          <button
+            type="button"
+            className={`ft-btn ft-btn--main ${styles.signIn}${busy ? " is-busy" : ""}`}
+            aria-disabled={busy}
+            onClick={() => void signIn()}
+          >
+            {busy ? "Signing in…" : "Continue with Google"}
+          </button>
+          {auth.signInWithEmail && <EmailSignIn send={auth.signInWithEmail} />}
+          {auth.fake && (
+            <p className={`ft-caption ${styles.fine}`}>
+              Fake sign-in: no Supabase project is configured, so this signs in a synthetic demo user.
+            </p>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

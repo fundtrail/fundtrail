@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import type { GrantSummary } from "@/lib/api";
 import { date } from "@/lib/format";
+import "./closeout.css";
 
 /**
  * Berkeley's closeout steps in order (product.md, Closeout), the first set.
@@ -21,31 +23,47 @@ const BERKELEY_STEPS: { name: string; when: string }[] = [
   { name: "Final financial report", when: "Filed by central accounting by day 90. FundTrail isn't involved." },
 ];
 
-export function CloseoutSteps({ summary }: { summary: GrantSummary }) {
+/**
+ * The steps as one trail, every step drawn the same: the server says what's
+ * next, not where the grant stands among these steps, so the trail marks no
+ * step as passed or current. The only date under a step is the end date in
+ * force, under End date. What's next leads, in the server's own words.
+ */
+export function CloseoutSteps({ summary, links }: { summary: GrantSummary; links?: ReactNode }) {
+  const next = summary.next_closeout ?? null;
   return (
-    <section className="ft-panel" aria-labelledby="steps-heading">
+    <section className="ft-panel ft-co-steps-panel" aria-labelledby="steps-heading">
       <div className="ft-panel__head">
         <h2 id="steps-heading" className="ft-heading">
           Closeout steps
         </h2>
+        {links}
       </div>
-      <p>
-        {summary.end_date ? <>End date in force: {date(summary.end_date)}.</> : <>End date not confirmed yet.</>}
-        {summary.next_closeout && (
-          <>
-            {" "}
-            Next: <span className="ft-strong">{summary.next_closeout.label}</span>, {date(summary.next_closeout.date)}.
-          </>
-        )}
-      </p>
-      <ol>
-        {BERKELEY_STEPS.map((s) => (
-          <li key={s.name}>
-            <span className="ft-strong">{s.name}.</span> <span className="ft-caption">{s.when}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="ft-caption">Berkeley&apos;s steps, the first set. Dates that depend on the university&apos;s own calendar aren&apos;t worked out.</p>
+      <div className="ft-co-body">
+        <div className="ft-co-summary" data-testid="closeout-summary">
+          {next && (
+            <p className="ft-co-next">
+              Next: <span className="ft-co-next__label">{next.label}</span>, {date(next.date)}.
+            </p>
+          )}
+          <p className="ft-co-end">
+            {summary.end_date ? <>End date in force: {date(summary.end_date)}.</> : <>End date not confirmed yet.</>}
+          </p>
+        </div>
+        <ol className="ft-co-steps">
+          {BERKELEY_STEPS.map((s) => (
+            <li key={s.name} className="ft-co-step">
+              <span className="ft-co-step__dot" aria-hidden="true" />
+              {s.name === "End date" && summary.end_date && (
+                <span className="ft-co-step__date">{date(summary.end_date)}</span>
+              )}
+              <span className="ft-co-step__name">{s.name}</span>
+              <span className="ft-co-step__when">{s.when}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="ft-caption">Berkeley&apos;s steps, the first set. Dates that depend on the university&apos;s own calendar aren&apos;t worked out.</p>
+      </div>
     </section>
   );
 }

@@ -2,10 +2,11 @@ import type { GrantSummary } from "@/lib/api";
 import Link from "next/link";
 import { date, FUNDER_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { grantName } from "./GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 
 /** Where a grant stands, at the top of its pages: its name, readiness and dates. Counts only, never a percentage. */
 export function GrantHeader({ summary }: { summary: GrantSummary }) {
+  const grantName = useGrantDisplayName();
   const { grant } = summary;
   return (
     <header className="ft-panel ft-grant-head">
