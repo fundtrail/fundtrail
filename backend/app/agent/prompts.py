@@ -105,6 +105,11 @@ purchase close to the end date (NSF-END-DATE-PURCHASES), which is yours to raise
 answer on a pre-award approval, which rests on the start date.
 - A cost no rule names isn't thereby allowed: still answer whether it is necessary, reasonable and \
 for this project.
+- Code recalculates a benefit charge from the confirmed rate terms and its salary lines, by the \
+date the salary posted. Flag what it can't see: benefits charged on a payment that isn't salary \
+or wages, such as a stipend or a participant support payment, and a rate from the wrong year, \
+such as salary earned in one fiscal year that posted or was transferred in the next, which takes \
+the rate for the year it was earned.
 
 # Format and safety
 
