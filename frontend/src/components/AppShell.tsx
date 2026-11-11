@@ -7,6 +7,7 @@ import { useGrants, useWorkspaces, type Id, usePings } from "@/lib/api";
 import { signedInWith, useAuth } from "@/lib/auth";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { routes } from "@/lib/routes";
+import { WorkingIndicator } from "./AgentProgress";
 
 /** The wordmark's glyph: a trail with a dot, a ring, a dashed stretch and the now diamond. */
 function TrailMark() {
@@ -346,6 +347,18 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
 }
 
 /**
+ * Ruling 71: while the agent reads the grant the page is inside, the top bar
+ * shows it working, from the grant's summary in the grants list the sidebar
+ * already loads (no request of its own).
+ */
+function GrantWorking({ workspaceId }: { workspaceId: Id | null }) {
+  const pathname = usePathname();
+  const grants = useGrants(workspaceId);
+  const open = grants.data?.find((g) => isInside(pathname, g.grant.id));
+  return open ? <WorkingIndicator grantId={open.grant.id} summary={open} /> : null;
+}
+
+/**
  * The frame of every signed-in screen: the sidebar, a top bar naming the page,
  * and the main area. Sends a signed-out user to the sign-in page.
  */
@@ -381,6 +394,7 @@ export function AppShell({
               </li>
             ))}
           </ol>
+          <GrantWorking workspaceId={workspaceId} />
         </div>
         <main className="ft-content">{children}</main>
       </div>
