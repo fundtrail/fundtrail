@@ -137,31 +137,109 @@ describe("blocked moves say why (ruling 79)", () => {
     expect(screen.getByText(MOVE_REASON).closest("form")).toBe(button("Go").closest("form"));
   });
 
-  it("keeps Go reachable with an empty or early date, sends nothing, and gives the screen's own hint (ruling 79)", async () => {
-    const { move } = await renderAt({});
+  it("with the same reason for every move control, shows it once for the whole row, and each control points at it", async () => {
+    const { move } = await renderAt({ move_unavailable_reason: MOVE_REASON, next_highlight_unavailable_reason: MOVE_REASON });
+    await screen.findByRole("button", { name: "Next event" });
+    expect(screen.getAllByText(MOVE_REASON)).toHaveLength(1);
     await openMore();
-    const go = button("Go");
-    // Not natively disabled, so a keyboard user can reach it and hear why.
-    expect(go).toBeEnabled();
-    expect(go).toHaveAttribute("aria-disabled", "true");
-    expect(go).toHaveAccessibleDescription("Choose a date first.");
-    fireEvent.click(go);
-    fireEvent.submit(go.closest("form")!);
-    expect(move).not.toHaveBeenCalled();
-    // The screen's hint is its own validation, set apart from a server reason.
-    expect(screen.getByText("Choose a date first.")).toHaveClass("ft-tl__hint");
-    expect(screen.getByText("Choose a date first.")).not.toHaveClass("ft-tl__reason");
-    fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2023-01-12" } });
-    expect(go).toHaveAccessibleDescription("Choose a later date.");
-    fireEvent.click(go);
+    expect(screen.getAllByText(MOVE_REASON)).toHaveLength(1);
+    const shared = screen.getByText(MOVE_REASON);
+    // On a line of its own for the row, not beside one control.
+    expect(shared).toHaveClass("ft-tl__reason--controls");
+    expect(shared.closest("form")).toBeNull();
+    expect(shared.closest(".ft-tl__hinted")).toBeNull();
+    expect(button("Next event")).toHaveAccessibleDescription(MOVE_REASON);
+    expect(button("Next highlight")).toHaveAccessibleDescription(`${MOVE_REASON} ${HELP}`);
+    expect(button("Go")).toHaveAccessibleDescription(MOVE_REASON);
+    for (const id of ["Next event", "Next highlight", "Go"].map((name) => button(name).getAttribute("aria-describedby")!.split(" ")[0])) {
+      expect(id).toBe(shared.id);
+    }
+    fireEvent.click(button("Next highlight"));
+    goToDate();
     expect(move).not.toHaveBeenCalled();
   });
 
-  it("gives the server's reason, not the screen's hint, when both apply to Go", async () => {
-    await renderAt({ move_unavailable_reason: MOVE_REASON });
+  it("with different reasons, shows each by its own control", async () => {
+    await renderAt({ move_unavailable_reason: MOVE_REASON, next_highlight_unavailable_reason: HIGHLIGHT_REASON });
+    await openMore();
+    expect(screen.getAllByText(MOVE_REASON)).toHaveLength(1);
+    expect(screen.getAllByText(HIGHLIGHT_REASON)).toHaveLength(1);
+    expect(screen.getByText(MOVE_REASON).closest("form")).toBe(button("Go").closest("form"));
+    expect(screen.getByText(HIGHLIGHT_REASON).closest(".ft-tl__hinted")).toBe(button("Next highlight").closest(".ft-tl__hinted"));
+    expect(document.querySelector(".ft-tl__reason--controls")).toBeNull();
+    expect(button("Next highlight")).toHaveAccessibleDescription(`${HIGHLIGHT_REASON} ${HELP}`);
+    expect(button("Go")).toHaveAccessibleDescription(MOVE_REASON);
+  });
+
+  it("puts Next highlight's reason above its help line, in the order its description reads", async () => {
+    await renderAt({ next_highlight_unavailable_reason: HIGHLIGHT_REASON });
+    await openMore();
+    const reason = screen.getByText(HIGHLIGHT_REASON);
+    const help = screen.getByText(HELP);
+    expect(reason.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps Go reachable with an empty date, sends nothing, and shows the screen's own hint once Go is tried (ruling 79)", async () => {
+    const { move } = await renderAt({});
+    await openMore();
+    const go = button("Go");
+    // The screen checks the date itself, so the browser adds no message of its own.
+    expect(go.closest("form")).toHaveAttribute("novalidate");
+    expect(screen.getByLabelText("Go to a date")).not.toBeRequired();
+    // Not natively disabled, so a keyboard user can reach it and hear why, before trying it.
+    expect(go).toBeEnabled();
+    expect(go).toHaveAttribute("aria-disabled", "true");
+    expect(go).toHaveAccessibleDescription("Choose a date first.");
+    // Not shown before anyone tries Go.
+    expect(screen.getByText("Choose a date first.")).toHaveClass("ft-sr");
+    fireEvent.click(go);
+    fireEvent.submit(go.closest("form")!);
+    expect(move).not.toHaveBeenCalled();
+    // Shown now, as the screen's own validation, set apart from a server reason.
+    expect(screen.getByText("Choose a date first.")).toHaveClass("ft-tl__hint");
+    expect(screen.getByText("Choose a date first.")).not.toHaveClass("ft-tl__reason");
+    // A usable date clears it.
+    fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2025-11-15" } });
+    expect(screen.queryByText("Choose a date first.")).toBeNull();
+    expect(go).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("sends nothing for a date before the earliest Go can use, and says so in the screen's own words", async () => {
+    const { move } = await renderAt({});
+    await openMore();
+    const go = button("Go");
+    fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2023-01-12" } });
+    expect(go).toHaveAttribute("aria-disabled", "true");
+    expect(go).toHaveAccessibleDescription("Choose a later date.");
+    expect(screen.getByText("Choose a later date.")).toHaveClass("ft-sr");
+    fireEvent.click(go);
+    fireEvent.submit(go.closest("form")!);
+    expect(move).not.toHaveBeenCalled();
+    expect(screen.getByText("Choose a later date.")).toHaveClass("ft-tl__hint");
+    expect(screen.getByText("Choose a later date.")).not.toHaveClass("ft-tl__reason");
+  });
+
+  it("sends exactly the date chosen once it is usable", async () => {
+    const { move } = await renderAt({});
+    await openMore();
+    fireEvent.click(button("Go"));
+    fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2025-11-15" } });
+    fireEvent.click(button("Go"));
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+    expect(move.mock.calls[0][1]).toStrictEqual({ to: "2025-11-15T00:00:00Z" });
+  });
+
+  it("gives the server's reason, not the screen's hint, when both apply to Go, even after Go is tried", async () => {
+    const { move } = await renderAt({ move_unavailable_reason: MOVE_REASON });
     await openMore();
     expect(button("Go")).toHaveAccessibleDescription(MOVE_REASON);
+    fireEvent.click(button("Go"));
+    fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2023-01-12" } });
+    fireEvent.click(button("Go"));
+    expect(move).not.toHaveBeenCalled();
+    expect(button("Go")).toHaveAccessibleDescription(MOVE_REASON);
     expect(screen.queryByText("Choose a date first.")).toBeNull();
+    expect(screen.queryByText("Choose a later date.")).toBeNull();
   });
 
   it("at the end, says it once: the server's sentence when it sends one, the screen's own line only when it doesn't", async () => {
@@ -173,8 +251,14 @@ describe("blocked moves say why (ruling 79)", () => {
     expect(button("Next event")).toBeEnabled();
     expect(button("Next event")).toHaveAttribute("aria-disabled", "true");
     expect(first.move).not.toHaveBeenCalled();
+    // With More open too: the trail's Coming up doesn't repeat it in the screen's words.
+    await openMore();
+    expect(screen.getAllByText("Nothing is left to play.")).toHaveLength(1);
+    expect(screen.queryByText("The timeline has played to its end.")).toBeNull();
     cleanup();
     await renderAt({ ...ended, move_unavailable_reason: null });
     expect(await screen.findByText("The timeline has played to its end.")).toBeInTheDocument();
+    await openMore();
+    expect(screen.getAllByText("The timeline has played to its end.")).toHaveLength(1);
   });
 });

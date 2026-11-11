@@ -12,6 +12,8 @@
   padding: var(--space-3) var(--space-5) var(--space-4);
   border-radius: var(--radius-lg);
   overflow: visible;
+  /* The trail lays itself out by the panel's own width, not the window's (see the end of this file). */
+  container: timeline / inline-size;
 }
 
 /* --- The controls under More --- */
@@ -65,6 +67,11 @@
 }
 .ft-tl__hinted .ft-tl__reason {
   max-width: 230px;
+}
+/* One reason the server gives every move control, said once at the head of their whole row. */
+.ft-tl__controls > .ft-tl__reason--controls {
+  flex-basis: 100%;
+  max-width: none;
 }
 .ft-tl__line > .ft-tl__reason--line {
   flex-basis: 100%;
@@ -530,6 +537,15 @@
 .ft-tl__lineActions {
     margin-left: 26px;
   }
+}
+
+/*
+ * The trail runs down the panel whenever the panel is too narrow for its stops
+ * side by side: five stops of at least 148px and now's 200px need about 940px.
+ * Measured on the panel, so the sidebar's width counts, and the trail is never
+ * cut off or scrolled sideways at 1024 or 980 wide.
+ */
+@container timeline (max-width: 959px) {
   .ft-tl__track,
   .ft-tl__part,
   .ft-tl__row {
