@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { grantName } from "@/components/GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { useGrant } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { LedgerUpload } from "./LedgerUpload";
 
 /** A grant's ledger upload page. First version, may change. */
 export function LedgerScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId } = useParams<{ grantId: string }>();
   const grant = useGrant(grantId);
   const summary = grant.data?.summary;
