@@ -28,6 +28,7 @@ from .adapter import (
     Question,
     Record,
     RecordKind,
+    RecordState,
     ThreadMessage,
     applies_to_is_matchable,
     citation_of,
@@ -52,6 +53,7 @@ from .desk import (
     charge_in_full,
     charge_lines,
     document_lines,
+    files_of,
     money,
     record_in_full,
     record_summary,
@@ -137,6 +139,13 @@ class WriteTerm(_In):
     values: list[Value]
     category: BudgetCategory | None = Field(None, description="A budget_line's NSF category.")
     label: str | None = Field(None, description="An other_term's plain short name.")
+    standard_conditions: bool | None = Field(
+        None,
+        description=(
+            "An other_term only: true when its statement only names the funder's standard "
+            "conditions, such as the NSF Grant General Conditions (GC-1)."
+        ),
+    )
     replaces_id: str | None = None
 
 
@@ -574,6 +583,8 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     data = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.label is not None:
         data["label"] = a.label
+    if a.kind == "note":
+        _one_note_per_document(ctx, data, a.replaces_id)
     text, error = _saved(ctx, data, a.replaces_id, "write_fact")
     if error or a.kind != "bill":
         return text, error
@@ -595,12 +606,106 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     return text, False
 
 
+def _chain(state: RecordState, record_id: str | None) -> set[str]:
+    """Every record in `record_id`'s correction chain: the record it corrects, back to the
+    first, and every correction of any of them, current or waiting. Empty for None."""
+    if record_id is None:
+        return set()
+    by_id = {r.id: r for r in state.records}
+
+    def root(rid: str) -> str:
+        seen: set[str] = set()
+        while rid in by_id and by_id[rid].replaces_id and rid not in seen:
+            seen.add(rid)
+            rid = by_id[rid].replaces_id or rid
+        return rid
+
+    first = root(record_id)
+    return {r.id for r in state.records if root(r.id) == first} | {record_id}
+
+
+def _version_now(state: RecordState, r: Record) -> str:
+    """The version of a record's chain that counts now, or the record itself."""
+    now = state.current_version(r.id)
+    return now.id if now is not None else r.id
+
+
+def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: str | None) -> None:
+    """One document, one note, with every value cited inside it (ruling 81).
+
+    A note citing more than one file is refused, and so is a second note on a document that
+    already has one, unless it corrects that note.
+    """
+    files = {
+        v["citation"]["file_id"]
+        for key, v in data.items()
+        if key != "kind" and isinstance(v, dict) and isinstance(v.get("citation"), dict)  # pyright: ignore[reportUnknownMemberType]
+    }
+    period = data.get("period")
+    if isinstance(period, dict):
+        for part in period.values():  # pyright: ignore[reportUnknownVariableType]
+            if isinstance(part, dict) and isinstance(part.get("citation"), dict):  # pyright: ignore[reportUnknownMemberType]
+                files.add(part["citation"]["file_id"])  # pyright: ignore[reportUnknownArgumentType]
+    if len(files) > 1:
+        raise WriteProblem(
+            "A note is about one document: cite all its values from the same file, and write "
+            "another document's note on its own"
+        )
+    if not files:
+        return
+    [file_id] = files
+    state = ctx.state()
+    own = _chain(state, replaces_id)  # the note this corrects, and its other fixes
+    # Waiting notes count too: every correction the agent writes waits, as does a note
+    # written in a thread run.
+    for r in [*state.current(), *state.waiting()]:
+        if r.kind != RecordKind.NOTE or r.id in own or file_id not in files_of(r):
+            continue
+        label = getattr(r.data, "label", "")
+        raise WriteProblem(
+            f'file {file_id} already has its note ({_version_now(state, r)}, "{label}"). One '
+            "document is one note: if this fact belongs on it, correct that note with "
+            "replaces_id and a statement that holds it; otherwise leave it out"
+        )
+
+
+def _standard_conditions_once(
+    ctx: RunContext, data: dict[str, Any], replaces_id: str | None
+) -> None:
+    """The award's standard conditions are recorded once (ruling 81): a second term naming the
+    same conditions in the same words is refused. One naming other conditions, such as a later
+    version an amendment brings in, is a term of its own."""
+    statement = data.get("statement")
+    said = statement.get("value") if isinstance(statement, dict) else None  # pyright: ignore[reportUnknownMemberType]
+    if not isinstance(said, str):
+        return
+    key = " ".join(said.split()).casefold()
+    state = ctx.state()
+    own = _chain(state, replaces_id)  # the term this corrects, and its other fixes
+    for r in [*state.current(), *state.waiting()]:  # a term the agent writes waits
+        if r.kind != RecordKind.OTHER_TERM or r.id in own:
+            continue
+        if not getattr(r.data, "standard_conditions", False):
+            continue
+        if " ".join(r.data.statement.value.split()).casefold() == key:  # pyright: ignore[reportAttributeAccessIssue]
+            raise WriteProblem(
+                f"these standard conditions are already recorded ({_version_now(state, r)}), and "
+                "they're recorded once: leave this sentence out"
+            )
+
+
 def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:
     data: dict[str, Any] = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.category is not None:
         data["category"] = a.category.value
     if a.label is not None:
         data["label"] = a.label
+    if a.standard_conditions is not None:
+        if a.kind != "other_term":
+            raise WriteProblem("standard_conditions is for an other_term only")
+        data["standard_conditions"] = a.standard_conditions
+        if a.standard_conditions:
+            _standard_conditions_once(ctx, data, a.replaces_id)
     note = ""
     if a.kind == "approval_rule" and "applies_to" in data:
         note = _check_applies_to(ctx, data["applies_to"]["text"])
