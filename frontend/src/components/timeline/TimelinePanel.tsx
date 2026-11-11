@@ -44,8 +44,8 @@ const KIND_WORDS: Record<TimelineEventKind, string> = {
 function EventLine({ event }: { event: TimelineEvent }) {
   return (
     <>
-      <span className="ft-num">{date(event.at)}</span>
-      <span className="ft-strong">{event.name}</span>
+      <span className="ft-num ft-tl__date">{date(event.at)}</span>
+      <span className="ft-strong ft-tl__name">{event.name}</span>
       {event.highlight && <span className="ft-tag ft-tl__highlight">Highlight: {event.highlight}</span>}
       <span className="ft-caption">
         {KIND_WORDS[event.kind]}
@@ -55,6 +55,9 @@ function EventLine({ event }: { event: TimelineEvent }) {
     </>
   );
 }
+
+/** How many events show on the trail on each side of now. The rest open in place with Show all. */
+const FEW = 2;
 
 /** What the agent wrote from one played event, as kinds and counts. */
 function agentSummary(played: PlayedEvent): string {
@@ -92,24 +95,42 @@ function DeliveredBy({ played, waiting }: { played: PlayedEvent; waiting: Set<Id
   return null;
 }
 
-function JustHappened({ grantId, played, waiting }: { grantId: Id; played: PlayedEvent[]; waiting: Set<Id> }) {
+/** A toggle that shows the events kept off the trail, in place. */
+function ShowAll({ open, count, controls, onToggle }: { open: boolean; count: number; controls: string; onToggle: () => void }) {
   return (
-    <section className="ft-tl__part" aria-labelledby="tl-just">
-      <h3 id="tl-just" className="ft-label">
-        Just happened
-      </h3>
+    <button type="button" className="ft-tl__toggle" aria-expanded={open} aria-controls={controls} onClick={onToggle}>
+      {open ? "Show fewer" : `Show all ${count}`}
+    </button>
+  );
+}
+
+function JustHappened({ grantId, played, waiting }: { grantId: Id; played: PlayedEvent[]; waiting: Set<Id> }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  // The last few sit on the trail; earlier ones open in place.
+  const hidden = open ? 0 : Math.max(0, played.length - FEW);
+  return (
+    <section className="ft-tl__part ft-tl__part--past" aria-labelledby="tl-just" style={{ flexGrow: Math.max(1, played.length - hidden) }}>
+      <div className="ft-tl__label">
+        <h3 id="tl-just" className="ft-label">
+          Just happened
+        </h3>
+        {played.length > FEW && <ShowAll open={open} count={played.length} controls={listId} onToggle={() => setOpen(!open)} />}
+      </div>
       {played.length === 0 ? (
-        <p className="ft-caption">Nothing yet.</p>
+        <div className="ft-tl__row">
+          <p className="ft-caption ft-tl__ev ft-tl__ev--past ft-tl__ev--empty">Nothing yet.</p>
+        </div>
       ) : (
-        <ul className="ft-tl__list">
-          {played.map((p) => (
-            <li key={p.event.id} className="ft-tl__item">
+        <ul id={listId} className="ft-tl__list ft-tl__row">
+          {played.map((p, i) => (
+            <li key={p.event.id} className={`ft-tl__item ft-tl__ev ft-tl__ev--past${i < hidden ? " ft-tl__tail" : ""}`}>
               <EventLine event={p.event} />
               {/* A result loaded from the prerun is marked, so it never passes for live work. */}
               {p.loaded && <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>}
               {/* Who delivered an item the user was to deliver (rulings 44 and 52). */}
               <DeliveredBy played={p} waiting={waiting} />
-              <span>{agentSummary(p)}</span>
+              <span className="ft-tl__wrote">{agentSummary(p)}</span>
               {(p.scripted_decisions ?? []).length > 0 && (
                 <ul className="ft-tl__decisions" aria-label="The sample accountant's decisions">
                   {(p.scripted_decisions ?? []).map((d) => (
@@ -122,7 +143,7 @@ function JustHappened({ grantId, played, waiting }: { grantId: Id; played: Playe
               {(p.charge_ids ?? []).map((chargeId, i, all) => (
                 <Link
                   key={chargeId}
-                  className="ft-link"
+                  className="ft-link ft-tl__open"
                   href={routes.charge(grantId, chargeId)}
                   aria-label={`Open the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`}
                 >
@@ -196,51 +217,103 @@ function Now({
   const { now } = view;
   const deliveries = now.deliveries ?? [];
   return (
-    <section className="ft-tl__part" aria-labelledby="tl-now">
-      <h3 id="tl-now" className="ft-label">
-        Now
-      </h3>
-      <p>
-        <span className="ft-num ft-strong">{date(now.now)}</span>
-        {now.stopped_on && <> · stopped on {now.stopped_on.name}</>}
-      </p>
-      {view.catching_up && <p className="ft-caption">The agent is still catching up on what arrived.</p>}
-      {deliveries.length > 0 && (
-        <ul className="ft-tl__list" aria-label="For you to deliver">
-          {deliveries.map((d) => (
-            <Delivery key={d.event.id} grantId={grantId} delivery={d} busy={busy} act={act} />
-          ))}
-        </ul>
-      )}
-      <p>
-        {now.waiting_on_problem_list > 0 ? (
-          <Link className="ft-link" href={routes.problemList(grantId)}>
-            {now.waiting_on_problem_list} waiting on the problem list
-          </Link>
-        ) : (
-          <span className="ft-caption">Nothing waiting on the problem list.</span>
-        )}
-      </p>
+    <section className="ft-tl__part ft-tl__part--now" aria-labelledby="tl-now">
+      <div className="ft-tl__label" aria-hidden="true" />
+      <div className="ft-tl__row">
+        <div className="ft-tl__ev ft-tl__ev--now">
+          <p className="ft-tl__nowline">
+            <span id="tl-now" role="heading" aria-level={3} className="ft-tl__nowtag">
+              Now
+            </span>{" "}
+            <span className="ft-num ft-strong">{date(now.now)}</span>
+          </p>
+          {now.stopped_on && (
+            <p className="ft-tl__stopped">
+              stopped on <span className="ft-strong ft-tl__name">{now.stopped_on.name}</span>
+            </p>
+          )}
+          {view.catching_up && <p className="ft-caption">The agent is still catching up on what arrived.</p>}
+          {deliveries.length > 0 && (
+            <ul className="ft-tl__list ft-tl__deliveries" aria-label="For you to deliver">
+              {deliveries.map((d) => (
+                <Delivery key={d.event.id} grantId={grantId} delivery={d} busy={busy} act={act} />
+              ))}
+            </ul>
+          )}
+          <p className="ft-tl__waiting">
+            {now.waiting_on_problem_list > 0 ? (
+              <Link className="ft-link" href={routes.problemList(grantId)}>
+                {now.waiting_on_problem_list} waiting on the problem list
+              </Link>
+            ) : (
+              <span className="ft-caption">Nothing waiting on the problem list.</span>
+            )}
+          </p>
+        </div>
+      </div>
     </section>
   );
 }
 
 function ComingUp({ events, finished }: { events: TimelineEvent[]; finished: boolean }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const fewer = useRef<HTMLButtonElement>(null);
+  const more = useRef<HTMLButtonElement>(null);
+  const moved = useRef(false);
+  // Focus follows the toggle as it moves between the closing item and the label.
+  useEffect(() => {
+    if (!moved.current) return;
+    (open ? fewer : more).current?.focus();
+  }, [open]);
+  function toggle() {
+    moved.current = true;
+    setOpen(!open);
+  }
+  // The next few sit on the trail; one closing item counts the rest and opens them in place.
+  const rest = events.slice(FEW);
+  const restHighlights = rest.filter((e) => e.highlight).length;
+  const last = rest[rest.length - 1];
+  const onTrail = open ? events.length : Math.min(events.length, FEW);
   return (
-    <section className="ft-tl__part" aria-labelledby="tl-coming">
-      <h3 id="tl-coming" className="ft-label">
-        Coming up
-      </h3>
+    <section className="ft-tl__part ft-tl__part--next" aria-labelledby="tl-coming" style={{ flexGrow: Math.max(1, onTrail + (rest.length > 0 && !open ? 1 : 0)) }}>
+      <div className="ft-tl__label">
+        <h3 id="tl-coming" className="ft-label">
+          Coming up
+        </h3>
+        {open && (
+          <button ref={fewer} type="button" className="ft-tl__toggle" aria-expanded="true" aria-controls={listId} onClick={toggle}>
+            Show fewer
+          </button>
+        )}
+      </div>
       {events.length === 0 ? (
-        <p className="ft-caption">{finished ? "The timeline has played to its end." : "Nothing else is coming up."}</p>
+        <div className="ft-tl__row">
+          <p className="ft-caption ft-tl__ev ft-tl__ev--next ft-tl__ev--empty">{finished ? "The timeline has played to its end." : "Nothing else is coming up."}</p>
+        </div>
       ) : (
-        <ol className="ft-tl__list">
-          {events.map((e) => (
-            <li key={e.id} className="ft-tl__item">
-              <EventLine event={e} />
-            </li>
-          ))}
-        </ol>
+        <div className="ft-tl__row">
+          <ol id={listId} className="ft-tl__list ft-tl__row" style={{ flexGrow: onTrail }}>
+            {events.map((e, i) => (
+              <li key={e.id} className={`ft-tl__item ft-tl__ev ft-tl__ev--next${!open && i >= FEW ? " ft-tl__tail" : ""}`}>
+                <EventLine event={e} />
+              </li>
+            ))}
+          </ol>
+          {rest.length > 0 && !open && (
+            <div className="ft-tl__ev ft-tl__ev--next ft-tl__ev--more">
+              {last && <span className="ft-num ft-tl__date">through {date(last.at)}</span>}
+              <button ref={more} type="button" className="ft-tl__more" aria-expanded="false" aria-controls={listId} onClick={toggle}>
+                {rest.length} more {rest.length === 1 ? "event" : "events"}
+              </button>
+              {restHighlights > 0 && (
+                <span className="ft-caption">
+                  {restHighlights} {restHighlights === 1 ? "highlight" : "highlights"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </section>
   );
@@ -278,37 +351,31 @@ function GoToDate({ now, busy, onGo }: { now: string; busy: boolean; onGo: (to: 
   );
 }
 
-function StartOver({ busy, onStartOver }: { busy: boolean; onStartOver: () => Promise<boolean> }) {
-  const [asking, setAsking] = useState(false);
+/** Start over's confirm step, under the controls while it's asked. */
+function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onStartOver: () => Promise<boolean>; onCancel: () => void }) {
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (asking) cancel.current?.focus();
-  }, [asking]);
+    cancel.current?.focus();
+  }, []);
   return (
-    <div className="ft-tl__startover">
-      {!asking ? (
-        <button type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={() => setAsking(true)}>
+    <div className="ft-tl__startover" role="group" aria-label="Start this sample over?">
+      <div>
+        <p className="ft-strong">Start this sample over?</p>
+        <p className="ft-caption">It goes back to its opening date, and everything done on it is cleared. Other grants aren&apos;t touched.</p>
+      </div>
+      <span className="ft-tl__actions">
+        <button
+          type="button"
+          className="ft-btn ft-btn--sm ft-btn--reject"
+          disabled={busy}
+          onClick={() => void onStartOver().then((done) => done && onCancel())}
+        >
           Start over
         </button>
-      ) : (
-        <div role="group" aria-label="Start this sample over?">
-          <p className="ft-strong">Start this sample over?</p>
-          <p className="ft-caption">It goes back to its opening date, and everything done on it is cleared. Other grants aren&apos;t touched.</p>
-          <span className="ft-tl__actions">
-            <button
-              type="button"
-              className="ft-btn ft-btn--sm ft-btn--reject"
-              disabled={busy}
-              onClick={() => void onStartOver().then((done) => done && setAsking(false))}
-            >
-              Start over
-            </button>
-            <button ref={cancel} type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={() => setAsking(false)}>
-              Cancel
-            </button>
-          </span>
-        </div>
-      )}
+        <button ref={cancel} type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+      </span>
     </div>
   );
 }
@@ -322,6 +389,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const [problem, setProblem] = useState<{ text: string; grant: GrantSummary | null } | null>(null);
   // Ruling 47: Next event and Go to a date can let the sample accountant do the human steps.
   const [skip, setSkip] = useState(false);
+  // Start over asks first, under the controls.
+  const [asking, setAsking] = useState(false);
   const skipId = useId();
   const highlightHintId = useId();
 
@@ -353,19 +422,11 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
   return (
     <section className="ft-panel ft-tl" aria-labelledby="tl-heading">
-      <div className="ft-panel__head">
-        <h2 id="tl-heading" className="ft-heading">
+      <div className="ft-tl__head">
+        <h2 id="tl-heading" className="ft-tl__title">
           Sample timeline
         </h2>
-      </div>
-      {timeline.error && !view ? (
-        <p className="ft-error" role="alert">
-          Couldn&apos;t load the timeline. It reloads when the window regains focus.
-        </p>
-      ) : !view ? (
-        <p className="ft-empty">Loading…</p>
-      ) : (
-        <>
+        {view && (
           <div className="ft-tl__controls">
             <button
               type="button"
@@ -399,12 +460,28 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
               <label htmlFor={skipId}>Skip the human steps</label>
             </span>
+            {!asking && (
+              <button type="button" className="ft-btn ft-btn--sm ft-tl__quiet" disabled={busy} onClick={() => setAsking(true)}>
+                Start over
+              </button>
+            )}
           </div>
+        )}
+      </div>
+      {timeline.error && !view ? (
+        <p className="ft-error" role="alert">
+          Couldn&apos;t load the timeline. It reloads when the window regains focus.
+        </p>
+      ) : !view ? (
+        <p className="ft-empty">Loading…</p>
+      ) : (
+        <>
+          {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
           {view.on_run_through === false && (
             <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>
           )}
           {problem && (
-            <p className="ft-error" role="alert">
+            <p className="ft-error ft-tl__note" role="alert">
               {problem.text}
               {/* A refused move names the sample that's still working. */}
               {problem.grant && (
@@ -417,7 +494,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               )}
             </p>
           )}
-          <div className="ft-tl__parts">
+          <div className="ft-tl__track">
             <JustHappened
               grantId={grantId}
               played={view.just_happened ?? []}
@@ -426,7 +503,6 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             <Now grantId={grantId} view={view} busy={busy} act={act} />
             <ComingUp events={view.coming_up ?? []} finished={view.finished} />
           </div>
-          <StartOver busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} />
         </>
       )}
     </section>
