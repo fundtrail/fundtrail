@@ -1,23 +1,14 @@
 /*
  * The closeout page (issue 249), after Grant's closeout card: the university's
  * steps as one trail, then what's still open beside the evidence report and the
- * sign-off. Styles are ft-co-*, scoped to this page. Tokens come from globals.css;
- * the foundation's tokens (issue 238) have fallbacks so the page holds either way.
+ * sign-off. Styles are ft-co-*, scoped to this page. Colors, buttons and form
+ * controls come from the foundation in globals.css (issue 238).
  */
 
 .ft-co {
-  --co-approve: var(--approve, #0f6b5c);
-  --co-approve-tint: var(--approve-tint, #e3f1ee);
-  --co-hl: var(--hl, #ffe45c);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-@media (prefers-color-scheme: dark) {
-  .ft-co {
-    --co-approve: var(--approve, #6cc1ad);
-    --co-approve-tint: var(--approve-tint, #15302a);
-  }
 }
 
 /* A panel's inside: every line sits within the panel's padding. */
@@ -107,7 +98,7 @@
   width: 16px;
   height: 16px;
   border-color: var(--ink);
-  background: var(--co-hl);
+  background: var(--hl);
 }
 .ft-co-step__date {
   font-size: 13px;
@@ -416,7 +407,7 @@
   gap: var(--space-3);
 }
 
-/* Fields, after the foundation's form controls (ft-field, ft-textarea, ft-input). */
+/* Fields: a label, the control, a hint under it. The controls are the foundation's. */
 .ft-co .ft-field {
   display: flex;
   flex-direction: column;
@@ -434,31 +425,9 @@
   line-height: 16px;
   color: var(--ink-muted);
 }
-.ft-co .ft-input,
 .ft-co .ft-textarea {
   width: 100%;
-  margin: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-md);
-  background: var(--paper-raised);
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  line-height: 20px;
-}
-.ft-co .ft-input {
-  height: var(--control-md);
-}
-.ft-co .ft-textarea {
   min-height: 84px;
-  resize: vertical;
-}
-.ft-co .ft-input:focus,
-.ft-co .ft-textarea:focus {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-  border-color: var(--ink);
 }
 .ft-co .ft-textarea[aria-invalid="true"] {
   border-color: var(--conflict);
@@ -505,32 +474,6 @@
   width: auto;
 }
 
-/* Sign off: the page's one decision, approve over a 2px outline. */
-.ft-co .ft-btn--approve {
-  gap: 6px;
-  border-color: var(--co-approve);
-  background: var(--co-approve-tint);
-  color: var(--co-approve);
-}
-.ft-co .ft-btn--approve::before {
-  content: "";
-  flex: none;
-  width: 12px;
-  height: 12px;
-  background: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.8 6.4l2.9 2.9L10.2 3' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.8 6.4l2.9 2.9L10.2 3' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-}
-.ft-co .ft-btn--approve.is-busy {
-  border-color: var(--rule-strong);
-  background: none;
-  color: var(--ink-muted);
-}
-.ft-co .ft-btn--approve.is-busy::before {
-  display: none;
-}
 .ft-co-done {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
