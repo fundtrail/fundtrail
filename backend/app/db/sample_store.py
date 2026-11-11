@@ -215,6 +215,15 @@ def take_up_scripted(conn: Conn, grant_id: str, step: int, move_id: int) -> None
     )
 
 
+def grant_scripted(conn: Conn, grant_id: str) -> list[Scripted]:
+    """Every scripted step on the grant, in time order."""
+    rows = conn.execute(
+        f"select {_SCRIPTED} from public.sample_scripted where grant_id = %s order by at, step",
+        (grant_id,),
+    ).fetchall()
+    return [Scripted(**r) for r in rows]
+
+
 def move_scripted(conn: Conn, move_id: int) -> list[Scripted]:
     """The steps one move made or will make, in time order."""
     rows = conn.execute(

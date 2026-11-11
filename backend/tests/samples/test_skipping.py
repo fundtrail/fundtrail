@@ -853,3 +853,33 @@ def test_the_do_everything_play_signs_off_after_everything_before_it(
     [receipt_run] = [r for r in runs if r.trigger.id == brought.id]
     assert receipt_run.status.value == "done"
     assert receipt_run.finished_at is not None
+
+
+def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ruling 77, amended: the receipt highlight's own step (its delivery) is due half an
+    hour after the receipt's event. Next highlight stops at the later of the two and holds
+    the step; the next Next highlight press leaves it held; a later skip makes it."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    due = receipt.at + timedelta(minutes=30)
+    actions = tuple(
+        replace(a, highlight=receipt.highlight, at=due) if a.action == "deliver_file" else a
+        for a in pack.actions
+    )
+    late = replace(pack, actions=tuple(sorted(actions, key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: late)
+    grant_id = _open(api)
+    _records_agent(api, late, grant_id)
+    assert _next_highlight(api, grant_id).status_code == 200
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(due)
+    assert _states(api, late, grant_id)["deliver_file"] == "held"
+    assert _next_highlight(api, grant_id).status_code == 200
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, late, grant_id)["deliver_file"] == "held"  # not on a Next highlight
+    _skip(api, grant_id, None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, late, grant_id)["deliver_file"] == "done"

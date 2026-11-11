@@ -483,6 +483,15 @@ def move(
         highlight: str | None = None
         if next_highlight:
             to, highlight = _next_highlight(items, start)
+            # It stops where the highlight's own steps are due, if that's later than its
+            # event, and holds them there for the user (ruling 77, amended).
+            made = {s.step for s in sample_store.grant_scripted(conn, grant.id)}
+            due = [
+                a.at
+                for n, a in enumerate(pack.actions)
+                if a.highlight == highlight and n not in made and a.at > start
+            ]
+            to = max([to, *due])
             skip = True
         plan = plan_move(items, start, to)
         # The move plays what the clock passes from where it stands now, a walk's later
