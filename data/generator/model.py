@@ -191,22 +191,28 @@ class Grant:
         self.lines.append(ln)
         return ln
 
-    def confirm(self, file: str, when: datetime, note: str) -> None:
+    def confirm(self, file: str, when: datetime, note: str, highlight: str | None = None) -> None:
         """The user confirms the terms read from a file: a user action, not an event."""
-        self.user_actions.append(
-            {"at": when, "action": "confirm_terms", "file": file, "note": note}
-        )
+        self.script("confirm_terms", when, note, highlight, file=file)
 
-    def deliver_file(self, file: str, when: datetime, note: str) -> None:
+    def deliver_file(
+        self, file: str, when: datetime, note: str, highlight: str | None = None
+    ) -> None:
         """The user brings in a file marked for them to deliver, by upload."""
-        self.user_actions.append({"at": when, "action": "deliver_file", "file": file, "note": note})
+        self.script("deliver_file", when, note, highlight, file=file)
 
-    def script(self, action: str, when: datetime, note: str, **refs: str) -> None:
-        """Any other step of the accountant script (ruling 47): decide_suggestion,
-        answer_flag or enter_share. `refs` are stable references (a ledger line
-        ID, a file name, a record kind) and the expected decision or values,
-        never record IDs."""
-        self.user_actions.append({"at": when, "action": action, **refs, "note": note})
+    def script(
+        self, action: str, when: datetime, note: str, highlight: str | None = None, **refs: str
+    ) -> None:
+        """A step of the accountant script (ruling 47). `refs` are stable references
+        (a ledger line ID, a file name, a record kind) and the expected decision or
+        values, never record IDs. `highlight` marks the step as a highlight's own, the
+        user's part of it, with the label that highlight's timeline event carries
+        (ruling 77): Next highlight leaves the step to the user."""
+        step = {"at": when, "action": action, **refs}
+        if highlight:
+            step["highlight"] = highlight
+        self.user_actions.append({**step, "note": note})
 
     def record(self, kind: str, file: str, **fields: str) -> None:
         self.records.append({"kind": kind, "file": file, "fields": dict(fields)})

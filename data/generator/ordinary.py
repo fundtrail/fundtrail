@@ -150,7 +150,9 @@ def award_letter(
         else "The award letter arrives: the grant's first scheduled event."
     )
     put(g, name, text, f"Award notice {g.award_number}", arrives, source, note=note)
-    g.confirm(name, confirm_at, "The user confirms every term read from the award letter.")
+    g.confirm(
+        name, confirm_at, "The user confirms every term read from the award letter.", highlight
+    )
     if highlight:
         g.highlights[name] = highlight
     dated = award_date.isoformat()

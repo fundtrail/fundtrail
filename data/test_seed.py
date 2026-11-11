@@ -222,10 +222,36 @@ LARGER_HIGHLIGHTS = {
     "One report, six salary lines",  # 11
     "Bill under its charge",  # 12
 }
+# The three highlights that sit on a ledger line's event, where the charge posts, so the
+# charge is on screen when the clock lands there (ruling 77).
+HIGHLIGHT_ON_LINE = {
+    "Invoice before its line": "L-1835-0013",
+    "Shared invoice, 56 of 96": "L-1835-0014",
+    "Held vendor email": "L-1835-0030",
+}
 SMALL_HIGHLIGHTS = {
     "Terms tied to their passages",
     "Invoice before its line",
     "Receipt photo you deliver",
+}
+# The scripted steps that are a highlight's own, the user's part of it, with the label
+# they carry (ruling 77). Every other step carries none: the rate agreement's
+# confirmation belongs to no highlight.
+HIGHLIGHT_STEPS = {
+    LARGER: {
+        (("confirm_terms", "award_letter.pdf"), "Terms tied to their passages"),
+        (("deliver_file", "taxi_receipt_egu_2024.jpg"), "Receipt photo you deliver"),
+        (("decide_suggestion", "scan_invoice_ESS-55120.jpg"), "Same invoice twice"),
+        (("let_in_mail", "email_invoice_EFG-30418.eml"), "Held vendor email"),
+        (("accept_reason", None), "Over budget"),
+        (("confirm_terms", "notice_001_increment.pdf"), "More money, a higher limit"),
+        (("confirm_terms", "extension_notice_002.pdf"), "Extension found in Drive"),
+        (("sign_off", None), "Closeout"),
+    },
+    SMALL: {
+        (("confirm_terms", "award_letter.pdf"), "Terms tied to their passages"),
+        (("deliver_file", "hardware_receipt.jpg"), "Receipt photo you deliver"),
+    },
 }
 TJ = re.compile(rb"\(((?:\\.|[^\\)])*)\)\s*Tj")
 
@@ -457,13 +483,17 @@ def check_timeline(
         if seen_lines.get(lid) != 1:
             problems.append(f"timeline.json: {lid} must arrive exactly once")
 
+    # A step that is a highlight's own carries a label a timeline event carries (ruling 77).
+    labels = {e["highlight"] for e in timeline["events"] if "highlight" in e}
     for i, a in enumerate(actions["actions"]):
         where = f"user_actions.json actions[{i}]"
         if a.get("action") not in USER_ACTIONS or not ev.ISO_TIME.match(str(a.get("at"))):
             problems.append(f"{where}: needs at and an action in {sorted(USER_ACTIONS)}")
             continue
         required, optional = ACTION_FIELDS[a["action"]]
-        given = set(a) - {"at", "action", "note"}
+        given = set(a) - {"at", "action", "note", "highlight"}
+        if "highlight" in a and a["highlight"] not in labels:
+            problems.append(f"{where}: no timeline event is the highlight {a['highlight']!r}")
         if a["action"] in NOTE_REQUIRED and not str(a.get("note", "")).strip():
             problems.append(f"{where}: {a['action']} needs the accountant's note")
         if not required <= given or given - required - optional:
@@ -1762,7 +1792,8 @@ def test_larger_sample() -> None:
 
 
 def test_highlights() -> None:
-    """Each sample marks its highlights, and a blank label is refused."""
+    """Each sample marks its highlights, each where its charge is on screen, and each
+    scripted step that is a highlight's own carries its label. A blank label is refused."""
     import shutil
     import tempfile
 
@@ -1770,6 +1801,15 @@ def test_highlights() -> None:
         events = load(folder, "timeline.json")["events"]
         labels = {e["highlight"] for e in events if "highlight" in e}
         assert labels == want, (folder.name, labels ^ want)
+        at = {e["highlight"]: e.get("file") or e["line_id"] for e in events if "highlight" in e}
+        steps = {
+            (a["action"], a.get("file")): a.get("highlight")
+            for a in load(folder, "user_actions.json")["actions"]
+        }
+        assert {(k, v) for k, v in steps.items() if v} == HIGHLIGHT_STEPS[folder], folder.name
+        for label, where in HIGHLIGHT_ON_LINE.items():
+            if folder == LARGER:
+                assert at[label] == where, (label, at[label])
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / SMALL.name
         shutil.copytree(SMALL, copy)

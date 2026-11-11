@@ -2,7 +2,9 @@
 
 About 30 charges. Most are ordinary and clear on their own. Twelve highlights
 each show a part of the app the others don't (the sample content brief, ruling
-58). Each highlight's events carry a short `highlight` label in timeline.json:
+58). Each highlight's events carry a short `highlight` label in timeline.json,
+on the event where the highlight is whole, and a scripted step that is the
+highlight's own carries the same label (ruling 77):
 
  1. The award letter: terms tied to their passages, confirmed.
  2. An invoice emailed before its ledger line posts: it waits, then links.
@@ -20,7 +22,7 @@ each show a part of the app the others don't (the sample content brief, ruling
  8. Spending goes over a budget line and the award's total; accepted with a
     note; a notice adding money raises the limit.
  9. Closeout: the notice of expiration, the closeout review, and sign-off with
-    one item open and a note.
+    two items open and a note that names them.
 10. The same invoice twice: emailed, then a scan in Drive.
 11. One effort report clears six salary lines.
 12. A bill under its charge: the item still open at sign-off.
@@ -399,7 +401,10 @@ def taxi_trip(g: Grant, rng: random.Random) -> None:
     )
     g.highlights[name] = "Receipt photo you deliver"
     g.deliver_file(
-        name, at(date(2024, 12, 30), 18), "The PI uploads her taxi receipt photo on its date."
+        name,
+        at(date(2024, 12, 30), 18),
+        "The PI uploads her taxi receipt photo on its date.",
+        g.highlights[name],
     )
     g.record("bill", name, total="5200", dated="2024-12-09", vendor=TAXI)
     trip(
@@ -480,7 +485,6 @@ def invoice_before_line(g: Grant) -> None:
         sender=MAREN.email,
         note="The invoice arrives before its ledger line exists, and waits unlinked.",
     )
-    g.highlights[name] = "Invoice before its line"
     ln = g.line(
         date(2025, 2, 6),
         date(2025, 2, 18),
@@ -491,6 +495,8 @@ def invoice_before_line(g: Grant) -> None:
         reference="INV-20514",
         note="The line posts eight days after its invoice arrived. They link now.",
     )
+    # The highlight sits where the charge posts, so the charge is on screen (ruling 77).
+    g.highlights[ln.line_id] = "Invoice before its line"
     g.record("bill", name, total=str(total), dated="2025-02-06", vendor=CALDER.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
@@ -561,7 +567,6 @@ def shared_invoice(g: Grant) -> None:
         sender=MAREN.email,
         note="The email that gives the basis: 56 of the 96 samples.",
     )
-    g.highlights[note] = "Shared invoice, 56 of 96"
     ln = g.line(
         date(2025, 5, 12),
         date(2025, 5, 19),
@@ -570,8 +575,10 @@ def shared_invoice(g: Grant) -> None:
         SUPPLIES_ACCOUNT,
         vendor=LOOMIS.name,
         reference="EGS-20931",
-        note="This grant's part of the shared $10,000.00 invoice: $5,833.33.",
+        note="This grant's part of the shared $10,000.00 invoice: $5,833.33, for 56 of the "
+        "96 samples.",
     )
+    g.highlights[ln.line_id] = "Shared invoice, 56 of 96"
     g.record("bill", inv, total="1000000", dated="2025-05-12", vendor=LOOMIS.name)
     g.record("note", note)
     g.link(inv, ln, 583333)
@@ -954,6 +961,7 @@ def same_invoice_twice(g: Grant) -> None:
         "decide_suggestion",
         at(date(2025, 11, 21), 17),
         "The accountant confirms the scan is a copy of the emailed invoice.",
+        "Same invoice twice",
         suggestion="duplicate",
         decision="accept",
         file=copy,
@@ -1066,10 +1074,15 @@ def held_vendor_invoice(g: Grant) -> None:
         sender=SALTGRASS.email,
         note="The vendor emails from an address nobody on the grant uses: held until let in.",
     )
-    g.highlights[name] = "Held vendor email"
     let_in = at(date(2026, 1, 15), 17, 30)
     g.held[name] = let_in
-    g.script("let_in_mail", let_in, "The accountant lets in the vendor's held email.", file=name)
+    g.script(
+        "let_in_mail",
+        let_in,
+        "The accountant lets in the vendor's held email.",
+        "Held vendor email",
+        file=name,
+    )
     ln = g.line(
         date(2026, 1, 7),
         date(2026, 1, 13),
@@ -1078,8 +1091,10 @@ def held_vendor_invoice(g: Grant) -> None:
         SUPPLIES_ACCOUNT,
         vendor=SALTGRASS.name,
         reference="EFG-30418",
-        note="Includes a dinner with wine, which an NSF award can't pay for.",
+        note="The vendor's email with this charge's invoice is held until someone lets it "
+        "in. The charge includes a dinner with wine, which an NSF award can't pay for.",
     )
+    g.highlights[ln.line_id] = "Held vendor email"
     g.record("bill", name, total=str(total), dated="2026-01-07", vendor=SALTGRASS.name)
     g.link(name, ln, total)
     g.budget(ln, "Materials and Supplies")
@@ -1196,6 +1211,7 @@ def over_budget(g: Grant) -> None:
         at(date(2026, 5, 6), 17),
         "The second increment of $60,000.00 is expected in June. The Program Officer "
         "confirmed it by phone on May 4.",
+        "Over budget",
         check="budget",
         problem="over_limit",
     )
@@ -1233,7 +1249,12 @@ def over_budget(g: Grant) -> None:
         note="Amendment 001 adds $60,000.00: the award's limit rises to $120,000.00.",
     )
     g.highlights[notice] = "More money, a higher limit"
-    g.confirm(notice, at(date(2026, 6, 15), 17), "The user confirms the increment's terms.")
+    g.confirm(
+        notice,
+        at(date(2026, 6, 15), 17),
+        "The user confirms the increment's terms.",
+        g.highlights[notice],
+    )
     dated = "2026-06-10"
     g.record(
         "notice",
@@ -1332,7 +1353,12 @@ def extension(g: Grant) -> None:
         note="The extension notice, dated 16 days before the old end date, turns up in Drive.",
     )
     g.highlights[notice_name] = "Extension found in Drive"
-    g.confirm(notice_name, confirmed, "The user confirms the new end date, January 31, 2027.")
+    g.confirm(
+        notice_name,
+        confirmed,
+        "The user confirms the new end date, January 31, 2027.",
+        g.highlights[notice_name],
+    )
     g.extensions.append((confirmed, NEW_END))
     g.record("period_of_performance", notice_name, end=NEW_END.isoformat(), dated="2026-07-15")
     g.record(
@@ -1384,8 +1410,11 @@ def closeout(g: Grant) -> None:
     g.script(
         "sign_off",
         at(date(2027, 3, 10), 18),
-        "One item is open: invoice ESS-56204 covers $1,200.00 of the $1,260.00 charge, and "
-        "the vendor's freight bill for $60.00 has been requested.",
+        "Two items are open. Invoice ESS-56204 covers $1,200.00 of the $1,260.00 charge, and "
+        "the vendor's freight bill for $60.00 has been requested. The principal "
+        "investigator's own $650.00 registration fee, charged to participant support, is "
+        "still in question.",
+        g.highlights[notice],
     )
     g.doc(
         "closeout_certification_receipt.txt",

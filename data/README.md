@@ -38,6 +38,8 @@ The larger sample serves the Add-a-grant options `larger_live` and `larger_preru
 
 Each highlight's events carry a short `highlight` label in `timeline.json`, and "Next highlight" moves to the next one. Everything else is ordinary, and clears on its own.
 
+A label sits on the event where the highlight is whole. Three sit on the ledger line where the charge posts, so the charge is on screen when the clock lands there: "Invoice before its line" (L-1835-0013), "Shared invoice, 56 of 96" (L-1835-0014) and "Held vendor email" (L-1835-0030). A scripted step that is a highlight's own, the user's part of it, carries the same label as `highlight` in `user_actions.json`, and "Next highlight" leaves that step to the user (ruling 77). The rate agreement's confirmation belongs to no highlight and carries none.
+
 | # | Label | In the larger sample | Expected |
 |---|---|---|---|
 | 1 | Terms tied to their passages | The award letter, a continuing grant with a participant support condition | Terms confirmed by the script |
@@ -48,7 +50,7 @@ Each highlight's events carry a short `highlight` label in `timeline.json`, and 
 | 6 | Extension found in Drive | $3,150.00 of boat time in August 2026, after the July 31 end date; extension 002, dated July 15, turns up in Drive | Possible conflict, then Evidence complete once the new end date is confirmed |
 | 7 | Held vendor email, Moved off the grant | A vendor emails invoice EFG-30418 from an unknown address; let in, it shows a dinner with wine; a correcting line moves the $360.00 off the grant, with a written justification | Missing evidence, then Possible conflict after the let-in (rule NSF-NEVER-ALCOHOL), then reversed. Decision 0020, in `held_vendor_invoice()` |
 | 8 | Over budget, More money, a higher limit | A $4,950.00 corer takes spending past the $60,000.00 obligated and Materials and Supplies past its line; the accountant accepts it with a note; amendment 001 adds $60,000.00 | Charges unaffected. The grant's problem is accepted |
-| 9 | Closeout | The 90-day notice of expiration; the agent's closeout review; sign-off on 2027-03-10 with one item open and a note | Unmeasured by the key |
+| 9 | Closeout | The 90-day notice of expiration; the agent's closeout review; sign-off on 2027-03-10 with two items open and a note that names them | Unmeasured by the key |
 | 10 | Same invoice twice | Invoice ESS-55120 by email, then a scan in Drive six weeks later; the agent marks the scan a duplicate, and the script accepts | The charge clears from the emailed copy |
 | 11 | One report, six salary lines | The postdoc's July to December 2025 effort report | All six salary lines, and their six benefit lines, clear when it arrives |
 | 12 | Bill under its charge | A $1,260.00 charge with a $1,200.00 invoice; the freight bill never arrives | Missing evidence, still open at sign-off |
@@ -109,7 +111,7 @@ Each step names its target by stable references: a ledger line ID, a file name, 
 
 A suggestion's kind must be one of the contract's record kinds that wait for the accountant. Whether a `decide_suggestion` is needed can't be checked yet, because the key doesn't express suggestions.
 
-| Action | Fields besides `at` and an optional `note` | In the samples |
+| Action | Fields besides `at`, an optional `note` and an optional `highlight` | In the samples |
 |---|---|---|
 | `confirm_terms` | `file` | The award letter in both samples; the larger sample's increment (001) and extension (002) |
 | `deliver_file` | `file`, a file marked for the user, delivered by upload on or after its date, so its date stays as written | The taxi photo (larger) and the hardware store photo (small), each on its date |
@@ -118,7 +120,7 @@ A suggestion's kind must be one of the contract's record kinds that wait for the
 | `enter_share` | `line_id`, `file` (the bill), `share`, `out_of`, `basis` (decision 0021) | None |
 | `let_in_mail` | `file`, a Gmail file from a sender nobody on the grant uses, held until then (ruling 59) | The vendor's email (larger, highlight 7) |
 | `accept_reason` | `note` (the accountant's), `check`, an optional `problem`, and a `line_id`, a `file`, or neither for the grant (ruling 59) | Spending over the award's limit: `budget`, `over_limit`, on the grant (larger, highlight 8) |
-| `sign_off` | `note` (the accountant's) (ruling 59) | The sign-off with one item open (larger, highlight 9) |
+| `sign_off` | `note` (the accountant's) (ruling 59) | The sign-off with two items open (larger, highlight 9) |
 
 The answer key can't measure `decide_suggestion`, `let_in_mail`, `accept_reason` or `sign_off`: it doesn't express suggestions, held mail, grant problems or a sign-off. The test lets them through unmeasured, checking only that each is well formed and possible at its time. A held email counts as arriving when it's let in.
 

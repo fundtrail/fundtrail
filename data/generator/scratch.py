@@ -88,6 +88,7 @@ def build() -> Grant:
             ),
         ],
         name="award_letter.pdf",
+        highlight="Terms tied to their passages",
         division=SENSORS_DIVISION,
         listing=SENSORS_LISTING,
     )
@@ -369,7 +370,6 @@ def build() -> Grant:
             by_gmail_at=at(date(2026, 11, 19), 17, 20),
         )
     )
-    g.highlights["award_letter.pdf"] = "Terms tied to their passages"
     g.highlights["email_invoice_ESS-32410.eml"] = "Invoice before its line"
     g.highlights[photo_name] = "Receipt photo you deliver"
 
@@ -378,6 +378,7 @@ def build() -> Grant:
             name,
             FOR_USER_AT,
             "The user brings in a file marked for them, by upload, on its date.",
+            g.highlights.get(name),
         )
     g.expect_ordinary()
     return g
