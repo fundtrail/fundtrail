@@ -19,7 +19,19 @@ describe("readConfig", () => {
       apiUrl: real.NEXT_PUBLIC_API_URL,
       supabaseUrl: real.NEXT_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: real.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      devEmailSignIn: false,
     });
+  });
+
+  it("offers email sign-in only when asked for, and never in a production build (ruling 63)", () => {
+    const on = (env: Record<string, string>) => {
+      const config = readConfig({ ...real, ...env });
+      return config.mode === "real" && config.devEmailSignIn;
+    };
+    expect(on({ NEXT_PUBLIC_DEV_EMAIL_SIGNIN: "1", NODE_ENV: "development" })).toBe(true);
+    expect(on({ NEXT_PUBLIC_DEV_EMAIL_SIGNIN: "1", NODE_ENV: "production" })).toBe(false);
+    expect(on({ NODE_ENV: "development" })).toBe(false);
+    expect(on({ NEXT_PUBLIC_DEV_EMAIL_SIGNIN: "true", NODE_ENV: "development" })).toBe(false);
   });
 
   it("is an error naming every missing setting, never a fallback to the fake", () => {

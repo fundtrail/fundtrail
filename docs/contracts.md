@@ -55,7 +55,7 @@ A record is one thing the agent or the accountant wrote. It's never edited. A co
 | | `budget_line` | `name`, `amount`. One line or sub-line of the budget, in the standard categories of the National Science Foundation (NSF). | Agent or accountant |
 | | `person` | `name`, `email` (optional), `role` as the document states it. Someone named in the award letter, or a known sender the accountant adds. | Agent or accountant |
 | | `approval_rule` | `applies_to`, `approver`, `channel` (optional) | Agent or accountant |
-| | A rate (new) | A rate that applies across the grant, such as a fringe benefit rate, and its name | Agent or accountant |
+| | A rate (new) | A rate that applies across the grant, such as a fringe benefit rate, and its name. A benefit rate also names its employee group and when it's in effect ([0030](decisions/0030-benefit-charges.md)). | Agent or accountant |
 | | A funding notice's amounts (new) | The notice's amendment number and type, the amount it adds and the award's running total. See section 8. | Agent or accountant |
 | | `other_term` | `label`, `statement` | Agent or accountant |
 | Facts from evidence | `bill` | `total`, and optionally `vendor`, `dated`, `description`, a document number (new) and `items` (each a `description` and an `amount`). A credit has a negative total. | Agent or accountant |
@@ -185,7 +185,7 @@ New with [0011](decisions/0011-evidence-checklist.md). Every charge has a checkl
 - **A reversal or cost transfer** defaults to the line it corrects plus a written justification. These two items apply to any line that corrects another, whatever its account. A line that takes money off the grant gets these two in place of its account group's default. A line that adds money to the grant keeps its account group's default and gets these two as well ([0020](decisions/0020-reversals-and-cost-transfers.md)). The line's NSF category still comes from its account's group. Check 6 is these two items and nothing more. It has no reason of its own: the checklist check reports each item as filled or missing.
 - **An added item is a record** on the charge: what's needed, and who added it. It takes effect right away.
 - **Removing an item** is a record too. The agent's removal waits for the accountant. The accountant's takes effect right away.
-- **An item can carry an amount.** Either the bills linked to it add up to that amount, or the amount comes from a rate: a quantity times a rate, both cited, with the math re-checked by code. The rate has to come from a file on the grant or from a confirmed rate term.
+- **An item can carry an amount.** Either the bills linked to it add up to that amount, or the amount comes from a rate: a quantity times a rate, both cited, with the math re-checked by code. The rate has to come from a file on the grant or from a confirmed rate term. A benefit charge's rate item is different: code fills it by recalculating from the confirmed rate and the salary lines, with no link ([0030](decisions/0030-benefit-charges.md)).
 - **An item can name a period,** such as one month. Code checks that the linked document's own period covers it. One document can fill items on many charges.
 - **An item can say when it's expected.** It isn't late before then (section 8).
 - **A charge with an empty checklist is Needs a human.** It can't be complete until its checklist has at least one item and every item is filled.
@@ -518,10 +518,11 @@ The sample has the usage statement item carry the charge's amount, so its link c
 | How reasons name "the same problem", so a reusable note can be matched to a later charge | contract |
 | How the answer key expresses checklist items, suggestions, disputes and unconfirmed values | contract |
 | The exact table of account codes, groups and NSF budget categories (see [domain.md](domain.md#not-decided-yet)) | builder (W2), discussed with Alex before building |
-| How reversals and cost transfers show in buckets and at closeout, beyond their default checklist. Berkeley's 120-day limit on cost transfers is discussed with it. | product |
-| Whether a later change reopens a sign-off, and how the reviewer is recorded | product |
+| Benefit charges ([0030](decisions/0030-benefit-charges.md)): how a benefit rate term records its employee group and the dates it's in effect, how a checklist item code fills by recalculating names the rate term and salary lines it rests on, how a mismatch carries the expected amount, and how a benefit charge waiting on its salary shows with its salary line's row on the problem list | contract |
+| Which of a salary line's dates places it in a month and a fiscal year for the benefit recalculation. Audit findings use the fiscal year the salary was earned ([domain.md](domain.md#benefit-charges)). | contract |
+| The records and fields that [0020](decisions/0020-reversals-and-cost-transfers.md), [0021](decisions/0021-a-cost-shared-by-two-grants.md) and [0022](decisions/0022-evidence-report-and-sign-off.md) add: showing a charge as Reversed and netting it against its correcting lines, recording that part of a bill belongs to another award, and the stored report with its checksum on the sign-off and what changed since | contract |
+| Withdrawing a sign-off. A later change doesn't reopen one ([0022](decisions/0022-evidence-report-and-sign-off.md)). | product |
 | Whether the agent's corrections to its own facts (not links) wait for the accountant. This design makes them wait. | product |
-| A cost shared by two grants while each grant is isolated: the invoice arrives on both grants as two files, and each grant links its own copy for its part. Each copy then shows the other grant's part as money never charged. How to show that without a false alarm. | product, needs discussing |
 | Letting grants share evidence and links instead of being isolated | later |
 | How code matches an approval rule's `applies_to`, as the award letter words it, to the charge's assigned budget line | builder (W2) |
 | The details behind who decides what, which questions code asks, and when an `other_term` is in force. Agreed for now, to look at in more detail later. | product, later |

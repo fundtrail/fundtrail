@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { useGrants, useWorkspaces, type Id } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useGrants, useWorkspaces, type Id, usePings } from "@/lib/api";
+import { signedInWith, useAuth } from "@/lib/auth";
 import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
@@ -75,6 +75,8 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
   const auth = useAuth();
   const workspaces = useWorkspaces();
   const grants = useGrants(workspaceId);
+  // The grant list refetches when the backend pings this workspace's channel.
+  usePings(workspaceId ? `workspace:${workspaceId}` : null);
   const workspace = workspaces.data?.find((w) => w.id === workspaceId);
   const user = auth.state.status === "signed_in" ? auth.state.user : null;
 
@@ -104,7 +106,7 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
           <div className="ft-sidebar__account">
             <span>{user.name ?? user.email}</span>
             <span className="ft-caption">{user.email}</span>
-            <span className="ft-caption">{auth.fake ? "Fake sign-in, no Supabase project" : "Signed in with Google"}</span>
+            <span className="ft-caption">{signedInWith(user)}</span>
             <button type="button" className="ft-btn ft-btn--sm" onClick={() => void auth.signOut()}>
               Sign out
             </button>

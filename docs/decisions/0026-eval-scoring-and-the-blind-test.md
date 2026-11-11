@@ -1,6 +1,6 @@
 # 0026. The eval counts rights, wrongs and misses, and the blind test's answers stay out of the repo until it runs
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex.
+**Date:** 2026-11-10 · **Status:** accepted. Reviewed by Alex on 2026-11-10 and kept as written: each expected result is right, missing or wrong, with no partial credit, and the blind set stays out of the repo until it's run, with only a checksum committed.
 
 ## Context
 

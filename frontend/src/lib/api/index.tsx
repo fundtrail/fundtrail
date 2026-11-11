@@ -4,11 +4,11 @@
 // from the generated OpenAPI types later; the hooks and the client interface
 // stay the same.
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import useSWR, { SWRConfig, useSWRConfig } from "swr";
-import { useUserId } from "../auth";
+import { useAuth, useUserId } from "../auth";
 import type { ApiClient } from "./client";
-import type { Id } from "./types";
+import type { Id, TimelineView } from "./types";
 
 export * from "./types";
 export { ApiError, HttpApiClient, SampleRefusalError, type ApiClient } from "./client";
@@ -49,10 +49,31 @@ export function useApi(): ApiClient {
   return api;
 }
 
-/** Refetch everything on screen. The "something changed" ping will call this. */
+/** Refetch everything on screen. The "something changed" ping calls this. */
 export function useRefresh(): () => Promise<unknown> {
   const { mutate } = useSWRConfig();
   return () => mutate(() => true);
+}
+
+/**
+ * Listens for the backend's "something changed" pings on a private Realtime
+ * channel (`grant:{id}` or `workspace:{id}`, backend/app/db/pings.py) and
+ * refetches everything on screen when one arrives (architecture.md, Stack).
+ * Supabase doesn't promise every ping arrives, so the refetch on focus and on
+ * reconnect stays. Nothing happens in fake mode, or with no topic.
+ */
+export function usePings(topic: string | null) {
+  const { listen } = useAuth();
+  const userId = useUserId();
+  const refresh = useRefresh();
+  const latest = useRef(refresh);
+  useEffect(() => {
+    latest.current = refresh;
+  });
+  useEffect(() => {
+    if (!topic || !listen || !userId) return;
+    return listen(topic, () => void latest.current());
+  }, [topic, listen, userId]);
 }
 
 /**
@@ -112,7 +133,18 @@ export function useSamples() {
   return useResource(["samples"], (api) => api.listSamples());
 }
 
-/** A sample grant's timeline. Pass null for a grant that isn't a sample: nothing is requested. */
+/**
+ * A sample grant's timeline. Pass null for a grant that isn't a sample: nothing
+ * is requested. While the agent is still catching up, it refetches every few
+ * seconds too, so the notice clears even if a ping is lost.
+ */
 export function useTimeline(grantId: Id | null) {
-  return useResource(grantId ? ["timeline", grantId] : null, (api) => api.getTimeline(grantId!));
+  const api = useApi();
+  const userId = useUserId();
+  return useSWR<TimelineView>(userId && grantId ? [userId, "timeline", grantId] : null, () => api.getTimeline(grantId!), {
+    refreshInterval: (view) => (view?.catching_up ? CATCHING_UP_REFRESH_MS : 0),
+  });
 }
+
+/** How often the timeline refetches while the agent is catching up. */
+export const CATCHING_UP_REFRESH_MS = 5000;

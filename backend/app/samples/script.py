@@ -74,33 +74,40 @@ class _Grant:
     charges: list[Charge]
     records: list[Record]
     state: RecordState
-    file_ids: dict[str, str]  # sha256 -> the first file with it
+    copies: dict[str, list[str]]  # sha256 -> every file with it, first arrived first
 
     def file_id(self, name: str | None) -> str | None:
-        return self.file_ids.get(self.pack.sha256(name)) if name else None
+        return next(iter(self.copies.get(self.pack.sha256(name), [])), None) if name else None
+
+    def file_ids(self, name: str) -> list[str]:
+        """Every file on the grant with this file's bytes: the file and any copy of it."""
+        return self.copies.get(self.pack.sha256(name), [])
 
     def charge_id(self, line_id: str | None) -> str | None:
         # Ruling 56: a line ID names a charge on this grant only.
         return next((c.id for c in self.charges if c.ledger_line_id == line_id), None)
 
     def cites(self, r: Record, file_id: str) -> bool:
-        return any(c.file_id == file_id for c in citations(r.data)) or (
-            getattr(r.data, "file_id", None) == file_id
+        """Whether a record is about a file: it cites it, names it, or marks it as a copy
+        (a duplicate's copy_file_id)."""
+        return any(c.file_id == file_id for c in citations(r.data)) or file_id in (
+            getattr(r.data, "file_id", None),
+            getattr(r.data, "copy_file_id", None),
         )
 
 
 def _on_grant(conn: Conn, grant: Grant, pack: SamplePack, at: datetime) -> _Grant:
     files = sorted(store.list_files(conn, grant.id, at), key=lambda f: f.arrived_at)
     records = store.list_records(conn, grant.id, at)
-    file_ids: dict[str, str] = {}
+    copies: dict[str, list[str]] = {}
     for f in files:
-        file_ids.setdefault(f.sha256, f.id)
+        copies.setdefault(f.sha256, []).append(f.id)
     return _Grant(
         pack=pack,
         charges=store.list_charges(conn, grant.id, at),
         records=records,
         state=RecordState(records, files),
-        file_ids=file_ids,
+        copies=copies,
     )
 
 
@@ -243,25 +250,33 @@ def _accept_reason(
         subject = {"charge_id": charge_id}
         problems = [r for r in status.reasons if r.bucket != Bucket.EVIDENCE_COMPLETE]
     elif a.file is not None:
-        file_id = g.file_id(a.file)
-        if file_id is None:
+        # The file and every copy of it: a second copy carries the same-file problem.
+        found = [
+            (s.file_id, x)
+            for s in output.records
+            if s.file_id in g.file_ids(a.file)
+            for x in s.problems
+            if _matches(x, a)
+        ]
+        if not found:
             return None
-        subject = {"file_id": file_id}
-        problems = [p for s in output.records if s.file_id == file_id for p in s.problems]
+        file_id, reason = found[0]
+        return _accepted(a, reason, {"file_id": file_id or ""})
     else:
         problems = [p for s in output.grants if s.grant_id == grant.id for p in s.problems]
-    reason = next(
-        (
-            x
-            for x in problems
-            if x.check == a.check
-            and (a.problem is None or x.problem == a.problem)
-            and x.accepted_by is None
-        ),
-        None,
+    reason = next((x for x in problems if _matches(x, a)), None)
+    return _accepted(a, reason, subject) if reason is not None else None
+
+
+def _matches(x: Problem, a: UserAction) -> bool:
+    return (
+        x.check == a.check
+        and (a.problem is None or x.problem == a.problem)
+        and x.accepted_by is None
     )
-    if reason is None:
-        return None
+
+
+def _accepted(a: UserAction, reason: Problem, subject: dict[str, str]) -> WriteRecord:
     return WriteRecord(
         {
             "kind": "accepted_reason",
