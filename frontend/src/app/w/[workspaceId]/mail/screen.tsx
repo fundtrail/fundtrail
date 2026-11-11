@@ -8,7 +8,7 @@ import { useGrantDisplayName } from "@/lib/grantName";
 import { HeldMailList } from "@/components/mail/HeldMailList";
 import { useApi, useGrants, useWorkspaces } from "@/lib/api";
 import { useUserId } from "@/lib/auth";
-import page from "../workspace.module.css";
+import page from "./heldMail.module.css";
 
 /**
  * The workspace's held mail (decision 0025), gathered from each grant's

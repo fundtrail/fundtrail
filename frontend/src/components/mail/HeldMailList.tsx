@@ -39,6 +39,8 @@ function EnvelopeGlyph() {
 function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | null }) {
   const { state, write } = useWrite();
   const [done, setDone] = useState<MailAction | null>(null);
+  // Which button was pressed, so only that one looks busy while it saves.
+  const [pressed, setPressed] = useState<MailAction | null>(null);
 
   async function decide(action: MailAction) {
     const saved = await write(held.grant_id, { data: { kind: "mail_action", held_mail_id: held.id, action } });
@@ -47,6 +49,7 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
 
   const skipped = held.skipped ?? [];
   const saving = state.status === "saving";
+  const busy = (action: MailAction) => (saving && pressed === action ? " is-busy" : "");
   // A message whose From line couldn't be read arrives with no sender (PR 137's review).
   const sender = held.sender?.trim() || null;
   return (
@@ -99,13 +102,24 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
         <div className={styles.actions}>
           <button
             type="button"
-            className={`ft-btn ft-btn--main ft-btn--sm${saving ? " is-busy" : ""}`}
+            className={`ft-btn ft-btn--main ft-btn--sm${busy("let_in")}`}
             disabled={saving}
-            onClick={() => void decide("let_in")}
+            onClick={() => {
+              setPressed("let_in");
+              void decide("let_in");
+            }}
           >
             Let in
           </button>
-          <button type="button" className="ft-btn ft-btn--sm" disabled={saving} onClick={() => void decide("dismiss")}>
+          <button
+            type="button"
+            className={`ft-btn ft-btn--sm${busy("dismiss")}`}
+            disabled={saving}
+            onClick={() => {
+              setPressed("dismiss");
+              void decide("dismiss");
+            }}
+          >
             Dismiss
           </button>
         </div>
