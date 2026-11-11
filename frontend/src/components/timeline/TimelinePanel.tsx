@@ -335,12 +335,18 @@ function dayAfter(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function GoToDate({ now, busy, onGo }: { now: string; busy: boolean; onGo: (to: string) => void }) {
+/**
+ * Go to a date. While the server says the timeline can't move, Go is
+ * unavailable: it sends nothing, and the server's reason shows beside it as
+ * its description.
+ */
+function GoToDate({ now, busy, onGo, reason }: { now: string; busy: boolean; onGo: (to: string) => void; reason?: { id: string; text: string } }) {
   const id = useId();
   const [value, setValue] = useState("");
   const min = dayAfter(now);
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (reason) return;
     if (value && value >= min) {
       onGo(`${value}T00:00:00Z`);
       // The field starts empty again after a move.
@@ -353,9 +359,20 @@ function GoToDate({ now, busy, onGo }: { now: string; busy: boolean; onGo: (to: 
         Go to a date
       </label>
       <input id={id} type="date" min={min} value={value} onChange={(e) => setValue(e.target.value)} required />
-      <button type="submit" className="ft-btn ft-btn--sm" disabled={busy || !value || value < min}>
+      <button
+        type="submit"
+        className="ft-btn ft-btn--sm"
+        disabled={busy || !value || value < min}
+        aria-disabled={reason ? true : undefined}
+        aria-describedby={reason?.id}
+      >
         Go
       </button>
+      {reason && (
+        <span id={reason.id} className="ft-tl__reason">
+          {reason.text}
+        </span>
+      )}
     </form>
   );
 }
@@ -413,6 +430,9 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const trailId = useId();
   const skipId = useId();
   const highlightHintId = useId();
+  const moveReasonId = useId();
+  const goReasonId = useId();
+  const highlightReasonId = useId();
 
   async function act(run: () => Promise<unknown>): Promise<void> {
     await attempt(run);
@@ -439,37 +459,58 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   }
 
   const view = timeline.data;
-  const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
   const toDeliver = (view?.now.deliveries ?? []).filter((d) => !d.delivered).length;
+  // Ruling 79: when the server says a move can't happen now, the control sends nothing and shows why, in the server's words.
+  const moveReason = view?.move_unavailable_reason || null;
+  const highlightReason = view?.next_highlight_unavailable_reason || null;
 
   const nextEvent = view && (
     <button
       type="button"
       className="ft-btn ft-btn--sm"
       disabled={busy || (view.coming_up ?? []).length === 0}
-      onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
+      aria-disabled={moveReason ? true : undefined}
+      aria-describedby={moveReason ? moveReasonId : undefined}
+      onClick={() => {
+        if (moveReason) return;
+        void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}));
+      }}
     >
       Next event
     </button>
   );
   const otherControls = view && (
     <>
-      {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
+      {/* Ruling 77: the server finds the next highlight, does the steps before it, and leaves the highlight's own step to the user. */}
       <span className="ft-tl__hinted">
         <button
           type="button"
           className="ft-btn ft-btn--sm"
-          aria-describedby={highlightHintId}
-          disabled={busy || !nextHighlight}
-          onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+          aria-describedby={highlightReason ? highlightReasonId : highlightHintId}
+          disabled={busy}
+          aria-disabled={highlightReason ? true : undefined}
+          onClick={() => {
+            if (highlightReason) return;
+            void act(() => api.moveTimeline(grantId, { next_highlight: true }));
+          }}
         >
           Next highlight
         </button>
         <span id={highlightHintId} className="ft-caption">
-          Always skips the human steps.
+          Moves to the next highlight; the steps before it are done for you, the highlight&apos;s own step is yours.
         </span>
+        {highlightReason && (
+          <span id={highlightReasonId} className="ft-tl__reason">
+            {highlightReason}
+          </span>
+        )}
       </span>
-      <GoToDate now={view.now.now} busy={busy} onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))} />
+      <GoToDate
+        now={view.now.now}
+        busy={busy}
+        reason={moveReason ? { id: goReasonId, text: moveReason } : undefined}
+        onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
+      />
       <span className="ft-tl__skip">
         <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
         <label htmlFor={skipId}>Skip the human steps</label>
@@ -544,6 +585,11 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               {trailOpen ? "Less" : "More"}
             </button>
           </span>
+        )}
+        {moveReason && (
+          <p id={moveReasonId} className="ft-tl__reason ft-tl__reason--line">
+            {moveReason}
+          </p>
         )}
       </div>
       {/* Folded, the stop's marks and what comes next, on a second quiet line. */}
