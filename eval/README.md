@@ -89,9 +89,9 @@ Each cell is right / missing / wrong.
 
 ### Every miss and wrong item, and who's at fault
 
-Whether the agent or the key is at fault is the runner's builder's reading of the evidence. No key was changed.
+Whether the agent or the key is at fault is the runner's builder's reading of the evidence. `results/2026-11-11-first-run-verdicts.md` has the full verdicts, with the quoted evidence. No key was changed.
 
-**The award letter's GC-1 sentence: 5 wrong records and 14 wrong answers.** Every case's award letter says "This award is subject to the NSF Grant General Conditions (GC-1) effective ...". The agent read that sentence as an `other_term` each time. Once that term was confirmed, code asked `unusual_term` once per charge, as contracts.md section 4 says, and the agent answered `supports` each time. The 14 answers are:
+**The award letter's GC-1 sentence: 5 wrong records and 12 wrong answers.** Every case's award letter says "This award is subject to the NSF Grant General Conditions (GC-1) effective ...". The agent read that sentence as an `other_term` each time. Once that term was confirmed, code asked `unusual_term` once per charge, as contracts.md section 4 says, and the agent answered `supports` each time. The 12 answers are:
 
 - credit-memo-spaced-dash: 2
 - effort-report-six-months: 6
@@ -103,7 +103,7 @@ None of the keys lists that term.
 
 - **At fault: unclear.** contracts.md says an `other_term` holds "anything an award letter or amendment says that no other kind holds", and that wording covers this sentence. So the agent followed the contract, and the keys may be missing the term.
 - If standard conditions incorporated by reference aren't meant to be an `other_term`, the agent is at fault, and the docs need to say so.
-- This is a product call. Settling it settles 19 of the 39 wrong items.
+- This is a product call. Settling it settles 17 of the 42 wrong items.
 
 **effort-report-six-months: 7 other wrong records.**
 
