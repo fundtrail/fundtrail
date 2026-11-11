@@ -197,7 +197,7 @@ def test_a_jump_stores_each_event_at_its_own_time_and_replays_in_order(api: Api)
     assert played[:3] == ["ledger.csv", "invoice_EES-5531.pdf", "invoice_EES-6012.pdf"]
     files = {f.name: f.arrived_at for f in _files(api, grant_id)}
     assert files["invoice_EES-5531.pdf"] == datetime(2026, 11, 16, 17, 50, tzinfo=UTC)
-    assert files["expense_report_valley-wells-2026.txt"] == datetime(
+    assert files["expense_report_valley-wells-2026.pdf"] == datetime(
         2026, 11, 16, 17, 55, tzinfo=UTC
     )
     with transaction(api.platform.pool) as conn:
