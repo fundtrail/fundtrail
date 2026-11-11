@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { HeldMail, MailAction, SkipReason } from "@/lib/api";
 import { date, HOLD_REASON_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { useWrite, WriteProblems } from "../setup/useWrite";
-import "../setup/setup.css";
+import styles from "./mail.module.css";
 
 const SKIP_REASON_LABELS: Record<SkipReason, string> = {
   too_large: "too large",
@@ -16,6 +16,26 @@ const DONE_LABELS: Record<MailAction, string> = {
   dismiss: "Dismissed. It stays stored and unread.",
 };
 
+/** A file's small page glyph, drawn, for the file chips. */
+function FileGlyph() {
+  return (
+    <svg className={styles.fileGlyph} width="10" height="12" viewBox="0 0 10 12" fill="none" aria-hidden="true" focusable="false">
+      <path d="M1.5 1.5h4.2L8.5 4.3v6.2h-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M5.5 1.5v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** An envelope, drawn: the empty list's one mark. */
+function EnvelopeGlyph() {
+  return (
+    <svg className={styles.emptyGlyph} width="40" height="30" viewBox="0 0 40 30" fill="none" aria-hidden="true" focusable="false">
+      <rect x="1.5" y="1.5" width="37" height="27" rx="3" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 4l17 13L37 4" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | null }) {
   const { state, write } = useWrite();
   const [done, setDone] = useState<MailAction | null>(null);
@@ -26,48 +46,66 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
   }
 
   const skipped = held.skipped ?? [];
+  const saving = state.status === "saving";
   // A message whose From line couldn't be read arrives with no sender (PR 137's review).
   const sender = held.sender?.trim() || null;
   return (
-    <li className="ft-term" aria-label={`Held message ${held.subject ?? "with no subject"}`}>
-      <div className="ft-term__head">
-        <span className="ft-strong">{held.subject ?? "(no subject)"}</span>
-        <span className="ft-caption">
-          {sender ? <>from {sender} · </> : null}held {date(held.held_at)}
-          {grantName && <> · {grantName}</>}
-        </span>
+    <li className={styles.message} aria-label={`Held message ${held.subject ?? "with no subject"}`}>
+      <div className={styles.head}>
+        <div className={styles.who}>
+          {sender && (
+            <p className={styles.sender}>
+              <span className="ft-sr">from </span>
+              {sender}
+            </p>
+          )}
+          <p className={sender ? styles.subject : styles.subjectAlone}>{held.subject ?? "(no subject)"}</p>
+        </div>
+        <div className={styles.when}>
+          <p className={styles.heldAt}>Held {date(held.held_at)}</p>
+          {grantName && <p className={styles.grant}>{grantName}</p>}
+        </div>
       </div>
-      <p>{sender ? HOLD_REASON_LABELS[held.reason] : UNREADABLE_FROM_LABEL}</p>
-      <div>
-        <p className="ft-label">Files</p>
-        <ul className="ft-files" aria-label="Files">
+      <p className={styles.reason}>{sender ? HOLD_REASON_LABELS[held.reason] : UNREADABLE_FROM_LABEL}</p>
+      <div className={styles.files}>
+        <p className={`ft-label ${styles.filesLabel}`}>Files</p>
+        <ul className={styles.chips} aria-label="Files">
           {held.files.map((f) => (
-            <li key={f.sha256 + f.name}>{f.name}</li>
+            <li key={f.sha256 + f.name} className={styles.chip}>
+              <FileGlyph />
+              {f.name}
+            </li>
           ))}
         </ul>
       </div>
       {skipped.length > 0 && (
-        <div>
-          <p className="ft-label">Skipped files</p>
-          <ul className="ft-files" aria-label="Skipped files">
+        <div className={styles.files}>
+          <p className={`ft-label ${styles.filesLabel}`}>Skipped files</p>
+          <ul className={styles.chips} aria-label="Skipped files">
             {skipped.map((f) => (
-              <li key={f.name + f.skipped_at}>
-                {f.name} <span className="ft-caption">({SKIP_REASON_LABELS[f.reason]})</span>
+              <li key={f.name + f.skipped_at} className={`${styles.chip} ${styles.chipSkipped}`}>
+                <FileGlyph />
+                <span>{f.name}</span> <span className={styles.chipNote}>({SKIP_REASON_LABELS[f.reason]})</span>
               </li>
             ))}
           </ul>
         </div>
       )}
       {done ? (
-        <p className="ft-caption" role="status">
+        <p className={styles.done} role="status">
           {DONE_LABELS[done]}
         </p>
       ) : (
-        <div className="ft-actions">
-          <button type="button" className="ft-btn ft-btn--main ft-btn--sm" disabled={state.status === "saving"} onClick={() => void decide("let_in")}>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={`ft-btn ft-btn--main ft-btn--sm${saving ? " is-busy" : ""}`}
+            disabled={saving}
+            onClick={() => void decide("let_in")}
+          >
             Let in
           </button>
-          <button type="button" className="ft-btn ft-btn--sm" disabled={state.status === "saving"} onClick={() => void decide("dismiss")}>
+          <button type="button" className="ft-btn ft-btn--sm" disabled={saving} onClick={() => void decide("dismiss")}>
             Dismiss
           </button>
         </div>
@@ -83,9 +121,16 @@ function HeldMessage({ held, grantName }: { held: HeldMail; grantName: string | 
  * Let in or Dismiss. Letting in and dismissing are mail_action records.
  */
 export function HeldMailList({ mail, grantNames = {} }: { mail: HeldMail[]; grantNames?: Record<string, string> }) {
-  if (mail.length === 0) return <p className="ft-empty">No mail is held.</p>;
+  if (mail.length === 0) {
+    return (
+      <div className={styles.empty}>
+        <EnvelopeGlyph />
+        <p className={styles.emptyText}>No mail is held.</p>
+      </div>
+    );
+  }
   return (
-    <ul className="ft-terms" aria-label="Held mail">
+    <ul className={styles.list} aria-label="Held mail">
       {mail.map((held) => (
         <HeldMessage key={held.id} held={held} grantName={grantNames[held.grant_id] ?? null} />
       ))}
