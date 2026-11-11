@@ -43,7 +43,7 @@ from .adapter import (
 )
 from .citations import LabelLine, parse_label_lines
 from .context import RunContext
-from .desk import first_message
+from .desk import award_letter_unread, first_message
 from .inputs import RunFailed, RunInputs, RunResult, RunSaved
 from .model import (
     MAX_TOKENS,
@@ -224,12 +224,14 @@ def build_graph(model: ModelClient) -> Any:
         ctx = state["ctx"]
         waiting, _ = split_questions(ctx)
         unassigned = charges_without_budget_line(ctx)
+        letter = award_letter_unread(ctx)
         ctx.log_event(
             "gate",
             waiting=[q.model_dump(mode="json") for q in waiting],
             no_budget_line=unassigned,
+            award_letter_unread=letter.id if letter is not None else None,
         )
-        if not waiting and not unassigned:
+        if not waiting and not unassigned and letter is None:
             ctx.next = "save"
             return state
         ctx.gate_returns += 1
@@ -253,6 +255,13 @@ def build_graph(model: ModelClient) -> Any:
                 "\nThese charges have no budget line yet: "
                 + ", ".join(unassigned)
                 + ". Assign each one with assign_budget_line, or flag the charge if you can't tell."
+            )
+        if letter is not None:
+            text += (
+                f"\nFile {letter.id} ({letter.name}) was uploaded as the grant's award letter, and "
+                "you've written no term from it and no flag on it. If it isn't an award notice, "
+                f"flag it (file_id {letter.id}), saying what the file is; otherwise write its "
+                "terms."
             )
         text += "\nThen finish."
         if ctx.pending_finish_id is not None:

@@ -61,7 +61,7 @@ function Opener({ label, children }: { label: string; children: (close: () => vo
 function FormButtons({ busy, submit, onCancel }: { busy: boolean; submit: string; onCancel: () => void }) {
   return (
     <div className={styles.actions}>
-      <button type="submit" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy}>
+      <button type="submit" className="ft-btn ft-btn--sm" disabled={busy}>
         {submit}
       </button>
       <button type="button" className="ft-btn ft-btn--sm" onClick={onCancel} disabled={busy}>
@@ -406,7 +406,7 @@ export function OfferedNote({ chargeId, reason, note, onWrite }: { chargeId: Id;
       </p>
       <p className="ft-caption">Accept this the same way?</p>
       <div className={styles.actions}>
-        <button type="button" className="ft-btn ft-btn--sm ft-btn--main" disabled={write.busy} onClick={() => void accept(false)}>
+        <button type="button" className="ft-btn ft-btn--sm" disabled={write.busy} onClick={() => void accept(false)}>
           Just this charge
         </button>
         <button type="button" className="ft-btn ft-btn--sm" disabled={write.busy} onClick={() => void accept(true)}>
