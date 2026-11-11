@@ -465,15 +465,17 @@ def move(
         # steps included, so every played event is under exactly one move.
         move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
         runs: list[AgentRun] = []
+        walked = skipping.Walked()
         if skip or walking is not None:
             if skip:
                 skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
             sample_store.start_walk(conn, grant.id, plan.until)
-            skipping.advance(p, conn, locked)
+            walked = skipping.advance(p, conn, locked)
         else:
             store_events(p, conn, locked, pack, [e.id for e in plan.play])
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
+    skipping.ping(p, grant, walked)
 
 
 # The view.

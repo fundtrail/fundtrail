@@ -18,13 +18,14 @@ from app.contracts.workspaces import Grant
 from app.db import sample_store, store
 from app.db.actions import WriteRejected
 from app.db.jobs import grant_lock
+from app.db.pings import grant_topic
 from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult, ModuleChecks
 from app.samples import player, skipping
 from app.samples.pack import SamplePack, UserAction
 from app.samples.script import WriteRecord, resolve
 from tests.api.conftest import Api
-from tests.db.platform_fixtures import FakeAgent, run_worker_until_idle
+from tests.db.platform_fixtures import FakeAgent, FakePinger, run_worker_until_idle
 
 from .plays import Mapping, _mapped, _pointed_first, bucket_at
 from .test_player import _get, _open, _post
@@ -542,3 +543,100 @@ def test_a_users_own_decision_during_a_walk(
         records = {r.id: r for r in store.list_records(conn, grant_id)}
     assert records[mine.json()["id"]].author_user_id != _accountant(api, grant_id)
     assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+
+
+def test_skipping_again_after_a_walk_stopped(api: Api, real_checks: None) -> None:
+    """A stopped walk leaves for the user only the steps whose time has come; the later
+    ones go, so the next skipping move queues them again and makes them."""
+    pack = player.pack_for(SMALL)
+    deliver = next(a for a in pack.actions if a.action == "deliver_file")
+    end = deliver.at + timedelta(hours=1)
+    grant_id = _open(api)
+    _skip(api, grant_id, end)  # waits at the confirmation for the letter's run
+    with transaction(api.platform.pool) as conn:
+        conn.execute("delete from procrastinate_jobs where lock = %s", (grant_lock(grant_id),))
+    skipping.check_walks(api.platform)
+    skipping.check_walks(api.platform)
+    assert _walk(api, grant_id)[0] is None
+    steps = [(pack.actions[s["step"]].action, s["state"]) for s in _scripted(api, grant_id)]
+    assert steps == [("confirm_terms", "left")]  # the delivery's time hadn't come
+    again = _skip(api, grant_id, end)
+    assert again["now"]["now"] == _iso(end)
+    states = {pack.actions[s["step"]].action: s["state"] for s in _scripted(api, grant_id)}
+    assert states == {"confirm_terms": "left", "deliver_file": "done"}
+    assert _walk(api, grant_id) == (None, None)
+
+
+def _pinged(api: Api, grant_id: str) -> set[str]:
+    pinger = api.platform.pinger
+    assert isinstance(pinger, FakePinger)
+    return {
+        w
+        for topic, event, payload in pinger.pings
+        if topic == grant_topic(grant_id) and event == "changed"
+        for w in payload["what"]
+    }
+
+
+def _held_after_the_letter(api: Api, monkeypatch: pytest.MonkeyPatch) -> str:
+    """A skipping move past the confirmation, the walk held while the letter's run saves."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    end = next(e for e in pack.events if e.at > confirm.at).at
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, end)
+    with monkeypatch.context() as held:
+        held.setattr(skipping, "go_on", lambda *_args: None)
+        run_worker_until_idle(str(api.platform.pool.conninfo))
+    pinger = api.platform.pinger
+    assert isinstance(pinger, FakePinger)
+    pinger.pings.clear()
+    return grant_id
+
+
+def test_the_minute_check_pings_the_grants_screens_when_it_takes_a_walk_on(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    grant_id = _held_after_the_letter(api, monkeypatch)
+    skipping.check_walks(api.platform)  # the decision, then the events
+    assert [s["state"] for s in _scripted(api, grant_id)] == ["done"]
+    assert {"charges", "evidence", "records", "statuses", "thread"} <= _pinged(api, grant_id)
+
+
+def test_going_on_after_a_run_pings_the_grants_screens(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    grant_id = _held_after_the_letter(api, monkeypatch)
+    skipping.go_on(api.platform, grant_id)
+    assert _walk(api, grant_id) == (None, None)
+    assert {"charges", "evidence", "records", "statuses", "thread"} <= _pinged(api, grant_id)
+
+
+def test_a_check_finding_nothing_pending_starts_the_idle_count_again(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    grant_id = _open(api)
+    _skip(api, grant_id, confirm.at + timedelta(minutes=1))  # waits for the letter's run
+    with transaction(api.platform.pool) as conn:
+        conn.execute("delete from procrastinate_jobs where lock = %s", (grant_lock(grant_id),))
+    skipping.check_walks(api.platform)  # one idle check
+
+    def idle() -> int:
+        with transaction(api.platform.pool) as conn:
+            row = conn.execute(
+                "select idle_checks from public.sample_walks where grant_id = %s", (grant_id,)
+            ).fetchone()
+        assert row is not None
+        return int(row["idle_checks"])
+
+    assert idle() == 1
+    with transaction(api.platform.pool) as conn:  # the run ends after all
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (grant_id,)
+        )
+    monkeypatch.setattr(skipping, "advance", lambda *_args: skipping.Walked())
+    skipping.check_walks(api.platform)
+    assert idle() == 0
