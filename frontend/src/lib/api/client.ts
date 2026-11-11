@@ -143,22 +143,30 @@ export class HttpApiClient implements ApiClient {
   constructor(
     private readonly baseUrl: string,
     private readonly getAccessToken: () => Promise<string | null>,
+    /** Called when the session is gone or refused (401), before the error is thrown. */
+    private readonly onUnauthorized?: () => void,
   ) {}
 
   private async send(path: string, init: { method?: string; body?: BodyInit; json?: unknown; accept?: string } = {}): Promise<Response> {
     const token = await this.getAccessToken();
-    if (!token) throw new ApiError(401, "Not signed in");
+    if (!token) {
+      this.onUnauthorized?.();
+      throw new ApiError(401, "Not signed in");
+    }
     const headers: Record<string, string> = { Accept: init.accept ?? "application/json", Authorization: `Bearer ${token}` };
     let body = init.body;
     if (init.json !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.json);
     }
+    // A network failure throws fetch's own error (a TypeError), not an ApiError:
+    // callers tell a connection problem from a server's answer that way.
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
       headers,
       ...(init.method ? { method: init.method } : {}),
       ...(body !== undefined ? { body } : {}),
     });
+    if (response.status === 401) this.onUnauthorized?.();
     if (!response.ok) {
       let detail: unknown = null;
       try {

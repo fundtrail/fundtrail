@@ -124,7 +124,9 @@ the line. Only text in a message without a tool call keeps its citations, so put
 that message. Code replies with the labels it recorded. Then write the records, naming labels \
 instead of values; give the normalized value too (cents for money, YYYY-MM-DD for dates), and code \
 checks it against the text. Labels last the whole run, so you can write the lines for several \
-records in one message.
+records in one message. Cite each value from the passage that holds it, not a heading or the \
+section around it: code keeps only the line (or table row) where the value stands, and that \
+line is what the accountant sees as the quote.
 
 For example, after opening an invoice, one message:
 

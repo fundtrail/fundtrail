@@ -65,7 +65,7 @@ def test_the_choices_come_from_the_packs(api: Api) -> None:
     assert [o["needs_confirm"] for o in options] == [False, True, False]
     assert [o["available"] for o in options] == [True, True, False]
     assert options[2]["unavailable_reason"]
-    assert options[0]["name"].startswith("Placeholder")
+    assert options[0]["name"] == "Small sample, read live"
 
 
 def test_the_larger_live_sample_needs_a_confirm(api: Api) -> None:

@@ -1,6 +1,6 @@
 # data
 
-The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' content is a placeholder until it's decided.
+The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' people, amounts and dates are placeholders until the product owner settles them.
 
 | Path | What it is |
 |---|---|
@@ -9,7 +9,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/timeline.json` | Its scheduled events only: files, the ledger file or each ledger line, each with its time. No user decision is in it. |
 | `samples/<sample>/user_actions.json` | What the user does in the play the answer key assumes: confirming terms, and bringing in the files marked for them |
 | `samples/<sample>/answer_key.json` | Each charge's expected result, in the eval's format (contracts.md section 14) |
-| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves, with placeholder names |
+| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves |
 | `samples/<sample>/agent_records.json` | The agent's expected records, shaped as the contract's records, for the checks-only play |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
@@ -24,7 +24,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 
 There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
 
-The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`, marked `"placeholder": true` until the docs give the words.
+The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`. The names follow decision 0027's three choices. The docs give no description text, so the descriptions are plain words drawn from 0027 and product.md. `"placeholder"` is false on all three.
 
 ### The highlights (the sample content brief, ruling 58)
 
