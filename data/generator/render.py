@@ -10,12 +10,11 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-PACIFIC = ZoneInfo("America/Los_Angeles")
-UNIVERSITY = "University of Example"
-UNIVERSITY_ADDRESS = "100 Example Hall, Example City, CA 94000"
+from names import LEGACY, Org
 
-NSF_GRANTS_OFFICIAL = ("Avery Ledger", "avery.ledger@funder.example")
-NSF_AWARDING_OFFICIAL = ("Morgan Signet", "morgan.signet@funder.example")
+PACIFIC = ZoneInfo("America/Los_Angeles")
+# The unused seed grants' university. A sample passes its own `org` (names.SAMPLES).
+UNIVERSITY = LEGACY.university
 
 
 def long_date(d: date) -> str:
@@ -94,25 +93,33 @@ def award_notice(
     program_officer: tuple[str, str],
     conditions: str,
     budget: list[tuple[str, int, list[tuple[str, int]]]],
+    org: Org = LEGACY,
+    division: str | None = None,
+    listing: str | None = None,
 ) -> str:
     """An award notice laid out like a real NSF notice (domain.md).
 
     `personnel` is (name, role, email). `budget` is (line, amount, sub-lines),
-    where the line carries its letter, such as "E. Travel".
+    where the line carries its letter, such as "E. Travel". `division` and
+    `listing` add the fields a real notice also carries: the proposal number, the
+    managing division's abbreviation, the research and development mark and the
+    assistance listing.
     """
     lines = [
         "NATIONAL SCIENCE FOUNDATION",
         "AWARD NOTICE",
         "",
         "RECIPIENT INFORMATION",
-        f"Recipient: {UNIVERSITY}",
-        f"Address: {UNIVERSITY_ADDRESS}",
+        f"Recipient: {org.university}",
+        f"Address: {org.address}",
         "",
         "AMENDMENT INFORMATION",
         f"Amendment Type: {amendment_type}",
         f"Amendment Number: {amendment_number}",
         f"Amendment Date: {long_date(amendment_date)}",
     ]
+    if division:
+        lines.append(f"Proposal Number: {award_number}")
     desc = wrap("Amendment Description: " + description)
     lines += desc
     lines += [
@@ -123,9 +130,21 @@ def award_notice(
         f"Award Date: {long_date(award_date or amendment_date)}",
         f"Period of Performance Start Date: {long_date(start)}",
         f"Period of Performance End Date: {long_date(end)}",
-        f"Project Title: {title}",
+    ]
+    # A sample's title is long enough to wrap.
+    lines += wrap(f"Project Title: {title}") if division else [f"Project Title: {title}"]
+    if division:
+        lines += [
+            f"Managing Division Abbreviation: {division}",
+            "Research and Development Award: Yes",
+        ]
+    lines += [
         f"Funding Opportunity: {pappg(amendment_date)} Proposal & Award Policies & Procedures "
         "Guide (PAPPG)",
+    ]
+    if listing:
+        lines.append(f"Assistance Listing Number and Name: {listing}")
+    lines += [
         "",
         "FUNDING INFORMATION",
         f"Amount Obligated by this Amendment: {whole_money(obligated_cents)}",
@@ -137,14 +156,14 @@ def award_notice(
         "PROJECT PERSONNEL",
     ]
     for name, role, email in personnel:
-        lines += [f"{name}, {role}", f"  Email: {email}", f"  Organization: {UNIVERSITY}"]
+        lines += [f"{name}, {role}", f"  Email: {email}", f"  Organization: {org.university}"]
     lines += [
         "",
         "NSF CONTACT INFORMATION",
-        f"Managing Grants Official: {NSF_GRANTS_OFFICIAL[0]}",
-        f"  Email: {NSF_GRANTS_OFFICIAL[1]}",
-        f"Awarding Official: {NSF_AWARDING_OFFICIAL[0]}",
-        f"  Email: {NSF_AWARDING_OFFICIAL[1]}",
+        f"Managing Grants Official: {org.grants_official[0]}",
+        f"  Email: {org.grants_official[1]}",
+        f"Awarding Official: {org.awarding_official[0]}",
+        f"  Email: {org.awarding_official[1]}",
         f"Managing Program Officer: {program_officer[0]}",
         f"  Email: {program_officer[1]}",
         "",
@@ -176,6 +195,8 @@ def extension_notice(
     new_end: date,
     title: str,
     program_officer: tuple[str, str],
+    org: Org = LEGACY,
+    division: str | None = None,
 ) -> str:
     """A no-cost extension: a few sections, the change stated as dates."""
     lines = [
@@ -183,14 +204,16 @@ def extension_notice(
         "AWARD NOTICE",
         "",
         "RECIPIENT INFORMATION",
-        f"Recipient: {UNIVERSITY}",
-        f"Address: {UNIVERSITY_ADDRESS}",
+        f"Recipient: {org.university}",
+        f"Address: {org.address}",
         "",
         "AMENDMENT INFORMATION",
         "Amendment Type: No Cost Extensions",
         f"Amendment Number: {amendment_number}",
         f"Amendment Date: {long_date(amendment_date)}",
     ]
+    if division:
+        lines.append(f"Proposal Number: {award_number}")
     lines += wrap(
         "Amendment Description: The purpose of this amendment is to extend the end date "
         f"from {long_date(old_end)} to {long_date(new_end)}, as notified by the awardee "
@@ -203,11 +226,15 @@ def extension_notice(
         f"Award Number (FAIN): {award_number}",
         f"Period of Performance Start Date: {long_date(start)}",
         f"Period of Performance End Date: {long_date(new_end)}",
-        f"Project Title: {title}",
+    ]
+    lines += wrap(f"Project Title: {title}") if division else [f"Project Title: {title}"]
+    if division:
+        lines.append(f"Managing Division Abbreviation: {division}")
+    lines += [
         "",
         "NSF CONTACT INFORMATION",
-        f"Managing Grants Official: {NSF_GRANTS_OFFICIAL[0]}",
-        f"  Email: {NSF_GRANTS_OFFICIAL[1]}",
+        f"Managing Grants Official: {org.grants_official[0]}",
+        f"  Email: {org.grants_official[1]}",
         f"Managing Program Officer: {program_officer[0]}",
         f"  Email: {program_officer[1]}",
         "",
@@ -229,15 +256,20 @@ def invoice(
     attn: str,
     department: str,
     project_ref: str,
-    items: list[tuple[str, int, int]],
+    items: list[tuple],
     shipping_cents: int = 0,
     po: str | None = None,
     terms: str = "net 30",
+    org: Org = LEGACY,
+    account: str | None = None,
 ) -> tuple[str, int]:
-    """A vendor's invoice. `items` is (description, quantity, unit cents).
+    """A vendor's invoice. `items` is (description, quantity, unit cents), or with
+    each line's catalog number and unit of measure after them (names.lines), which
+    adds those two columns. `account` is the customer's account number with the vendor.
 
     Returns the text and the total in cents.
     """
+    cataloged = bool(items) and len(items[0]) == 5
     lines = [
         vendor.upper(),
         vendor_address,
@@ -250,27 +282,43 @@ def invoice(
     ]
     if po:
         lines.append(f"Customer PO: {po}")
+    if account:
+        lines.append(f"Account No.: {account}")
     lines += [
         "",
         "Bill to:",
-        f"  {UNIVERSITY}, {department}",
+        f"  {org.university}, {department}",
         f"  Attn: {attn}",
-        f"  {UNIVERSITY_ADDRESS}",
+        f"  {org.address}",
         f"Project reference: {project_ref}",
         "",
-        f"{'Item':<6}{'Description':<44}{'Qty':>5}{'Unit price':>13}{'Amount':>12}",
     ]
+    if cataloged:
+        lines.append(
+            f"{'Line':<6}{'Cat. No.':<13}{'Description':<46}{'Qty':>4}  {'U/M':<5}"
+            f"{'Unit Price':>11}{'Ext. Price':>12}"
+        )
+    else:
+        lines.append(f"{'Item':<6}{'Description':<44}{'Qty':>5}{'Unit price':>13}{'Amount':>12}")
     subtotal = 0
-    for n, (desc, qty, unit) in enumerate(items, start=1):
+    for n, (desc, qty, unit, *catalog) in enumerate(items, start=1):
         amount = qty * unit
         subtotal += amount
-        lines.append(f"{n:<6}{desc:<44}{qty:>5}{money(unit):>13}{money(amount):>12}")
+        if cataloged:
+            number, measure = catalog
+            lines.append(
+                f"{n:<6}{number:<13}{desc:<46}{qty:>4}  {measure:<5}"
+                f"{money(unit):>11}{money(amount):>12}"
+            )
+        else:
+            lines.append(f"{n:<6}{desc:<44}{qty:>5}{money(unit):>13}{money(amount):>12}")
     total = subtotal + shipping_cents
+    width = 87 if cataloged else 68
     lines += [
         "",
-        f"{'Subtotal':<68}{money(subtotal):>12}",
-        f"{'Shipping':<68}{money(shipping_cents):>12}",
-        f"{'Total due':<68}{money(total):>12}",
+        f"{'Subtotal':<{width}}{money(subtotal):>12}",
+        f"{'Shipping':<{width}}{money(shipping_cents):>12}",
+        f"{'Total due':<{width}}{money(total):>12}",
         "",
         f"Terms: {terms}",
     ]
@@ -287,10 +335,11 @@ def usage_statement(
     pi: str,
     award_number: str,
     rows: list[tuple[str, int, int]],
+    org: Org = LEGACY,
 ) -> tuple[str, int]:
     """A campus facility's monthly usage statement for an internal recharge."""
     lines = [
-        UNIVERSITY.upper(),
+        org.university.upper(),
         facility,
         unit,
         "",

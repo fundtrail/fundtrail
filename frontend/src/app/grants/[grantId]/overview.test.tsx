@@ -91,4 +91,19 @@ describe("the grant overview", () => {
     expect(screen.getAllByText("End date not confirmed yet")).toHaveLength(1);
     expect(screen.getByText("Today Apr 9, 2026")).toBeInTheDocument();
   });
+
+  it("shows the agent's progress under the head while it reads, with one filled main button on the page", async () => {
+    const client = createFakeApiClient();
+    const detail = await client.getGrant(SAMPLE_GRANT_ID);
+    vi.spyOn(client, "getGrant").mockResolvedValue({
+      ...detail,
+      summary: { ...detail.summary, reading: { files_read: 3, files_total: 8, lines_read: 12, lines_total: 40 }, last_run_summary: "Read invoice_1001.txt." },
+    });
+    renderOverview(client);
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("The agent is reading: 3 of 8 files, 12 of 40 ledger lines.");
+    expect(status.closest("header")).not.toBeNull();
+    await screen.findByRole("link", { name: "Open the problem list" });
+    expect(document.querySelectorAll(".ft-btn--main")).toHaveLength(1);
+  });
 });

@@ -2,16 +2,16 @@
   "sample": "nitrate-sensors",
   "starts_at": "2026-11-16T17:30:00Z",
   "events": [
-    {"at": "2026-11-16T17:30:00Z", "kind": "file", "file": "award_letter.pdf", "source": "upload", "highlight": "Terms tied to their passages", "note": "The award letter arrives: the sample's first scheduled event."},
-    {"at": "2026-11-16T17:45:00Z", "kind": "ledger", "file": "ledger.csv", "note": "The ledger file arrives. Each line arrives at the later of this and 00:00 UTC on its posting date (decision 0023)."},
-    {"at": "2026-11-16T17:50:00Z", "kind": "file", "file": "invoice_EES-5531.pdf", "source": "upload", "note": "Invoice EES-5531 from Example Electronics Supply."},
-    {"at": "2026-11-16T17:51:00Z", "kind": "file", "file": "invoice_EES-6012.pdf", "source": "upload", "note": "Invoice EES-6012 from Example Electronics Supply."},
+    {"at": "2026-11-16T17:30:00Z", "kind": "file", "file": "award_letter.pdf", "source": "upload", "highlight": "Terms tied to their passages", "note": "The award letter arrives. It's the first thing on the sample's timeline."},
+    {"at": "2026-11-16T17:45:00Z", "kind": "ledger", "file": "ledger.csv", "note": "The ledger file arrives. Each line posts on its date."},
+    {"at": "2026-11-16T17:50:00Z", "kind": "file", "file": "invoice_EES-5531.pdf", "source": "upload", "note": "Invoice EES-5531 from Tannery Row Electronics."},
+    {"at": "2026-11-16T17:51:00Z", "kind": "file", "file": "invoice_EES-6012.pdf", "source": "upload", "note": "Invoice EES-6012 from Tannery Row Electronics."},
     {"at": "2026-11-16T17:52:00Z", "kind": "file", "file": "email_invoice_ESS-31877.eml", "source": "upload", "note": "Invoice ESS-31877, an email saved as a file."},
     {"at": "2026-11-16T17:53:00Z", "kind": "file", "file": "airfare_receipt_valley-wells-2026.eml", "source": "upload", "note": "The airline receipt email for the field trip, saved as a file."},
-    {"at": "2026-11-16T17:54:00Z", "kind": "file", "file": "hotel_folio_valley-wells-2026.pdf", "source": "upload", "note": "The hotel folio for installing sensors in Example Valley wells."},
-    {"at": "2026-11-16T17:55:00Z", "kind": "file", "file": "expense_report_valley-wells-2026.txt", "source": "upload", "note": "The department's approved expense report for installing sensors in Example Valley wells."},
-    {"at": "2026-11-16T17:56:00Z", "kind": "file", "file": "invoice_EES-7420.pdf", "source": "upload", "note": "Invoice EES-7420 from Example Electronics Supply."},
+    {"at": "2026-11-16T17:54:00Z", "kind": "file", "file": "hotel_folio_valley-wells-2026.pdf", "source": "upload", "note": "The hotel folio for installing sensors in Tolliver Valley wells."},
+    {"at": "2026-11-16T17:55:00Z", "kind": "file", "file": "expense_report_valley-wells-2026.pdf", "source": "upload", "note": "The department's approved expense report for installing sensors in Tolliver Valley wells."},
+    {"at": "2026-11-16T17:56:00Z", "kind": "file", "file": "invoice_EES-7420.pdf", "source": "upload", "note": "Invoice EES-7420 from Tannery Row Electronics."},
     {"at": "2026-11-18T17:00:00Z", "kind": "file", "file": "hardware_receipt.jpg", "source": "upload", "deliver": "user", "highlight": "Receipt photo you deliver", "note": "A phone photo of a paper receipt for well fittings, bought on the department card."},
-    {"at": "2026-11-19T17:20:00Z", "kind": "file", "file": "email_invoice_ESS-32410.eml", "source": "gmail", "sender": "emery.testwell@university.example", "highlight": "Invoice before its line", "note": "Invoice ESS-32410, forwarded by email before its ledger line posts."}
+    {"at": "2026-11-19T17:20:00Z", "kind": "file", "file": "email_invoice_ESS-32410.eml", "source": "gmail", "sender": "omarchetti@halden.example", "highlight": "Invoice before its line", "note": "Invoice ESS-32410, forwarded by email before its ledger line posts."}
   ]
 }

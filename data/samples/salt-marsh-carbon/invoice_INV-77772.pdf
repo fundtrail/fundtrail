@@ -1,66 +1,316 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Times-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 1114 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(EXAMPLE LAB SUPPLY CO.) Tj T*
-(200 Example Parkway, Example City, CA 94001) Tj T*
-(orders@labsupply.example) Tj T*
-() Tj T*
-(INVOICE) Tj T*
-() Tj T*
-(Invoice number: INV-77772) Tj T*
-(Invoice date: August 19, 2025) Tj T*
-(Customer PO: PO-25-4789) Tj T*
-() Tj T*
-(Bill to:) Tj T*
-(  University of Example, Department of Earth and Ocean Sciences) Tj T*
-(  Attn: Harper Fixture) Tj T*
-(  100 Example Hall, Example City, CA 94000) Tj T*
-(Project reference: SYN-2401835, salt marsh carbon burial) Tj T*
-() Tj T*
-(Item  Description                                   Qty   Unit price      Amount) Tj T*
-(1     Cryovials, 2 mL, 500 count                      3      $112.50     $337.50) Tj T*
-(2     Ethanol, 200 proof, 4 L                         2      $156.00     $312.00) Tj T*
-() Tj T*
-(Subtotal                                                                 $649.50) Tj T*
-(Shipping                                                                  $18.75) Tj T*
-(Total due                                                                $668.25) Tj T*
-() Tj T*
-(Terms: net 30) Tj T*
-ET
-endstream
+<<
+/BaseFont /Times-Roman /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/Contents 9 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
 endobj
 6 0 obj
-<< /Title (Invoice INV-77772) /Producer (FundTrail seed generator) >>
+<<
+/PageMode /UseNone /Pages 8 0 R /Type /Catalog
+>>
+endobj
+7 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (Invoice INV-77772) /Trapped /False
+>>
+endobj
+8 0 obj
+<<
+/Count 1 /Kids [ 5 0 R ] /Type /Pages
+>>
+endobj
+9 0 obj
+<<
+/Length 7752
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.419608 .121569 .164706 RG
+1.2 w
+n 72 742 m 540 742 l S
+.419608 .121569 .164706 rg
+BT /F2 17 Tf 20.4 TL ET
+BT 1 0 0 1 171.887 722 Tm (CALDER LABORATORY SUPPLY) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 219.51 705.94 Tm (200 Quarry Parkway, Port Calloway, CA 94001) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 257.7465 693.7 Tm (orders@calderlab.example) Tj T* ET
+.419608 .121569 .164706 RG
+.5 w
+n 72 685.46 m 540 685.46 l S
+.066667 .066667 .066667 rg
+BT /F2 12 Tf 14.4 TL ET
+BT 1 0 0 1 279.666 663.46 Tm (INVOICE) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 655.46 m 540 655.46 l S
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 76 643.46 Tm (Invoice number:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 145.6635 643.46 Tm (INV-77772) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 229.0495 643.46 Tm (Invoice date:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 283.931 643.46 Tm (August 19, 2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 388.0908 643.46 Tm (Customer PO:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 449.2993 643.46 Tm (PO-25-4789) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 76 629.46 Tm (Account No.:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 131.67 629.46 Tm (204417) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 622.46 m 540 622.46 l S
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 72 601.46 Tm (Bill to:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 84 587.96 Tm (Halden University, Department of Earth and Ocean Sciences) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 84 574.46 Tm (Attn: Maren Holloway) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 84 560.96 Tm (1 University Drive, Port Calloway, CA 94000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 72 542.46 Tm (Project reference:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 147.4205 542.46 Tm (SYN-2401835, salt marsh carbon burial) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 77 506.96 Tm (Line) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 105 506.96 Tm (Cat. No.) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 173 506.96 Tm (Description) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 359.3065 506.96 Tm (Qty) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 383 506.96 Tm (U/M) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 427.94 506.96 Tm (Unit Price) Tj T* ET
+.419608 .121569 .164706 rg
+BT /F2 8.5 Tf 10.2 TL ET
+BT 1 0 0 1 499.1215 506.96 Tm (Ext. Price) Tj T* ET
+.419608 .121569 .164706 RG
+1.1 w
+n 72 500.96 m 540 500.96 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 77 485.61 Tm (1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 105 485.61 Tm (CL-55102) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 173 485.61 Tm (Cryovials, 2 mL, 500 count) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 368.25 485.61 Tm (2) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 383 485.61 Tm (CS) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 434.125 485.61 Tm ($112.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 504.125 485.61 Tm ($225.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 479.61 m 540 479.61 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 77 464.26 Tm (2) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 105 464.26 Tm (CL-70044) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 173 464.26 Tm (Ethanol, 200 proof, 4 L) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 368.25 464.26 Tm (2) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 383 464.26 Tm (EA) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 434.125 464.26 Tm ($156.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 504.125 464.26 Tm ($312.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 458.26 m 540 458.26 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 77 442.91 Tm (3) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 105 442.91 Tm (CL-55190) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 173 442.91 Tm (Cryogenic storage boxes, 81 place, 5 pack) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 368.25 442.91 Tm (1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 383 442.91 Tm (PK) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 438.875 442.91 Tm ($72.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 508.875 442.91 Tm ($72.50) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 436.91 m 540 436.91 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 77 421.56 Tm (4) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 105 421.56 Tm (CL-48377) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 173 421.56 Tm (Cryogenic labels, 1000 count) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 368.25 421.56 Tm (1) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 383 421.56 Tm (PK) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 438.875 421.56 Tm ($40.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 508.875 421.56 Tm ($40.00) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 415.56 m 540 415.56 l S
+.066667 .066667 .066667 RG
+.8 w
+n 72 291.46 m 540 291.46 l S
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 356 272.835 Tm (Subtotal) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 272.835 Tm ($649.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 356 256.21 Tm (Shipping) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 507.875 256.21 Tm ($18.75) Tj T* ET
+.419608 .121569 .164706 RG
+1 w
+n 350 251.585 m 540 251.585 l S
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 356 239.585 Tm (Total due) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 503.125 239.585 Tm ($668.25) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 72 253.585 Tm (Terms:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9.5 Tf 11.4 TL ET
+BT 1 0 0 1 103.92 253.585 Tm (net 30) Tj T* ET
+.72549 .741176 .756863 RG
+.5 w
+n 72 81 m 540 81 l S
+.372549 .388235 .407843 rg
+BT /F3 7.5 Tf 9 TL ET
+BT 1 0 0 1 177.885 70 Tm (Remit to: Calder Laboratory Supply, 200 Quarry Parkway, Port Calloway, CA 94001) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 240.4638 62 Tm (Payment is due within 30 days of the invoice date.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 181.4437 54 Tm (Show our invoice number on your remittance. A late charge may be added to past due balances.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 6.5 Tf 7.8 TL ET
+BT 1 0 0 1 179.731 46 Tm (Report shortages or freight damage when the goods are received. Returns need our authorization.) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F3 7.5 Tf 9 TL ET
+BT 1 0 0 1 289.0238 36 Tm (Page 1 of 1) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 10
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000001382 00000 n 
-0000001508 00000 n 
+0000000061 00000 n 
+0000000112 00000 n 
+0000000219 00000 n 
+0000000327 00000 n 
+0000000436 00000 n 
+0000000629 00000 n 
+0000000697 00000 n 
+0000000972 00000 n 
+0000001031 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<5c1cdb339fe71a63c9ca1cb57f5d3b55><5c1cdb339fe71a63c9ca1cb57f5d3b55>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 7 0 R
+/Root 6 0 R
+/Size 10
+>>
 startxref
-1593
+8834
 %%EOF

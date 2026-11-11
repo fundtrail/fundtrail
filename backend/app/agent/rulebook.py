@@ -40,3 +40,45 @@ def parse_rulebook(funder: str, text: str) -> Rulebook:
 def load_rulebook(funder: str = "NSF") -> Rulebook:
     path = RULEBOOKS / f"{funder.lower()}.md"
     return parse_rulebook(funder, path.read_text(encoding="utf-8"))
+
+
+# A link's URL may hold one level of parentheses, as in "section-200.475#p-200.475(e)".
+_SOURCE = re.compile(r"^-\s*(Source|Older source):\s*\[(.+?)\]\(((?:[^()\s]|\([^()\s]*\))+)\)")
+
+
+@dataclass(frozen=True)
+class RuleEntry:
+    """One rule as a screen shows it: what it says in plain words, and its sources."""
+
+    id: str
+    kind: str  # as the rulebook words it, for example "not allowed"
+    text: str  # the rule's paragraphs, before its list of kind and sources
+    sources: tuple[tuple[str, str], ...]  # (label, url); an older source's label says so
+
+
+def rule_entry(rulebook: Rulebook, rule_id: str) -> RuleEntry | None:
+    """The rule with this ID, or None when the rulebook has no such rule (issue 303)."""
+    heading = re.search(rf"^###\s+{re.escape(rule_id)}\s*$", rulebook.text, re.M)
+    if heading is None:
+        return None
+    following = re.compile(r"^#", re.M).search(rulebook.text, heading.end())
+    body = rulebook.text[heading.end() : following.start() if following else len(rulebook.text)]
+    paragraphs: list[str] = []
+    sources: list[tuple[str, str]] = []
+    for block in body.strip().split("\n\n"):
+        lines = block.strip().splitlines()
+        if lines and lines[0].startswith("-"):
+            for line in lines:
+                if m := _SOURCE.match(line.strip()):
+                    older = m.group(1) == "Older source"
+                    sources.append(
+                        (f"{m.group(2)} (older conditions)" if older else m.group(2), m.group(3))
+                    )
+        elif lines:
+            paragraphs.append(" ".join(line.strip() for line in lines))
+    return RuleEntry(
+        id=rule_id,
+        kind=rulebook.kinds.get(rule_id, ""),
+        text="\n\n".join(paragraphs),
+        sources=tuple(sources),
+    )
