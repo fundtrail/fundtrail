@@ -231,9 +231,6 @@
   background: var(--v-hl);
   color: var(--v-on-hl);
   border-radius: 2px;
-  box-shadow:
-    -2px 0 0 var(--v-hl),
-    2px 0 0 var(--v-hl);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
