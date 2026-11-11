@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   ApiError,
+  describeError,
   SampleRefusalError,
   useApi,
   useRefresh,
@@ -470,7 +471,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
       </div>
       {timeline.error && !view ? (
         <p className="ft-error" role="alert">
-          Couldn&apos;t load the timeline. It reloads when the window regains focus.
+          {describeError(timeline.error).message}
         </p>
       ) : !view ? (
         <p className="ft-empty">Loading…</p>

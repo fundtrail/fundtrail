@@ -2,7 +2,8 @@
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useRef } from "react";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { BudgetFigures } from "@/components/BudgetFigures";
 import { ChargesTable } from "@/components/ChargesTable";
 import disclosure from "@/components/Disclosure.module.css";

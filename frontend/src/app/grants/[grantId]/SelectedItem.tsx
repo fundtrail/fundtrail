@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Loadable } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { ChargeDetailView, type ChargeLinks } from "@/components/charge/ChargeDetailView";
 import { RecordThreadView } from "@/components/thread/RecordThreadView";
 import { useThreadActions } from "@/components/thread/useThreadActions";
