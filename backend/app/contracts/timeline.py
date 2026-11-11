@@ -98,6 +98,11 @@ class TimelineView(Model):
     # missing. A user's decision or a missed scripted one takes it off for good.
     # None on a sample the agent reads live.
     on_run_through: bool | None = None
+    # For a grant opened from a prerun only: true when its prerun is an expected one, the
+    # records we expect the agent to write, prepared ahead of time as the demo's fallback,
+    # not the agent's output. It goes by the grant's own prerun. None on a sample the
+    # agent reads live.
+    expected_prerun: bool | None = None
     # Ruling 72: why "Next event" and "Go to a date" can't move the clock now, in
     # plain words, for example "Nothing is left to play." or, under the read-live
     # limit, "The agent is still reading <the other sample>."; None when they can.

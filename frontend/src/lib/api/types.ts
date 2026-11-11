@@ -52,7 +52,8 @@ export interface Grant {
 
 // --- Sample grants (ruling 40, issue 165), as in workspaces.py, api.py and timeline.py. ---
 
-export type SampleChoice = "small_live" | "larger_live" | "larger_prerun";
+/** larger_expected: the demo's fallback, loaded from an expected prerun (the records we expect the agent to write, not its output). */
+export type SampleChoice = "small_live" | "larger_live" | "larger_prerun" | "larger_expected";
 
 /** A workspace member's role (issue 160): the person who signs in, or the workspace's sample accountant. */
 export type MemberRole = "owner" | "sample";
@@ -872,6 +873,8 @@ export interface TimelineView {
   catching_up: boolean;
   /** The read-ahead sample only: whether its saved results still apply. Null on a sample read live. */
   on_run_through?: boolean | null;
+  /** A grant opened from a prerun: true when its prerun is an expected one, not the agent's output. Null on a sample read live. */
+  expected_prerun?: boolean | null;
   /** Why the timeline can't move now, worded by the server; null when it can. */
   move_unavailable_reason?: string | null;
   /** Why Next highlight can't move now; null when it can. */

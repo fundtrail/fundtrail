@@ -140,5 +140,24 @@ describe("skipping the human steps (ruling 47)", () => {
     expect(await within(just).findByText("Loaded from the prerun")).toBeInTheDocument();
     expect(within(within(just).getByRole("list", { name: "The sample accountant's decisions" })).getByText(/confirmed 1 record/)).toBeInTheDocument();
     expect(screen.getByText("This grant is off the run-through: from here the agent works live.")).toBeInTheDocument();
+    expect(screen.queryByText(/expected prerun/)).toBeNull();
+  });
+
+  it("says when a grant loads an expected prerun, not the agent's output", async () => {
+    const { client, Wrapper } = harness();
+    const base = await client.getTimeline(SAMPLE_GRANT_ID);
+    const view: TimelineView = {
+      ...base,
+      on_run_through: true,
+      expected_prerun: true,
+      just_happened: [{ ...base.just_happened![0], loaded: true }],
+    };
+    vi.spyOn(client, "getTimeline").mockResolvedValue(view);
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    await openMore();
+    const just = await waitFor(() => part("Just happened"));
+    expect(await within(just).findByText("Loaded from the expected prerun")).toBeInTheDocument();
+    expect(within(just).queryByText("Loaded from the prerun")).toBeNull();
+    expect(screen.getByText(/This grant loads an expected prerun: the records we expect the agent to write/)).toBeInTheDocument();
   });
 });

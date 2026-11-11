@@ -31,6 +31,9 @@ class SampleChoice(StrEnum):
     SMALL_LIVE = "small_live"  # a small sample the agent reads live
     LARGER_LIVE = "larger_live"  # a larger sample the agent reads live; needs a confirm
     LARGER_PRERUN = "larger_prerun"  # a larger sample whose results load from a prerun
+    # The demo's fallback: the larger sample loaded from an expected prerun, the records we
+    # expect the agent to write, prepared ahead of time, not the agent's output.
+    LARGER_EXPECTED = "larger_expected"
 
 
 class GrantSample(Model):
