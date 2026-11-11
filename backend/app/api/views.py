@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import cast
 
 from app.checks import budget_figures, note_limit
+from app.checks.benefits import waiting_on
 from app.checks.history import history_line
 from app.contracts.api import (
     AnswerView,
@@ -360,10 +361,21 @@ def problem_rows(snap: GrantSnapshot) -> list[ProblemRow]:
         and s.bucket in _LIST_ORDER
         and not _covered_by_terms(s, term_rows)
     ]
+    # Ruling 62: a benefit charge whose only open problem is waiting on its salary lines
+    # shows with a salary line's row instead of as a row of its own, while that row is on
+    # the list.
+    statuses = [st for c in snap.charges if (st := snap.charge_status(c.id)) is not None]
+    on_list = {c.id for c, _ in charges}
+    waiting = {k: v for k, v in waiting_on(statuses).items() if k in on_list}
+    shown_with = {b for v in waiting.values() for b in v}
+    charges = [(c, s) for c, s in charges if c.id not in shown_with]
     charges.sort(
         key=lambda cs: (_LIST_ORDER.index(cs[1].bucket), cs[0].posting_date, cs[0].ledger_line_id)
     )
-    rows += [ChargeProblemRow(charge=c, status=s) for c, s in charges]
+    rows += [
+        ChargeProblemRow(charge=c, status=s, waiting_charge_ids=waiting.get(c.id, ()))
+        for c, s in charges
+    ]
     return rows
 
 

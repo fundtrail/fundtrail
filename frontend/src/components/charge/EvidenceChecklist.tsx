@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ChecklistEntry, EvidenceFile, FtRecord, Id, LinkView, SuggestionView } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import { date, money } from "@/lib/format";
+import { date, money, percent } from "@/lib/format";
 import { SuggestionBox } from "../thread/Decide";
 import { changeFor } from "../thread/describe";
 import type { OnWrite } from "../thread/useThreadActions";
@@ -16,7 +16,8 @@ import styles from "./charge.module.css";
  */
 function Recalculated({ entry, records, grantId }: { entry: ChecklistEntry; records: Record<Id, FtRecord>; grantId?: Id }) {
   const rate = entry.rate_id ? records[entry.rate_id] : undefined;
-  const rateName = rate?.data.kind === "rate" ? `${rate.data.name.value} (${rate.data.rate.value})` : "the rate term";
+  // A benefit rate is a fraction (records.py, CitedDecimal): shown as a percentage.
+  const rateName = rate?.data.kind === "rate" ? `${rate.data.name.value} (${percent(rate.data.rate.value)})` : "the rate term";
   const lines = entry.charge_ids ?? [];
   return (
     <p className="ft-caption">
