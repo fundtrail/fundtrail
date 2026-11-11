@@ -5,7 +5,8 @@ import { useId, useState } from "react";
 import type { EvidenceFile, Id, ProblemRow, TermView } from "@/lib/api";
 import { date, SOURCE_LABELS } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { TermCard, termNeedsYou } from "./TermCard";
+import { citedFileIds } from "./noticeFiles";
+import { TermCard, termReasons } from "./TermCard";
 import { isTermKind, TERM_GROUP_LABELS, type TermKind } from "./termFields";
 import { useWrite, WriteProblems } from "./useWrite";
 import "./setup.css";
@@ -145,16 +146,22 @@ function RejectedGroup({ terms }: { terms: TermView[] }) {
 /**
  * The terms no check uses any more, replaced or withdrawn: one group at the
  * end, struck through, closed unless a term in it has a problem or a value
- * that couldn't be found. Only the accountant's own click is remembered.
+ * that couldn't be found. The accountant's own click is remembered only while
+ * the terms' reasons to be open stay the ones it was made over.
  */
 function RetiredGroup({ terms }: { terms: TermView[] }) {
   const id = useId();
-  const [toggled, setToggled] = useState<boolean | null>(null);
-  const open = toggled ?? terms.some(termNeedsYou);
+  const [toggled, setToggled] = useState<{ open: boolean; reasons: string } | null>(null);
+  const reasons = terms
+    .map((t) => termReasons(t))
+    .map((r, i) => (r ? `${terms[i]!.record.id}:${r}` : ""))
+    .filter((r) => r !== "")
+    .join(";");
+  const open = toggled && toggled.reasons === reasons ? toggled.open : reasons !== "";
   return (
     <div className="ft-tgroup ft-tgroup--retired" role="group" aria-label="Not in force">
       <h3 className="ft-tgroup__head">
-        <button type="button" className="ft-tgroup__toggle" aria-expanded={open} aria-controls={id} onClick={() => setToggled(!open)}>
+        <button type="button" className="ft-tgroup__toggle" aria-expanded={open} aria-controls={id} onClick={() => setToggled({ open: !open, reasons })}>
           <span className="ft-trow__chev" aria-hidden="true" />
           Not in force
           <Count n={terms.length} />
@@ -186,7 +193,17 @@ export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRo
   const termTerms = terms.filter((t) => isTermKind(t.record.data.kind));
   const byId = new Map(termTerms.map((t) => [t.record.id, t]));
   const waitingRows = rows.filter((r): r is TermsWaitingRow => r.kind === "terms_waiting");
-  const fileRows = rows.filter((r): r is FileProblemRow => r.kind === "record" && r.status.file_id != null && r.file != null);
+  // Only the agent's flag on a file no term cites: duplicates and failed reads stay on the problem list,
+  // and a flagged receipt elsewhere isn't a terms matter.
+  const citedFiles = new Set(termTerms.flatMap((t) => citedFileIds(t.record)));
+  const fileRows = rows.filter(
+    (r): r is FileProblemRow =>
+      r.kind === "record" &&
+      r.status.file_id != null &&
+      r.file != null &&
+      r.status.problems.some((p) => p.check === "flag") &&
+      !citedFiles.has(r.file.id),
+  );
   const grouped = new Set(waitingRows.flatMap((r) => r.record_ids));
   const ungrouped = termTerms.filter((t) => t.state === "waiting" && !grouped.has(t.record.id));
   const rest = termTerms.filter((t) => t.state !== "waiting");
@@ -205,7 +222,7 @@ export function GrantTerms({ terms, rows }: { terms: TermView[]; rows: ProblemRo
                   {row.file.name}
                 </Link>
               </h2>
-              {row.status.problems.map((p) => (
+              {row.status.problems.filter((p) => p.check === "flag").map((p) => (
                 <p key={`${p.check}:${p.problem}`} className="ft-fileproblem__text">
                   {p.text}
                 </p>
