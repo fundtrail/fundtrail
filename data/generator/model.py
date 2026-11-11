@@ -102,6 +102,16 @@ class Grant:
     # on its posting date (decision 0023). None: each line is its own event.
     ledger_at: datetime | None = None
     starts_at: datetime | None = None
+    # A short label for each highlight event (ruling 58), by file name, line ID, or
+    # "ledger.csv" for a ledger event.
+    highlights: dict[str, str] = field(default_factory=dict)
+    # A Gmail file from an unknown sender is held until the accountant lets it in
+    # (ruling 59): the file name, and when the script lets it in.
+    held: dict[str, datetime] = field(default_factory=dict)
+    # For agent_records.py: the rule an answer names, by line ID; each remainder
+    # suggestion as (bill, the note that names the other award, that award); each
+    # duplicate mark as (copy, original).
+    agent_extras: dict = field(default_factory=dict)
     records: list[dict] = field(default_factory=list)
     links: list[dict] = field(default_factory=list)
     budget_lines: list[dict] = field(default_factory=list)
@@ -215,10 +225,15 @@ class Grant:
                 end = new_end
         return end
 
+    def file_arrival(self, name: str) -> datetime:
+        """When a file reaches the grant in the play the key assumes: when it's let in
+        if it's held, else its scheduled time."""
+        return self.held.get(name) or next(d.at for d in self.docs if d.name == name)
+
     def expected(self, o: Ordinary, when: datetime) -> str:
         if not (self.start <= o.line.transaction_date <= self.end_in_force(when)):
             return POSSIBLE_CONFLICT
-        arrived = {d.name: d.at for d in self.docs}
+        arrived = {d.name: self.file_arrival(d.name) for d in self.docs}
         if any(n not in arrived or arrived[n] > when for n in o.needs):
             return MISSING_EVIDENCE
         return EVIDENCE_COMPLETE
@@ -235,7 +250,7 @@ class Grant:
         check follows one hour after each event that can change the bucket: one
         of its files arriving, or an extension being confirmed.
         """
-        arrived = {d.name: d.at for d in self.docs}
+        arrived = {d.name: self.file_arrival(d.name) for d in self.docs}
         for o in self.ordinary:
             first = self.line_arrival(o.line)
             first = max(first + timedelta(hours=1), at(first.date()))
@@ -296,6 +311,8 @@ class Grant:
                 ev["sender"] = d.sender
             if d.deliver:
                 ev["deliver"] = d.deliver
+            if d.name in self.highlights:
+                ev["highlight"] = self.highlights[d.name]
             if d.note:
                 ev["note"] = d.note
             events.append((d.at, 0, ev))
@@ -307,10 +324,14 @@ class Grant:
                 "note": "The ledger file arrives. Each line arrives at the later of this "
                 "and 00:00 UTC on its posting date (decision 0023).",
             }
+            if "ledger.csv" in self.highlights:
+                ev["highlight"] = self.highlights["ledger.csv"]
             events.append((self.ledger_at, 1, ev))
         else:
             for ln in self.lines:
                 ev = {"at": self.line_arrival(ln), "kind": "ledger_line", "line_id": ln.line_id}
+                if ln.line_id in self.highlights:
+                    ev["highlight"] = self.highlights[ln.line_id]
                 if ln.note:
                     ev["note"] = ln.note
                 events.append((self.line_arrival(ln), 1, ev))

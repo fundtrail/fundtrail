@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePings } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
 import { Loadable } from "@/components/Loadable";
 import { findCitation } from "@/components/evidence/findCitation";
@@ -15,6 +16,8 @@ import { Viewer } from "@/components/viewer/Viewer";
  */
 export function FileScreen() {
   const { grantId, fileId } = useParams<{ grantId: string; fileId: string }>();
+  // Refetches when the backend pings this grant's channel, such as the agent replying in a thread.
+  usePings(`grant:${grantId}`);
   const query = useSearchParams();
   const recordId = query.get("record");
   const path = query.get("value");

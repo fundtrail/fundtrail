@@ -1,6 +1,14 @@
 {
   "sample": "salt-marsh-carbon",
   "actions": [
-    {"at": "2024-01-19T18:00:00Z", "action": "confirm_terms", "file": "award_letter.txt", "note": "The user confirms every term read from the award letter."}
+    {"at": "2024-01-19T18:00:00Z", "action": "confirm_terms", "file": "award_letter.txt", "note": "The user confirms every term read from the award letter."},
+    {"at": "2024-12-30T18:00:00Z", "action": "deliver_file", "file": "taxi_receipt_egu_2024.jpg", "note": "The PI uploads her taxi receipt photo on its date."},
+    {"at": "2025-06-17T17:00:00Z", "action": "confirm_terms", "file": "rate_agreement_2025-05-28.pdf", "note": "The user confirms the benefit rates."},
+    {"at": "2025-11-21T17:00:00Z", "action": "decide_suggestion", "suggestion": "duplicate", "decision": "accept", "file": "scan_invoice_ESS-55120.jpg", "note": "The accountant confirms the scan is a copy of the emailed invoice."},
+    {"at": "2026-01-15T17:30:00Z", "action": "let_in_mail", "file": "email_invoice_EFG-30418.eml", "note": "The accountant lets in the vendor's held email."},
+    {"at": "2026-05-06T17:00:00Z", "action": "accept_reason", "check": "budget", "problem": "over_limit", "note": "The second increment of $60,000.00 is expected in June. The Program Officer confirmed it by phone on May 4."},
+    {"at": "2026-06-15T17:00:00Z", "action": "confirm_terms", "file": "notice_001_increment.txt", "note": "The user confirms the increment's terms."},
+    {"at": "2026-09-15T17:00:00Z", "action": "confirm_terms", "file": "extension_notice_002.txt", "note": "The user confirms the new end date, January 31, 2027."},
+    {"at": "2027-03-10T18:00:00Z", "action": "sign_off", "note": "One item is open: invoice ESS-56204 covers $1,200.00 of the $1,260.00 charge, and the vendor's freight bill for $60.00 has been requested."}
   ]
 }
