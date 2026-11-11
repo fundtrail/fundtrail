@@ -6,7 +6,7 @@ import { Loadable } from "@/components/Loadable";
 import { BudgetFigures } from "@/components/BudgetFigures";
 import { ChargesTable } from "@/components/ChargesTable";
 import { GrantHeader } from "@/components/GrantHeader";
-import { grantName } from "@/components/GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { ProblemList } from "@/components/ProblemList";
 import { SampleTimeline } from "@/components/timeline/TimelinePanel";
 import { useCharges, useGrant, useProblemList, usePings } from "@/lib/api";
@@ -17,6 +17,7 @@ import { useCharges, useGrant, useProblemList, usePings } from "@/lib/api";
  * one doesn't wait on the others.
  */
 export function GrantScreen() {
+  const grantName = useGrantDisplayName();
   const { grantId } = useParams<{ grantId: string }>();
   const grant = useGrant(grantId);
   const problems = useProblemList(grantId);
