@@ -66,6 +66,11 @@ approving it (an appointment letter, an effort report, a payment notice, an hono
 gets one note, whose statement says what the document shows, with every value cited from that \
 document. Don't split a document into several notes; code refuses a second note on a document. \
 An award letter or an amendment gives terms, not a note.
+- A per diem, or any amount paid at a rate instead of receipts, is a checklist item at a rate: \
+add_checklist_item with its amount and a rate, the quantity cited from the claim (such as the \
+days on the expense report) and the rate cited from the document that sets it (such as the \
+department's per diem rates). Don't link the rate document for an amount. An expense report is \
+a note, linked with no amount; the bills and the rate items add up to the charge.
 - Look at every charge that arrives, even one with nothing to link. A $0 line, or a charge whose \
 checklist is filled only by rate math (such as a per diem of days times a rate), can reach \
 Evidence complete with no question for you, so no one else looks at it. Most are fine. Flag one \

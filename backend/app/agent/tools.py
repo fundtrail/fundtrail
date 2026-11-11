@@ -138,6 +138,13 @@ class WriteTerm(_In):
     values: list[Value]
     category: BudgetCategory | None = Field(None, description="A budget_line's NSF category.")
     label: str | None = Field(None, description="An other_term's plain short name.")
+    standard_conditions: bool | None = Field(
+        None,
+        description=(
+            "An other_term only: true when its statement only names the funder's standard "
+            "conditions, such as the NSF Grant General Conditions (GC-1)."
+        ),
+    )
     replaces_id: str | None = None
 
 
@@ -622,7 +629,8 @@ def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: s
     if not files:
         return
     [file_id] = files
-    for r in ctx.state().current():
+    state = ctx.state()
+    for r in [*state.current(), *state.waiting()]:  # a note in a thread run waits
         if r.kind != RecordKind.NOTE or r.id == replaces_id or file_id not in files_of(r):
             continue
         label = getattr(r.data, "label", "")
@@ -633,12 +641,41 @@ def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: s
         )
 
 
+def _standard_conditions_once(
+    ctx: RunContext, data: dict[str, Any], replaces_id: str | None
+) -> None:
+    """The award's standard conditions are recorded once (ruling 81): a second term naming the
+    same conditions in the same words is refused. One naming other conditions, such as a later
+    version an amendment brings in, is a term of its own."""
+    statement = data.get("statement")
+    said = statement.get("value") if isinstance(statement, dict) else None  # pyright: ignore[reportUnknownMemberType]
+    if not isinstance(said, str):
+        return
+    key = " ".join(said.split()).casefold()
+    state = ctx.state()
+    for r in [*state.current(), *state.waiting()]:  # a term the agent writes waits
+        if r.kind != RecordKind.OTHER_TERM or r.id == replaces_id:
+            continue
+        if not getattr(r.data, "standard_conditions", False):
+            continue
+        if " ".join(r.data.statement.value.split()).casefold() == key:  # pyright: ignore[reportAttributeAccessIssue]
+            raise WriteProblem(
+                f"these standard conditions are already recorded ({r.id}); they're recorded once"
+            )
+
+
 def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:
     data: dict[str, Any] = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.category is not None:
         data["category"] = a.category.value
     if a.label is not None:
         data["label"] = a.label
+    if a.standard_conditions is not None:
+        if a.kind != "other_term":
+            raise WriteProblem("standard_conditions is for an other_term only")
+        data["standard_conditions"] = a.standard_conditions
+        if a.standard_conditions:
+            _standard_conditions_once(ctx, data, a.replaces_id)
     note = ""
     if a.kind == "approval_rule" and "applies_to" in data:
         note = _check_applies_to(ctx, data["applies_to"]["text"])
