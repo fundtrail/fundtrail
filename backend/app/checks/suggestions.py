@@ -43,6 +43,7 @@ from app.contracts.records import (
     Remainder,
     citations,
 )
+from app.contracts.rules import RecordState
 
 KIND_LABELS = {
     RecordKind.PERIOD_OF_PERFORMANCE: "period of performance",
@@ -167,6 +168,22 @@ def _item_needed(data: ChecklistRemoval, look: _Lookup, record_id: str) -> str:
     return data.default_item or "an item"
 
 
+def _rest_of_bill(bill: Record | None, look: _Lookup) -> int | None:
+    """What the bill's links in force don't account for: its total less their amounts.
+    None when the bill isn't known or nothing of the bill's sign is left."""
+    if bill is None or not isinstance(bill.data, Bill):
+        return None
+    total = bill.data.total.value
+    state = RecordState(look.records.values())
+    linked = sum(
+        r.data.amount_cents or 0
+        for r in state.current()
+        if isinstance(r.data, Link) and r.data.record_id == bill.id
+    )
+    rest = total - linked
+    return rest if rest != 0 and (rest > 0) == (total > 0) else None
+
+
 def suggestion_change(
     record: Record,
     replaces: Record | None = None,
@@ -235,9 +252,11 @@ def suggestion_change(
         file_id = next((c.file_id for c in citations(bill.data)), None) if bill else None
         file = look.files.get(file_id or "")
         named = f"the bill in {file.name}" if file else "the bill"
-        return SuggestionChange(
-            title=f"Record that the rest of {named} belongs to award {data.other_award.value}"
-        )
+        rest = _rest_of_bill(bill, look)
+        if rest is not None:
+            named += f" ({money(rest)})"
+        # Issue 304: what accepting it does, in plain words.
+        return SuggestionChange(title=f"Put the rest of {named} on award {data.other_award.value}")
     if isinstance(data, Judgment) and replaces is not None:
         question = QUESTION_LABELS[data.question]
         return SuggestionChange(

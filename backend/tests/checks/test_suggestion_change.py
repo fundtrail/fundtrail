@@ -108,9 +108,19 @@ def test_a_dispute_a_duplicate_a_correction_and_a_remainder():
             "reason": "r",
         },
     )
+    # Issue 304: it says what accepting does, with what's left of the bill.
     assert words(remainder).title == (
-        "Record that the rest of the bill in f1.txt belongs to award SYN-2300999"
+        "Put the rest of the bill in f1.txt ($12.00) on award SYN-2300999"
     )
+    part = user("l1", link(amount=700))  # a link in force for $7.00 of the $12.00
+    rest = suggestion_change(remainder, records=[*RECORDS, part], files=FILES, charges=CHARGES)
+    assert rest.title == "Put the rest of the bill in f1.txt ($5.00) on award SYN-2300999"
+    retracted = [part, user("r1", {"kind": "retraction", "reason": "wrong"}, replaces_id="l1")]
+    back = suggestion_change(remainder, records=[*RECORDS, *retracted], files=FILES)
+    assert back.title == words(remainder).title  # a link no longer in force counts for nothing
+    whole = user("l3", link(amount=1200))  # nothing left: no amount to name
+    none_left = suggestion_change(remainder, records=[*RECORDS, whole], files=FILES)
+    assert none_left.title == "Put the rest of the bill in f1.txt on award SYN-2300999"
 
 
 def test_a_budget_line_change_and_records_a_thread_run_added():
