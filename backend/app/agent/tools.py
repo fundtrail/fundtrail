@@ -60,6 +60,7 @@ from .desk import (
 )
 from .fields import FACT_FIELDS, TERM_FIELDS
 from .files import CantOpen, open_file, reading_now
+from .second_look import boxed_paths
 
 
 class _In(BaseModel):
@@ -393,6 +394,24 @@ def _normalize(
     return text
 
 
+def normalize_value(field: str, text: str, kind: str | None, percent: bool) -> Any:
+    """A field's value read from text, as the text check reads it. Raises WriteProblem."""
+    return _normalize(field, None, text, kind, percent)
+
+
+def get_path(data: dict[str, Any], path: str) -> Any:
+    """The value at a field path such as "items[0].amount" in a record's dumped data."""
+    target: Any = data
+    for part in path.split("."):
+        m = _PATH.fullmatch(part)
+        if not m:
+            raise WriteProblem(f"'{path}' isn't a field path")
+        target = target[m.group(1)]
+        if m.group(2) is not None:
+            target = target[int(m.group(2))]
+    return target
+
+
 def cited(
     ctx: RunContext, v: Value, kind: str | None = None, percent: bool = False
 ) -> dict[str, Any] | None:
@@ -400,22 +419,46 @@ def cited(
     if v.box is not None:
         if not v.text:
             raise WriteProblem(f"{v.field}: a boxed value needs its text as the image shows it")
-        image = ctx.images.get(v.box.file_id)
+        image = ctx.images.get((v.box.file_id, v.box.page))
         if image is None:
             raise WriteProblem(
-                f"{v.field}: file {v.box.file_id} wasn't sent as an image in this run"
+                f"{v.field}: page {v.box.page} of file {v.box.file_id} wasn't sent as an image in "
+                "this run"
             )
-        try:
-            location = image_box(image, v.box.left, v.box.top, v.box.right, v.box.bottom)
-        except CitationProblem as error:
-            raise WriteProblem(f"{v.field}: {error}") from error
-        location["page"] = v.box.page
-        citation: dict[str, Any] = {"file_id": v.box.file_id, "passage": None, "location": location}
-        look = ctx.inputs.second_look
-        citation["match"] = (
-            "exact" if look is not None and look(v.box.file_id, location, v.text) else "not_found"
-        )
         value = _normalize(v.field, v.value, v.text, kind, percent)
+        location = image_box(image, v.box.left, v.box.top, v.box.right, v.box.bottom)
+        if location is not None and location["width"] * location["height"] > MAX_BOX_SHARE:
+            raise WriteProblem(
+                f"{v.field}: the box covers {location['width'] * location['height']:.0%} of the "
+                "image. Box the value itself, tight around its characters: the second look reads "
+                "only the box and has to see just the value in it"
+            )
+        if location is not None and (
+            min(v.box.left, v.box.right) < 0
+            or min(v.box.top, v.box.bottom) < 0
+            or max(v.box.left, v.box.right) > image.width
+            or max(v.box.top, v.box.bottom) > image.height
+        ):
+            ctx.write_notes.append(
+                f"The box for {v.field} ran off the {image.width} by {image.height} image and "
+                "was cut to it; if the value lies partly outside it, write it again with a box "
+                "on the image."
+            )
+        if location is None:
+            # Nothing of the box lies on the image: nothing to read, so the value is unconfirmed.
+            ctx.log_event("box_off_image", field=v.field, box=v.box.model_dump())
+            ctx.write_notes.append(
+                f"The box for {v.field} has nothing of the {image.width} by {image.height} image "
+                "in it, so its value is unconfirmed; write it again with a box on the value."
+            )
+            return uncited_value(value, v.text)
+        # Unconfirmed until the second look reads the boxed area, when the run ends.
+        citation: dict[str, Any] = {
+            "file_id": v.box.file_id,
+            "passage": None,
+            "location": location,
+            "match": "not_found",
+        }
         return {"value": value, "text": v.text, "citation": citation}
     if not v.label:
         raise WriteProblem(
@@ -509,9 +552,18 @@ def _saved(
         return ctx.note_problems(tool, problems), True
     r = staged.record
     note = "It waits for the accountant." if staged.waits else "It takes effect."
-    unconfirmed = ctx.state().unconfirmed_values(r)
+    boxed = set(boxed_paths(r))
+    unconfirmed = [p for p in ctx.state().unconfirmed_values(r) if p not in boxed]
     if unconfirmed:
         note += " Unconfirmed values (not matched in the file): " + ", ".join(unconfirmed) + "."
+    if boxed:
+        note += (
+            " Its boxed values (" + ", ".join(sorted(boxed)) + ") get a second look, reading "
+            "only each box, when the run ends."
+        )
+    for extra in ctx.write_notes:
+        note += " " + extra
+    ctx.write_notes.clear()
     ctx.log_event("staged", record=r)
     return f"Saved as {r.id}. {note}", False
 
@@ -921,8 +973,8 @@ def t_open_file(ctx: RunContext, a: FileRef) -> tuple[list[dict[str, Any]] | str
         return str(error), True
     if opened.document is not None:
         ctx.documents.append(opened.document)
-    if opened.image is not None:
-        ctx.images[f.id] = opened.image
+    for image in opened.images or []:
+        ctx.images[(f.id, image.page)] = image
     return opened.blocks, False
 
 
@@ -1056,6 +1108,10 @@ def tool_definitions() -> list[dict[str, Any]]:
         for name, (model, _, description) in TOOLS.items()
     ]
 
+
+# A box covering more than this share of the image holds more than one value: refused, since
+# the second look reads the whole box and has to see just the value.
+MAX_BOX_SHARE = 0.2
 
 # The fields the accountant reads as the agent's own words (#275).
 PROSE_FIELDS = ("reasoning", "reason", "question", "text", "needed", "label")

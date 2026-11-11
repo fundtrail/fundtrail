@@ -441,7 +441,8 @@ def test_an_image_is_sent_so_the_api_errors_rather_than_resize_it():
     opened = open_file(photo, out.getvalue())
     block = next(b for b in opened.blocks if b["type"] == "image")
     assert block["transformations"] == {"oversized_image": "error"}
-    assert opened.image is not None and max(opened.image.width, opened.image.height) == 2576
+    assert opened.images is not None and len(opened.images) == 1
+    assert max(opened.images[0].width, opened.images[0].height) == 2576
 
 
 def test_no_file_contents_go_in_the_debug_log():
