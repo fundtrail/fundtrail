@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { date } from "@/lib/format";
 import { field } from "../charge/labels";
+import { pageCaption } from "../viewer/placement";
 import type { Change } from "./describe";
 import styles from "./thread.module.css";
 
@@ -52,10 +53,10 @@ function DecideButtons({ recordId, onDecide, what }: { recordId: Id; onDecide: O
   return (
     <>
       <div className={styles.actions}>
-        <button type="button" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy} onClick={() => void decide("confirmed")}>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--approve" disabled={busy} onClick={() => void decide("confirmed")}>
           Accept<span className="ft-sr"> {what}</span>
         </button>
-        <button type="button" className="ft-btn ft-btn--sm" disabled={busy} onClick={() => void decide("rejected")}>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={busy} onClick={() => void decide("rejected")}>
           Reject<span className="ft-sr"> {what}</span>
         </button>
       </div>
@@ -91,13 +92,32 @@ export function stateLabel(state: RecordState, decision: DecisionMade | null | u
   }
 }
 
-/** A quoted passage with the file it's from. Opening the viewer is the viewer's link. */
-export function Quote({ citation, files, href }: { citation: Citation; files: Record<Id, EvidenceFile>; href?: string }) {
+/**
+ * A quoted passage in the serif, with the file it's from and where in it.
+ * Opening the viewer is the viewer's link. `highlight` sets the passage on the
+ * highlighter, for a quote that decides something waiting or failing.
+ */
+export function Quote({
+  citation,
+  files,
+  href,
+  highlight = false,
+}: {
+  citation: Citation;
+  files: Record<Id, EvidenceFile>;
+  href?: string;
+  highlight?: boolean;
+}) {
   const file = files[citation.file_id];
   const name = file?.name ?? "a file";
+  const where = pageCaption(citation);
   return (
-    <figure className={styles.quote}>
-      {citation.passage ? <blockquote>{citation.passage}</blockquote> : <p className="ft-caption">A marked area, with no text to quote.</p>}
+    <figure className={styles.quote} data-highlight={highlight || undefined}>
+      {citation.passage ? (
+        <blockquote>{highlight ? <mark>{citation.passage}</mark> : citation.passage}</blockquote>
+      ) : (
+        <p className="ft-caption">A marked area, with no text to quote.</p>
+      )}
       <figcaption className="ft-caption">
         {href ? (
           <Link className="ft-link" href={href}>
@@ -106,6 +126,7 @@ export function Quote({ citation, files, href }: { citation: Citation; files: Re
         ) : (
           name
         )}
+        {where && <>, {where}</>}
       </figcaption>
     </figure>
   );
@@ -132,7 +153,7 @@ export function SuggestionBox({
   return (
     <div className={`${styles.box} ${waiting ? styles.waiting : ""}`} data-testid="suggestion" data-state={state}>
       <p className={styles.boxHead}>
-        <span className="ft-label">Suggestion</span> <span className="ft-tag">{stateLabel(state, decision)}</span>
+        <span className="ft-label">Suggestion</span> <span className={styles.state}>{stateLabel(state, decision)}</span>
       </p>
       <p className="ft-strong">{change.title}</p>
       {(change.now || change.suggested) && (
@@ -190,7 +211,7 @@ export function DisputeBox({
   return (
     <div className={`${styles.box} ${waiting ? styles.waiting : ""}`} data-testid="dispute" data-state={state}>
       <p className={styles.boxHead}>
-        <span className="ft-label">Dispute</span> <span className="ft-tag">{stateLabel(state, decision)}</span>
+        <span className="ft-label">Dispute</span> <span className={styles.state}>{stateLabel(state, decision)}</span>
       </p>
       {reasonText ? (
         <>
@@ -208,7 +229,7 @@ export function DisputeBox({
         <span className="ft-label">Agent&apos;s reasoning</span> {field<string>(record, "reasoning")}
       </p>
       {quotes.map((q, i) => (
-        <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} />
+        <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} highlight={waiting} />
       ))}
       {waiting && (
         <p className="ft-caption">Accepting accepts this reason, with the agent&apos;s reasoning as the note.</p>

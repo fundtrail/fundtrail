@@ -4,14 +4,19 @@ import { Quote } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
 import { AnswerOpenQuestion, OverruleAnswer } from "./actions";
 import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
+import { TrailGroup, TrailNode, TrailNote, type Mark } from "./Trail";
 import styles from "./charge.module.css";
 
+const ANSWER_MARKS: Record<string, Mark> = { supports: "holds", contradicts: "conflict", unsure: "human" };
+
 /**
- * The answers to the questions code asked about the charge: the question, the
- * answer, the reasoning, the rule it used and its quotes, labeled with who
- * wrote it. Then the questions still open, and who answers each. With
- * `onWrite`, the accountant answers any open question, including one waiting
- * for the agent, or overrules an answer.
+ * The answers to the questions code asked about the charge, as nodes on the
+ * evidence trail: the question, the answer, the reasoning, the rule it used
+ * and its quotes, labeled with who wrote it. Then the questions still open,
+ * and who answers each. A Supports answer is a single line that opens in
+ * place; Contradicts and Unsure show their detail. With `onWrite`, the
+ * accountant answers any open question, including one waiting for the agent,
+ * or overrules an answer.
  */
 export function AgentAnswers({
   answers,
@@ -31,31 +36,42 @@ export function AgentAnswers({
   onWrite?: OnWrite;
 }) {
   if (answers.length === 0 && questions.length === 0) {
-    return <p className="ft-empty">No questions about this charge yet.</p>;
+    return (
+      <TrailGroup label="Answers">
+        <TrailNote>No questions about this charge yet.</TrailNote>
+      </TrailGroup>
+    );
   }
   return (
-    <ul className={styles.list} aria-label="Answers">
+    <TrailGroup label="Answers">
       {answers.map(({ judgment, out_of_date, rule }) => {
         const answer = field<string>(judgment, "answer") ?? "";
         const quotes = field<Citation[]>(judgment, "quotes") ?? [];
         const byAgent = judgment.author === "agent";
+        const settled = answer === "supports";
         return (
-          <li key={judgment.id} className={styles.row} data-testid="answer">
-            <p className={styles.line}>
-              <span className="ft-tag">{byAgent ? "Agent" : "Accountant"}</span>
-              <span className={styles.label}>{field<string>(judgment, "text")}</span>
+          <TrailNode
+            key={judgment.id}
+            testId="answer"
+            mark={ANSWER_MARKS[answer] ?? "plain"}
+            broken={!settled}
+            open={!settled}
+            title={<span className={styles.label}>{field<string>(judgment, "text")}</span>}
+            status={
+              <>
+                {out_of_date && <span className="ft-tag">Out of date</span>}
+                {out_of_date && rechecking && <span className="ft-tag ft-tag--rechecking">Rechecking</span>}
+                <span className="ft-tag">{byAgent ? "Agent" : "Accountant"}</span>
+                <span className={styles.answer} data-answer={answer}>
+                  {ANSWER_LABELS[answer] ?? answer}
+                </span>
+              </>
+            }
+          >
+            <p className="ft-caption">
+              {byAgent ? "The agent's answer" : "Answered by the accountant"}, {date(judgment.written_at)}
             </p>
-            <p className={styles.line}>
-              <span className={styles.answer} data-answer={answer}>
-                {ANSWER_LABELS[answer] ?? answer}
-              </span>
-              <span className="ft-caption">
-                {byAgent ? "The agent's answer" : "Answered by the accountant"}, {date(judgment.written_at)}
-              </span>
-              {out_of_date && <span className="ft-tag">Out of date</span>}
-              {out_of_date && rechecking && <span className="ft-tag ft-tag--rechecking">Rechecking</span>}
-            </p>
-            <p>
+            <p className={styles.prose}>
               <span className="ft-label">{byAgent ? "Agent's reasoning" : "Accountant's reasoning"}</span>{" "}
               {field<string>(judgment, "reasoning")}
             </p>
@@ -85,22 +101,29 @@ export function AgentAnswers({
               </p>
             )}
             {quotes.map((q, i) => (
-              <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} />
+              <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} highlight={!settled} />
             ))}
             {onWrite && <OverruleAnswer judgment={judgment} onWrite={onWrite} />}
-          </li>
+          </TrailNode>
         );
       })}
       {questions.map((q, i) => (
-        <li key={`q:${q.question}:${q.record_id ?? i}`} className={styles.row} data-testid="open-question">
-          <p className={styles.line}>
-            <span className="ft-tag">Open question</span>
-            <span className={styles.label}>{QUESTION_LABELS[q.question] ?? q.question}</span>
-          </p>
-          <p className="ft-caption">{q.answer_by === "agent" ? "Waiting for the agent" : "Waiting for the accountant"}</p>
-          {onWrite && <AnswerOpenQuestion chargeId={chargeId ?? q.charge_id} question={q} onWrite={onWrite} />}
-        </li>
+        <TrailNode
+          key={`q:${q.question}:${q.record_id ?? i}`}
+          testId="open-question"
+          mark={q.answer_by === "agent" ? "plain" : "human"}
+          broken
+          open
+          title={
+            <>
+              <span className="ft-tag">Open question</span> <span className={styles.label}>{QUESTION_LABELS[q.question] ?? q.question}</span>
+            </>
+          }
+          status={q.answer_by === "agent" ? "Waiting for the agent" : "Waiting for the accountant"}
+        >
+          {onWrite ? <AnswerOpenQuestion chargeId={chargeId ?? q.charge_id} question={q} onWrite={onWrite} /> : null}
+        </TrailNode>
       ))}
-    </ul>
+    </TrailGroup>
   );
 }

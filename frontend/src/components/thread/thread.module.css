@@ -1,7 +1,24 @@
+/* The review thread: a sunken dock, entries top to bottom with who wrote each
+   and when on the left, the agent's in a dashed outline so they never read as
+   code's or the accountant's, and the ask box pinned at the bottom. */
+
 .thread {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  min-height: 0;
+  background: var(--paper-sunken);
+}
+
+/* The entries scroll in their own area; the dock sets how tall it may get. */
+.scroll {
+  max-height: var(--thread-max, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+  /* Entries scrolled up under the heading fade out instead of being cut. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
 }
 
 .entries {
@@ -10,59 +27,83 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
 }
 
 .entry {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 80px minmax(0, 1fr);
   gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--rule);
   font-size: 13px;
-}
-
-.entry:first-child {
-  border-top: none;
+  line-height: 1.5;
 }
 
 .who {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 1px;
+  padding-top: 1px;
 }
 
 .whoName {
+  font-size: 12px;
   font-weight: 600;
-}
-
-.who[data-who="user"] .whoName {
-  color: var(--ledger);
 }
 
 .body {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.body > * {
+  max-width: 100%;
 }
 
 .body p {
   margin: 0;
 }
 
-.reasons {
-  margin: 0;
-  padding-left: var(--space-4);
+/* The agent's entries: a dashed outline, so they always look different from
+   what already counts. A suggestion or dispute waiting for the accountant is
+   its own outlined box instead, never a box in a box. */
+.entry[data-who="agent"] .body {
+  padding: var(--space-2) 10px;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
 }
 
+.entry[data-who="agent"][data-waiting] .body {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.reasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reasons li + li {
+  margin-top: 2px;
+}
+
+/* --- A suggestion or dispute --- */
+
 .box {
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
-  background: var(--paper-raised);
+  width: 100%;
+}
+
+.box > * {
+  max-width: 100%;
 }
 
 .box p {
@@ -70,14 +111,27 @@
 }
 
 .waiting {
-  border-color: var(--needs-human);
-  background: var(--needs-human-tint);
+  padding: var(--space-3);
+  border: 1px solid var(--needs-human);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
 }
 
 .boxHead {
   display: flex;
-  gap: var(--space-2);
-  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+}
+
+.state {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.waiting .state {
+  color: var(--needs-human);
+  font-weight: 600;
 }
 
 .change {
@@ -102,43 +156,242 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
+/* --- Quotes from evidence, in the serif --- */
+
 .quote {
   margin: 0;
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--rule-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 64ch;
 }
 
 .quote blockquote {
   margin: 0;
+  font: 400 16px/1.5 var(--serif, Georgia, "Times New Roman", serif);
   white-space: pre-wrap;
+  color: var(--ink);
+}
+
+.quote blockquote::before {
+  content: "\201C";
+}
+
+.quote blockquote::after {
+  content: "\201D";
+}
+
+.quote mark {
+  background: var(--hl, #ffe45c);
+  color: var(--on-hl, #1d1a05);
+  padding: 1px 3px;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.quote[data-highlight] blockquote::before,
+.quote[data-highlight] blockquote::after {
+  content: none;
+}
+
+.quote[data-highlight] mark::before {
+  content: "\201C";
+}
+
+.quote[data-highlight] mark::after {
+  content: "\201D";
+}
+
+/* --- The foot: the agent's state and the ask box, always in view --- */
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--rule);
 }
 
 .ask {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  border-top: 1px solid var(--rule);
-  padding-top: var(--space-3);
+  gap: var(--space-1);
 }
 
-.ask textarea {
+.askRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.askRow textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-md);
+  max-height: 160px;
+  field-sizing: content;
+  padding: 6px 10px;
   font: inherit;
+  line-height: 18px;
   color: var(--ink);
   background: var(--paper-raised);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm);
-  padding: var(--space-2);
-  min-height: 64px;
-  resize: vertical;
+  resize: none;
 }
 
-.padded {
-  padding: 0 var(--space-4) var(--space-4);
+.askRow textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+.askRow textarea:disabled {
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+.askRow .actionsBtn,
+.askRow button {
+  flex: none;
+  min-height: var(--control-md);
+}
+
+.help {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
 }
 
 .busy {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The agent at work: one pulsing dot, still under reduced motion. */
+.busy::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--needs-human);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy::before {
+    animation: none;
+  }
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
   color: var(--ink-muted);
+}
+
+/* --- A record's own page --- */
+
+.recordView {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.recordCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.recordTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+}
+
+.recordName {
+  margin: 0;
+  font: 700 21px/1.2 var(--display, var(--sans));
+  letter-spacing: -0.01em;
+}
+
+.recordState {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.recordState[data-state="waiting"] {
+  color: var(--needs-human);
+}
+
+.sectionHeading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.problems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+
+.problems li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.problems li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  margin: 4px 2px 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+.recordDock {
+  background: var(--paper-sunken);
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  overflow: hidden;
+  --thread-max: 60vh;
+}
+
+.dockHeading {
+  padding: var(--space-3) var(--space-4) 0;
 }

@@ -1,28 +1,16 @@
-import type { ReactNode } from "react";
 import type { Charge, ChargeDetail, Citation, Id, LinkView } from "@/lib/api";
+import { money } from "@/lib/format";
 import { ReviewThread } from "../thread/ReviewThread";
 import type { OnDecide } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
 import { AgentAnswers } from "./AgentAnswers";
 import { BillsCovering } from "./BillsCovering";
 import { ChargeHeader } from "./ChargeHeader";
-import { EvidenceChecklist } from "./EvidenceChecklist";
+import { EvidenceChecklist, MissingItems } from "./EvidenceChecklist";
 import { StatusHistory } from "./StatusHistory";
 import { StatusReasons } from "./StatusReasons";
+import { Disclosure, TrailGroup, TrailNode } from "./Trail";
 import styles from "./charge.module.css";
-
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section className="ft-panel" aria-labelledby={id}>
-      <div className="ft-panel__head">
-        <h2 id={id} className="ft-heading">
-          {title}
-        </h2>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export interface ChargeLinks {
   /** The viewer at a link's part, highlighted. */
@@ -34,9 +22,11 @@ export interface ChargeLinks {
 }
 
 /**
- * The charge page: the charge and its bucket, the server's reasons, the
- * evidence checklist, the bills covering it, the answers, status history, and
- * the review thread beside them.
+ * The charge: its header, then one evidence trail from the ledger line through
+ * the bills and evidence covering it, what's missing, the answers, and the
+ * server's failing reasons; then the evidence checklist and the status history,
+ * each closed to one line unless something in it needs the accountant; and
+ * the review thread docked under it, or beside it when there's room.
  */
 export function ChargeDetailView({
   detail,
@@ -57,67 +47,96 @@ export function ChargeDetailView({
   const files = detail.files ?? {};
   const links_ = detail.links ?? [];
   const waiting = detail.waiting ?? [];
+  const history = detail.history ?? [];
+  const checklist = status?.checklist ?? [];
   const charges: Record<Id, Charge> = { [charge.id]: charge };
   for (const c of detail.corrections ?? []) charges[c.id] = c;
+  const filled = checklist.filter((e) => e.filled).length;
+  const checklistNeedsYou = checklist.some((e) => !e.filled || e.removal_waiting_id);
   return (
-    <>
-      <ChargeHeader detail={detail} />
+    <div className={styles.view}>
       <div className={styles.layout}>
-        <div className={styles.column}>
-          <Section id="reasons-heading" title="Why it's in this bucket">
-            <StatusReasons status={status ?? null} chargeId={charge.id} chargedCents={status?.net_cents ?? charge.amount_cents} records={records} onWrite={onWrite} />
-          </Section>
-          <Section id="checklist-heading" title="Evidence checklist">
-            <EvidenceChecklist
-              checklist={status?.checklist ?? []}
-              links={links_}
-              waiting={waiting}
-              records={records}
-              files={files}
-              chargeId={charge.id}
-              grantId={charge.grant_id}
-              onWrite={onWrite}
-            />
-          </Section>
-          <Section id="bills-heading" title="Bills and evidence covering it">
-            <BillsCovering links={links_} viewerHref={links.link} />
-          </Section>
-          <Section id="answers-heading" title="Answers">
-            <AgentAnswers
-              answers={detail.answers ?? []}
-              questions={detail.questions ?? []}
-              rechecking={status?.rechecking ?? false}
-              files={files}
-              quoteHref={links.quote}
-              chargeId={charge.id}
-              onWrite={onWrite}
-            />
-          </Section>
-          <Section id="history-heading" title="Status history">
-            <StatusHistory history={detail.history ?? []} records={records} files={files} charges={charges} fileHref={links.file} />
-          </Section>
-        </div>
-        <div className={styles.column}>
-          <Section id="thread-heading" title="Review thread">
-            <div className={styles.body}>
-              <ReviewThread
-                thread={detail.thread}
-                about={charge.ledger_line_id}
-                ctx={{
-                  records,
-                  files,
-                  checklist: status?.checklist ?? [],
-                  reasons: status?.reasons ?? [],
-                  waiting,
-                  quoteHref: links.quote,
-                }}
-                onDecide={onDecide}
-                onAsk={onAsk}
+        <article className={styles.card} aria-labelledby="charge-name">
+          <ChargeHeader detail={detail} />
+          <section className={styles.section} aria-labelledby="trail-heading">
+            <h2 id="trail-heading" className={styles.sectionHeading}>
+              Evidence trail
+            </h2>
+            <div className={styles.trail}>
+              <TrailGroup label="Ledger line">
+                <TrailNode
+                  mark="ledger"
+                  title={
+                    <>
+                      Ledger line <span className="ft-id">{charge.ledger_line_id}</span>
+                    </>
+                  }
+                  status={<span className="ft-num">{money(charge.amount_cents)}</span>}
+                />
+              </TrailGroup>
+              <BillsCovering links={links_} viewerHref={links.link} />
+              <MissingItems checklist={checklist} />
+              <AgentAnswers
+                answers={detail.answers ?? []}
+                questions={detail.questions ?? []}
+                rechecking={status?.rechecking ?? false}
+                files={files}
+                quoteHref={links.quote}
+                chargeId={charge.id}
+                onWrite={onWrite}
+              />
+              <StatusReasons
+                status={status ?? null}
+                chargeId={charge.id}
+                chargedCents={status?.net_cents ?? charge.amount_cents}
+                records={records}
+                onWrite={onWrite}
               />
             </div>
-          </Section>
-        </div>
+          <div className={styles.closedLines}>
+            <Disclosure
+              label="Evidence checklist"
+              count={checklist.length > 0 ? `${filled} of ${checklist.length} filled` : undefined}
+              open={checklistNeedsYou}
+              attention={checklistNeedsYou}
+            >
+              <EvidenceChecklist
+                checklist={checklist}
+                links={links_}
+                waiting={waiting}
+                records={records}
+                files={files}
+                chargeId={charge.id}
+                grantId={charge.grant_id}
+                onWrite={onWrite}
+              />
+            </Disclosure>
+            <Disclosure label="Status history" count={history.length === 1 ? "1 change" : `${history.length} changes`}>
+              <StatusHistory history={history} records={records} files={files} charges={charges} fileHref={links.file} />
+            </Disclosure>
+          </div>
+          </section>
+        </article>
+        <section className={styles.dock} aria-labelledby="thread-heading">
+          <h2 id="thread-heading" className={`${styles.sectionHeading} ${styles.dockHeading}`}>
+            Review thread
+          </h2>
+          <ReviewThread
+            thread={detail.thread}
+            about={charge.ledger_line_id}
+            ctx={{
+              records,
+              files,
+              checklist,
+              reasons: status?.reasons ?? [],
+              waiting,
+              quoteHref: links.quote,
+            }}
+            onDecide={onDecide}
+            onAsk={onAsk}
+          />
+        </section>
       </div>
-    </>
+    </div>
   );
 }

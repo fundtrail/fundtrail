@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type {
   ChargeStatus,
   ChecklistEntry,
@@ -187,7 +187,12 @@ function entryKey(entry: ThreadEntry, i: number): string {
 function Entry({ entry, ctx, decisions, onDecide }: { entry: ThreadEntry; ctx: ThreadContext; decisions: Decisions; onDecide?: OnDecide }) {
   const { who, at } = entryWho(entry);
   return (
-    <li className={styles.entry} data-kind={entry.kind} data-who={who}>
+    <li
+      className={styles.entry}
+      data-kind={entry.kind}
+      data-who={who}
+      data-waiting={(entry.kind === "record" && entry.state === "waiting") || undefined}
+    >
       <div className={styles.who} data-who={who}>
         <span className={styles.whoName}>{who === "code" ? "Code" : AUTHOR_LABELS[who]}</span>
         <span className="ft-caption">{date(at)}</span>
@@ -245,18 +250,27 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
   }
   return (
     <form className={styles.ask} onSubmit={submit}>
-      <label className="ft-label" htmlFor="ask-agent">
+      <label className="ft-sr" htmlFor="ask-agent">
         Ask the agent about {about}
       </label>
-      <textarea id="ask-agent" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={keyDown} disabled={busy} />
-      <p className="ft-caption">
-        The agent answers about {about} only. Any change it proposes comes back as a suggestion for you to accept or reject.
-      </p>
-      <div className={styles.actions}>
-        <button type="submit" className="ft-btn ft-btn--sm ft-btn--main" disabled={busy || text.trim() === ""}>
+      <div className={styles.askRow}>
+        <textarea
+          id="ask-agent"
+          rows={1}
+          placeholder={`Ask the agent about ${about}`}
+          aria-describedby="ask-agent-help"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={keyDown}
+          disabled={busy}
+        />
+        <button type="submit" className="ft-btn ft-btn--sm" disabled={busy || text.trim() === ""}>
           Send
         </button>
       </div>
+      <p id="ask-agent-help" className={styles.help}>
+        The agent answers about {about} only. Any change it proposes comes back as a suggestion for you to accept or reject.
+      </p>
       {errors.length > 0 && (
         <ul className="ft-error" role="alert">
           {errors.map((e, i) => (
@@ -288,19 +302,30 @@ export function ReviewThread({
   onAsk: (text: string) => Promise<void>;
 }) {
   const decisions = decisionsFrom(thread, ctx.records);
+  const scroller = useRef<HTMLDivElement>(null);
+  const count = thread.entries.length;
+  // Newest entry last, and scrolled to it when one arrives.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [count]);
   return (
     <div className={styles.thread}>
+      <div className={styles.scroll} ref={scroller}>
       {thread.entries.length === 0 ? (
-        <p className="ft-empty">Nothing in this thread yet.</p>
+        <p className={styles.empty}>Nothing in this thread yet.</p>
       ) : (
         <ol className={styles.entries} aria-label="Review thread">
           {thread.entries.map((entry, i) => (
             <Entry key={entryKey(entry, i)} entry={entry} ctx={ctx} decisions={decisions} onDecide={onDecide} />
           ))}
-        </ol>
-      )}
-      <AgentBusy thread={thread} />
-      <AskBox about={about} onAsk={onAsk} />
+          </ol>
+        )}
+      </div>
+      <div className={styles.foot}>
+        <AgentBusy thread={thread} />
+        <AskBox about={about} onAsk={onAsk} />
+      </div>
     </div>
   );
 }

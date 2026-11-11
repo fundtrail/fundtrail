@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { LinkView } from "@/lib/api";
 import { date, money, recordKindLabel } from "@/lib/format";
 import { citedValue, field } from "./labels";
-import styles from "./charge.module.css";
+import { TrailGroup, TrailNode, TrailNote } from "./Trail";
 
 /** One line on what the linked record gives: "$5,000.00 of $10,000.00" for a bill. */
 function uses(view: LinkView): string | null {
@@ -27,13 +27,15 @@ function source(view: LinkView): string | null {
 }
 
 /**
- * The bills, approvals and explaining notes linked to the charge, with how much
- * of each bill it uses. Each name opens the viewer at the link's part.
+ * The bills, approvals and explaining notes linked to the charge, as nodes on
+ * the evidence trail, with how much of each bill it uses. Each name opens the
+ * viewer at the link's part. A link with values still unconfirmed shows its
+ * detail; the rest are single lines that open in place.
  */
 export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewerHref?: (view: LinkView) => string | undefined }) {
-  if (links.length === 0) return <p className="ft-empty">Nothing is linked to this charge yet.</p>;
   return (
-    <ul className={styles.list} aria-label="Bills and evidence covering this charge">
+    <TrailGroup label="Bills and evidence covering this charge">
+      {links.length === 0 && <TrailNote>Nothing is linked to this charge yet.</TrailNote>}
       {links.map((view) => {
         const name = view.file?.name ?? `${recordKindLabel(view.record.data.kind)} typed by the accountant`;
         const href = viewerHref?.(view);
@@ -41,23 +43,34 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
         const reason = field<string | null>(view.link, "reason");
         const what = uses(view);
         const from = source(view);
+        // A long statement or approval scope reads as detail, not as a status.
+        const shortWhat = what && what.length <= 28 ? what : null;
         return (
-          <li key={view.link.id} className={styles.row}>
-            <p className={styles.line}>
-              <span className="ft-tag">{recordKindLabel(view.record.data.kind)}</span>
-              {href ? (
+          <TrailNode
+            key={view.link.id}
+            mark="holds"
+            open={unconfirmed.length > 0}
+            title={
+              href ? (
                 <Link className="ft-link" href={href}>
                   {name}
                 </Link>
               ) : (
-                <span>{name}</span>
-              )}
-              {from && <span className="ft-caption">{from}</span>}
-            </p>
-            {what && <p className="ft-num">{what}</p>}
+                <span className="ft-strong">{name}</span>
+              )
+            }
+            status={shortWhat && <span className="ft-num">{shortWhat}</span>}
+            sub={
+              <>
+                {recordKindLabel(view.record.data.kind)}
+                {from && <> · {from}</>}
+              </>
+            }
+          >
+            {what && !shortWhat && <p className="ft-num">{what}</p>}
             {reason && (
-              <p className="ft-caption">
-                {view.link.author === "agent" ? "Agent's reason: " : "Accountant's reason: "}
+              <p>
+                <span className="ft-label">{view.link.author === "agent" ? "Agent's reason: " : "Accountant's reason: "}</span>
                 {reason}
               </p>
             )}
@@ -65,9 +78,9 @@ export function BillsCovering({ links, viewerHref }: { links: LinkView[]; viewer
               Linked by {view.link.author === "agent" ? "the agent" : "the accountant"}, {date(view.link.written_at)}
               {unconfirmed.length > 0 && <> · Not confirmed: {unconfirmed.join(", ")}</>}
             </p>
-          </li>
+          </TrailNode>
         );
       })}
-    </ul>
+    </TrailGroup>
   );
 }
