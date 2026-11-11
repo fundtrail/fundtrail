@@ -843,3 +843,24 @@ def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None
     assert tampered.status_code == 409
     assert b"%PDF changed" not in tampered.content
     assert tampered.json()["detail"].startswith("The stored report doesn't match the checksum")
+
+
+def test_the_grant_page_says_why_sign_off_cant_be_done_now(api: Api) -> None:
+    """Ruling 72: while a run is queued or running, the sign-off state carries the same
+    words the sign-off route refuses with; once the agent is done, none."""
+    sample = _sample(api)
+    path = f"/grants/{sample.grant.id}/records"
+    with transaction(api.platform.pool) as conn:
+        from app.db.jobs import queue_run
+
+        queue_run(conn, sample.grant, Trigger(kind=TriggerKind.CLOCK), APRIL_10)
+    reason = _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"]
+    refused = api.client.post(
+        path, json={"data": {"kind": "sign_off", "note": "Done."}}, headers=api.headers
+    )
+    assert refused.status_code == 422 and refused.json()["detail"] == [reason]
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (sample.grant.id,)
+        )
+    assert _get(api, f"/grants/{sample.grant.id}")["sign_off"]["unavailable_reason"] is None
