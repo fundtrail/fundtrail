@@ -2,16 +2,42 @@
 
 *Form: a live demo link (Google Drive, Loom, or unlisted YouTube), viewable by anyone with the link, 2 to 3 minutes.*
 
-Six of the larger sample's twelve highlights, about 20 seconds each, in timeline order. Target length: 2:40. The narration is about 300 words, read at a calm pace. Every amount, name and award number on screen is synthetic.
+**Tonight's plan: record the small sample.** It works end to end on main, and it was tested on Nov 10. The larger sample, with six of its twelve highlights, is the better story, but it needs a prerun that isn't ready: issue 312 and PR 264 come first, then about an hour to make it. Record the small sample now, and swap in the larger one only if the prerun lands in time.
+
+Every amount, name and award number on screen is synthetic.
 
 ## Before recording
 
-- **Alex's OK.** The prerun isn't on main, so this plays "Larger sample, read live from the start" with the real model: about 70 events, roughly an hour of agent time and real model spend. Ask Alex first. If there's no answer by about 9 PM, record the small-sample fallback below.
-- **The play is the rehearsal.** The larger sample has never been played with the real model, so every "On screen" line below is what the sample's answer key expects, not something anyone has seen. Record the whole play (see "The clips"), then edit each beat's narration to what the screen actually showed before recording the voice.
-- **Running locally:** CLAUDE.md's "Running things", with Docker running for the local database.
-- **Labels:** the screens are being restyled tonight. Check each quoted button label on main before recording.
+- **Fresh sample.** The samples' documents changed on Nov 10 (PR 305: typeset PDFs, new names). A sample grant opened before that keeps the old documents, so add the sample again or use Start over.
+- **Running locally:** CLAUDE.md's "Running things", with Docker running for the local database. Each file takes the agent 30 seconds to 2 minutes; cut the waits in the edit.
+- **Rehearse once,** and edit each beat's narration to what the screen actually shows.
 
-## Moving the clock
+## Tonight: the small sample
+
+"Small sample, read live", about 2:15. The clicks are for main after tonight's restyle. The timeline is one line on the grant overview: "Next event" is on the line, and **More** opens "Next highlight", **Go to a date** (a date box and **Go**) and **Skip the human steps**.
+
+| # | Clicks | Say |
+|---|---|---|
+| 01 | Workspace home, **Add a grant**. On the **Sample** card, set **Which sample** to "Small sample, read live", then **Open** | "Automate the Old Way. When a research grant ends, a university has a few months to prove every charge followed the rules. That proof is scattered across email, shared drives and receipts. FundTrail keeps a running evidence file for every grant, so the proof is ready before anyone asks." |
+| 02 | Wait for the agent to read the award letter (about 2 minutes; cut it). Sidebar **Grant terms**: each term with its quote highlighted. **Open the source** on the end date shows the passage in the viewer. Back, then **Confirm all** | "The agent reads the award letter and pulls out every term, each tied to the sentence it came from. Code checks each quote against the file, and nothing is used until the accountant confirms it." |
+| 03 | **More**, **Go to a date** Nov 17, 2026, **Go**. The ledger posts and seven files arrive (about 6 to 8 minutes of agent time; cut it). The overview's "things need you", then sidebar **Charges**, then "Travel reimbursement - Marchetti O": its evidence trail, with the airfare, the hotel folio and the expense report adding up to $676.00, Evidence complete | "The ledger posts and the evidence arrives. Every charge gets a bucket and a checklist, and the agent links each bill to the charge it pays for." |
+| 04 | **Next event**: the clock stops on `hardware_receipt.jpg`. **Deliver for me**. Then **Charges**, "Well fittings, card purchase" | "Some evidence only a person has, like this phone photo of a receipt. The charge waits for it, and a second look checks the values the agent read from the photo." |
+| 05 | **Next event**: the invoice ESS-32410 arrives by Gmail before its charge. Then **Go to a date** Nov 25, 2026: line L-1958-0006 posts and the invoice links to it | "This invoice arrived before its charge posted. It waits, and links the moment the line shows up." |
+| 06 | On the travel charge, in the review thread, ask "Do these cover this trip?" and **Send**. The agent's answer appears in the thread | "The accountant can ask the agent about any charge. It answers with its sources, and any change it proposes waits for a person." |
+| 07 | Sidebar **Closeout**: the steps, what's still open, every expense. **Make the draft**, then **Open the draft (PDF)** | "At closeout, the review is already done, and the evidence report is ready to attach to Berkeley's closeout certification." |
+| 08 | The report's pages, then the FundTrail wordmark | "The agent reads and suggests. Code checks every rule it can. A person makes every final call. That's FundTrail." |
+
+**Check in rehearsal:** beat 04's line about the second look. It merged on Nov 10 (PR 299); if the receipt's values show as unconfirmed instead, drop that clause.
+
+## The larger sample (if the prerun lands)
+
+Six of the larger sample's twelve highlights, about 20 seconds each, in timeline order. Target length 2:40.
+
+- **Needs:** issue 312 and PR 264 merged, then the prerun made with `python -m app.samples.prerun make` on the machine you record on (it's saved in that machine's database). Then choose "Larger sample, prerun", and every jump loads at once.
+- **Stay on the prerun.** Confirming terms, accepting the budget note and confirming the increment and extension yourself keep it on, because they match the sample's scripted steps. Letting in held mail yourself takes it off for good (PR 264), so beat 04 lets the sample accountant do it. Signing off at the end is fine.
+- **The play is the rehearsal.** Nobody has played the larger sample with the real model yet, so every "On screen" line is what the answer key expects.
+
+### Moving the clock
 
 The timeline is one line at the top of the grant overview: "Sample timeline", the date, "Next event" and **More**. Click **More** to open the controls: "Next highlight", **Go to a date** (a date box and **Go**), the **Skip the human steps** checkbox and "Start over". "Go" stays disabled until you pick a date after today.
 
@@ -21,16 +47,16 @@ Every jump below is **Go to a date with Skip the human steps ticked**, so the sa
 |---|---|---|
 | 02 Terms | (the sample opens here) | |
 | 03 Shared invoice | May 20, 2025 | The split email arrives May 14; its charge posts May 19 |
-| 04 Held mail | Jan 14, 2026 | The email is held Jan 12; the dinner charge posts Jan 13; the scripted let-in is Jan 15 |
+| 04 Held mail | Jan 14, 2026, then Jan 16, 2026 | The email is held Jan 12; the dinner charge posts Jan 13; the sample accountant lets it in Jan 15 |
 | 05 Budget | May 6, 2026, then Jun 13, 2026 | The corer posts May 5. The sample accountant accepts the overage May 6 at 17:00. The increment arrives Jun 12; its scripted confirm is Jun 15 |
 | 06 Extension | Sep 9, 2026, then Sep 15, 2026 | Boat time posts Sep 8; the extension arrives Sep 14; its scripted confirm is Sep 15 at 17:00 |
 | 07 Closeout | Mar 1, 2027 | Four more events arrive after the Nov 2 notice; the scripted sign-off is Mar 10 |
 
 **Getting around:** the sidebar under the grant has Problem list, Evidence, Grant terms, Ledger and Closeout. It has no Overview entry yet, so get back to the overview from the grant's name in the workspace's Grants list, or "Back to the grant" on a charge.
 
-## Beats
+### Beats
 
-Click paths are from `ui-preview` at 0422786 (main plus the UI pull requests in review). Recheck the labels on main before recording.
+Click paths are for main after tonight's restyle. Recheck the labels before recording.
 
 ### 0:00 Open (15 s)
 - **Clicks:** the workspace home, then **Add a grant** (top right). On the **Sample** card, set **Which sample** to "Larger sample, read live from the start", click **Open**, then **Start it**.
@@ -49,23 +75,23 @@ Click paths are from `ui-preview` at 0422786 (main plus the UI pull requests in 
 - **Say:** "A year in, one invoice is split between two grants. The professor's email says 56 of the 96 samples are ours, so that's the share linked here, and code checks the arithmetic."
 
 ### 0:55 Held vendor email (25 s)
-- **Clicks:** **More**, Go to Jan 14, 2026, Skip ticked, **Go**. Sidebar **Held mail**: the row "Invoice EFG-30418" from an unknown address. Click **Let in** ("Let in. It arrives now as evidence."). Wait for the agent. Sidebar **Problem list**, then the row "Field crew dinner, dry bags".
+- **Clicks:** **More**, Go to Jan 14, 2026, Skip ticked, **Go**. Sidebar **Held mail**: the row "Invoice EFG-30418" from an unknown address, held. Don't click Let in: on the prerun that takes the grant off it for good. Go to Jan 16, 2026, Skip ticked: the sample accountant lets it in. Sidebar **Problem list**, then the row "Field crew dinner, dry bags".
 - **On screen:** Possible conflict, with "Allowable: The agent answered contradicts" and the rule NSF-NEVER-ALCOHOL. The rule's wording and the wine line aren't shown on the charge; to show the wine, open the invoice from the evidence trail and point at its line.
 - **Say:** "Mail from an address nobody on the grant uses is held, unread, until someone lets it in. Once it's in, the agent reads the invoice and answers that the dinner isn't allowable: it includes wine, which a National Science Foundation award can't pay for."
 
 ### 1:20 Over budget, then more money (25 s)
-- **Clicks:** Go to May 6, 2026, Skip ticked. On the overview: "Charged" is past "the award's $60,000.00 limit", and the first row under "things need you" is tagged **Grant**. Go to Jun 13, 2026, Skip ticked: the sample accountant accepts the overage with its note on the way. Sidebar **Grant terms**: on "notice_001_increment.txt", **Confirm all**. Back on the overview, the limit reads $120,000.00.
+- **Clicks:** Go to May 6, 2026, Skip ticked. On the overview: "Charged" is past "the award's $60,000.00 limit", and the first row under "things need you" is tagged **Grant**. Go to Jun 13, 2026, Skip ticked: the sample accountant accepts the overage with its note on the way. Sidebar **Grant terms**: on "notice_001_increment.pdf", **Confirm all**. Back on the overview, the limit reads $120,000.00.
 - **Note:** there's no button to accept a grant problem with a note yourself; only the sample accountant's skipped step does it. The timeline marks it as the sample accountant's decision.
 - **Say:** "A field corer takes spending past what's been awarded so far. The accountant accepts it with a note, because more money is on the way. When the funding notice arrives, the agent reads the new total, and once it's confirmed, the limit rises."
 
 ### 1:45 Extension found in Drive (20 s)
-- **Clicks:** Go to Sep 9, 2026, Skip ticked. Sidebar **Problem list**: the boat-time charge (L-1835-0033), "Dated Aug 31, 2026, after the grant's end date, Jul 31, 2026", Possible conflict. Go to Sep 15, 2026, Skip ticked. Sidebar **Grant terms**: on "extension_notice_002.txt", **Confirm all 2** ("All 2 confirmed."). Back to the overview, **All charges**, the boat-time row.
+- **Clicks:** Go to Sep 9, 2026, Skip ticked. Sidebar **Problem list**: the boat-time charge (L-1835-0033), "Dated Aug 31, 2026, after the grant's end date, Jul 31, 2026", Possible conflict. Go to Sep 15, 2026, Skip ticked. Sidebar **Grant terms**: on "extension_notice_002.pdf", **Confirm all 2** ("All 2 confirmed."). Back to the overview, **All charges**, the boat-time row.
 - **On screen:** the badge now reads Evidence complete, the date check is under "Passing", and "Status history" has one more change. It's off the problem list, which is why you reopen it from All charges.
 - **Say:** "This boat time comes after the grant's end date. Then an extension, signed before the old date, turns up in Drive. Once the accountant confirms it, every check reruns and the charge clears, citing the notice."
 
 ### 2:05 Closeout (25 s)
 - **Clicks:** Go to Mar 1, 2027, Skip ticked. Wait until the timeline no longer says "The agent is still catching up". Sidebar **Closeout**: the steps as a trail, then "Still open". In **Note**, type the note. Click **Sign off** ("Signed off ... The report now carries your sign-off."). Under "Evidence report", **Make the draft**, then **Open the draft (PDF)**.
-- **Note:** if the agent is still working, Sign off answers "The agent is still working on this grant. Sign off once it's done." Wait and try again.
+- **Note:** while the agent is still working, the reason shows next to Sign off. Wait for it to clear.
 - **Check:** the answer key expects at least two charges open: the professor's own conference fee (Possible conflict) and the $1,260.00 charge with $1,200.00 of bills (Missing evidence). Say the number the screen shows.
 - **Say:** "At closeout, the review is already done. Two charges are still open: a fee the professor approved herself, and a bill sixty dollars short. The accountant signs off with a note, and the evidence report is ready to attach to Berkeley's closeout certification."
 
@@ -73,24 +99,9 @@ Click paths are from `ui-preview` at 0422786 (main plus the UI pull requests in 
 - **On screen:** the evidence report's pages, then the FundTrail wordmark.
 - **Say:** "The agent reads and suggests. Code checks every rule it can. A person makes every final call. That's FundTrail."
 
-## If a beat runs long
+### If a beat runs long
 
 Cut "Shared invoice" first, then "Over budget". The open, the terms, the extension, closeout and the close carry the story.
-
-## Fallback: the small sample
-
-If the larger sample can't be played tonight, record the small sample ("Small sample, read live"). It works end to end on main, with three highlights. Target 2:15.
-
-| # | Go to | Shot | Say |
-|---|---|---|---|
-| 01 | | Add a grant, "Small sample, read live", Open | "Automate the Old Way. When a research grant ends, a university has a few months to prove every charge followed the rules. That proof is scattered across email, shared drives and receipts. FundTrail keeps a running evidence file for every grant, so the proof is ready before anyone asks." |
-| 02 | (opens here) | The agent reads the award letter (cut the wait). Grant terms, each value with its quote. Confirm all | "The agent reads the award letter and pulls out every term, each tied to the sentence it came from. Code checks each quote against the file, and nothing is used until the accountant confirms it." |
-| 03 | Nov 17, 2026, skip off | The ledger posts and seven files arrive (cut the wait). The problem list, then the travel charge: its bucket, its checklist, the bills linked | "The ledger posts and the evidence arrives. Every charge gets a bucket and a checklist, and the agent links each bill to the charge it pays for." |
-| 04 | Next event | The clock stops on the receipt photo. Deliver for me | "Some evidence only a person has, like this phone photo of a receipt. The charge waits for it." |
-| 05 | Next event, then Nov 25, 2026 | The invoice arrives by Gmail before its charge. Then the ledger line posts and it links | "This invoice arrived before its charge posted. It waits, and links the moment the line shows up." |
-| 06 | | On the travel charge, ask the agent "Do these cover this trip?" Its answer in the thread | "The accountant can ask the agent about any charge. It answers with its sources, and any change it proposes waits for a person." |
-| 07 | | Closeout: the steps, what's still open, Make the draft, the evidence report | "At closeout, the review is already done, and the evidence report is ready to attach to Berkeley's closeout certification." |
-| 08 | | The report scrolling, then the wordmark | "The agent reads and suggests. Code checks every rule it can. A person makes every final call. That's FundTrail." |
 
 ## Recording and editing
 
@@ -133,7 +144,7 @@ Record the screen first, then the voice. Claude then cuts the video together wit
 
 ### The clips
 
-Because the clock only moves forward, a beat can't be redone without Start over, which resets the whole sample. So record the screen **continuously through one full play**, from Open to the report, and cut the clips out in the edit. Name the voice files by beat:
+Because the clock only moves forward, a beat can't be redone without Start over, which resets the whole sample. So record the screen **continuously through one full play**, from Open to the report, and cut the clips out in the edit. Name the voice files by beat. For the small sample, use its table's numbers, `01` to `08`. For the larger sample:
 
 | # | Voice file | Beat |
 |---|---|---|
