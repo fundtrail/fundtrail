@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { date } from "@/lib/format";
 import { field } from "../charge/labels";
-import { pageCaption } from "../viewer/placement";
+import { pageCaption } from "@/components/viewer/placement";
 import type { Change } from "./describe";
 import styles from "./thread.module.css";
 
@@ -93,9 +93,21 @@ export function stateLabel(state: RecordState, decision: DecisionMade | null | u
 }
 
 /**
- * A quoted passage in the serif, with the file it's from and where in it.
- * Opening the viewer is the viewer's link. `highlight` sets the passage on the
- * highlighter, for a quote that decides something waiting or failing.
+ * Whether a quote may go on the highlighter: only a passage the server found
+ * exactly as the file writes it. A close match, a passage it didn't find, and
+ * a box on a photo or scan are never yellow. The viewer and the evidence cards
+ * keep the same rule.
+ */
+export function isExactPassage(citation: Citation): boolean {
+  return Boolean(citation.passage) && citation.match === "exact" && citation.location?.type !== "image_box";
+}
+
+/**
+ * A quoted passage in the serif, with the file it's from, where in it, and
+ * the viewer's words for a close match. When it opens the viewer, the passage
+ * itself is the link, underlined quietly so it reads as one before hover.
+ * `highlight` asks for the passage on the highlighter, for a quote that
+ * decides something waiting or failing; it goes there only for an exact match.
  */
 export function Quote({
   citation,
@@ -111,15 +123,26 @@ export function Quote({
   const file = files[citation.file_id];
   const name = file?.name ?? "a file";
   const where = pageCaption(citation);
+  const marked = highlight && isExactPassage(citation);
+  let passage: ReactNode = null;
+  if (citation.passage) passage = marked ? <mark>{citation.passage}</mark> : citation.passage;
   return (
-    <figure className={styles.quote} data-highlight={highlight || undefined}>
-      {citation.passage ? (
-        <blockquote>{highlight ? <mark>{citation.passage}</mark> : citation.passage}</blockquote>
+    <figure className={styles.quote} data-highlight={marked || undefined} data-match={citation.match ?? undefined}>
+      {passage ? (
+        <blockquote>
+          {href ? (
+            <Link className={styles.quoteLink} href={href}>
+              {passage}
+            </Link>
+          ) : (
+            passage
+          )}
+        </blockquote>
       ) : (
         <p className="ft-caption">A marked area, with no text to quote.</p>
       )}
       <figcaption className="ft-caption">
-        {href ? (
+        {href && !passage ? (
           <Link className="ft-link" href={href}>
             {name}
           </Link>
@@ -127,6 +150,7 @@ export function Quote({
           name
         )}
         {where && <>, {where}</>}
+        {citation.match === "close" && <> · Close match on the page</>}
       </figcaption>
     </figure>
   );
