@@ -258,7 +258,8 @@
   align-self: center;
   margin: 0 2px 0 0;
 }
-.ft-tgroup--retired {
+/* Every group measures its own width, wherever it sits, so its rows can stack. */
+.ft-tgroup {
   container-type: inline-size;
 }
 .ft-tgroup--retired .ft-tgroup__head {

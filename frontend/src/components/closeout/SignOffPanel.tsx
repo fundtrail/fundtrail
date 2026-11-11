@@ -146,6 +146,21 @@ function WithdrawSignOff({
 }
 
 /**
+ * Rulings 72 and 79: why signing off can't be done now, in the server's words,
+ * under the control it blocks and named as that control's description, so it's
+ * read when the control gets focus. A polite status region: a changed reason is
+ * announced, and a refetch that brings the same reason changes no text, so it
+ * announces nothing.
+ */
+function UnavailableReason({ id, reason }: { id: string; reason: string }) {
+  return (
+    <p className="ft-co-unavailable" id={id} role="status">
+      {reason}
+    </p>
+  );
+}
+
+/**
  * The accountant's sign-off on the evidence report (decision 0022). It sends
  * only the note; the server decides whether the sign-off stands. A note is
  * required whenever anything is still open, and a sign-off is refused while an
@@ -170,13 +185,29 @@ export function SignOffPanel({
   const [signed, setSigned] = useState<FtRecord | null>(null);
   // Once signed, signing again is a quiet action: the form opens in place when asked.
   const [formOpen, setFormOpen] = useState(false);
-  // Ruling 72: the server says, in its own words, when signing off can't be done now.
+  const againRef = useRef<HTMLButtonElement>(null);
+  // Set by Cancel, so closing the form hands focus back to "Sign off again".
+  const returnFocus = useRef(false);
+  // Rulings 72 and 79: the server says, in its own words, when signing off can't be done now.
   const unavailable = signOff.unavailable_reason?.trim() || null;
 
-  // Opening the form to sign again puts the cursor in the note, the first thing to fill in.
+  // Opening the form to sign again puts the cursor in the note, the first thing to
+  // fill in; closing it with Cancel puts focus back on "Sign off again".
   useEffect(() => {
-    if (formOpen) noteRef.current?.focus();
+    if (formOpen) {
+      noteRef.current?.focus();
+    } else if (returnFocus.current) {
+      returnFocus.current = false;
+      againRef.current?.focus();
+    }
   }, [formOpen]);
+
+  // Cancel closes the form and drops a refusal shown in it; a half-typed note stays.
+  function cancel() {
+    returnFocus.current = true;
+    setRefusal(null);
+    setFormOpen(false);
+  }
 
   async function signOffNow(event: FormEvent) {
     event.preventDefault();
@@ -256,28 +287,41 @@ export function SignOffPanel({
             </div>
           )}
           <div className="ft-co-submit">
-            {/* aria-disabled, not disabled, so the button and its reason stay reachable by keyboard. */}
-            <button
-              type="submit"
-              className={`ft-btn ft-btn--approve ft-btn--main${busy ? " is-busy" : ""}`}
-              disabled={busy}
-              aria-disabled={unavailable ? true : undefined}
-              aria-describedby={unavailable ? reasonId : undefined}
-            >
-              {again ? "Sign off again" : "Sign off"}
-            </button>
-            {unavailable && (
-              <p className="ft-co-unavailable" id={reasonId}>
-                {unavailable}
-              </p>
-            )}
+            <div className="ft-co-submit__row">
+              {/* aria-disabled, not disabled, so the button and its reason stay reachable by keyboard. */}
+              <button
+                type="submit"
+                className={`ft-btn ft-btn--approve ft-btn--main${busy ? " is-busy" : ""}`}
+                disabled={busy}
+                aria-disabled={unavailable ? true : undefined}
+                aria-describedby={unavailable ? reasonId : undefined}
+              >
+                {again ? "Sign off again" : "Sign off"}
+              </button>
+              {again && (
+                <button type="button" className="ft-btn ft-btn--sm ft-btn--quiet" onClick={cancel}>
+                  Cancel
+                </button>
+              )}
+            </div>
+            {unavailable && <UnavailableReason id={reasonId} reason={unavailable} />}
           </div>
         </form>
       ) : (
         <div className="ft-co-again">
-          <button type="button" className="ft-btn ft-btn--sm" onClick={() => setFormOpen(true)}>
+          <button
+            ref={againRef}
+            type="button"
+            className="ft-btn ft-btn--sm"
+            aria-disabled={unavailable ? true : undefined}
+            aria-describedby={unavailable ? reasonId : undefined}
+            onClick={() => {
+              if (!unavailable) setFormOpen(true);
+            }}
+          >
             Sign off again
           </button>
+          {unavailable && <UnavailableReason id={reasonId} reason={unavailable} />}
         </div>
       )}
 
