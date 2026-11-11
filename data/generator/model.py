@@ -63,12 +63,9 @@ class Doc:
     # For a typeset PDF: the first and last page each row of `text` is on, counted
     # from 1, and None for a blank row (typeset.locate). None for any other file.
     pages: list[tuple[int, int] | None] | None = None
-    # For a drawn image (images.py): the box of each row of `text` on the image, as
-    # (left, top, width, height) in fractions of it. None for any other file.
-    boxes: list[tuple[float, float, float, float]] | None = None
-    # For a scan or a photo made from a typeset page (images.py): for each row of `text`,
-    # its words and each one's box on the picture, and None for a blank row. None for
-    # any other file.
+    # For a picture of paper (images.py), a photo or a scan: for each row of `text`, its
+    # words and each one's box on the picture as (left, top, width, height) in fractions
+    # of it, and None for a blank row. None for any other file.
     words: list[list[tuple[str, tuple[float, float, float, float]]] | None] | None = None
 
 

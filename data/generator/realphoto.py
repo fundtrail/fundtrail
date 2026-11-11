@@ -176,6 +176,18 @@ def _thermal_paper(rows: list[Row], seed: int) -> tuple[Image.Image, Marks]:
     marks = Marks((pw * scale, height * scale))
     rules: list[int] = []  # how far down each dotted rule is, on the full-size paper
     y = 30
+
+    def mark_words(text: str, x: float, f) -> None:
+        """Remembers each word of a string printed at x on the line now being printed."""
+        at = 0
+        for word in text.split():
+            start = text.index(word, at)
+            at = start + len(word)
+            left = x + d.textlength(text[:start], font=f)
+            box = d.textbbox((left, y), word, font=f)
+            padded = (box[0] - 1, box[1] - 2, box[2] + 1, box[3] + 2)
+            marks.add(word, tuple(int(v * scale) for v in padded))
+
     for r in rows:
         if r.rule:
             for x in range(margin, pw - margin, 4):
@@ -188,20 +200,12 @@ def _thermal_paper(rows: list[Row], seed: int) -> tuple[Image.Image, Marks]:
             width = d.textlength(r.left, font=f)
             x = (pw - width) / 2 if r.align == "center" else margin
             d.text((x, y), r.left, font=f, fill=255)
-            box = d.textbbox((x, y), r.left, font=f)
-            marks.add(
-                r.left,
-                tuple(int(v * scale) for v in (box[0] - 2, box[1] - 2, box[2] + 2, box[3] + 2)),
-            )
+            mark_words(r.left, x, f)
         if r.right:
             width = d.textlength(r.right, font=f)
             x = pw - margin - width
             d.text((x, y), r.right, font=f, fill=255)
-            box = d.textbbox((x, y), r.right, font=f)
-            marks.add(
-                r.right,
-                tuple(int(v * scale) for v in (box[0] - 2, box[1] - 2, box[2] + 2, box[3] + 2)),
-            )
+            mark_words(r.right, x, f)
         y += step[r.style]
     size = (pw * scale, height * scale)
     ink = small.resize(size, Image.Resampling.NEAREST).filter(ImageFilter.GaussianBlur(1.1))
@@ -532,28 +536,32 @@ def printed_page(image: Image.Image, strings: list[tuple[str, tuple[int, int, in
     return page
 
 
-def photo_of_page(page: Page, *, seed: int) -> tuple[bytes, Boxes]:
-    """A phone photo of a printed sheet lying on a desk, taken from above its lower edge."""
+def photo_of_page(page: Page, *, seed: int, turn: float | None = None) -> tuple[bytes, Boxes]:
+    """A phone photo of a printed sheet lying on a desk, taken from above its lower edge:
+    white paper under indoor light, on a darker desk. The sheet is turned `turn`
+    degrees, or by an angle of the seed's choosing within five degrees."""
     rng = random.Random(seed)
     size = (1512, 2016)
-    scene = _desk(size, seed)
+    # The desk is darker than the sheet, so the paper reads as white.
+    scene = _desk(size, seed).point(lambda v: v * 4 // 5)
     pw, ph = page.size
     sheet = Image.merge("RGB", (page.image.filter(ImageFilter.GaussianBlur(0.5)),) * 3)
     # Paper: off-white, with the soft waves of a sheet that was folded in three.
     tone = Image.new("RGB", (pw, ph), (246, 245, 240))
     sheet = ImageChops.multiply(sheet, tone)
     waves = Image.new("L", (1, 256))
-    waves.putdata([int(232 + 20 * math.cos(math.pi * 3 * i / 255)) for i in range(256)])
+    waves.putdata([int(244 + 9 * math.cos(math.pi * 3 * i / 255)) for i in range(256)])
     waves = waves.resize((pw, ph), Image.Resampling.BICUBIC)
     bumps = _soft_noise((pw, ph), (6, 8), 30, seed + 3).filter(ImageFilter.GaussianBlur(30))
-    bumps = bumps.point(lambda v: max(0, min(255, 240 + (v - 128) // 5)))
+    bumps = bumps.point(lambda v: max(0, min(255, 248 + (v - 128) // 6)))
     shade = ImageChops.multiply(waves, bumps)
     sheet = ImageChops.multiply(sheet, Image.merge("RGB", (shade,) * 3)).convert("RGBA")
 
     fit = min(1700 / ph, 1260 / pw)
     w2, h2 = pw * fit, ph * fit
     cx, cy = size[0] / 2 + rng.randint(-20, 20), size[1] / 2 + rng.randint(0, 40)
-    turn = math.radians(rng.uniform(-5, 5))
+    chosen = rng.uniform(-5, 5)
+    turn = math.radians(chosen if turn is None else turn)
     pinch = 0.09
     corners = [
         (-w2 / 2 * (1 - pinch), -h2 / 2),
@@ -591,11 +599,11 @@ def photo_of_page(page: Page, *, seed: int) -> tuple[bytes, Boxes]:
             mid - size[1] // 2 + size[1],
         )
     )
-    light = light.filter(ImageFilter.GaussianBlur(30)).point(lambda v: 158 + v * 97 // 255)
+    light = light.filter(ImageFilter.GaussianBlur(30)).point(lambda v: 218 + v * 37 // 255)
     vignette = (
         ImageOps.invert(Image.radial_gradient("L"))
         .resize(size)
-        .point(lambda v: 200 + v * 55 // 255)
+        .point(lambda v: 234 + v * 21 // 255)
     )
     lit = ImageChops.multiply(light, vignette)
     scene = ImageChops.multiply(scene, Image.merge("RGB", (lit,) * 3))

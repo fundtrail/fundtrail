@@ -1255,6 +1255,7 @@ LAYOUTS: list[tuple[str, Layout]] = [
     ("extension_notice", notice),
     ("notice_of_expiration", expiration_notice),
     ("invoice_", invoice),
+    ("scan_invoice_", invoice),
     ("usage_statement_", usage_statement),
     ("hotel_folio_", folio),
     ("expense_report_", expense_report),

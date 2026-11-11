@@ -17,7 +17,7 @@ amounts and dates are placeholders until the product owner settles them.
 The output is deterministic: running it again gives the same files, byte for
 byte. The samples' pictures of paper (the receipt photos, the scans and the folio's
 photo) depend on the fonts on the machine, so they're redrawn only with `--photos`,
-which also saves the box of every string or word on them to `image_boxes.json`.
+which also saves the box of every word on them to `image_boxes.json`.
 After redrawing them, update their hashes in `data/test_seed.py`.
 """
 

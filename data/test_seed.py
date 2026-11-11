@@ -205,7 +205,7 @@ PHOTO_SHA256 = {
         "50533f521a574c6bdcbefd7ee2151d7caf1cc309e30c76a644ff32c4b20279d5"
     ),
     "samples/salt-marsh-carbon/hotel_folio_egu-2024.jpg": (
-        "dfd928d0e643872e23b3eea2413b45df356034683804e2a62586831ea85528a8"
+        "3befcd4798ace6763e8a5a5812529d1c4bd7fef5ad4a7b02362bffffbe7a5f68"
     ),
     "samples/salt-marsh-carbon/invoice_INV-12655.pdf": (
         "19679ce302a56812bae9c864c4b873799a7339d119aa30e4d70cbcea75b965a9"
@@ -217,7 +217,7 @@ PHOTO_SHA256 = {
         "e33a01e3ca8ce759b6658283fb9eb37b76bcff1a89deaa3356ccd90cef1ea5cb"
     ),
     "samples/salt-marsh-carbon/scan_invoice_ESS-55120.jpg": (
-        "1ef97f648cde2b6ec0dbec4b4596bb72ff2217d7ce7dd52cc125a4be4f2fff47"
+        "7a97e6f417a98387746d6c5387fc8233a7c2ea547ce519b1e9a14bab4e566e8e"
     ),
 }
 # The highlights each sample marks in its timeline (the sample content brief).
@@ -316,7 +316,7 @@ def folders() -> list[Path]:
 
 def is_picture(doc) -> bool:
     """Whether a file is a picture of paper: a photo or a scan, a scanned PDF included."""
-    return Path(doc.name).suffix in PHOTO_SUFFIXES or doc.boxes is not None or doc.words is not None
+    return Path(doc.name).suffix in PHOTO_SUFFIXES or doc.words is not None
 
 
 def texts(files: Path, grant) -> dict[str, str]:
@@ -1045,11 +1045,11 @@ def check_folder(key_dir: Path, grant) -> list[str]:
 
 
 def check_pictures(files: Path, grant, problems: list[str]) -> None:
-    """A scan or a photo made from a typeset page.
+    """A picture of paper: a receipt's photo, or a scan or a photo of a typeset page.
 
     - A scanned PDF is one page with no text layer, so the app sends it as an image.
-    - It has the words of every row of the document's text, each with a box that lies
-      inside the picture and isn't empty.
+    - It has the words of every row of its text, each with a box that lies inside the
+      picture and isn't empty.
     """
     typeset = typeset_module()
     for d in grant.docs:
@@ -1717,7 +1717,8 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
             ref = r["data"].get(target) if target == "record_id" else r.get(target)
             if ref is not None and (ref not in by_id or by_id[ref]["written_at"] > r["written_at"]):
                 problems.append(f"{where}: {rid} points to {ref}, not written before it")
-        for c in citations(r["data"]):
+        for value in cited_values(r["data"]):
+            c = value["citation"]
             name = c["file_id"].removeprefix("file-")
             if name not in docs:
                 problems.append(f"{where}: {rid} cites {name}, which isn't a file of the sample")
@@ -1739,7 +1740,6 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                 if pages not in at:
                     problems.append(f"{where}: {rid}'s passage isn't a row of {name} there")
             elif loc["type"] == "image_box":
-                box = (loc["left"], loc["top"], loc["width"], loc["height"])
                 if not (
                     0 <= loc["left"]
                     and loc["left"] + loc["width"] <= 1
@@ -1747,8 +1747,10 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                     and loc["top"] + loc["height"] <= 1
                 ):
                     problems.append(f"{where}: {rid}'s box isn't inside {name}")
-                elif docs[name].words is not None:
-                    # A picture of a typeset page: the box is around words of one row.
+                else:
+                    # The box holds words of one row of the picture, and where the
+                    # citation is a value's, exactly the value's text: a second look at
+                    # the boxed area has to read the value and nothing more.
                     left, top = loc["left"], loc["top"]
                     right, bottom = left + loc["width"], top + loc["height"]
                     held = [
@@ -1760,14 +1762,17 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                             and b[0] + b[2] <= right + 1e-3
                             and b[1] + b[3] <= bottom + 1e-3
                         ]
-                        for row in docs[name].words
+                        for row in docs[name].words or []
                         if row
                     ]
-                    words = max(held, key=len)
+                    words = " ".join(max(held, key=len, default=[]))
                     if loc["page"] != 1 or not words:
                         problems.append(f"{where}: {rid}'s box holds no word of {name}")
-                elif box not in (docs[name].boxes or []):
-                    problems.append(f"{where}: {rid}'s box isn't a string drawn on {name}")
+                    elif "text" in value and words != " ".join(value["text"].split()):
+                        problems.append(
+                            f"{where}: {rid}'s box on {name} holds {words!r}, "
+                            f"not the value {value['text']!r}"
+                        )
             else:
                 problems.append(f"{where}: {rid} has a {loc['type']} citation")
 

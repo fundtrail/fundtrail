@@ -37,7 +37,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from demo import RTC, SUPPLIES_ACCOUNT
-from images import Photo, Row, Scan, Stamp, invoice_scan, put_image, receipt
+from images import Photo, Row, Scan, put_image, receipt
 from model import (
     EVIDENCE_COMPLETE,
     MISSING_EVIDENCE,
@@ -179,6 +179,9 @@ PICTURES = {
         seed=2025, turn=0.4, stamp=False, tick=False, sign=True
     ),
     "hotel_folio_egu-2024.jpg": Photo(seed=2024),
+    # The scan of invoice ESS-55120 that turns up in Drive (highlight 10). Its stamp
+    # carries the day the invoice was forwarded, not the day the scan arrives.
+    "scan_invoice_ESS-55120.jpg": Scan(seed=55120, turn=0.9, received=date(2025, 10, 8)),
 }
 
 DESCRIPTION = (
@@ -955,13 +958,14 @@ def same_invoice_twice(g: Grant) -> None:
         reference="ESS-55120",
     )
     copy = "scan_invoice_ESS-55120.jpg"
-    stamp = Stamp("RECEIVED", "OCT 08 2025", "EARTH & OCEAN SCIENCES", at=(0.10, 0.60))
-    put_image(
+    put(
         g,
         copy,
-        invoice_scan(copy, text, seed=55120, stamp=stamp),
+        text,
+        "Scan of invoice ESS-55120",
         at(date(2025, 11, 20), 19),
         "drive",
+        look=KITTREDGE.look,
         note="A scan of the same invoice, saved to the lab's Drive folder six weeks later.",
     )
     g.highlights[copy] = "Same invoice twice"

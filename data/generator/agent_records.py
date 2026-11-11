@@ -12,9 +12,9 @@ IDs are placeholders the play maps to its own: the workspace is `ws-sample`, the
 grant `grant-<sample>`, a file `file-<name>`, a charge `chg-<line ID>`, and each
 record `rec-...`. Citations are counted, not typed: a text or email file gets a
 `char_location`, a PDF a `page_location` (the row as the page gives it, with the
-pages the typeset PDF puts it on), and an image an `image_box`: the box of the
-string drawn on it that holds the value. Confirmations aren't here: they're the
-accountant's, in `user_actions.json`.
+pages the typeset PDF puts it on), and a picture of paper (a photo, a scan, a
+scanned PDF) an `image_box` around the value's own words. Confirmations aren't
+here: they're the accountant's, in `user_actions.json`.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from datetime import date, datetime
 from model import Grant, iso
 
 ALLOWABLE = "Is this cost necessary and reasonable, and is it for this project?"
-PHOTO_SUFFIXES = (".jpg", ".jpeg", ".png")
 # A bill's total is cited on its total's row ("Total due"), not on a subtotal of the
 # same amount.
 TOTAL_ROW = re.compile(r"\btotal\b", re.IGNORECASE)
@@ -149,9 +148,9 @@ class Builder:
         row = rows[index]
         passage = row.strip()
         if doc.words is not None:
-            # A scan or a photo of a typeset page: the box around the value's own words
-            # on this row, so a total's box sits on the total and not on a line's
-            # amount that happens to be the same.
+            # A picture of paper: the box around the value's own words on this row, so
+            # the box holds the value and nothing else, and a total's box sits on the
+            # total and not on a line's amount that happens to be the same.
             left, top, right, bottom = value_box(doc.words[index] or [], text)
             box = {
                 "type": "image_box",
@@ -181,24 +180,6 @@ class Builder:
                 "file_id": self.file_id(name),
                 "passage": spaced(passage),
                 "location": location,
-                "match": "exact",
-            }
-        if name.endswith(PHOTO_SUFFIXES):
-            # The box of the drawn string, which is this row of the image's text.
-            assert doc.boxes is not None, f"{name}: a cited image has to be a drawn one"
-            left, top, width, height = doc.boxes[index]
-            box = {
-                "type": "image_box",
-                "page": 1,
-                "left": left,
-                "top": top,
-                "width": width,
-                "height": height,
-            }
-            return {
-                "file_id": self.file_id(name),
-                "passage": None,
-                "location": box,
                 "match": "exact",
             }
         start = sum(len(r) + 1 for r in rows[:index]) + (len(row) - len(row.lstrip()))
