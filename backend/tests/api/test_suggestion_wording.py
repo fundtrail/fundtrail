@@ -39,7 +39,8 @@ def test_a_bills_thread_titles_the_remainder_suggestion_as_the_server_words_it(
     entries = _get(api, f"/records/{bill}/thread")["entries"]
     [entry] = [e for e in entries if e["kind"] == "record" and e["record"]["id"] == remainder.id]
     assert entry["state"] == "waiting"
-    assert entry["change"]["title"].startswith("Put the rest of the bill in invoice_1001.txt")
-    assert entry["change"]["title"].endswith("on award SYN-2300999")
+    assert entry["change"]["title"] == (
+        "Record that the rest of the bill in invoice_1001.txt belongs to award SYN-2300999"
+    )
     others = [e for e in entries if e["kind"] == "record" and e["record"]["id"] != remainder.id]
     assert all(e["change"] is None for e in others)

@@ -168,18 +168,20 @@ def _item_needed(data: ChecklistRemoval, look: _Lookup, record_id: str) -> str:
     return data.default_item or "an item"
 
 
-def _rest_of_bill(bill: Record | None, look: _Lookup) -> int | None:
-    """What the bill's links in force don't account for: its total less their amounts.
-    None when the bill isn't known or nothing of the bill's sign is left."""
-    if bill is None or not isinstance(bill.data, Bill):
+def _rest_of_bill(bill: Record, state: RecordState) -> int | None:
+    """What the links in force to the bill as it stands now don't account for: its total
+    less their amounts, as the checks' unused-bill problem counts it (links to a fully
+    reversed charge included, decision 0020). Each link is resolved through the bill's
+    corrections, as the checks do. None when nothing of the bill's sign is left."""
+    if not isinstance(bill.data, Bill):
         return None
     total = bill.data.total.value
-    state = RecordState(look.records.values())
-    linked = sum(
-        r.data.amount_cents or 0
-        for r in state.current()
-        if isinstance(r.data, Link) and r.data.record_id == bill.id
-    )
+    linked = 0
+    for r in state.current():
+        if isinstance(r.data, Link):
+            fact = state.current_version(r.data.record_id)
+            if fact is not None and fact.id == bill.id:
+                linked += r.data.amount_cents or 0
     rest = total - linked
     return rest if rest != 0 and (rest > 0) == (total > 0) else None
 
@@ -192,13 +194,16 @@ def suggestion_change(
     files: Iterable[EvidenceFile] = (),
     charges: Iterable[Charge] = (),
     checklist: Iterable[ChecklistEntry] = (),
+    state: RecordState | None = None,
 ) -> SuggestionChange:
     """What accepting one of the agent's waiting records changes.
 
     `records`, `files` and `charges` let it name what the record points to;
     `checklist` is the charge's checklist, which names a default item a removal
-    names by its key.
+    names by its key. `state` is the grant's RecordState when the caller has one
+    (the API's snapshot); otherwise one is built from `records` and `files`.
     """
+    files = list(files)
     look = _Lookup(records, files, charges, checklist)
     data = record.data
     if isinstance(data, ChecklistRemoval):
@@ -248,15 +253,19 @@ def suggestion_change(
             title += ", and net the two"
         return SuggestionChange(title=title)
     if isinstance(data, Remainder):
-        bill = look.records.get(data.record_id)
+        # The bill as it stands now, through its corrections, as the checks read it.
+        records_state = state if state is not None else RecordState(look.records.values(), files)
+        bill = records_state.current_version(data.record_id) or look.records.get(data.record_id)
         file_id = next((c.file_id for c in citations(bill.data)), None) if bill else None
         file = look.files.get(file_id or "")
         named = f"the bill in {file.name}" if file else "the bill"
-        rest = _rest_of_bill(bill, look)
+        rest = _rest_of_bill(bill, records_state) if bill is not None else None
         if rest is not None:
-            named += f" ({money(rest)})"
-        # Issue 304: what accepting it does, in plain words.
-        return SuggestionChange(title=f"Put the rest of {named} on award {data.other_award.value}")
+            named += f", {money(rest)},"
+        # Issue 304 and decision 0021: accepting records where the rest belongs.
+        return SuggestionChange(
+            title=f"Record that the rest of {named} belongs to award {data.other_award.value}"
+        )
     if isinstance(data, Judgment) and replaces is not None:
         question = QUESTION_LABELS[data.question]
         return SuggestionChange(

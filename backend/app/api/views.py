@@ -272,6 +272,7 @@ def _change(snap: GrantSnapshot, record: Record) -> SuggestionChange:
         files=snap.files,
         charges=snap.charges,
         checklist=status.checklist if status else (),
+        state=snap.state,
     )
 
 
