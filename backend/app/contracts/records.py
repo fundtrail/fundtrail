@@ -139,15 +139,17 @@ class Citation(Model):
     """A place in an evidence file. It's what gets highlighted when the user opens it."""
 
     file_id: Id
-    # The API's cited text, copied as is. The agent never types it. None for an
-    # image box: photos and scans have no passage.
+    # A verbatim stretch of the API's cited text that contains the value: code may
+    # narrow the API's chunk to the line or lines that hold it, but never edits or
+    # paraphrases it. The agent never types it. None for an image box: photos and
+    # scans have no passage.
     passage: str | None
     location: Location
     # Filled in by the server when it matches the citation against the file.
     # The write check refuses a citation that hasn't been matched.
     match: Match | None = None
-    # Where the highlight goes. The passage stays exactly what the API returned,
-    # but the highlight is ours. For a PDF: boxes on the page, found once when the
+    # Where the highlight goes. The passage stays verbatim text from the API's
+    # citation, but the highlight is ours. For a PDF: boxes on the page, found once when the
     # record is saved. For text and email: one or more character ranges inside the
     # passage, such as one per line where the value stands on its own.
     highlight: tuple[PageBox, ...] | tuple[CharRange, ...] | None = None

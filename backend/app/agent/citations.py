@@ -153,8 +153,13 @@ def value_lines(text: str, start: int, end: int, value_text: str) -> list[tuple[
 
 
 def narrow_to_lines(text: str, start: int, end: int, value_text: str) -> tuple[int, int]:
-    """The one range a text citation can hold today: from the first line where the value stands
-    on its own to the last, or the whole span when it stands on its own nowhere."""
+    """The shortest passage that holds a value: from the first line in text[start:end] where the
+    value stands on its own to the last, or the whole span when it stands on its own nowhere.
+
+    The API cites a sentence at a time, and on a form with no full stops a sentence can be a
+    whole section (eleven lines of an award notice for its amendment number). A citation keeps
+    the line, or table row, that holds its value instead.
+    """
     lines = value_lines(text, start, end, value_text)
     return (lines[0][0], lines[-1][1]) if lines else (start, end)
 
@@ -173,6 +178,10 @@ def _char_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, An
         else:
             match = "not_found"
     lines = value_lines(sent, start, end, value_text) if match == "exact" else []
+    if lines:
+        # The shortest passage that holds the value: its line, not the API's whole chunk.
+        start, end = lines[0][0], lines[-1][1]
+        passage = sent[start:end]
     if doc.reading is not None:
         # A sample grant's live email (ruling 50): the passage stays the text the agent read,
         # so a value is checked against what it saw and no passage carries a dropped header's
@@ -193,16 +202,39 @@ def _stored_span(reading: ReadingText, stored: str, start: int, end: int) -> tup
     return stored_start, stored_end
 
 
+def _find_in_pdf(pdf: bytes, passage: str, first: int, last: int, value_text: str):
+    try:
+        return find_pdf_quote(
+            pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
+        )
+    except (UnreadablePdfError, ValueError):
+        return None
+
+
+def _holds_value_once(found: Any) -> bool:
+    return (
+        found is not None
+        and found.match != "not_found"
+        and found.value_found is not False
+        and sum(1 for o in found.occurrences if o.value_found is not False) == 1
+    )
+
+
 def _page_citation(doc: SentDocument, raw: Any, value_text: str) -> dict[str, Any]:
     assert doc.pdf is not None
     passage = _get(raw, "cited_text") or ""
     first, last = int(_get(raw, "start_page_number")), int(_get(raw, "end_page_number"))
-    try:
-        found = find_pdf_quote(
-            doc.pdf, passage, start_page_number=first, end_page_number=last, value_text=value_text
-        )
-    except (UnreadablePdfError, ValueError):
-        found = None
+    found = _find_in_pdf(doc.pdf, passage, first, last, value_text)
+    if found is not None and found.match != "not_found" and found.value_found is not False:
+        # The shortest passage that holds the value: the line of the API's chunk where it
+        # stands on its own. It's found again in the file, and kept only when it's found once
+        # there with the value in it; otherwise the whole chunk stays.
+        start, end = narrow_to_lines(passage, 0, len(passage), value_text)
+        line = passage[start:end]
+        if line and len(line) < len(passage.strip()):
+            narrowed = _find_in_pdf(doc.pdf, line, first, last, value_text)
+            if _holds_value_once(narrowed):
+                passage, found = line, narrowed
     match = "not_found"
     highlight: list[dict[str, Any]] | None = None
     if found is not None and found.match != "not_found" and found.value_found is not False:
