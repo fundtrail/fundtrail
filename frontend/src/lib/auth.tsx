@@ -3,11 +3,16 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+/** How the user signed in, as Supabase records it. */
+export type SignInMethod = "google" | "email" | "fake";
+
 export interface SignedInUser {
   /** The Supabase auth user ID. */
   id: string;
   email: string;
   name: string | null;
+  /** Null when Supabase doesn't say. */
+  method?: SignInMethod | null;
 }
 
 export type AuthState =
@@ -20,9 +25,19 @@ export interface Auth {
   /** True in fake mode: a synthetic user, no Supabase project. */
   fake: boolean;
   signIn(): Promise<void>;
+  /**
+   * Local development only (ruling 63): emails a sign-in link. Present only
+   * when NEXT_PUBLIC_DEV_EMAIL_SIGNIN=1 in a development build.
+   */
+  signInWithEmail?(email: string): Promise<void>;
   signOut(): Promise<void>;
   /** The access token sent as `Authorization: Bearer`, or null when signed out. */
   getAccessToken(): Promise<string | null>;
+  /**
+   * Listens on a private Realtime channel for the backend's "something
+   * changed" pings, and returns the way to stop. Absent in fake mode.
+   */
+  listen?(topic: string, onPing: () => void): () => void;
 }
 
 const AuthContext = createContext<Auth | null>(null);
@@ -42,10 +57,12 @@ function supabaseClient(url: string, anonKey: string): SupabaseClient {
 function userFrom(session: Session): SignedInUser {
   const meta = session.user.user_metadata ?? {};
   const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
-  return { id: session.user.id, email: session.user.email ?? "", name };
+  const provider = session.user.app_metadata?.provider;
+  const method: SignInMethod | null = provider === "google" || provider === "email" ? provider : null;
+  return { id: session.user.id, email: session.user.email ?? "", name, method };
 }
 
-function useSupabaseAuth(url: string, anonKey: string): Auth {
+function useSupabaseAuth(url: string, anonKey: string, devEmailSignIn: boolean): Auth {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   useEffect(() => {
@@ -68,6 +85,17 @@ function useSupabaseAuth(url: string, anonKey: string): Auth {
         });
         if (error) throw error;
       },
+      ...(devEmailSignIn
+        ? {
+            async signInWithEmail(email: string) {
+              const { error } = await supabaseClient(url, anonKey).auth.signInWithOtp({
+                email,
+                options: { emailRedirectTo: `${window.location.origin}/` },
+              });
+              if (error) throw error;
+            },
+          }
+        : {}),
       async signOut() {
         await supabaseClient(url, anonKey).auth.signOut();
       },
@@ -75,15 +103,29 @@ function useSupabaseAuth(url: string, anonKey: string): Auth {
         const { data } = await supabaseClient(url, anonKey).auth.getSession();
         return data.session?.access_token ?? null;
       },
+      listen(topic: string, onPing: () => void) {
+        const client = supabaseClient(url, anonKey);
+        const channel = client.channel(topic, { config: { private: true } });
+        let stopped = false;
+        // A private channel needs the user's token before it subscribes.
+        void client.realtime.setAuth().then(() => {
+          if (stopped) return;
+          channel.on("broadcast", { event: "*" }, () => onPing()).subscribe();
+        });
+        return () => {
+          stopped = true;
+          void client.removeChannel(channel);
+        };
+      },
     }),
-    [state, url, anonKey],
+    [state, url, anonKey, devEmailSignIn],
   );
 }
 
 // --- Fake mode: a synthetic user. The session lives in this browser's storage. ---
 
 const FAKE_KEY = "fundtrail.fake-session";
-export const FAKE_USER: SignedInUser = { id: "user-fake", email: "accountant@university.example", name: "Demo accountant" };
+export const FAKE_USER: SignedInUser = { id: "user-fake", email: "accountant@university.example", name: "Demo accountant", method: "fake" };
 
 function readFakeSession(): boolean {
   try {
@@ -134,8 +176,32 @@ function useFakeAuth(): Auth {
   );
 }
 
-export function SupabaseAuthProvider({ url, anonKey, children }: { url: string; anonKey: string; children: ReactNode }) {
-  return <AuthContext.Provider value={useSupabaseAuth(url, anonKey)}>{children}</AuthContext.Provider>;
+export function SupabaseAuthProvider({
+  url,
+  anonKey,
+  devEmailSignIn = false,
+  children,
+}: {
+  url: string;
+  anonKey: string;
+  devEmailSignIn?: boolean;
+  children: ReactNode;
+}) {
+  return <AuthContext.Provider value={useSupabaseAuth(url, anonKey, devEmailSignIn)}>{children}</AuthContext.Provider>;
+}
+
+/** The sidebar's line on how the user signed in. */
+export function signedInWith(user: SignedInUser): string {
+  switch (user.method) {
+    case "google":
+      return "Signed in with Google";
+    case "email":
+      return "Signed in with an email link";
+    case "fake":
+      return "Fake sign-in, no Supabase project";
+    default:
+      return "Signed in";
+  }
 }
 
 export function FakeAuthProvider({ children }: { children: ReactNode }) {
