@@ -99,7 +99,7 @@ The table of usual evidence below comes from UC Davis's list (see [What the univ
 | Kind of charge | Usual evidence |
 |---|---|
 | Salaries and wages | Appointment letter, salary rate, certified effort reports. One effort report often covers several months, and it's signed after the period ends. |
-| Fringe benefits | The benefit rate, applied to the salary |
+| Fringe benefits | The benefit rate, applied to the salary (see [Benefit charges](#benefit-charges)) |
 | Participant stipends | The participant list and payment records |
 | Travel per diem | The trip's dates and the per diem rate, instead of receipts |
 | Internal recharges, such as a core facility | The facility's usage statement |
@@ -124,8 +124,8 @@ This list is a starting point:
 | Group | Berkeley accounts | Default items |
 |---|---|---|
 | Salaries | 50xxx, 51xxx | Appointment letter. Certified effort report covering the month. |
-| Benefits | 53xxx | Benefit rate |
-| Tuition and fee remission | 538xx, 5742x | The student's appointment letter |
+| Benefits | 53xxx | Benefit rate, filled by code's recalculation (see [Benefit charges](#benefit-charges)) |
+| Tuition and fee remission | 538xx (unverified), 5742x | The student's appointment letter |
 | Travel | 5721x, 5722x | Expense report. Bills that add up to the charge. |
 | Supplies | 550xx, 553xx | A bill that adds up to the charge |
 | Equipment | 542xx | A bill that adds up to the charge |
@@ -137,7 +137,7 @@ This list is a starting point:
 
 - **Overlapping ranges.** Where two account ranges overlap, the more specific one wins. 538xx, fee remission, is in tuition and fee remission, not in benefits.
 - **Reversals and cost transfers aren't an account group.** A line that corrects another gets two default items whatever its account: the line it corrects, and a written justification. A line that takes money off the grant gets these two in place of its account group's default. A line that adds money to the grant keeps its account group's default and gets these two as well ([0020](decisions/0020-reversals-and-cost-transfers.md)). The line's NSF category still comes from its account's group.
-- **Where each default comes from.** Checked on Berkeley's pages: the effort report's timing, receipts for travel, the participant list, and the professor's approval on a subaward invoice. From general practice, not a Berkeley page: benefits, tuition, supplies, equipment, consultants, printing and recharges.
+- **Where each default comes from.** Checked on Berkeley's pages: the effort report's timing, receipts for travel, the participant list, the professor's approval on a subaward invoice, and the benefit rate (see [Benefit charges](#benefit-charges)). From general practice, not a Berkeley page: tuition, supplies, equipment, consultants, printing and recharges.
 - **Effort reports.** Berkeley certifies effort twice a year, for January to June and for July to December, within 120 days of the period's end. So the report covering January to June is expected by late October, and the checklist item carries that date. Berkeley is replacing its Effort Reporting System with a new one, Employee Compensation Compliance, whose first certification is in March 2027. Re-check the timing before building.
 - **Budget lines.** A budget line in an NSF award is one of NSF's standard budget categories, or a sub-line of one (see [What an NSF award notice contains](#what-an-nsf-award-notice-contains)). So the budget line needs no category of its own, and only the ledger's account is translated. Each account group carries its NSF category, in the same table as its default list, and code compares that with the budget line the agent picked. The category matches the assigned line when it is that line, or when one contains the other: Other Direct Costs contains its six sub-lines. Each line and sub-line the notice prints is a budget line term, named as NSF prints it. Example: a laptop filed on 56712 Participant Support-Stipends, which the agent assigns to Materials and Supplies, goes to Needs a human as a likely misfiling.
 
@@ -154,6 +154,18 @@ This list is a starting point:
 - Thresholds: equipment at $5,000 or more, and the first $25,000 of a subaward on its own account. Whether Berkeley has moved to the federal $10,000 and $50,000 figures isn't verified.
 
 Only the documents on the default checklists come into FundTrail for now, such as a lodging receipt at any amount. Berkeley's other rules, such as the expense report within 45 days, are out for now.
+
+### Benefit charges
+
+The decision is [0030](decisions/0030-benefit-charges.md). Checked on Nov 10, 2026 against Berkeley's public pages on benefit rates, its rate agreement, and NSF Office of Inspector General (OIG) audit reports, listed under [Sources](#sources).
+
+- **One rate for each employee group.** Berkeley charges most benefits as a composite benefit rate: one percentage of salary for each employee group. Its pages name five groups: Academic, Staff, Limited (which includes postdocs), No Benefit Eligibility, and Students. Berkeley's Sponsored Projects Office says the rates are negotiated with its cognizant federal agency, the Department of Health and Human Services (DHHS), and Berkeley's Chief Financial Officer (CFO) pages say they're negotiated "one fiscal year at a time". A fiscal year runs from July 1 to June 30.
+- **The rate agreement.** The DHHS rate agreement dated May 27, 2026 lists a fixed rate for each group for July 1, 2025 to June 30, 2026, for example 44.00% for Staff. Its base is "Salaries and wages excluding vacation and catastrophic leave." From July 1, 2026 it says to use the same rates, as provisional rates, until amended.
+- **One ledger account for each group.** Berkeley's benefit assessment accounts are 53060 (Academic), 53070 (Staff), 53080 (Limited), 53085 (No Benefit Eligibility) and 53086 (Student). So the account on a benefit line tells its group.
+- **The same department and fund as the salary.** Berkeley's CFO page says the benefit "will post to the same department and fund" as the employee's salary.
+- **Auditors recalculate.** NSF OIG audits test the benefits applied to the transactions they sample. In the wrong-year findings at the University of Oklahoma and the University of Connecticut, the university had used the rate in effect when the salary posted, or when it was moved by a cost transfer, and the auditors recomputed the benefit as the salary, split by the fiscal year it was earned, times that year's rate.
+- **Charged outside the rate, and left for later** ([0030](decisions/0030-benefit-charges.md)). Graduate student fee and tuition remission is charged at actual cost for each student employee, and includes graduate student health insurance. Vacation is outside the rate's base, and Berkeley assesses vacation leave separately, in its 52xxx accounts.
+- **Not found.** Which salary accounts belong to which rate group. Berkeley's CFO page says the combination of employee class, earn codes and benefit eligibility codes decides the rate group, so salary accounts may not map one to one to rate groups. Whether a Berkeley benefit ledger line carries the employee or the pay period. Whether Berkeley's vacation leave assessment posts to a federal award. Which rate Berkeley charges while a year's rate is provisional: the rate agreement carries the year before's rates, and Berkeley's pages show different projected rates for planning. The 538xx fee remission account codes, because Berkeley's full account list couldn't be opened.
 
 ## Approvals
 
@@ -292,6 +304,7 @@ The supporting documents for every charge, kept for the retention period and han
 | Effort report | A signed statement of how a person's time was split across projects. It backs salary charges. |
 | Per diem | A daily allowance for meals and lodging at a set rate, paid instead of itemized receipts |
 | Fringe benefits | Benefit costs such as health insurance and retirement, usually charged as a rate on salary |
+| Rate agreement | The agreement between a university and its cognizant federal agency that sets its benefit rates. Berkeley's is with DHHS and sets a rate for each employee group and fiscal year. |
 | Ledger line | One entry in the ledger, with an ID, transaction date, posting date and amount |
 | Transaction date, posting date | When the cost happened, and when the ledger recorded it |
 | Reversal, cost transfer | New ledger lines that undo or move an earlier charge. The ledger never edits a line. Their default checklist items apply whatever the line's account. |
@@ -308,7 +321,9 @@ The supporting documents for every charge, kept for the retention period and han
 | The exact table of which Berkeley account codes belong to which group, and each group's NSF budget category | builder (W2), discussed with Alex before building |
 | Whether Berkeley has moved its equipment and subaward thresholds from $5,000 and $25,000 to the federal $10,000 and $50,000 | builder (W2), verified before coding |
 | Berkeley's effort report timing under its new system, re-checked before building | builder (W2) |
-| Berkeley's 120-day limit on cost transfers | product, discussed with reversals and cost transfers |
+| Berkeley's 120-day limit on cost transfers. It stays unchecked for now, because the university's own policies come in only through the default checklists ([0020](decisions/0020-reversals-and-cost-transfers.md)). | later |
+| Which Berkeley salary accounts belong to which benefit rate group. It isn't verified, and code needs it to sort a month's salary by group ([0030](decisions/0030-benefit-charges.md)). | builder (W2), discussed with Alex before building |
+| Benefits beyond the rate on salary: pay left out of the calculation, such as vacation; tuition and fee remission, charged at actual cost; leave assessments; and benefits after a salary is moved by a cost transfer ([0030](decisions/0030-benefit-charges.md)) | later |
 | Anything specific to program solicitations: a cap that adds up over several charges, such as twelve monthly payments that pass a yearly cap together, and noticing that an award letter names a solicitation that isn't on file | product, later |
 | The university's own policies beyond the default checklists, such as an expense report within 45 days of a trip | later |
 | Which universities' closeout steps to support after Berkeley | product |
@@ -339,3 +354,9 @@ The supporting documents for every charge, kept for the retention period and han
 - [Stanford: Project Closeout](https://ora.stanford.edu/resources/sponsored-projects-maintenance/project-closeout)
 - [Harvard FAS: Audits](https://research.fas.harvard.edu/audits)
 - [NSF OIG audit of San Francisco State University (2022)](https://www.oversight.gov/sites/default/files/oig-reports/NSF/22-1-007-San-Francisco-State-University.pdf)
+- [Berkeley CFO: Composite Benefit Rates](https://cfo.berkeley.edu/about-us/financial-planning-analysis/central-resource-management/composite-benefit-rates-cbr)
+- [Berkeley Sponsored Projects Office: Salary and Benefits](https://spo.berkeley.edu/policy/benefits/benefits.html) and [Proposal Budget Basics](https://spo.berkeley.edu/procedures/budget.html)
+- [DHHS rate agreement for UC Berkeley, dated May 27, 2026 (PDF)](https://cfo.berkeley.edu/sites/default/files/20260610_executed_director_signed_ra_-_rate_agreement_5.pdf)
+- [Berkeley Controller: vacation leave accrual rates (PDF)](https://controller.berkeley.edu/sites/default/files/vla_rates_on_controllers_website.pdf)
+- [NSF OIG audit of Cornell University, 26-01-001 (2026)](https://www.oversight.gov/sites/default/files/documents/reports/2026-03/26-01-001%20Performance%20Audit%20of%20Incurred%20Costs-%20Cornell%20University-Final_0.pdf), which tested the benefits on sampled transactions
+- [NSF OIG audit of the University of Oklahoma, 24-1-008 (2024)](https://www.oversight.gov/sites/default/files/oig-reports/NSF/24-1-008-University-Oklahoma.pdf) and [of the University of Connecticut, 20-1-002 (2020)](https://www.oversight.gov/sites/default/files/oig-reports/20-1-002_University_of_Connecticut.pdf), on benefit rates from the wrong year

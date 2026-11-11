@@ -186,8 +186,6 @@ The layout is in [CLAUDE.md](../CLAUDE.md#repo-map). The areas of the repo are i
 | Whether pypdfium2 plus our clean-up step finds quotes as reliably as PyMuPDF would, tested early on real PDFs. Its calls also can't run at the same time across threads. | builder (W1), reported to Alex |
 | How the agent signals that it's done, the shape of its graph, and what's kept from each run for debugging | builder (W1), discussed with Alex before building |
 | The exact interval for checking Gmail and Drive, and whether a file added inside a shared Drive folder always shows up in Drive's change feed | builder (W3) |
-| Email body vs. attachments, duplicate files | builder (W3) |
-| The email address format for each grant | builder (W3) |
 | The agent's exact actions, graph nodes, prompts and guidance, and how it handles errors. That includes how the lists of charges and documents are built and searched. Needs design work, as its own task. Tuning against the eval is optional. | builder (W1), discussed with Alex before building |
 | Where the rulebook file lives in the repo, its format, and the exact rules in it. The rulebook's header lists the sources still unread (see [domain.md](domain.md#not-decided-yet)). | builder (W1), discussed with Alex before building |
 | Whether citations work on a file the agent opens again in the middle of a run. A small test against the API can check it. | builder (W1) |
