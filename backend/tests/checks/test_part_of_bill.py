@@ -11,7 +11,7 @@ from typing import Any
 
 from app.contracts.checks import Bucket
 
-from .grant_builder import Grant, at, cited, failing, problems
+from .grant_builder import Grant, at, cited, failing, families
 
 TOTAL = 1_000_000
 PART = 583_333
@@ -59,7 +59,7 @@ def test_a_part_of_a_bill_with_nothing_cited_is_needs_a_human() -> None:
     bill = _shared(g, t)
     link = _link(g, bill, "c1", PART)
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("checklist", f"part_without_basis:{link}")}
+    assert families(status) == {("checklist", f"part_without_basis:{link}")}
     assert status.bucket == Bucket.NEEDS_HUMAN  # though the amounts add up
 
 
@@ -80,7 +80,7 @@ def test_a_share_that_doesnt_work_out_is_needs_a_human() -> None:
     bill = _shared(g, t)
     link = _link(g, bill, "c1", PART, **_share(50, 96))
     status = g.status("c1", at(2024, 3, 2))
-    assert ("checklist", f"share_mismatch:{link}") in problems(status)
+    assert ("checklist", f"share_mismatch:{link}") in families(status)
     reason = next(r for r in status.reasons if r.problem.startswith("share_mismatch"))
     assert "is $5,208.33, not the $5,833.33 linked" in reason.text
 
@@ -93,7 +93,7 @@ def test_a_share_of_a_different_total_is_needs_a_human() -> None:
     # $5,000 x 56 / 96 = $2,916.67 works out, but $5,000 isn't the bill's $10,000.
     link = _link(g, bill, "c1", 291_667, **_share(56, 96, total=500_000))
     status = g.status("c1", at(2024, 3, 2))
-    assert ("checklist", f"share_total_mismatch:{link}") in problems(status)
+    assert ("checklist", f"share_total_mismatch:{link}") in families(status)
 
 
 def test_a_part_the_bill_states_passes_and_a_different_one_doesnt() -> None:
@@ -107,7 +107,7 @@ def test_a_part_the_bill_states_passes_and_a_different_one_doesnt() -> None:
     t2 = g2.standard_terms()
     bill2 = _shared(g2, t2)
     link = _link(g2, bill2, "c1", PART, stated_amount=cited(500_000, "$5,000.00", "f-inv"))
-    assert ("checklist", f"part_mismatch:{link}") in problems(g2.status("c1", at(2024, 3, 2)))
+    assert ("checklist", f"part_mismatch:{link}") in families(g2.status("c1", at(2024, 3, 2)))
 
 
 def test_a_stated_part_cited_from_another_file_is_needs_a_human() -> None:
@@ -118,7 +118,7 @@ def test_a_stated_part_cited_from_another_file_is_needs_a_human() -> None:
     bill = _shared(g, t)
     link = _link(g, bill, "c1", PART, stated_amount=cited(PART, "$5,833.33", "f-email"))
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("checklist", f"part_not_on_bill:{link}")}
+    assert families(status) == {("checklist", f"part_not_on_bill:{link}")}
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -159,7 +159,7 @@ def test_a_share_the_agent_couldnt_confirm_in_its_file_is_needs_a_human() -> Non
     bill = _shared(g, t)
     link = _link(g, bill, "c1", PART, **_share(56, 96, match="not_found"))
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("values_confirmed", "unconfirmed")}
+    assert families(status) == {("values_confirmed", "unconfirmed")}
     assert link in next(r for r in failing(status)).record_ids
 
 

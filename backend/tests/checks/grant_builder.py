@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from typing import Any
 
+from app.checks.codes import family
 from app.checks.ledger_accounts import ODC_OTHER
 from app.checks.run import run_checks
 from app.contracts.charges import Charge
@@ -456,3 +457,8 @@ def failing(status: ChargeStatus) -> list[Reason]:
 
 def problems(status: ChargeStatus) -> set[tuple[str, str]]:
     return {(r.check, r.problem) for r in failing(status)}
+
+
+def families(status: ChargeStatus) -> set[tuple[str, str]]:
+    """problems() with issue 307's record keys dropped, for tests about the kind of problem."""
+    return {(check, family(check, problem)) for check, problem in problems(status)}
