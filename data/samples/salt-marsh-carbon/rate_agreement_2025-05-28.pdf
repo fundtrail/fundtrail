@@ -1,89 +1,394 @@
 %PDF-1.4
-%âãÏÓ
+%“Œ‹ž ReportLab Generated PDF document (opensource)
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+<<
+/BaseFont /Times-Roman /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 2404 >>
-stream
-BT
-/F1 9.5 Tf
-12 TL
-40 752 Td
-(EIN: 00-EXAMPLE) Tj T*
-(ORGANIZATION: University of Example) Tj T*
-(100 Example Hall, Example City, CA 94000) Tj T*
-(Date: 05/28/2025) Tj T*
-(FILING REF.: The preceding agreement was dated 04/10/2024) Tj T*
-() Tj T*
-(COLLEGES AND UNIVERSITIES RATE AGREEMENT) Tj T*
-() Tj T*
-(The rates approved in this agreement are for use on grants, contracts and other) Tj T*
-(agreements with the Federal Government, subject to the conditions in Section III.) Tj T*
-() Tj T*
-(SECTION I: FRINGE BENEFIT RATES**) Tj T*
-() Tj T*
-(TYPE   FROM        TO          RATE\(%\)  LOCATION  APPLICABLE TO) Tj T*
-(FIXED  07/01/2024  06/30/2025  34.80    All       Academic) Tj T*
-(FIXED  07/01/2024  06/30/2025  14.60    All       Limited) Tj T*
-(FIXED  07/01/2024  06/30/2025  4.50     All       No Benefit Eligibility) Tj T*
-(FIXED  07/01/2024  06/30/2025  43.00    All       Staff) Tj T*
-(FIXED  07/01/2024  06/30/2025  2.90     All       Student) Tj T*
-(FIXED  07/01/2025  06/30/2026  35.20    All       Academic) Tj T*
-(FIXED  07/01/2025  06/30/2026  15.00    All       Limited) Tj T*
-(FIXED  07/01/2025  06/30/2026  5.00     All       No Benefit Eligibility) Tj T*
-(FIXED  07/01/2025  06/30/2026  44.00    All       Staff) Tj T*
-(FIXED  07/01/2025  06/30/2026  2.50     All       Student) Tj T*
-(PROV.  07/01/2026  Until Amended  Use same rates and conditions as those) Tj T*
-(                         cited for fiscal year ending June 30, 2026) Tj T*
-() Tj T*
-(** DESCRIPTION OF FRINGE BENEFITS RATE BASE:) Tj T*
-(Salaries and wages excluding vacation and catastrophic leave.) Tj T*
-() Tj T*
-(SECTION II: SPECIAL REMARKS) Tj T*
-() Tj T*
-(TREATMENT OF FRINGE BENEFITS:) Tj T*
-(Fringe benefits are charged using the rate for the employee's group in the fiscal) Tj T*
-(year the salary was earned, posted to the same fund as the salary.) Tj T*
-(Postdoctoral scholars are in the Limited group.) Tj T*
-() Tj T*
-(SECTION III: GENERAL) Tj T*
-() Tj T*
-(A. LIMITATIONS: The rates in this agreement apply to a given grant, contract or) Tj T*
-(other agreement only to the extent that funds are available.) Tj T*
-() Tj T*
-(BY THE INSTITUTION: University of Example) Tj T*
-(ON BEHALF OF THE GOVERNMENT: Example Cognizant Agency, Cost Allocation Services) Tj T*
-(Signed: Jordan Ratesetter, Director, 05/28/2025) Tj T*
-() Tj T*
-(ORGANIZATION: University of Example) Tj T*
-(AGREEMENT DATE: 05/28/2025) Tj T*
-ET
-endstream
+<<
+/BaseFont /Times-Bold /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<<
+/Contents 9 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
 endobj
 6 0 obj
-<< /Title (Colleges and Universities Rate Agreement) /Producer (FundTrail seed generator) >>
+<<
+/PageMode /UseNone /Pages 8 0 R /Type /Catalog
+>>
+endobj
+7 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20000101000000+00'00') /Creator (FundTrail sample generator) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (FundTrail sample generator) 
+  /Subject (unspecified) /Title (Colleges And Universities Rate Agreement) /Trapped /False
+>>
+endobj
+8 0 obj
+<<
+/Count 1 /Kids [ 5 0 R ] /Type /Pages
+>>
+endobj
+9 0 obj
+<<
+/Length 10546
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 720 Tm (EIN: 00-SAMPLE) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 707 Tm (ORGANIZATION: Halden University) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 694 Tm (1 University Drive, Port Calloway, CA 94000) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 470.28 720 Tm (Date: 05/28/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 286.71 707 Tm (FILING REF.: The preceding agreement was dated 04/10/2024) Tj T* ET
+.066667 .066667 .066667 RG
+1.1 w
+n 72 675 m 540 675 l S
+.066667 .066667 .066667 rg
+BT /F3 12 Tf 14.4 TL ET
+BT 1 0 0 1 154.98 659 Tm (COLLEGES AND UNIVERSITIES RATE AGREEMENT) Tj T* ET
+.066667 .066667 .066667 RG
+1.1 w
+n 72 651 m 540 651 l S
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 629 Tm (The rates approved in this agreement are for use on grants, contracts and other agreements with the Federal) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 616 Tm (Government, subject to the conditions in Section III.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 72 593.9 Tm (SECTION I: FRINGE BENEFIT RATES**) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 72 571.8 Tm (TYPE) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 130 571.8 Tm (FROM) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 204 571.8 Tm (TO) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 278 571.8 Tm (RATE\(%\)) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 344 571.8 Tm (LOCATION) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 9 Tf 10.8 TL ET
+BT 1 0 0 1 408 571.8 Tm (APPLICABLE TO) Tj T* ET
+.066667 .066667 .066667 RG
+.7 w
+n 72 567.8 m 540 567.8 l S
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 554.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 554.8 Tm (07/01/2024) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 554.8 Tm (06/30/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 554.8 Tm (34.80) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 554.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 554.8 Tm (Academic) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 540.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 540.8 Tm (07/01/2024) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 540.8 Tm (06/30/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 540.8 Tm (14.60) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 540.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 540.8 Tm (Limited) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 526.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 526.8 Tm (07/01/2024) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 526.8 Tm (06/30/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 526.8 Tm (4.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 526.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 526.8 Tm (No Benefit Eligibility) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 512.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 512.8 Tm (07/01/2024) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 512.8 Tm (06/30/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 512.8 Tm (43.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 512.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 512.8 Tm (Staff) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 498.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 498.8 Tm (07/01/2024) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 498.8 Tm (06/30/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 498.8 Tm (2.90) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 498.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 498.8 Tm (Student) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 484.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 484.8 Tm (07/01/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 484.8 Tm (06/30/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 484.8 Tm (35.20) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 484.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 484.8 Tm (Academic) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 470.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 470.8 Tm (07/01/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 470.8 Tm (06/30/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 470.8 Tm (15.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 470.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 470.8 Tm (Limited) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 456.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 456.8 Tm (07/01/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 456.8 Tm (06/30/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 456.8 Tm (5.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 456.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 456.8 Tm (No Benefit Eligibility) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 442.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 442.8 Tm (07/01/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 442.8 Tm (06/30/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 442.8 Tm (44.00) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 442.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 442.8 Tm (Staff) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 428.8 Tm (FIXED) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 428.8 Tm (07/01/2025) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 428.8 Tm (06/30/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 428.8 Tm (2.50) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 344 428.8 Tm (All) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 408 428.8 Tm (Student) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 414.8 Tm (PROV.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 130 414.8 Tm (07/01/2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 204 414.8 Tm (Until Amended) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 414.8 Tm (Use same rates and conditions as those) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 278 400.8 Tm (cited for fiscal year ending June 30, 2026) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10 Tf 12 TL ET
+BT 1 0 0 1 72 377.7 Tm (** DESCRIPTION OF FRINGE BENEFITS RATE BASE:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 364.7 Tm (Salaries and wages excluding vacation and catastrophic leave.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 72 342.6 Tm (SECTION II: SPECIAL REMARKS) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10 Tf 12 TL ET
+BT 1 0 0 1 72 320.5 Tm (TREATMENT OF FRINGE BENEFITS:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 307.5 Tm (Fringe benefits are charged using the rate for the employee's group in the fiscal year the salary was earned, posted to) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 294.5 Tm (the same fund as the salary. Postdoctoral scholars are in the Limited group.) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10.5 Tf 12.6 TL ET
+BT 1 0 0 1 72 272.4 Tm (SECTION III: GENERAL) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 250.3 Tm (A. LIMITATIONS: The rates in this agreement apply to a given grant, contract or other agreement only to the extent) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 72 237.3 Tm (that funds are available.) Tj T* ET
+.066667 .066667 .066667 RG
+.5 w
+n 72 228.2 m 540 228.2 l S
+.066667 .066667 .066667 rg
+BT /F3 10 Tf 12 TL ET
+BT 1 0 0 1 72 209.2 Tm (BY THE INSTITUTION:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 184.52 209.2 Tm (Halden University) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10 Tf 12 TL ET
+BT 1 0 0 1 72 193.2 Tm (ON BEHALF OF THE GOVERNMENT:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 252.85 193.2 Tm (Cognizant Federal Agency, Cost Allocation Services) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F3 10 Tf 12 TL ET
+BT 1 0 0 1 72 177.2 Tm (Signed:) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 106.73 177.2 Tm (Director, Cost Allocation Services, 05/28/2025) Tj T* ET
+.066667 .066667 .066667 RG
+.5 w
+n 72 165.1 m 540 165.1 l S
+.066667 .066667 .066667 rg
+BT /F2 9 Tf 10.8 TL ET
+BT 1 0 0 1 72 150.1 Tm (ORGANIZATION: Halden University) Tj T* ET
+.066667 .066667 .066667 rg
+BT /F2 9 Tf 10.8 TL ET
+BT 1 0 0 1 306 150.1 Tm (AGREEMENT DATE: 05/28/2025) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F2 8 Tf 9.6 TL ET
+BT 1 0 0 1 287.892 50 Tm (Page 1 of 1) Tj T* ET
+.372549 .388235 .407843 rg
+BT /F2 7 Tf 8.4 TL ET
+BT 1 0 0 1 176.913 38 Tm (Synthetic sample document for a software demonstration. Not issued by any federal agency.) Tj T* ET
+ 
+endstream
 endobj
 xref
-0 7
+0 10
 0000000000 65535 f 
-0000000015 00000 n 
-0000000064 00000 n 
-0000000121 00000 n 
-0000000216 00000 n 
-0000002672 00000 n 
-0000002798 00000 n 
+0000000061 00000 n 
+0000000112 00000 n 
+0000000219 00000 n 
+0000000328 00000 n 
+0000000436 00000 n 
+0000000629 00000 n 
+0000000697 00000 n 
+0000000995 00000 n 
+0000001054 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R /Info 6 0 R >>
+<<
+/ID 
+[<fc65adc9862fa1b39f186312377e275a><fc65adc9862fa1b39f186312377e275a>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 7 0 R
+/Root 6 0 R
+/Size 10
+>>
 startxref
-2906
+11652
 %%EOF

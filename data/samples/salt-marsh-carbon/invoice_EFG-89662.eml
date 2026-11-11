@@ -1,44 +1,46 @@
-From: Harper Fixture <harper.fixture@university.example>
-To: Earth and Ocean Sciences Grants <grants@university.example>
+From: Maren Holloway <mholloway@halden.example>
+To: Earth and Ocean Sciences Grants <eosgrants@halden.example>
 Date: Mon, 14 Dec 2026 08:00:00 -0800
 Subject: Fwd: Invoice EFG-89662
-Message-ID: <fwd-efg-89662@university.example>
+Message-ID: <fwd-efg-89662@halden.example>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
 Invoice EFG-89662 for SYN-2401835, salt marsh carbon burial, for the files.
 
-Harper
+Maren
 
 ---------- Forwarded message ----------
-From: Example Field Gear Billing <accounts@fieldgear.example>
+From: Saltgrass Field Supply Billing <accounts@saltgrassfield.example>
 Date: Tue, 8 Dec 2026 07:15:00 -0800
 Subject: Invoice EFG-89662
-To: harper.fixture@university.example
+To: mholloway@halden.example
 
-EXAMPLE FIELD GEAR
-9 Example Wharf, Example Harbor, CA 94020
-accounts@fieldgear.example
+SALTGRASS FIELD SUPPLY
+9 Cannery Wharf, Port Calloway, CA 94020
+accounts@saltgrassfield.example
 
 INVOICE
 
 Invoice number: EFG-89662
 Invoice date: December 8, 2026
 Customer PO: PO-26-9524
+Account No.: 030561
 
 Bill to:
-  University of Example, Department of Earth and Ocean Sciences
-  Attn: Harper Fixture
-  100 Example Hall, Example City, CA 94000
+  Halden University, Department of Earth and Ocean Sciences
+  Attn: Maren Holloway
+  1 University Drive, Port Calloway, CA 94000
 Project reference: SYN-2401835, salt marsh carbon burial
 
-Item  Description                                   Qty   Unit price      Amount
-1     Waders, chest, size L                           2      $189.00     $378.00
-2     Dry bags, 20 L, 4 pack                          1       $88.00      $88.00
-3     Sediment corer replacement head                 4      $425.00   $1,700.00
+Line  Cat. No.     Description                                    Qty  U/M   Unit Price  Ext. Price
+1     SG-2210-L    Waders, chest, size L                            2  EA       $189.00     $378.00
+2     SG-3320      Dry bags, 20 L, 4 pack                           1  PK        $88.00      $88.00
+3     SG-7105      Sediment corer replacement head                  3  EA       $425.00   $1,275.00
+4     SG-7108      Piston seals, corer, 10 pack                     5  PK        $85.00     $425.00
 
-Subtotal                                                               $2,166.00
-Shipping                                                                  $18.75
-Total due                                                              $2,184.75
+Subtotal                                                                                  $2,166.00
+Shipping                                                                                     $18.75
+Total due                                                                                 $2,184.75
 
 Terms: net 30
