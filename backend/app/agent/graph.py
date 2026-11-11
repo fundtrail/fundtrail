@@ -57,6 +57,7 @@ from .model import (
 from .no_tracing import check_no_tracing
 from .prompts import SYSTEM_PROMPT
 from .rulebook import load_rulebook
+from .second_look import SecondLookFailed, run_second_look
 from .tools import run_tool, tool_definitions
 
 MAX_TURNS = 60
@@ -283,6 +284,11 @@ def build_graph(model: ModelClient) -> Any:
 
     def save(state: State) -> State:
         ctx = state["ctx"]
+        try:
+            run_second_look(ctx, ctx.inputs.second_look or model)
+        except SecondLookFailed as error:
+            _fail(ctx, str(error), error.retryable)
+            return state
         problems = recheck(ctx)
         if problems:
             _fail(
