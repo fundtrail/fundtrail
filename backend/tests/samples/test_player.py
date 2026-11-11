@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from app.contracts.evidence import Source
 from app.contracts.runs import TriggerKind
 from app.db import store
@@ -111,6 +113,25 @@ def test_a_sample_opens_at_its_first_event(api: Api) -> None:
         letter.id,
         SMALL_START,
     )
+
+
+@pytest.mark.parametrize(
+    ("choice", "sample"), [("small_live", "nitrate-sensors"), ("larger_live", "salt-marsh-carbon")]
+)
+def test_every_timeline_event_carries_its_highlight(api: Api, choice: str, sample: str) -> None:
+    """Ruling 58: Just happened, Now and Coming up carry each event's highlight label, so
+    the panel's Next highlight can find the next one."""
+    from .test_pack import _labels
+
+    labels = _labels(sample)
+    timeline = _get(api, f"/grants/{_open(api, choice)}/timeline")
+    played = [p["event"] for p in timeline["just_happened"]]
+    shown = {e["name"]: e["highlight"] for e in [*played, *timeline["coming_up"]]}
+    assert {n: h for n, h in shown.items() if h is not None} == labels
+    first = timeline["now"]["stopped_on"]
+    assert first["highlight"] == labels[first["name"]]
+    coming = [e for e in timeline["coming_up"] if e["highlight"] is not None]
+    assert [e["name"] for e in coming] == [n for n in labels if n != first["name"]]
 
 
 def test_next_plays_the_ledger_and_its_later_lines_wait(api: Api) -> None:

@@ -103,6 +103,7 @@ class ScheduledEvent:
     note: str | None = None
     sender: str | None = None  # for Gmail
     deliver_by_user: bool = False  # the user is expected to bring it in, from `at` on
+    highlight: str | None = None  # ruling 58: the label of one of the sample's highlights
 
 
 @dataclass(frozen=True)
@@ -266,9 +267,20 @@ def _event(raw: dict[str, Any], where: str) -> ScheduledEvent:
     return replace(e, id=event_id(e.kind, e.name))
 
 
+def _highlight(raw: dict[str, Any], where: str) -> str | None:
+    """An event's highlight label (ruling 58): left out, or text that isn't blank."""
+    label = raw.get("highlight")
+    if label is None:
+        return None
+    if not isinstance(label, str) or not label.strip():
+        raise PackError(f"{where}: a highlight is a label, or left out.")
+    return label
+
+
 def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
     at = _time(raw.get("at"), where)
     note = raw.get("note")
+    highlight = _highlight(raw, where)
     match raw.get("kind"):
         case "file":
             source = _FILE_SOURCES.get(raw.get("source", ""))
@@ -286,18 +298,27 @@ def _parse_event(raw: dict[str, Any], where: str) -> ScheduledEvent:
                 note=note,
                 sender=raw.get("sender"),
                 deliver_by_user=deliver == "user",
+                highlight=highlight,
             )
         case "ledger":
             name = str(raw.get("file") or LEDGER_FILE)
             if name != LEDGER_FILE:
                 raise PackError(f"{where}: the ledger file is {LEDGER_FILE}.")
-            return ScheduledEvent("", at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note)
+            return ScheduledEvent(
+                "", at, EventKind.LEDGER, ArrivalSource.LEDGER, name, note, highlight=highlight
+            )
         case "ledger_line":
             line_id = raw.get("line_id")
             if not isinstance(line_id, str) or not line_id:
                 raise PackError(f"{where}: a ledger line needs its line_id.")
             return ScheduledEvent(
-                "", at, EventKind.LEDGER_LINE, ArrivalSource.LEDGER, line_id, note
+                "",
+                at,
+                EventKind.LEDGER_LINE,
+                ArrivalSource.LEDGER,
+                line_id,
+                note,
+                highlight=highlight,
             )
         case kind:
             raise PackError(f"{where}: {kind!r} isn't a scheduled event.")

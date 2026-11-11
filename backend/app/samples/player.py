@@ -572,6 +572,7 @@ def _event(
         note=item.note,
         charge_id=charge_id,
         file_id=file_id,
+        highlight=item.event.highlight if item.event is not None else None,
     )
 
 
