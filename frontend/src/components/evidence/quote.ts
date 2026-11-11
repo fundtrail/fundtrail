@@ -51,8 +51,13 @@ export function valueRanges(c: Citation): Range[] | null {
   return ranges;
 }
 
-/** Every range of several citations of the same passage, merged and in order. */
+/**
+ * Every range of several citations of the same passage, merged and in order.
+ * Null when any one value's place isn't known: an excerpt built around the
+ * others could cut that value off, so the passage shows whole.
+ */
 export function unionRanges(all: (Range[] | null)[]): Range[] | null {
+  if (all.length === 0 || all.some((r) => r === null)) return null;
   const ranges = all.flatMap((r) => r ?? []).sort((a, b) => a.start - b.start);
   if (ranges.length === 0) return null;
   const merged: Range[] = [];
@@ -69,16 +74,17 @@ export function isLongQuote(passage: string): boolean {
 }
 
 /**
- * The part of a long passage to show on a card: a window around the value's
- * first range (and its last, when they fit together), cut at word breaks, so
- * the value is always inside it. Null when the passage is short enough to show
- * whole, or when the value's place isn't known (then nothing is clamped).
+ * The part of a long passage to show on a card: a window around every range
+ * the excerpt stands for, cut at word breaks. An excerpt is shown only when
+ * every value it stands for is inside it, so this is null (the whole quote,
+ * unclamped) when the passage is short enough to show whole, when the
+ * values' place isn't known, or when their ranges span more than one window.
  */
 export function excerptWindow(passage: string, ranges: Range[] | null): Range | null {
   if (!ranges || ranges.length === 0 || !isLongQuote(passage)) return null;
-  const valueStart = ranges[0].start;
-  let valueEnd = ranges[ranges.length - 1].end;
-  if (valueEnd - valueStart > QUOTE_LIMIT) valueEnd = ranges[0].end;
+  const valueStart = Math.min(...ranges.map((r) => r.start));
+  const valueEnd = Math.max(...ranges.map((r) => r.end));
+  if (valueEnd - valueStart > QUOTE_LIMIT) return null;
 
   let start = Math.max(0, valueStart - BEFORE);
   if (start > 0) {

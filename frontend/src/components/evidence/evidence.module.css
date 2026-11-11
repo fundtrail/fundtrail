@@ -15,7 +15,10 @@
 }
 
 /* The card's band: the highlighter in light. In dark, light text can't sit on
-   yellow, so the band is the wash, which keeps the text readable on it. */
+   yellow, so the band is a quarter of the highlight mixed into the card's
+   paper: a muted stripe that keeps ink on it above 4.5:1 (about 5.8:1). It
+   uses the highlight and paper tokens, not the photo wash, so a change to the
+   wash can't make text on it unreadable. */
 .card,
 .confirmList {
   --e-band: var(--hl);
@@ -23,7 +26,7 @@
 @media (prefers-color-scheme: dark) {
   .card,
   .confirmList {
-    --e-band: var(--highlight-wash);
+    --e-band: color-mix(in srgb, var(--highlight) 25%, var(--paper-raised));
   }
 }
 

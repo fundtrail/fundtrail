@@ -3,13 +3,22 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, ApiProvider, type ApiClient, type EvidenceCard, type FactView, type FtRecord, type NewRecordInput } from "@/lib/api";
+import {
+  ApiError,
+  ApiProvider,
+  type ApiClient,
+  type Citation,
+  type EvidenceCard,
+  type FactView,
+  type FtRecord,
+  type NewRecordInput,
+} from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { FakeAuthProvider } from "@/lib/auth";
 import { ConfirmValues } from "./ConfirmValues";
 import { EvidenceCardView } from "./EvidenceCardView";
 import { findCitation } from "./findCitation";
-import { excerptWindow, valueRanges } from "./quote";
+import { excerptWindow, unionRanges, valueRanges } from "./quote";
 import { QuoteLink } from "./QuoteLink";
 import { confirmationText, MONEY_KEYS, parseTyped, valueAt, valueLabel, valueType, withValueAt } from "./values";
 
@@ -201,6 +210,51 @@ describe("QuoteLink", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  // The award letter's special-conditions passage, with each value's own
+  // characters stored as the server would store them.
+  const RULE =
+    "Special conditions: Funds budgeted for Participant Support Costs may not be diverted by the awardee to other categories of expense without the prior written approval of the cognizant NSF Program Officer, requested through Research.gov.";
+  const RULE_VALUES = [
+    "Participant Support Costs",
+    "Program Officer",
+    "Research.gov",
+    "may not be diverted by the awardee to other categories of expense",
+  ];
+
+  it("shows a passage several values share whole when their places span more than one excerpt", () => {
+    const ranges = unionRanges(RULE_VALUES.map((v) => valueRanges(cite(RULE, v))));
+    render(<QuoteLink citation={cite(RULE, RULE_VALUES[0])} href="/v" ariaLabel="Open the passage" ranges={ranges} />);
+    const shown = screen.getByTestId("card-quote");
+    expect(shown.textContent).toBe(RULE);
+    for (const v of RULE_VALUES) expect(shown).toHaveTextContent(v);
+    expect([...shown.querySelectorAll("strong")].map((s) => s.textContent)).toEqual(RULE_VALUES.slice().sort((a, b) => RULE.indexOf(a) - RULE.indexOf(b)));
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).toBeNull();
+  });
+
+  it("shows a shared passage whole when one value's place isn't known", () => {
+    const ranges = unionRanges([valueRanges(cite(PASSAGE, "Program Officer")), valueRanges(cite(PASSAGE, null))]);
+    expect(ranges).toBeNull();
+    render(<QuoteLink citation={cite(PASSAGE, "Program Officer")} href="/v" ariaLabel="Open the passage" ranges={ranges} />);
+    expect(screen.getByTestId("card-quote").textContent).toBe(PASSAGE);
+    expect(screen.queryByRole("button", { name: "Show the whole quote" })).toBeNull();
+  });
+
+  it("shows a value whose characters sit far apart in the quote whole", () => {
+    const at = (s: string) => START + PASSAGE.indexOf(s);
+    const c = {
+      ...cite(PASSAGE, null),
+      highlight: [
+        { start_char_index: at("Special"), end_char_index: at("Special") + "Special".length },
+        { start_char_index: at("Program Officer"), end_char_index: at("Program Officer") + "Program Officer".length },
+      ],
+    };
+    expect(excerptWindow(PASSAGE, valueRanges(c))).toBeNull();
+    render(<QuoteLink citation={c} href="/v" ariaLabel="Open approver in the viewer" />);
+    const shown = screen.getByTestId("card-quote");
+    expect(shown.textContent).toBe(PASSAGE);
+    expect([...shown.querySelectorAll("strong")].map((s) => s.textContent)).toEqual(["Special", "Program Officer"]);
+  });
+
   it("reads no place for the value when the passage isn't the stored characters", () => {
     const c = cite(PASSAGE, "Program Officer");
     expect(valueRanges(c)).not.toBeNull();
@@ -217,6 +271,46 @@ describe("findCitation", () => {
     expect(spot?.valueText).toBe("$86.40");
     expect(spot?.citation.location.type).toBe("image_box");
     expect(findCitation(cards, "rec-missing", "total")).toBeNull();
+  });
+
+  // An answer (a judgment record) isn't on the cards; its quotes are found in the grant's records.
+  const quote = (passage: string): Citation => ({
+    file_id: "file-award-letter",
+    passage,
+    location: { type: "char_location", start_char_index: 10, end_char_index: 10 + passage.length },
+    match: "exact",
+  });
+  const answer = {
+    id: "rec-answer-1",
+    data: {
+      kind: "judgment",
+      question: "allowable",
+      text: "Is this travel allowable?",
+      answer: "supports",
+      reasoning: "The award letter allows it.",
+      quotes: [quote("Travel is allowable."), quote("Prior approval is not needed.")],
+    },
+  } as unknown as FtRecord;
+
+  it("finds an answer's quote by its index", async () => {
+    const cards = await sampleCards();
+    const spot = findCitation(cards, "rec-answer-1", "quotes[1]", [answer]);
+    expect(spot?.citation.passage).toBe("Prior approval is not needed.");
+    expect(spot?.label).toBe("Quote 2 in the answer");
+    expect(spot?.valueText).toBeNull();
+    expect(spot?.confirmation).toBeNull();
+  });
+
+  it("falls back as before for an index out of range or a record that isn't an answer", async () => {
+    const cards = await sampleCards();
+    expect(findCitation(cards, "rec-answer-1", "quotes[2]", [answer])).toBeNull();
+    expect(findCitation(cards, "rec-answer-1", "total", [answer])).toBeNull();
+    const notAnswer = { ...answer, id: "rec-note-1", data: { ...(answer.data as object), kind: "note" } } as unknown as FtRecord;
+    expect(findCitation(cards, "rec-note-1", "quotes[0]", [notAnswer])).toBeNull();
+    // Without the records, an answer's quote isn't found, as before.
+    expect(findCitation(cards, "rec-answer-1", "quotes[0]")).toBeNull();
+    // A fact on the cards is still found from the cards, records or not.
+    expect(findCitation(cards, "rec-syn-bill-boat-receipt", "total", [answer])?.valueText).toBe("$86.40");
   });
 });
 

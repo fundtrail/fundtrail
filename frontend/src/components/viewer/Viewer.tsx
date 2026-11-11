@@ -202,7 +202,7 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
             <div className={styles.active}>
               <span className={styles.sideLabel}>{label ?? "Quote"}</span>
               {valueText && (
-                <span className={styles.value} data-testid={noPassage ? "side-quote" : undefined}>
+                <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
                   {valueText}
                 </span>
               )}
@@ -226,9 +226,9 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
                   {exact && placement?.kind === "text" ? (
                     <SideQuoteText placement={placement} reading={reading} />
                   ) : exact ? (
-                    <mark className={styles.quoteMark}>{quote}</mark>
+                    <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
                   ) : (
-                    quote
+                    collapseSpaces(quote)
                   )}
                 </blockquote>
                 {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
@@ -255,14 +255,24 @@ function SideQuoteText({ placement, reading }: { placement: Extract<Placement, {
       {splitBySpans(placement.passage, spans, offset).map((p, i) =>
         p.marked ? (
           <mark key={i} className={styles.quoteMark}>
-            {p.text}
+            {collapseSpaces(p.text)}
           </mark>
         ) : (
-          <span key={i}>{p.text}</span>
+          <span key={i}>{collapseSpaces(p.text)}</span>
         ),
       )}
     </>
   );
+}
+
+/**
+ * A quote as the side panel shows it: a plain-text file's column spaces (runs
+ * of spaces or tabs) read as one space, so a highlight doesn't run to the
+ * panel's edge. Display only: the stored text and its ranges are untouched,
+ * and the document itself keeps every space.
+ */
+export function collapseSpaces(text: string): string {
+  return text.replace(/[ \t]{2,}/g, " ");
 }
 
 // --- Text, email -------------------------------------------------------------

@@ -7,11 +7,11 @@ import { CLOSE_MATCH } from "@/components/viewer/words";
 import styles from "./evidence.module.css";
 import { excerptWindow, isExact, segments, valueRanges, type Range } from "./quote";
 
-/** A small arrow at the end of a quote: it opens the file at that spot. */
+/** A small chevron at the end of a quote: it opens the file at that spot, in the app. */
 function OpensIcon() {
   return (
     <svg className={styles.opens} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      <path d="M4 2.5h5.5V8M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 2.5 8 6 4.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

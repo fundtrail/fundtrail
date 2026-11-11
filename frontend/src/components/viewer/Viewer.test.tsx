@@ -148,6 +148,15 @@ describe("Viewer: text and email", () => {
     expect(screen.getByTestId("side-quote").querySelectorAll("mark")).toHaveLength(0);
   });
 
+  it("reads a file's column spaces as one space in the side quote, and keeps them in the document", async () => {
+    const BUDGET = ["G. Other Direct Costs          $100,000", "H. Total Direct Costs          $360,000"].join("\n");
+    const c = charCitation("G. Other Direct Costs          $100,000", BUDGET, null);
+    render(<Viewer file={{ name: "award_letter.txt", media_type: "text/plain" }} url={textUrl(BUDGET)} citation={c} />);
+    const text = await screen.findByTestId("viewer-text");
+    expect(text.textContent).toBe(BUDGET);
+    expect(screen.getByTestId("side-quote").textContent).toBe("G. Other Direct Costs $100,000");
+  });
+
   it("marks only the value's own characters in the side quote", async () => {
     const passage = "Sediment core liners, 50 count: $1,240.00";
     const c = charCitation(passage, INVOICE, [[32, 41]]);
@@ -278,7 +287,8 @@ describe("Viewer: photos and scans", () => {
     expect(b).toHaveStyle({ left: "60%", top: "70%", width: "25%", height: "5%" });
     expect(screen.getByText("200%")).toBeInTheDocument();
     expect(screen.getByText("Box checked by a second look")).toBeInTheDocument();
-    expect(screen.getByTestId("side-quote")).toHaveTextContent("$86.40");
+    // The value the box marks is beside it.
+    expect(screen.getByTestId("side-value")).toHaveTextContent("$86.40");
     // A photo has no passage: its value shows once, as the value, never as a quote.
     expect(screen.getAllByText("$86.40")).toHaveLength(1);
     expect(screen.queryByRole("blockquote")).toBeNull();
@@ -296,7 +306,8 @@ describe("Viewer: photos and scans", () => {
     render(<Viewer file={{ name: "receipt.jpg", media_type: "image/jpeg" }} url="data:image/png;base64,iVBORw0KGgo=" citation={box("not_found")} valueText="$86.40" />);
     expect(screen.queryAllByTestId("highlight-box")).toHaveLength(0);
     expect(screen.getByRole("note")).toHaveTextContent("Nothing is highlighted");
-    expect(screen.getByTestId("side-quote")).toHaveTextContent("$86.40");
+    // The value the agent read is beside the photo, with no box on it.
+    expect(screen.getByTestId("side-value")).toHaveTextContent("$86.40");
   });
 });
 

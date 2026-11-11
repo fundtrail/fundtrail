@@ -295,10 +295,13 @@
   height: auto;
 }
 
+/* Multiplied over the photo, like the PDF's highlighter, so the value the box
+   marks stays dark under the wash instead of turning olive. */
 .boxLayer {
   position: absolute;
   inset: 0;
   z-index: 2;
+  mix-blend-mode: multiply;
   pointer-events: none;
 }
 /* The photo keeps its own colors in both themes, so the box's edge is the
