@@ -99,7 +99,7 @@ export function ProblemsScreen() {
                 {grantName(summary)}
               </Link>
             )}
-            <h1 className={styles.title}>Problem list</h1>
+            <h1 className={`ft-title ${styles.title}`}>Problem list</h1>
           </div>
           {rows.length > 0 && <ProblemFilters rows={rows} value={filter} onChange={setFilter} look="pills" />}
         </header>

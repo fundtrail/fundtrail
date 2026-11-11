@@ -104,7 +104,7 @@ export function EvidenceScreen() {
               </Link>
             )}
             <div className={styles.titleRow}>
-              <h1 className={styles.title}>Evidence</h1>
+              <h1 className={`ft-title ${styles.title}`}>Evidence</h1>
               {evidence.data && (
                 <span className={styles.fileCount}>
                   {cards.length} {cards.length === 1 ? "file" : "files"}

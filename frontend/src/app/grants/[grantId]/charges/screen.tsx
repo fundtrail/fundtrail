@@ -29,7 +29,7 @@ export function ChargesScreen() {
               {grantName(summary)}
             </Link>
           )}
-          <h1 className={styles.title}>
+          <h1 className={`ft-title ${styles.title}`}>
             Charges
             {charges.data && <span className={`ft-num ${styles.count}`}>{charges.data.length}</span>}
           </h1>
