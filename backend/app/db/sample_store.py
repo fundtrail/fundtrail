@@ -20,6 +20,7 @@ class SampleMove:
     moved_from: datetime | None  # None when the sample was opened
     moved_to: datetime
     id: int = 0
+    loaded: bool = False  # it copied a prerun's saved result rather than playing live
 
 
 @dataclass(frozen=True)
@@ -41,11 +42,18 @@ def set_sample(conn: Conn, grant_id: str, sample: GrantSample) -> None:
     )
 
 
-def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to: datetime) -> int:
+def insert_move(
+    conn: Conn,
+    grant_id: str,
+    moved_from: datetime | None,
+    moved_to: datetime,
+    *,
+    loaded: bool = False,
+) -> int:
     row = conn.execute(
-        """insert into public.sample_moves (grant_id, moved_from, moved_to)
-           values (%s, %s, %s) returning id""",
-        (grant_id, moved_from, moved_to),
+        """insert into public.sample_moves (grant_id, moved_from, moved_to, loaded)
+           values (%s, %s, %s, %s) returning id""",
+        (grant_id, moved_from, moved_to, loaded),
     ).fetchone()
     assert row is not None
     return int(row["id"])
@@ -53,11 +61,13 @@ def insert_move(conn: Conn, grant_id: str, moved_from: datetime | None, moved_to
 
 def last_move(conn: Conn, grant_id: str) -> SampleMove | None:
     row = conn.execute(
-        """select id, moved_from, moved_to from public.sample_moves
+        """select id, moved_from, moved_to, loaded from public.sample_moves
            where grant_id = %s order by id desc limit 1""",
         (grant_id,),
     ).fetchone()
-    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"])) if row else None
+    if row is None:
+        return None
+    return SampleMove(row["moved_from"], row["moved_to"], int(row["id"]), row["loaded"])
 
 
 _SCRIPTED = "step, move_id, at, state, record_id, file_id"

@@ -61,9 +61,12 @@ def _sample_grant(grant: Grant) -> Grant:
 
 
 @router.get("/samples")
-def list_samples(user: UserDep) -> list[SampleOption]:
+def list_samples(user: UserDep, platform: PlatformDep) -> list[SampleOption]:
     """The sample choices, in the Add a grant dropdown's order."""
-    return player.options()
+    from app.samples import prerun
+
+    with transaction(platform.pool) as conn:
+        return player.options(prerun.unavailable_reason(conn))
 
 
 @router.post(

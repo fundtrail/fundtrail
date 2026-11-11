@@ -38,7 +38,7 @@ from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput
 from app.contracts.evidence import EvidenceFile
 from app.contracts.records import Author, Record
-from app.contracts.runs import AgentRun, TriggerKind
+from app.contracts.runs import AgentRun, Trigger, TriggerKind
 from app.contracts.timeline import (
     PlayedEvent,
     TimelineEvent,
@@ -55,12 +55,13 @@ from app.db.mail_sink import arrive_files
 from app.db.pings import ping_changed, ping_run
 from app.db.platform import Platform
 from app.db.pool import transaction
+from app.db.recheck import recheck_grant
 from app.db.store import Conn
 from app.ingest.email_files import email_parts
 from app.ingest.incoming import IncomingFile
 from app.ingest.ledger import read_ledger_file
 
-from . import skipping
+from . import prerun, skipping
 from .pack import (
     LARGER_SAMPLE,
     SMALL_SAMPLE,
@@ -141,8 +142,9 @@ def _sample_of(grant: Grant) -> GrantSample:
 # The choices.
 
 
-def options() -> list[SampleOption]:
-    """The Add a grant dropdown's sample choices, in order, with the packs' names."""
+def options(prerun_unavailable: str | None = PRERUN_UNAVAILABLE) -> list[SampleOption]:
+    """The Add a grant dropdown's sample choices, in order, with the packs' names. The
+    prerun choice is available when `prerun_unavailable` gives no reason it isn't."""
     out: list[SampleOption] = []
     for choice in SampleChoice:
         meta = pack_for(PACK_FOR_CHOICE[choice]).meta
@@ -157,8 +159,8 @@ def options() -> list[SampleOption]:
                 name=text["name"],
                 description=text["description"],
                 needs_confirm=choice is SampleChoice.LARGER_LIVE,
-                available=not prerun,
-                unavailable_reason=PRERUN_UNAVAILABLE if prerun else None,
+                available=not (prerun and prerun_unavailable),
+                unavailable_reason=prerun_unavailable if prerun else None,
             )
         )
     return out
@@ -237,10 +239,34 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
     pack = pack_for(info.sample)
     start = plan_start(items_for(info.sample), pack.starts_at)
     sample_store.set_sample(conn, grant.id, info)
+    if info.choice is SampleChoice.LARGER_PRERUN:
+        # Opened from the prerun: on its run-through, its first moment loaded, not played.
+        saved = prerun.current(conn, info.sample)
+        if saved is None:
+            raise SampleError(prerun.unavailable_reason(conn, info.sample) or PRERUN_UNAVAILABLE)
+        prerun.start_run_through(conn, grant.id, saved.id)
+        _load(p, conn, grant, saved, None, start.until)
+        return []
     _store_events(p, conn, grant, pack, [e.id for e in start.play])
     runs = clock.set_and_replay(p, conn, grant, None, start.until)
     sample_store.insert_move(conn, grant.id, None, start.until)
     return runs
+
+
+def _load(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    saved: prerun.Prerun,
+    after: datetime | None,
+    until: datetime,
+) -> None:
+    """A loaded move (ruling 47): the prerun's saved result up to `until`, copied at once;
+    the clock set; the statuses worked out at the new now. Nothing runs."""
+    move_id = sample_store.insert_move(conn, grant.id, after, until, loaded=True)
+    prerun.load(p, conn, grant, saved, after, until, move_id)
+    clock.set_stored_clock(conn, grant.id, until)
+    recheck_grant(conn, p.checks, grant, until, Trigger(kind=TriggerKind.CLOCK))
 
 
 class GrantGone(Exception):
@@ -258,8 +284,6 @@ def _lock_grant(conn: Conn, grant_id: str) -> Grant:
 
 def open_sample(p: Platform, user_id: str, workspace_id: str, choice: SampleChoice) -> Grant:
     """A new sample grant in the workspace, its clock at the timeline's first event."""
-    if choice is SampleChoice.LARGER_PRERUN:
-        raise SampleError(PRERUN_UNAVAILABLE)
     info = GrantSample(sample=PACK_FOR_CHOICE[choice], choice=choice)
     with transaction(p.pool) as conn:
         # The user's move lock, so a move of another larger read-live sample waits for this
@@ -391,11 +415,20 @@ def move(
         now = clock.grant_now(conn, grant.id)
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
         plan = plan_move(items, now, to)
-        move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
-        _store_events(p, conn, locked, pack, [e.id for e in plan.play])
-        if skip:
-            skipping.deliver_and_queue(p, conn, locked, pack, move_id, now, plan.until)
-        runs = clock.set_and_replay(p, conn, locked, now, plan.until)
+        saved = prerun.run_through(conn, locked)
+        if saved is not None and not skip and any(now < a.at <= plan.until for a in pack.actions):
+            # A scripted step passed without skipping is missed: off the run-through.
+            prerun.take_off(conn, grant.id)
+            saved = None
+        runs: list[AgentRun] = []
+        if saved is not None:
+            _load(p, conn, locked, saved, now, plan.until)
+        else:
+            move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
+            _store_events(p, conn, locked, pack, [e.id for e in plan.play])
+            if skip:
+                skipping.deliver_and_queue(p, conn, locked, pack, move_id, now, plan.until)
+            runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
 
 
@@ -570,6 +603,7 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
             (
                 at,
                 PlayedEvent(
+                    loaded=last is not None and last.loaded,
                     event=event,
                     agent_records=_agent_records(event, brought, runs, records, charges),
                     charge_ids=brought,
@@ -601,6 +635,7 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         ),
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
+        on_run_through=prerun.is_on_run_through(conn, grant),
     )
 
 
