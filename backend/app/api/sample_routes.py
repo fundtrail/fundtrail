@@ -99,12 +99,11 @@ def get_timeline(grant: GrantDep, platform: PlatformDep) -> TimelineView:
 def move_timeline(
     grant: GrantDep, body: TimelineMove, user: UserDep, platform: PlatformDep
 ) -> TimelineView:
-    """Move the sample's timeline forward: to `to`, or with nothing, to the next item."""
+    """Move the sample's timeline forward: to `to`, or with nothing, to the next item.
+
+    Skipping the human steps isn't built yet: a move with `skip_human_steps` makes the
+    same move without skipping, and the human steps are left for the user."""
     _sample_grant(grant)
-    if body.skip_human_steps:
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED, "Skipping the human steps isn't built yet."
-        )
     try:
         player.move(platform, user.id, grant, body.to)
     except player.GrantGone as error:

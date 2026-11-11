@@ -234,6 +234,29 @@ def test_the_users_items_wait_under_now_until_delivered(api: Api) -> None:
     assert item.name not in _names(later["just_happened"])
 
 
+def test_skipping_moves_without_skipping_while_it_isnt_built(api: Api) -> None:
+    """A move asking to skip the human steps makes the same move without skipping: the
+    clock moves, and no decision is made for the user; their items wait under Now."""
+    pack = player.pack_for("nitrate-sensors")
+    marked = [e.name for e in pack.events if e.deliver_by_user]
+    end = max(i.at for i in player.items_for("nitrate-sensors")) + timedelta(days=1)
+    grant_id = _open(api)
+    response = _post(
+        api, f"/grants/{grant_id}/timeline", {"to": _iso(end), "skip_human_steps": True}
+    )
+    assert response.status_code == 200, response.text
+    timeline = response.json()
+    assert timeline["now"]["now"] == _iso(end)
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == marked
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        accountant = store.sample_accountant_id(conn, grant.workspace_id)
+        records = store.list_records(conn, grant_id, store.END_OF_TIME)
+    assert not [r for r in records if r.author_user_id == accountant]
+
+
 def test_the_timeline_only_moves_forward(api: Api) -> None:
     grant_id = _open(api)
     back = _post(api, f"/grants/{grant_id}/timeline", {"to": "2026-01-01T00:00:00Z"})
