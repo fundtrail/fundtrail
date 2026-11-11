@@ -1,0 +1,61 @@
+/* A panel that opens from a one-line summary: the grant page's budget and charges. */
+
+.panel {
+  overflow: hidden;
+}
+.details {
+  min-width: 0;
+}
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.summary:hover {
+  background: var(--paper-sunken);
+}
+.summary:focus-visible {
+  outline-offset: -2px;
+}
+/* A small drawn chevron: right when closed, down when open. */
+.chevron {
+  align-self: center;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--ink-muted);
+  border-bottom: 2px solid var(--ink-muted);
+  transform: rotate(-45deg);
+  transition: transform 120ms ease-out;
+}
+.details[open] > .summary .chevron {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+.aside {
+  margin-left: auto;
+}
+.body {
+  border-top: 1px solid var(--rule);
+  overflow-x: auto;
+}
+.body :global(.ft-ledger tr:first-child td) {
+  border-top: 0;
+}
+.notes {
+  max-width: none;
+}
+.count {
+  font-variant-numeric: tabular-nums;
+}
