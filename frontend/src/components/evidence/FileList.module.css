@@ -195,11 +195,13 @@
   border-radius: 12px;
   background: var(--paper-raised);
 }
+/* A container, so the card lays itself out for the column it's in, not the window. */
 .detail {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
+  container-type: inline-size;
 }
 .paneBar {
   display: flex;
@@ -223,6 +225,12 @@
   font-size: 15px;
 }
 
+/* A laptop: a narrower list leaves the card room to read. */
+@media (max-width: 1200px) {
+  .split {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  }
+}
 @media (max-width: 980px) {
   .split {
     grid-template-columns: minmax(0, 1fr);
