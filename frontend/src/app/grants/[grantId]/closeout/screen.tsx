@@ -56,7 +56,7 @@ export function CloseoutScreen() {
             data.rows.length === 0 ? (
               <p className="ft-empty">Nothing is on the problem list.</p>
             ) : (
-              <ProblemList rows={data.rows} />
+              <ProblemList rows={data.rows} charges={Object.fromEntries((charges.data ?? []).map((r) => [r.charge.id, r.charge]))} />
             )
           }
         </Loadable>

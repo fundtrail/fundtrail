@@ -164,7 +164,7 @@ function Row({ row, charges }: { row: ProblemRow; charges: Record<Id, Charge> })
               {row.charge.vendor && <span className="ft-caption"> · {row.charge.vendor}</span>}
             </p>
             {failing(row.status.reasons).map((r) => (
-              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.charge.amount_cents} />
+              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.status.net_cents ?? row.charge.amount_cents} />
             ))}
             {(row.waiting_charge_ids ?? []).length > 0 && (
               <WaitingCharges grantId={row.charge.grant_id} ids={row.waiting_charge_ids ?? []} charges={charges} />
