@@ -1107,6 +1107,64 @@ def test_loading_maps_read_points_and_parents(setup: Api, monkeypatch: pytest.Mo
     assert children and all(f["parent_id"] in files for f in children)
 
 
+def test_letting_in_the_scripted_held_email_keeps_it_on(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ruling 80 (and 45b): the user lets in the very held message the script's
+    let_in_mail step names, at its highlight: a matching step, so the grant stays on the
+    run-through. What it brings in stands for the prerun's: a later load copies nothing
+    over it, and the loaded result gives the expected buckets."""
+    api = setup
+    monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_PRERUN, LARGER_SAMPLE)
+    saved = _released(api, sample=LARGER_SAMPLE)
+    pack = player.pack_for(LARGER_SAMPLE)
+    let_in = next(a for a in pack.actions if a.action == "let_in_mail")
+    grant_id = _open(api, "larger_prerun")
+    before = let_in.at - timedelta(seconds=1)
+    moved = _post(
+        api, f"/grants/{grant_id}/timeline", {"to": _iso(before), "skip_human_steps": True}
+    )
+    assert moved.status_code == 200 and moved.json()["on_run_through"] is True, moved.text
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        write = resolve(api.platform, conn, grant, pack, let_in, before)
+    assert isinstance(write, WriteRecord) and write.data["kind"] == "mail_action"
+    mine = _post(api, f"/grants/{grant_id}/records", {"data": write.data})
+    assert mine.status_code == 201, mine.text
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is True
+    assert _pending(api, grant_id) == 0  # nothing runs live for it
+    _to_the_end(api, grant_id, LARGER_SAMPLE)
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is True
+    files, charges, records = _counts(api, saved.grant_id)
+    assert _counts(api, grant_id) == (files, charges, records - 1)  # no sign-off
+    with transaction(api.platform.pool) as conn:
+        loaded = {r.id: r for r in store.list_records(conn, grant_id)}
+    assert loaded[mine.json()["id"]].author_user_id == api.user_id
+    checked, wrong = prerun.key_check(api.platform, grant_id, LARGER_SAMPLE)
+    assert checked and wrong == []
+
+
+def test_letting_in_another_email_takes_it_off(setup: Api, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A let-in the script doesn't make (a decision of the user's own) goes live."""
+    api = setup
+    monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_PRERUN, LARGER_SAMPLE)
+    _released(api, sample=LARGER_SAMPLE)
+    pack = player.pack_for(LARGER_SAMPLE)
+    let_in = next(a for a in pack.actions if a.action == "let_in_mail")
+    grant_id = _open(api, "larger_prerun")
+    before = let_in.at - timedelta(seconds=1)
+    _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(before), "skip_human_steps": True})
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        write = resolve(api.platform, conn, grant, pack, let_in, before)
+    assert isinstance(write, WriteRecord)
+    dismissed = {**write.data, "action": "dismiss"}
+    assert _post(api, f"/grants/{grant_id}/records", {"data": dismissed}).status_code == 201
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is False
+
+
 # Ruling 86 on a loaded grant.
 
 
@@ -1159,3 +1217,43 @@ def test_on_the_run_through_a_skipping_next_event_makes_the_held_step(setup: Api
     again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
     assert again.status_code == 200, again.text
     assert again.json()["on_run_through"] is True
+
+
+def test_letting_in_the_held_email_next_highlight_holds_keeps_it_on(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With #328's hold: Next highlight to the held vendor email stops where its own
+    let-in is due, holds it and loads up to just before it; the user lets the message in
+    as scripted, the grant stays on, and Next highlight then loads on at once."""
+    api = setup
+    monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_PRERUN, LARGER_SAMPLE)
+    saved = _released(api, sample=LARGER_SAMPLE)
+    pack = player.pack_for(LARGER_SAMPLE)
+    let_in = next(a for a in pack.actions if a.action == "let_in_mail")
+    assert let_in.highlight is not None
+    event = next(e for e in pack.events if e.highlight == let_in.highlight)
+    grant_id = _open(api, "larger_prerun")
+    body = {"to": _iso(event.at - timedelta(seconds=1)), "skip_human_steps": True}
+    assert _post(api, f"/grants/{grant_id}/timeline", body).status_code == 200
+    held = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert held.status_code == 200, held.text
+    timeline = held.json()
+    assert timeline["on_run_through"] is True and timeline["now"]["now"] == _iso(let_in.at)
+    reason = timeline["next_highlight_unavailable_reason"]
+    assert reason is not None and let_in.file is not None and let_in.file in reason
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        write = resolve(api.platform, conn, grant, pack, let_in, let_in.at)
+    assert isinstance(write, WriteRecord)
+    mine = _post(api, f"/grants/{grant_id}/records", {"data": write.data})
+    assert mine.status_code == 201, mine.text
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is True
+    assert _pending(api, grant_id) == 0
+    on = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert on.status_code == 200 and on.json()["on_run_through"] is True, on.text
+    _to_the_end(api, grant_id, LARGER_SAMPLE)
+    files, charges, records = _counts(api, saved.grant_id)
+    assert _counts(api, grant_id) == (files, charges, records - 1)  # no sign-off
+    checked, wrong = prerun.key_check(api.platform, grant_id, LARGER_SAMPLE)
+    assert checked and wrong == []
