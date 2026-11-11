@@ -40,6 +40,10 @@ from .platform import Platform
 from .pool import transaction
 from .recheck import recheck_grant
 
+# Why a sign-off can't be done now (decision 0022): the refusal, and ruling 72's
+# SignOffState.unavailable_reason, in the same words.
+AGENT_WORKING = "The agent is still working on this grant. Sign off once it's done."
+
 
 class WriteRejected(Exception):
     """The write check found problems. The API returns them with a 422."""
@@ -364,7 +368,7 @@ def write_sign_off(
 ) -> Record:
     """add_sign_off's write, in the caller's transaction, which holds the grant's lock."""
     if store.has_pending_run(conn, grant.id):
-        raise WriteRejected(["The agent is still working on this grant. Sign off once it's done."])
+        raise WriteRejected([AGENT_WORKING])
     if not (note and note.strip()) and anything_open(conn, grant):
         raise WriteRejected(["Something is still open, so a sign-off needs a note."])
     now = clock.grant_now(conn, grant.id)
