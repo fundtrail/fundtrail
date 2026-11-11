@@ -23,6 +23,8 @@ class Finding:
     dispute_id: str | None = None  # the agent's dispute of it, while it waits
     # Issue 83: the award limit's over_limit problem carries the amount over.
     amount_cents: int | None = None
+    # Ruling 61: for a benefit charge's recalculation that doesn't match, the amount expected.
+    expected_cents: int | None = None
 
     @property
     def failing(self) -> bool:
