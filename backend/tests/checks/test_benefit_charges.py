@@ -279,3 +279,42 @@ def test_an_accepted_salary_line_is_no_longer_waited_on() -> None:
     assert sal.accepted
     ben = next(s for s in out.charges if s.charge_id == "ben")
     assert ben.bucket == Bucket.EVIDENCE_COMPLETE
+
+
+# PR 219's review: with no salary lines counted, the item is never filled.
+
+
+def test_a_benefit_and_its_reversal_with_no_salary_lines_counted() -> None:
+    """The salary is on an account the table doesn't map, so nothing is counted. The
+    benefit nets to $0, which used to "match" $0 expected and fill the item with no
+    salary lines, which the contract refuses."""
+    g, lines = grant()
+    rate(g, "staff", "0.428", date(2023, 7, 1), date(2024, 6, 30))
+    pay(g, lines, "sal", date(2024, 3, 31), 1_000_000, account="51200 Staff Salaries & Wages")
+    benefit(g, lines, "ben", date(2024, 3, 31), 428_000)
+    g.charge(
+        "undo",
+        date(2024, 3, 31),
+        -428_000,
+        account=STAFF_BENEFITS,
+        vendor=None,
+        original_line_id="L-ben",
+    )
+    s = status(g, "ben")  # run_checks no longer raises
+    reason = next(x for x in s.reasons if x.problem == "no_salary:benefit_rate")
+    assert reason.bucket == Bucket.NEEDS_HUMAN
+    assert "no Staff salary lines on this grant in March 2024" in reason.text
+    assert "$0.00" not in reason.text
+    e = entry(s)
+    assert (e.filled, e.rate_id, e.charge_ids) == (False, None, ())
+
+
+def test_a_one_cent_benefit_in_a_month_with_no_salary() -> None:
+    g, lines = grant()
+    rate(g, "staff", "0.428", date(2023, 7, 1), date(2024, 6, 30))
+    pay(g, lines, "april", date(2024, 4, 1), 1_000_000)  # salary, but not that month
+    benefit(g, lines, "ben", date(2024, 3, 31), 1)
+    s = g.status("ben", at(2024, 4, 2))
+    assert ("checklist", "no_salary:benefit_rate") in problems(s)
+    assert not entry(s).filled
+    assert s.flagged  # its own problem: its own row

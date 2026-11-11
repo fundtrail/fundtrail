@@ -130,7 +130,10 @@ def _counted(view: GrantView, charge: Charge) -> bool:
 
 
 def cells(view: GrantView) -> dict[tuple[BenefitGroup, date], Cell]:
-    """The grant's cells, by group and month, for every group with a benefit charge."""
+    """The grant's cells, by group and month, for every group with a benefit charge.
+
+    Worked out once per view: read them from `GrantView.benefit_cells`.
+    """
     out: dict[tuple[BenefitGroup, date], Cell] = {}
     for c in view.charges:
         group = benefit_group(c)
@@ -157,7 +160,7 @@ def cell_of(view: GrantView, charge: Charge) -> Cell | None:
     group = benefit_group(charge)
     if group is None or not _counted(view, charge):
         return None
-    return cells(view).get((group, month_of(charge.transaction_date)))
+    return view.benefit_cells.get((group, month_of(charge.transaction_date)))
 
 
 def _rates(terms: Sequence[Record], group: BenefitGroup, on: date) -> list[Record]:
@@ -228,6 +231,21 @@ def recalculate(charge: Charge, view: GrantView, needed: str) -> Recalculation |
                     Bucket.NEEDS_HUMAN,
                     f"{needed}: code can't tell which salary lines are {name} pay, so the "
                     f"{name} benefits for {month} can't be recalculated.",
+                )
+            ],
+        )
+    if not cell.salary_ids:
+        # Nothing to recalculate from: never filled, whatever the benefits add up to
+        # (PR 219's review). Not "$0 expected", which a reversed benefit would match.
+        return Recalculation(
+            filled=False,
+            findings=[
+                Finding(
+                    CHECKLIST,
+                    f"no_salary:{problem}",
+                    Bucket.NEEDS_HUMAN,
+                    f"{needed}: there are no {name} salary lines on this grant in {month}, "
+                    f"so the {name} benefits charged that month can't be recalculated.",
                 )
             ],
         )
