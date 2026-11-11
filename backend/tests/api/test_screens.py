@@ -3,6 +3,7 @@ section 15), with the checks faked."""
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -12,7 +13,7 @@ import pytest
 from app.contracts.charges import Charge
 from app.contracts.checks import Bucket, ChecksInput, ChecksOutput, Problem
 from app.contracts.fixtures import SampleGrant
-from app.contracts.records import DefaultItem, Record
+from app.contracts.records import DefaultItem, Judgment, Record
 from app.contracts.runs import Trigger, TriggerKind
 from app.db import store
 from app.db.clock import ClockError, grant_now, move_grant_clock, next_arrival
@@ -833,3 +834,27 @@ def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None
     assert tampered.status_code == 409
     assert b"%PDF changed" not in tampered.content
     assert tampered.json()["detail"].startswith("The stored report doesn't match the checksum")
+
+
+def test_the_charge_page_names_every_file_its_records_cite(api: Api) -> None:
+    """Issue 275: a file an answer's quote cites is in the charge page's files, not only
+    the links' files."""
+    sample = _sample(api)
+    l1001 = _id(sample, "chg-l-1001")
+    letter = _id(sample, "file-award-letter")
+    original = next(r for r in sample.records if r.id.startswith("rec-allowable-l-1001"))
+    assert isinstance(original.data, Judgment)
+    quote = original.data.quotes[0].model_copy(update={"file_id": letter})
+    answer = original.model_copy(
+        update={
+            "id": str(uuid.uuid4()),
+            "replaces_id": original.id,
+            "stored_seq": None,
+            "data": original.data.model_copy(update={"quotes": (quote,)}),
+        }
+    )
+    with transaction(api.platform.pool) as conn:
+        store.insert_records(conn, [answer])
+    detail = _get(api, f"/charges/{l1001}")
+    assert letter in detail["files"]
+    assert detail["files"][letter]["name"] == "award_letter.txt"
