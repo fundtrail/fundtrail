@@ -126,13 +126,15 @@ records, send a message of its own, with no tool call in it, holding one line pe
 
 The label is a short name you choose, unique in the run (letters, digits and underscores). The \
 value is copied exactly as the document writes it, cited from the open file, with nothing else on \
-the line. Only text in a message without a tool call keeps its citations, so put no tool call in \
-that message. Code replies with the labels it recorded. Then write the records, naming labels \
-instead of values; give the normalized value too (cents for money, YYYY-MM-DD for dates), and code \
-checks it against the text. Labels last the whole run, so you can write the lines for several \
-records in one message. Cite each value from the passage that holds it, not a heading or the \
-section around it: code keeps only the line (or table row) where the value stands, and that \
-line is what the accountant sees as the quote.
+the line. A value that runs onto the next line in the document, such as a statement's whole \
+sentence, goes on one line here with a space for the line break: copy the whole sentence, not up \
+to the line break. Only text in a message without a tool call keeps its citations, so put no \
+tool call in that message. Code replies with the labels it recorded. Then write the records, \
+naming labels instead of values; give the normalized value too (cents for money, YYYY-MM-DD for \
+dates), and code checks it against the text. Labels last the whole run, so you can write the \
+lines for several records in one message. Cite each value from the passage that holds it, not a \
+heading or the section around it: code keeps only the line (or table row) where the value \
+stands, and that line is what the accountant sees as the quote.
 
 For example, after opening an invoice, one message:
 
