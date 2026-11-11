@@ -684,9 +684,9 @@ def play_case(
             else:
                 store.get_grant(conn, grant.id, lock=True)
                 old = clock.grant_now(conn, grant.id)
-            # The private storing step is the player's own: each file as its channel stores
-            # it (a Gmail file through the known-sender hold), each ledger line as an upload.
-            player._store_events(p, conn, grant, pack, [e.id for e in events])  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            # The player's own storing step: each file as its channel stores it (a Gmail
+            # file through the known-sender hold), each ledger line as an upload reads it.
+            player.store_events(p, conn, grant, pack, [e.id for e in events])
             if old is None or at > old:
                 clock.set_and_replay(p, conn, grant, old, at)
         drain(database_url)
