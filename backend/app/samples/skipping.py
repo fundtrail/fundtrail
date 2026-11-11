@@ -95,15 +95,19 @@ def queue_steps(
     Held for the user instead (ruling 77): on a Next highlight move to the highlight
     labelled `highlight`, a step marked with that label; and a sign-off, always, unless
     `sign_off` (set only where no user is present: the do-everything play and making a
-    prerun). A step an earlier move held is taken up again, at the walk's clock, unless
-    this move would hold it too: it's made then if the user hasn't made it."""
+    prerun). A step an earlier move held is taken up again, at the walk's clock, by a
+    skipping move that isn't Next highlight (never the sign-off but with `sign_off`):
+    it's made then if the user hasn't made it."""
 
     def held(a: UserAction) -> bool:
         if a.action == "sign_off":
             return not sign_off
         return highlight is not None and a.highlight == highlight
 
-    for s in sample_store.held_scripted(conn, grant.id):
+    # Only a skip that isn't Next highlight takes held steps up (ruling 77, amended): a
+    # highlight's own step is never made on the move that reaches it, nor on a later Next
+    # highlight press.
+    for s in sample_store.held_scripted(conn, grant.id) if highlight is None else []:
         if not held(pack.actions[s.step]):
             sample_store.take_up_scripted(conn, grant.id, s.step, move_id)
     for n, a in enumerate(pack.actions):
