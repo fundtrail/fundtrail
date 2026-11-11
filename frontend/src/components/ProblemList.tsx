@@ -114,7 +114,39 @@ function Mark({ bucket }: { bucket: Bucket | null }) {
   return <span className={styles.mark} data-bucket={bucket ?? "none"} aria-hidden="true" />;
 }
 
-function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; rowKey: string; charges: Record<Id, Charge>; onSelect?: OnSelectRow; selected: boolean }) {
+/** How many of a row's reasons show: all of them, or the first with a count of the rest. */
+export type ReasonsShown = "all" | "first";
+
+/** The reasons a row shows, and how many more it has. */
+function shownOf<T>(all: T[], reasons: ReasonsShown): { shown: T[]; more: number } {
+  const shown = reasons === "first" ? all.slice(0, 1) : all;
+  return { shown, more: all.length - shown.length };
+}
+
+function MoreReasons({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <p className="ft-caption">
+      {count} more {count === 1 ? "reason" : "reasons"}
+    </p>
+  );
+}
+
+function Row({
+  row,
+  rowKey,
+  charges,
+  onSelect,
+  selected,
+  reasons,
+}: {
+  row: ProblemRow;
+  rowKey: string;
+  charges: Record<Id, Charge>;
+  onSelect?: OnSelectRow;
+  selected: boolean;
+  reasons: ReasonsShown;
+}) {
   const link = (href: string, children: ReactNode) => (
     <RowLink href={href} selectKey={rowKey} onSelect={onSelect} current={selected}>
       {children}
@@ -129,7 +161,7 @@ function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; ro
             <p className="ft-problem__text">{row.problem.text}</p>
           </div>
           <div className="ft-problem__side">
-            <span className="ft-tag">Grant</span>
+            <span className={`ft-tag ${styles.kind}`}>Grant</span>
             {row.problem.accepted && <span className="ft-tag">Accepted</span>}
             {row.problem.snoozed && <span className="ft-tag">Snoozed</span>}
           </div>
@@ -147,7 +179,7 @@ function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; ro
             </p>
           </div>
           <div className="ft-problem__side">
-            <span className="ft-tag">Terms</span>
+            <span className={`ft-tag ${styles.kind}`}>Terms</span>
           </div>
         </>
       );
@@ -161,14 +193,15 @@ function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; ro
             ) : (
               row.file && <p className="ft-problem__name">{link(routes.file(row.status.grant_id, row.file.id), row.file.name)}</p>
             )}
-            {row.status.problems.map((p) => (
+            {shownOf(row.status.problems, reasons).shown.map((p) => (
               <p className="ft-problem__text" key={`${p.check}:${p.problem}`}>
                 {p.text}
               </p>
             ))}
+            <MoreReasons count={shownOf(row.status.problems, reasons).more} />
           </div>
           <div className="ft-problem__side">
-            <span className="ft-tag">{row.file && !row.record ? "File" : "Record"}</span>
+            <span className={`ft-tag ${styles.kind}`}>{row.file && !row.record ? "File" : "Record"}</span>
             {row.status.accepted && <span className="ft-tag">Accepted</span>}
             {row.status.snoozed && <span className="ft-tag">Snoozed</span>}
           </div>
@@ -180,9 +213,10 @@ function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; ro
           <Mark bucket={row.status.bucket} />
           <div className="ft-problem__main">
             <p className="ft-problem__name">{link(routes.charge(row.charge.grant_id, row.charge.id), row.charge.description)}</p>
-            {failing(row.status.reasons).map((r) => (
+            {shownOf(failing(row.status.reasons), reasons).shown.map((r) => (
               <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.status.net_cents ?? row.charge.amount_cents} />
             ))}
+            <MoreReasons count={shownOf(failing(row.status.reasons), reasons).more} />
             <p className={`ft-caption ${styles.when}`}>
               <span className="ft-id">{row.charge.ledger_line_id}</span> · <span className="ft-num">{date(row.charge.transaction_date)}</span>
               {row.charge.vendor && <> · {row.charge.vendor}</>}
@@ -217,7 +251,7 @@ function Row({ row, rowKey, charges, onSelect, selected }: { row: ProblemRow; ro
             </p>
           </div>
           <div className="ft-problem__side">
-            <span className="ft-tag">Mail</span>
+            <span className={`ft-tag ${styles.kind}`}>Mail</span>
           </div>
         </>
       );
@@ -233,23 +267,27 @@ const BUCKET_ORDER: Bucket[] = ["possible_conflict", "needs_human", "missing_evi
  * The screen never sorts it. The tabs only hide rows on screen: All, and one
  * per bucket the rows are in, counted from the rows the server sent.
  *
- * With `onSelect`, clicking a row shows it beside the list (the grant page);
- * `selected` is the key of the row shown there.
+ * With `onSelect`, clicking a row picks it, for the page to show where it
+ * likes; `selected` is the key of the picked row. With `reasons="first"` a
+ * row shows only the reason the server lists first, with a count of the
+ * rest; the item's own view shows them all.
  */
 export function ProblemList({
   rows,
   charges = {},
   selected = null,
   onSelect,
+  reasons = "all",
 }: {
   rows: ProblemRow[];
   charges?: Record<Id, Charge>;
   selected?: string | null;
   onSelect?: OnSelectRow;
+  reasons?: ReasonsShown;
 }) {
   const [tab, setTab] = useState<Bucket | "all">("all");
   if (rows.length === 0) {
-    return <p className="ft-empty">Nothing on the problem list.</p>;
+    return <p className={`ft-empty ${styles.empty}`}>Nothing on the problem list.</p>;
   }
   const counts = new Map<Bucket, number>();
   for (const row of rows) {
@@ -296,7 +334,7 @@ export function ProblemList({
               data-selectable={onSelect ? "" : undefined}
               onClick={(e) => clickRow(e, key)}
             >
-              <Row row={row} rowKey={key} charges={charges} onSelect={onSelect} selected={isSelected} />
+              <Row row={row} rowKey={key} charges={charges} onSelect={onSelect} selected={isSelected} reasons={reasons} />
             </li>
           );
         })}

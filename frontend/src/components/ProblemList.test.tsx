@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { Charge, ChargeStatus, EvidenceFile, FtRecord, ProblemRow, Reason } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
@@ -155,6 +155,36 @@ describe("ProblemList", () => {
       />,
     );
     expect(screen.getByText("Approval rule, written Mar 2, 2026")).toBeInTheDocument();
+  });
+
+  it("filters on screen by bucket, counting the rows the server sent, and keeps their order", () => {
+    render(<ProblemList rows={rows} />);
+    expect(screen.getByRole("button", { name: "All 5" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Possible conflict 1" }));
+    expect(shownOrder()).toEqual(["charge:L-1"]);
+    fireEvent.click(screen.getByRole("button", { name: "All 5" }));
+    expect(shownOrder()).toHaveLength(5);
+  });
+
+  it("picks a row on a plain click and leaves its link to its page", () => {
+    const onSelect = vi.fn();
+    render(<ProblemList rows={rows} onSelect={onSelect} selected="charge:c1" />);
+    const link = screen.getByRole("link", { name: "Oldest conflict" });
+    expect(link).toHaveAttribute("href", "/grants/g/charges/c1");
+    expect(link).toHaveAttribute("aria-current", "true");
+    fireEvent.click(screen.getByRole("link", { name: "Middle human" }));
+    expect(onSelect).toHaveBeenLastCalledWith("charge:c2");
+    // A click with a modifier key opens the page instead.
+    fireEvent.click(screen.getByRole("link", { name: "Newest missing" }), { metaKey: true });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows only the first reason, with a count of the rest, when asked", () => {
+    const two = status("needs_human", [reason("needs_human", "The agent is unsure."), reason("missing_evidence", "A bill isn't on file.")]);
+    render(<ProblemList rows={[{ kind: "charge", charge: charge("c1", "L-1", "2025-01-01", "A charge"), status: two }]} reasons="first" />);
+    expect(screen.getByText("The agent is unsure.")).toBeInTheDocument();
+    expect(screen.queryByText("A bill isn't on file.")).toBeNull();
+    expect(screen.getByText("1 more reason")).toBeInTheDocument();
   });
 
   it("says so when nothing is on the list", () => {

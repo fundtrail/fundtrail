@@ -9,10 +9,10 @@ import { ChargesTable } from "@/components/ChargesTable";
 import disclosure from "@/components/Disclosure.module.css";
 import { GrantHeader } from "@/components/GrantHeader";
 import { ProblemList, problemRowKey } from "@/components/ProblemList";
+import { SelectedProblem } from "@/components/SelectedProblem";
 import { SampleTimeline } from "@/components/timeline/TimelinePanel";
 import { useGrantDisplayName } from "@/lib/grantName";
 import { useCharges, useGrant, useProblemList, usePings, type IsoDate, type PeriodOfPerformance, type TermView } from "@/lib/api";
-import { SelectedItem } from "./SelectedItem";
 import styles from "./grant.module.css";
 
 /**
@@ -92,7 +92,7 @@ export function GrantScreen() {
         </section>
         {selected && (
           <section ref={pane} className={styles.pane} aria-label="The selected item">
-            <SelectedItem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} />
+            <SelectedProblem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} />
           </section>
         )}
       </div>

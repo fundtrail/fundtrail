@@ -9,7 +9,7 @@ import { useThreadActions } from "@/components/thread/useThreadActions";
 import { useCharge, useChargeThread, useEvidence, useProblemList, useRecords, useRecordThread, type EvidenceFile, type Id, type ProblemRow } from "@/lib/api";
 import { date, HOLD_REASON_LABELS, SOURCE_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import styles from "./grant.module.css";
+import styles from "./SelectedProblem.module.css";
 
 /** The bar over the item: a link to open it on its own page. */
 function Bar({ href }: { href?: string }) {
@@ -149,13 +149,17 @@ function RowPane({ grantId, row }: { grantId: Id; row: ProblemRow }) {
 }
 
 /**
- * The item picked on the problem list, shown beside it: a charge as the charge
+ * The item picked on the problem list, shown wherever the page puts it: a charge as the charge
  * page shows it, a record's thread as the record page shows it, and anything
  * else with the words from its row and a link to its page. A charge or record
  * that isn't a row of its own (a benefit charge waiting on its salary line)
  * still shows by its ID.
  */
-export function SelectedItem({ grantId, itemKey, row }: { grantId: Id; itemKey: string; row: ProblemRow | null }) {
+export function SelectedProblem({ grantId, itemKey, row }: { grantId: Id; itemKey: string; row: ProblemRow | null }) {
+  return <div className={styles.pane}>{paneFor(grantId, itemKey, row)}</div>;
+}
+
+function paneFor(grantId: Id, itemKey: string, row: ProblemRow | null) {
   if (row) return <RowPane grantId={grantId} row={row} />;
   const [kind, ...rest] = itemKey.split(":");
   const id = rest.join(":");

@@ -6,8 +6,8 @@
 
 .tabs {
   display: flex;
-  gap: 2px;
-  padding: var(--space-1) var(--space-2) 0;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) 0;
   border-bottom: 1px solid var(--rule);
   overflow-x: auto;
   scrollbar-width: thin;
@@ -50,8 +50,8 @@
 /* The list's own .ft-problem rows, laid out as in the mock: mark, what and why, amount over its pill. */
 .list .row {
   grid-template-columns: 14px minmax(0, 1fr) auto;
-  gap: 2px var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  gap: 3px var(--space-3);
+  padding: var(--space-4) var(--space-5);
 }
 .list :global(.ft-problems) > .row:first-child {
   border-top: 0;
@@ -85,6 +85,17 @@
 }
 .row :global(.ft-problem__side) {
   min-width: 0;
+}
+/* What kind of row it is: a quiet label, not a bordered badge. */
+.kind {
+  border-color: transparent;
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.empty {
+  padding: var(--space-6) var(--space-5);
+  color: var(--ink-muted);
 }
 .when {
   margin-top: 2px;
