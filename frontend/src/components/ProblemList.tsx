@@ -1,15 +1,21 @@
 import Link from "next/link";
-import type { FtRecord, HeldMail, ProblemRow, Reason } from "@/lib/api";
+import type { Cents, Charge, FtRecord, HeldMail, Id, ProblemRow, Reason } from "@/lib/api";
 import { date, HOLD_REASON_LABELS, money, recordKindLabel, SOURCE_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { ChargeStatusBadge } from "./BucketBadge";
 
 
 /** A reason's text as the server sends it, with when a missing item is expected and whether it was accepted. */
-function ReasonLine({ reason }: { reason: Reason }) {
+function ReasonLine({ reason, chargedCents }: { reason: Reason; chargedCents?: Cents }) {
   return (
     <p className="ft-problem__text">
       {reason.text}
+      {reason.expected_cents != null && chargedCents !== undefined && (
+        <span className="ft-caption">
+          {" "}
+          · Expected {money(reason.expected_cents)}, charged {money(chargedCents)}
+        </span>
+      )}
       {reason.expected_by && <span className="ft-caption"> · Expected by {date(reason.expected_by)}</span>}
       {reason.accepted_by && (
         <>
@@ -24,6 +30,29 @@ function ReasonLine({ reason }: { reason: Reason }) {
 /** A held message's sender, or null when its From line couldn't be read. */
 function heldSender(held: HeldMail): string | null {
   return held.sender?.trim() || null;
+}
+
+/**
+ * Ruling 62: the benefit charges that wait on this salary line, listed under it
+ * instead of as rows of their own. Named from the charges list when it's loaded.
+ */
+function WaitingCharges({ grantId, ids, charges }: { grantId: Id; ids: Id[]; charges: Record<Id, Charge> }) {
+  return (
+    <ul className="ft-problem__waiting" aria-label="Benefit charges waiting on this line">
+      {ids.map((id, i) => {
+        const c = charges[id];
+        return (
+          <li key={id} className="ft-caption">
+            Waiting on this line:{" "}
+            <Link className="ft-link" href={routes.charge(grantId, id)}>
+              {c ? `${c.ledger_line_id} · ${c.description}` : `Benefit charge ${i + 1}`}
+            </Link>
+            {c && <> · {money(c.amount_cents)}</>}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function recordName(record: FtRecord): string {
@@ -50,7 +79,7 @@ function rowKey(row: ProblemRow, index: number): string {
   }
 }
 
-function Row({ row }: { row: ProblemRow }) {
+function Row({ row, charges }: { row: ProblemRow; charges: Record<Id, Charge> }) {
   switch (row.kind) {
     case "grant":
       return (
@@ -135,8 +164,11 @@ function Row({ row }: { row: ProblemRow }) {
               {row.charge.vendor && <span className="ft-caption"> · {row.charge.vendor}</span>}
             </p>
             {failing(row.status.reasons).map((r) => (
-              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} />
+              <ReasonLine key={`${r.check}:${r.problem}`} reason={r} chargedCents={row.charge.amount_cents} />
             ))}
+            {(row.waiting_charge_ids ?? []).length > 0 && (
+              <WaitingCharges grantId={row.charge.grant_id} ids={row.waiting_charge_ids ?? []} charges={charges} />
+            )}
           </div>
           <div className="ft-problem__side">
             <span className="ft-amount">{money(row.charge.amount_cents)}</span>
@@ -178,7 +210,7 @@ function Row({ row }: { row: ProblemRow }) {
  * 1 of #22). Each row links to its page through routes.
  * The screen never sorts or filters it.
  */
-export function ProblemList({ rows }: { rows: ProblemRow[] }) {
+export function ProblemList({ rows, charges = {} }: { rows: ProblemRow[]; charges?: Record<Id, Charge> }) {
   if (rows.length === 0) {
     return <p className="ft-empty">Nothing on the problem list.</p>;
   }
@@ -186,7 +218,7 @@ export function ProblemList({ rows }: { rows: ProblemRow[] }) {
     <ol className="ft-problems" aria-label="Problem list">
       {rows.map((row, i) => (
         <li className="ft-problem" key={rowKey(row, i)} data-kind={row.kind}>
-          <Row row={row} />
+          <Row row={row} charges={charges} />
         </li>
       ))}
     </ol>

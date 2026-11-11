@@ -4,10 +4,12 @@ suggestions and disputes, the budget line against the ledger account, and failed
 Acceptances, reusable notes, snoozes and flagging are applied afterwards (decisions.py).
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.checks import benefits
 from app.checks import checklist as checklist_check
 from app.checks.answers import ANSWER_BUCKET, AnswerState, answer_state
 from app.checks.checklist import compare
@@ -686,7 +688,14 @@ def evaluate_charge(
     suggestions: list[Record],
     failed_runs: list[AgentRun],
     over_linked_bills: set[str],
+    salary_done: Mapping[str, bool] | None = None,
 ) -> ChargeEval:
+    """Every check on one charge.
+
+    `salary_done` tells, for the grant's salary lines, whether a benefit charge still
+    waits on each (benefits.salary_done). run_checks passes it once the salary lines'
+    statuses are known; without it no "waits on its salary lines" reason is given.
+    """
     result = checklist_check.evaluate(charge, view)
     links = view.links[charge.id]
     approvals = list(
@@ -707,6 +716,8 @@ def evaluate_charge(
     findings: list[Finding] = [_date_check(charge, view, covers)]
     findings += [f for f in result.findings if f.check == CHECKLIST]
     findings += [f for f in result.findings if f.check == APPROVAL]
+    if salary_done is not None:
+        findings += benefits.waits_on_salary(charge, view, salary_done)
     findings += _approval_check(charge, view, result)
     findings += _values_check(view, links, result, answers)
     findings += _budget_line_check(charge, view)

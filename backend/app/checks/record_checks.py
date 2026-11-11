@@ -182,7 +182,16 @@ def _disagreeing_terms(view: GrantView) -> list[SubjectFinding]:
                 (r, value)
             )
         elif isinstance(d, Rate):
-            groups[("rate", norm(d.name.value), d.dated.value)].append((r, d.rate.value))
+            # Ruling 61: a benefit rate is one per group and start date, so rates the
+            # same agreement prints for several groups or years don't disagree.
+            key = (
+                "rate",
+                norm(d.name.value),
+                d.dated.value,
+                d.applies_to.value if d.applies_to else None,
+                d.effective_from.value if d.effective_from else None,
+            )
+            groups[key].append((r, d.rate.value))
     out: list[SubjectFinding] = []
     for members in groups.values():
         if len({v for _, v in members}) < 2:
