@@ -296,6 +296,35 @@ def test_the_cap_refuses_a_call_dearer_than_any_before_it() -> None:
     assert meter.used.usd <= 1.00
 
 
+def test_the_cap_counts_a_calls_input() -> None:
+    """A request with no output to speak of but 400,000 characters of input counts as
+    200,000 tokens, $1.00 at the cache-write price: refused on a $0.80 cap. (Counted at 3
+    characters a token, it would be $0.67, and let through.)"""
+    meter = ev.Meter(ev.fake_model, cap_usd=0.80)
+    big = SimpleNamespace(
+        max_tokens=0, system=[], tools=[], messages=[{"role": "user", "content": "x" * 400_000}]
+    )
+    with pytest.raises(ev.CapReached):
+        meter(big)
+    assert meter.used.calls == 0
+
+
+def test_the_cap_counts_the_last_calls_input() -> None:
+    """A small request after a call that read 300,000 tokens is reserved at that size."""
+
+    def model(request: Any) -> Any:
+        message = ev.fake_model(request)
+        message.usage.input_tokens = 300_000
+        message.usage.output_tokens = 0
+        return message
+
+    meter = ev.Meter(model, cap_usd=2.00)
+    meter(_request(0))  # $1.20 spent
+    with pytest.raises(ev.CapReached):
+        meter(_request(0))  # 300,000 tokens at $5 per million: $1.50 more could pass $2.00
+    assert meter.used.calls == 1
+
+
 # The guards.
 
 
@@ -375,6 +404,95 @@ def test_every_case_plays_through_the_app_with_a_fake_model() -> None:
     assert run.usage.usd == pytest.approx(run.usage.calls * 0.006)
     text = ev.report(run)
     assert "## All cases" in text and "estimated $" in text and "calls through" not in text
+
+
+class TimeChecks:
+    """The real checks, except that a charge is Evidence complete only at exactly the times
+    the keys name for it, and Needs a human at any other: a bucket read at the wrong time
+    shows."""
+
+    def __init__(self) -> None:
+        from app.db.ports import ModuleChecks
+
+        self.real = ModuleChecks()
+        self.times = {
+            (b["line_id"], ev._time(b["at"]))  # pyright: ignore[reportPrivateUsage]
+            for d in ev.CASES.iterdir()
+            if (d / "answer_key.json").is_file()
+            for b in _key_of(d.name)["buckets"]
+        }
+
+    def run_checks(self, checks_input: Any) -> Any:
+        from app.contracts.checks import Bucket, ChargeStatus, Reason
+
+        out = self.real.run_checks(checks_input)
+        line = {c.id: c.ledger_line_id for c in checks_input.charges}
+
+        def at_key_time(s: Any) -> Any:
+            on_time = (line[s.charge_id], checks_input.now) in self.times
+            bucket = Bucket.EVIDENCE_COMPLETE if on_time else Bucket.NEEDS_HUMAN
+            reason = Reason(check="eval_time", problem=bucket.value, text="test", bucket=bucket)
+            data = s.model_dump()
+            data.update(bucket=bucket, reasons=[reason.model_dump()], flagged=not on_time)
+            return ChargeStatus.model_validate(data)
+
+        charges = tuple(at_key_time(s) for s in out.charges)
+        return out.model_copy(update={"charges": charges})
+
+    def default_items(self, charge: Any, records: Any) -> Any:
+        return self.real.default_items(charge, records)
+
+    def account_categories(self, account: str) -> Any:
+        return self.real.account_categories(account)
+
+
+def test_each_bucket_is_read_at_the_time_the_key_names() -> None:
+    run = ev.run_eval(
+        _server(), ["credit-memo-spaced-dash"], 100.0, ev.fake_model, checks=TimeChecks()
+    )
+    [case] = run.cases
+    assert case.bucket_values and all(
+        v.endswith(": evidence_complete") for v in case.bucket_values
+    ), case.bucket_values
+
+
+def test_values_not_found_in_their_file_are_counted() -> None:
+    from app.contracts.fixtures import load_sample_grant
+    from app.contracts.records import Match
+
+    sample = load_sample_grant()
+    records = []
+    for r in sample.records:
+        if r.id == "rec-bill-inv-1001":
+            total = r.data.total  # pyright: ignore[reportAttributeAccessIssue]
+            assert total.citation is not None
+            citation = total.citation.model_copy(update={"match": Match.NOT_FOUND})
+            data = r.data.model_copy(
+                update={"total": total.model_copy(update={"citation": citation})}
+            )
+            r = r.model_copy(update={"data": data})
+        records.append(r)
+    got = ev.what_the_agent_left(records, sample.files, sample.charges, lambda f: f.name)
+    assert got.values_not_found == 1
+    out = _score(_key(), got)
+    assert out.values_not_found == 1
+
+
+def test_a_stray_queued_task_fails_the_eval() -> None:
+    from app.db.jobs import app as jobs_app
+
+    with ev.throwaway_database(_server()) as url:
+        import psycopg
+
+        with psycopg.connect(url, autocommit=True) as conn:
+            conn.execute(
+                "insert into procrastinate_jobs (queue_name, task_name, status)"
+                " values ('agent', 'check_mail_and_drive', 'succeeded')"
+            )
+        with pytest.raises(RuntimeError, match="check_mail_and_drive"):
+            ev.drain(url)
+    # The jobs app keeps its periodic tasks for the app's own worker.
+    assert jobs_app.periodic_registry.periodic_tasks
 
 
 def test_the_cap_stops_the_eval_before_it_goes_over() -> None:
