@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Loadable } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { findCitation } from "@/components/evidence/findCitation";
 import { GrantFrame } from "@/components/evidence/GrantFrame";
 import { useEvidence, useFileLink } from "@/components/evidence/hooks";

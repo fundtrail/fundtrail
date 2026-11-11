@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { useAuth } from "@/lib/auth";
+import { takeSessionExpired, useAuth } from "@/lib/auth";
 
 /**
  * Local development only (ruling 63): an emailed sign-in link through Supabase,
@@ -54,6 +54,8 @@ export default function SignIn() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Read once: whether the user lands here because the server refused the session.
+  const [expired] = useState(() => (typeof window === "undefined" ? false : takeSessionExpired()));
 
   useEffect(() => {
     if (auth.state.status === "signed_in") router.replace("/");
@@ -76,6 +78,11 @@ export default function SignIn() {
       <div className="ft-si__card">
         <div className="ft-wordmark">FundTrail</div>
         <p>A running evidence file for every research grant, so the review is done before closeout.</p>
+        {expired && !failed && (
+          <p className="ft-error" role="status">
+            Your session has expired. Sign in again.
+          </p>
+        )}
         {failed && (
           <p className="ft-error" role="alert">
             Sign-in didn&apos;t finish. Try again.

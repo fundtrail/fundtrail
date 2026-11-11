@@ -93,11 +93,12 @@ export interface ApiClient {
 
 /** An error from the API, with FastAPI's `detail` when it sent one. A 422 from the write check carries its problems. */
 export class ApiError extends Error {
+  /** `status` is 0 when no response came back: a connection problem. */
   constructor(
     readonly status: number,
     readonly detail: unknown,
   ) {
-    super(typeof detail === "string" ? detail : `Request failed with status ${status}`);
+    super(typeof detail === "string" ? detail : status === 0 ? "No response from the server" : `Request failed with status ${status}`);
     this.name = "ApiError";
   }
 
@@ -143,22 +144,34 @@ export class HttpApiClient implements ApiClient {
   constructor(
     private readonly baseUrl: string,
     private readonly getAccessToken: () => Promise<string | null>,
+    /** Called when the session is gone or refused (401), before the error is thrown. */
+    private readonly onUnauthorized?: () => void,
   ) {}
 
   private async send(path: string, init: { method?: string; body?: BodyInit; json?: unknown; accept?: string } = {}): Promise<Response> {
     const token = await this.getAccessToken();
-    if (!token) throw new ApiError(401, "Not signed in");
+    if (!token) {
+      this.onUnauthorized?.();
+      throw new ApiError(401, "Not signed in");
+    }
     const headers: Record<string, string> = { Accept: init.accept ?? "application/json", Authorization: `Bearer ${token}` };
     let body = init.body;
     if (init.json !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.json);
     }
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
-      headers,
-      ...(init.method ? { method: init.method } : {}),
-      ...(body !== undefined ? { body } : {}),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
+        headers,
+        ...(init.method ? { method: init.method } : {}),
+        ...(body !== undefined ? { body } : {}),
+      });
+    } catch {
+      // No response at all: the network or the server is unreachable.
+      throw new ApiError(0, null);
+    }
+    if (response.status === 401) this.onUnauthorized?.();
     if (!response.ok) {
       let detail: unknown = null;
       try {

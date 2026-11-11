@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ApiProvider, HttpApiClient } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
-import { FakeAuthProvider, SupabaseAuthProvider, useAuth } from "@/lib/auth";
+import { FakeAuthProvider, markSessionExpired, SupabaseAuthProvider, useAuth } from "@/lib/auth";
 import { appConfig, type AppConfig } from "@/lib/config";
 
 /** Shown on every page in fake mode, so synthetic data is never taken for real data. */
@@ -38,8 +38,14 @@ export function ConfigError({ missing }: { missing: string[] }) {
 }
 
 function RealApi({ apiUrl, children }: { apiUrl: string; children: ReactNode }) {
-  const { getAccessToken } = useAuth();
-  const client = useMemo(() => new HttpApiClient(apiUrl, getAccessToken), [apiUrl, getAccessToken]);
+  const { getAccessToken, signOut } = useAuth();
+  // A refused or missing session signs the user out, and the shell sends them
+  // to sign-in, which says the session expired.
+  const onUnauthorized = useCallback(() => {
+    markSessionExpired();
+    void signOut();
+  }, [signOut]);
+  const client = useMemo(() => new HttpApiClient(apiUrl, getAccessToken, onUnauthorized), [apiUrl, getAccessToken, onUnauthorized]);
   return <ApiProvider client={client}>{children}</ApiProvider>;
 }
 

@@ -224,3 +224,25 @@ export function useUserId(): string | null {
   const { state } = useAuth();
   return state.status === "signed_in" ? state.user.id : null;
 }
+
+const EXPIRED_KEY = "fundtrail.session-expired";
+
+/** Notes that the server refused the session, so the sign-in page can say why. */
+export function markSessionExpired() {
+  try {
+    window.sessionStorage.setItem(EXPIRED_KEY, "1");
+  } catch {
+    // Storage is blocked: the sign-in page just won't say why.
+  }
+}
+
+/** Whether the last session expired, cleared once read. */
+export function takeSessionExpired(): boolean {
+  try {
+    const expired = window.sessionStorage.getItem(EXPIRED_KEY) === "1";
+    window.sessionStorage.removeItem(EXPIRED_KEY);
+    return expired;
+  } catch {
+    return false;
+  }
+}

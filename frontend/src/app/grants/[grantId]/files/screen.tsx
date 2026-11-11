@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { Loadable } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { EvidenceCardView } from "@/components/evidence/EvidenceCardView";
 import styles from "@/components/evidence/evidence.module.css";
 import { GrantFrame } from "@/components/evidence/GrantFrame";
