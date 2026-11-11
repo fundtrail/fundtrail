@@ -6,7 +6,7 @@
 // server refuses shows its problems and keeps what was typed.
 
 import { useState, type FormEvent, type ReactNode } from "react";
-import type { Answer, ChecklistEntry, FtRecord, Id, NewRecordInput, OpenQuestion, Question, Reason } from "@/lib/api";
+import type { Answer, ChecklistEntry, FtRecord, Id, NewRecordInput, OpenQuestion, Problem, Question, Reason } from "@/lib/api";
 import { errorLines } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
 import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
@@ -308,8 +308,10 @@ export function AcceptReason({
   reusesId = null,
   label = "Accept with a note",
 }: {
-  chargeId: Id;
-  reason: Reason;
+  /** The charge the reason is on; null for a problem on the grant itself, which is always accepted as a one-off. */
+  chargeId: Id | null;
+  /** The problem being accepted: a charge's reason or a grant's problem. */
+  reason: Pick<Problem, "check" | "problem" | "text" | "record_ids">;
   onWrite: OnWrite;
   /** The offered note this acceptance reuses, when the accountant takes an offer by writing the note out. */
   reusesId?: Id | null;
@@ -329,10 +331,11 @@ export function AcceptReason({
           const ok = await write.run({
             data: {
               kind: "accepted_reason",
-              charge_id: chargeId,
+              // Without a charge, record or file, an acceptance is about the grant itself.
+              ...(chargeId ? { charge_id: chargeId } : {}),
               reason: { check: reason.check, problem: reason.problem },
               note: note.trim(),
-              reusable,
+              reusable: chargeId ? reusable : false,
               ...(reusesId ? { reuses_id: reusesId } : {}),
               rests_on: reason.record_ids ?? [],
             },
@@ -346,15 +349,18 @@ export function AcceptReason({
             </label>
             <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} />
             {missing && !note.trim() && <p className="ft-error">Write a note.</p>}
-            <fieldset className={styles.choices}>
-              <legend className="ft-label">Use the note</legend>
-              <label>
-                <input type="radio" name={`${id}-reuse`} checked={!reusable} onChange={() => setReusable(false)} /> Just this charge
-              </label>
-              <label>
-                <input type="radio" name={`${id}-reuse`} checked={reusable} onChange={() => setReusable(true)} /> This and similar charges
-              </label>
-            </fieldset>
+            {/* A reusable note is about charges; a grant's own problem is always accepted once. */}
+            {chargeId && (
+              <fieldset className={styles.choices}>
+                <legend className="ft-label">Use the note</legend>
+                <label>
+                  <input type="radio" name={`${id}-reuse`} checked={!reusable} onChange={() => setReusable(false)} /> Just this charge
+                </label>
+                <label>
+                  <input type="radio" name={`${id}-reuse`} checked={reusable} onChange={() => setReusable(true)} /> This and similar charges
+                </label>
+              </fieldset>
+            )}
             <FormButtons busy={write.busy} submit="Accept" onCancel={close} />
             <Errors errors={write.errors} />
           </form>

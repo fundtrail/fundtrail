@@ -9,6 +9,7 @@ import { useThreadActions } from "@/components/thread/useThreadActions";
 import { useCharge, useChargeThread, useEvidence, useProblemList, useRecords, useRecordThread, type EvidenceFile, type Id, type ProblemRow } from "@/lib/api";
 import { date, HOLD_REASON_LABELS, SOURCE_LABELS, UNREADABLE_FROM_LABEL } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { GrantProblemPane } from "./GrantProblemPane";
 import styles from "./SelectedProblem.module.css";
 
 /** The bar over the item: a link to open it on its own page. */
@@ -110,7 +111,7 @@ function Summary({ href, tag, name, children }: { href?: string; tag: string; na
   );
 }
 
-function RowPane({ grantId, row }: { grantId: Id; row: ProblemRow }) {
+function RowPane({ grantId, row, focusHeading }: { grantId: Id; row: ProblemRow; focusHeading: boolean }) {
   switch (row.kind) {
     case "charge":
       return <ChargePane grantId={grantId} chargeId={row.charge.id} />;
@@ -142,11 +143,7 @@ function RowPane({ grantId, row }: { grantId: Id; row: ProblemRow }) {
         </Summary>
       );
     case "grant":
-      return (
-        <Summary tag="Grant">
-          <p>{row.problem.text}</p>
-        </Summary>
-      );
+      return <GrantProblemPane grantId={grantId} problem={row.problem} focusHeading={focusHeading} />;
   }
 }
 
@@ -157,12 +154,23 @@ function RowPane({ grantId, row }: { grantId: Id; row: ProblemRow }) {
  * that isn't a row of its own (a benefit charge waiting on its salary line)
  * still shows by its ID.
  */
-export function SelectedProblem({ grantId, itemKey, row }: { grantId: Id; itemKey: string; row: ProblemRow | null }) {
-  return <div className={styles.pane}>{paneFor(grantId, itemKey, row)}</div>;
+export function SelectedProblem({
+  grantId,
+  itemKey,
+  row,
+  focusHeading = false,
+}: {
+  grantId: Id;
+  itemKey: string;
+  row: ProblemRow | null;
+  /** Move focus to the item's heading when it opens, as a page change would. */
+  focusHeading?: boolean;
+}) {
+  return <div className={styles.pane}>{paneFor(grantId, itemKey, row, focusHeading)}</div>;
 }
 
-function paneFor(grantId: Id, itemKey: string, row: ProblemRow | null) {
-  if (row) return <RowPane grantId={grantId} row={row} />;
+function paneFor(grantId: Id, itemKey: string, row: ProblemRow | null, focusHeading: boolean) {
+  if (row) return <RowPane grantId={grantId} row={row} focusHeading={focusHeading} />;
   const [kind, ...rest] = itemKey.split(":");
   const id = rest.join(":");
   if (kind === "charge" && id) return <ChargePane grantId={grantId} chargeId={id} />;
