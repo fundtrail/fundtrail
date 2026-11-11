@@ -105,7 +105,7 @@ def _defer(
         """select procrastinate_defer_jobs_v1(
              array[row(%s, %s, %s, %s, null, %s, %s)::procrastinate_job_to_defer_v1])""",
         (
-            QUEUE,
+            run_queue(conn, run.workspace_id),
             TASK_NAME,
             priority,
             grant_lock(run.grant_id),
@@ -115,6 +115,15 @@ def _defer(
             at,
         ),
     )
+
+
+def run_queue(conn: Conn, workspace_id: str) -> str:
+    """The job queue of a workspace's agent runs: the app's, or for a prerun's seeding
+    workspace, the queue only that prerun command's worker takes."""
+    row = conn.execute(
+        "select queue from public.sample_seeding where workspace_id = %s", (workspace_id,)
+    ).fetchone()
+    return row["queue"] if row else QUEUE
 
 
 def grant_catching_up(conn: Conn, grant_id: str) -> bool:

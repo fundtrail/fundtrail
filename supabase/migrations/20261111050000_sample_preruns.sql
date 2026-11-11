@@ -32,9 +32,19 @@ create table public.sample_runthrough (
 create index sample_preruns_grant_id_idx on public.sample_preruns (grant_id);
 create index sample_runthrough_prerun_id_idx on public.sample_runthrough (prerun_id);
 
+-- A seeding workspace: where the prerun command plays a sample. No person is a member
+-- of it, only its sample accountant. Its agent runs go on a job queue of their own, which
+-- only that command's worker takes: the app's worker never runs them (they'd have no
+-- spend cap), and the command never runs anyone else's.
+create table public.sample_seeding (
+  workspace_id text primary key references public.workspaces (id) on delete cascade,
+  queue text not null unique
+);
+
 -- A move that loaded the prerun's saved result, rather than playing live.
 alter table public.sample_moves add column loaded boolean not null default false;
 
 -- As every table: row level security on, with no policies.
 alter table public.sample_preruns enable row level security;
 alter table public.sample_runthrough enable row level security;
+alter table public.sample_seeding enable row level security;

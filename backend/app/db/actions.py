@@ -32,7 +32,7 @@ from app.contracts.signoff import SignOffSnapshot
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant
 
-from . import clock, store
+from . import clock, sample_store, store
 from .held_mail import let_in_released
 from .jobs import agent_questions_open, queue_run
 from .pings import ping_changed, ping_run
@@ -96,6 +96,7 @@ def _arrive_file(
 ) -> tuple[EvidenceFile, AgentRun]:
     now = clock.grant_now(conn, grant.id)
     store.get_grant(conn, grant.id, lock=True)
+    sample_store.user_acted(conn, grant.id)
     f = _store_file(p, conn, grant, upload, now)
     trigger = Trigger(kind=TriggerKind.FILE, id=f.id)
     recheck_grant(conn, p.checks, grant, now, trigger)
@@ -130,6 +131,7 @@ def add_ledger(p: Platform, grant: Grant, content: bytes) -> LedgerUploadResult:
     runs: list[AgentRun] = []
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
+        sample_store.user_acted(conn, grant.id)
         now = clock.grant_now(conn, grant.id)
         try:
             read = read_ledger_file(
@@ -217,6 +219,7 @@ def add_record(
     """
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
+        sample_store.user_acted(conn, grant.id)
         record, runs, arrived = write_record(p, conn, grant, user_id, data, replaces_id)
     for queued in runs:
         ping_run(p.pinger, queued)
@@ -306,6 +309,7 @@ def add_message(
     its own, and queues a run for the agent to answer. That run goes ahead of the grant's
     queued runs, except while the agent catches up after a clock jump."""
     with transaction(p.pool) as conn:
+        sample_store.user_acted(conn, grant.id)
         now = clock.grant_now(conn, grant.id)
         message = ThreadMessage(
             id=_new_id(),
@@ -348,6 +352,7 @@ def add_sign_off(
     """
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
+        sample_store.user_acted(conn, grant.id)
         record = write_sign_off(p, conn, grant, user_id, note, make_report, anything_open)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "records", "statuses")
     return record

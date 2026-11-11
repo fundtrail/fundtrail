@@ -510,10 +510,14 @@ def move(
             skip = True
         plan = plan_move(items, start, to)
         saved = prerun.run_through(conn, locked)
-        if saved is not None and not skip and any(start < a.at <= plan.until for a in pack.actions):
-            # A scripted step passed without skipping is missed: off the run-through.
+        passed = [a for a in pack.actions if start < a.at <= plan.until]
+        if saved is not None and passed and not skip:
+            saved = None  # a scripted step passed without skipping is missed
+        if saved is not None and any(highlight and a.highlight == highlight for a in passed):
+            saved = None  # Next highlight leaves the highlight's own step to the user
+        if saved is None:
+            # Off the run-through for good, if it was on one: the agent works live from here.
             prerun.take_off(conn, grant.id)
-            saved = None
         runs: list[AgentRun] = []
         walked = skipping.Walked()
         if saved is not None:

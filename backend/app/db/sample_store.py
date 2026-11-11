@@ -113,6 +113,13 @@ def finish_scripted(
     )
 
 
+def user_acted(conn: Conn, grant_id: str) -> None:
+    """A person did something on the grant (decided, uploaded, delivered, asked): a grant
+    opened from a prerun is off its run-through for good (ruling 47), before any live run
+    the action queues."""
+    conn.execute("update public.sample_runthrough set off = true where grant_id = %s", (grant_id,))
+
+
 def walk_target(conn: Conn, grant_id: str) -> datetime | None:
     """Where a skipping move's walk is going, while it's under way."""
     row = conn.execute(
@@ -158,8 +165,15 @@ def stop_walk(conn: Conn, grant_id: str, now: datetime, reason: str) -> None:
 
 
 def walking_grants(conn: Conn) -> list[str]:
-    """The grants with a walk under way."""
-    rows = conn.execute("select grant_id from public.sample_walks order by grant_id").fetchall()
+    """The grants with a walk under way, but for a prerun's seeding grants: only the prerun
+    command takes those on."""
+    rows = conn.execute(
+        """select w.grant_id from public.sample_walks w
+             join public.grants g on g.id = w.grant_id
+           where not exists (
+             select 1 from public.sample_seeding s where s.workspace_id = g.workspace_id)
+           order by w.grant_id"""
+    ).fetchall()
     return [r["grant_id"] for r in rows]
 
 

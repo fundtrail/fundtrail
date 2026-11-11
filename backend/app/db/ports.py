@@ -110,12 +110,17 @@ class Agent(Protocol):
 
 
 class ModuleAgent:
-    """The real agent: `app.agent.run_agent(agent_input) -> AgentResult`."""
+    """The real agent: `app.agent.run_agent(agent_input) -> AgentResult`. `model`, when
+    given, is the agent's model client in place of the real model (the prerun's spend cap
+    wraps it)."""
+
+    def __init__(self, model: Any = None) -> None:
+        self.model = model
 
     def run(self, agent_input: AgentInput, /) -> AgentResult:
         from app.agent import run_agent
 
-        result = run_agent(agent_input)
+        result = run_agent(agent_input, self.model)
         return AgentResult(
             records=list(result.records),
             messages=list(result.messages),
