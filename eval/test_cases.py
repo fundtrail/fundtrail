@@ -26,6 +26,13 @@ CASE_META_FILES = {"answer_key.json", "arrivals.json", "ledger.csv", "README.md"
 
 # Section 14: the answer key's top-level fields.
 KEY_FIELDS = {"case", "award_number", "records", "links", "budget_lines", "answers", "buckets"}
+# Ruling 81: a key may also expect the checklist items the agent adds, and say which of the
+# agent's items aren't scored. A key without checklist_items doesn't score them.
+OPTIONAL_KEY_FIELDS = {"checklist_items", "not_scored"}
+CHECKLIST_ITEM_FIELDS = {"line_id", "needed", "file", "amount_cents", "rate"}
+# The parts of a key whose agent items can be left unscored, and how to pick them.
+SCORED_PARTS = {"records", "links", "budget_lines", "answers", "checklist_items"}
+NOT_SCORED_SELECTORS = {"line_id", "file", "kind", "question"}
 
 # Section 1: the record kinds the agent reads from documents, and the field
 # paths each one can carry. `dated` is on every term. `notice` (an award
@@ -330,8 +337,10 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         key = load_json(case / "answer_key.json", problems)
     if key is None:
         return
-    if set(key) != KEY_FIELDS:
-        problems.append(f"answer_key.json: fields must be exactly {sorted(KEY_FIELDS)}")
+    if not KEY_FIELDS <= set(key) <= KEY_FIELDS | OPTIONAL_KEY_FIELDS:
+        problems.append(
+            f"answer_key.json: fields must be {sorted(KEY_FIELDS)}, "
+            f"and may add {sorted(OPTIONAL_KEY_FIELDS)}")
         return
     if key["case"] != case.name:
         problems.append(f"answer_key.json: case {key['case']!r} doesn't match its folder")
@@ -343,7 +352,8 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         problems.append("the case needs exactly one award_letter file")
     elif isinstance(award, str) and award not in letters[0].read_text(encoding="utf-8"):
         problems.append(f"{letters[0].name} doesn't carry the award number {award}")
-    for part in ("records", "links", "budget_lines", "answers", "buckets"):
+    for part in ("records", "links", "budget_lines", "answers", "buckets",
+                 *sorted(OPTIONAL_KEY_FIELDS & set(key))):
         if not isinstance(key[part], list):
             problems.append(f"answer_key.json: {part} must be a list")
             return
@@ -462,6 +472,9 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
         if ans["question"] == "allowable" and ans["line_id"] not in linked_lines:
             problems.append(f"{where}: Allowable is only asked for a charge with evidence linked")
 
+    check_checklist_items(case, key.get("checklist_items", []), lines, problems)
+    check_not_scored(case, key.get("not_scored", []), lines, problems)
+
     confirmed = [t for k, t in arrivals.items() if k.startswith("confirm_terms:")]
     for i, item in enumerate(key["buckets"]):
         where = f"answer_key.json buckets[{i}]"
@@ -513,6 +526,70 @@ def check_key(case: Path, lines: dict[str, dict[str, str]], arrivals: dict[str, 
                         credit_on_file and signed != charge):
                     problems.append(f"{where}: evidence_complete, but the bills on file add up "
                                     f"to {signed} cents against the charge's {charge}")
+
+
+def check_checklist_items(case: Path, items: list, lines: dict[str, dict[str, str]],
+                          problems: list[str]) -> None:
+    """Ruling 81: the items the agent should add to a charge's checklist. Each has the
+    charge's line_id and what's `needed` (not compared, since it's the agent's wording), and
+    may have the `amount_cents` it carries, and the `rate` it comes from: a quantity and a
+    rate in dollars, the rate cited from `file`."""
+    for i, item in enumerate(items):
+        where = f"answer_key.json checklist_items[{i}]"
+        if not isinstance(item, dict) or not {"line_id", "needed"} <= set(item) <= CHECKLIST_ITEM_FIELDS:
+            problems.append(f"{where}: must have line_id and needed, and may have "
+                            f"{sorted(CHECKLIST_ITEM_FIELDS - {'line_id', 'needed'})}")
+            continue
+        if item["line_id"] not in lines:
+            problems.append(f"{where}: line_id {item['line_id']!r} isn't in ledger.csv")
+        if not (isinstance(item["needed"], str) and item["needed"].strip()):
+            problems.append(f"{where}: needed must say what's needed")
+        amount = item.get("amount_cents")
+        if "amount_cents" in item and not (isinstance(amount, int) and not isinstance(amount, bool)):
+            problems.append(f"{where}: amount_cents must be an integer")
+            amount = None
+        text = None
+        if "file" in item:
+            path = case / str(item["file"])
+            if not path.is_file() or path.name in CASE_META_FILES:
+                problems.append(f"{where}: file {item['file']!r} isn't a document of the case")
+            else:
+                text = path.read_text(encoding="utf-8")
+        rate = item.get("rate")
+        if rate is None:
+            continue
+        if not (isinstance(rate, dict) and set(rate) == {"quantity", "rate"}
+                and all(isinstance(v, str) and DOLLARS.match(v) for v in rate.values())):
+            problems.append(f"{where}: rate must have exactly quantity and rate, as numbers in strings")
+            continue
+        if "file" not in item:
+            problems.append(f"{where}: a rate is cited from a file, so the item needs file")
+        rate_cents = round(float(rate["rate"]) * 100)
+        if text is not None and not money_written(rate_cents, text):
+            problems.append(f"{where}: the rate ${rate['rate']} isn't written in {item['file']}")
+        if amount is not None and round(float(rate["quantity"]) * rate_cents) != amount:
+            problems.append(f"{where}: quantity times rate isn't amount_cents")
+
+
+def check_not_scored(case: Path, entries: list, lines: dict[str, dict[str, str]],
+                     problems: list[str]) -> None:
+    """Ruling 81: the agent's items a key leaves unscored, by part and by at least one of a
+    line_id, a file, a record kind or a question. Such an item is neither right nor wrong."""
+    for i, entry in enumerate(entries):
+        where = f"answer_key.json not_scored[{i}]"
+        selectors = set(entry) - {"part"} if isinstance(entry, dict) else set()
+        if not (isinstance(entry, dict) and "part" in entry and selectors
+                and selectors <= NOT_SCORED_SELECTORS):
+            problems.append(f"{where}: must have part and at least one of {sorted(NOT_SCORED_SELECTORS)}")
+            continue
+        if entry["part"] not in SCORED_PARTS:
+            problems.append(f"{where}: part must be one of {sorted(SCORED_PARTS)}")
+        if "line_id" in entry and entry["line_id"] not in lines:
+            problems.append(f"{where}: line_id {entry['line_id']!r} isn't in ledger.csv")
+        if "file" in entry and not (case / str(entry["file"])).is_file():
+            problems.append(f"{where}: file {entry['file']!r} isn't in the case")
+        if "question" in entry and entry["question"] not in QUESTIONS:
+            problems.append(f"{where}: question {entry['question']!r} isn't one of {sorted(QUESTIONS)}")
 
 
 def check_arrivals(case: Path, lines: dict[str, dict[str, str]], problems: list[str]) -> dict[str, datetime]:
@@ -711,6 +788,33 @@ def test_link_sign_must_match_its_bill() -> None:
     key["links"].append({"file": "credit_memo_20417.eml", "line_id": "L-8102", "amount_cents": 45000})
     check_key(case, lines, arrivals, problems, key)
     assert any("credit_memo_20417.eml" in p for p in problems), problems
+
+
+def test_a_checklist_item_rate_must_add_up_and_be_written() -> None:
+    """Ruling 81: an expected checklist item's quantity times its rate is its amount, and
+    the rate is written in the file it's cited from."""
+    case = CASES_DIR / "trip-airfare-and-per-diem"
+    lines = {"L-5201": {}}
+    good = {"line_id": "L-5201", "needed": "Per diem", "file": "per_diem_rates.txt",
+            "amount_cents": 50000, "rate": {"quantity": "5", "rate": "100.00"}}
+    problems: list[str] = []
+    check_checklist_items(case, [good], lines, problems)
+    assert problems == []
+    check_checklist_items(case, [{**good, "amount_cents": 60000}], lines, problems)
+    check_checklist_items(case, [{**good, "rate": {"quantity": "5", "rate": "120.00"}, "amount_cents": 60000}],
+                          lines, problems)
+    assert len(problems) == 2, problems
+
+
+def test_not_scored_needs_a_part_and_a_selector() -> None:
+    case = CASES_DIR / "guest-speaker-stipend"
+    lines = {"L-7101": {}}
+    problems: list[str] = []
+    check_not_scored(case, [{"part": "budget_lines", "line_id": "L-7101"}], lines, problems)
+    assert problems == []
+    check_not_scored(case, [{"part": "budget_lines"}, {"part": "buckets", "line_id": "L-7101"}],
+                     lines, problems)
+    assert len(problems) == 2, problems
 
 
 if __name__ == "__main__":

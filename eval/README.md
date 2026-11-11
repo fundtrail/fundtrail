@@ -31,6 +31,23 @@ uv run python ../eval/run.py --fake                       # a fake model: no cal
 - `--out results.json` saves the results.
 - CI runs the runner on every case with a fake model (`backend/tests/ev_runner/`), so no paid calls are made there.
 
+## The key's format
+
+A key follows contracts.md section 14. Ruling 81 adds two optional fields.
+
+- **`checklist_items`: the items the agent should add to a charge's checklist.**
+  - Each item has its charge's `line_id` and what's `needed`. `needed` isn't compared, because it's the agent's own wording.
+  - An item may also have its `amount_cents`, and the `rate` it comes from: a `quantity` and a `rate` in dollars, with the rate cited from `file`.
+  - An agent item matches when it's on the same charge, with the same amount and the same quantity and rate, and its rate is cited from the same file.
+  - A key without this field doesn't score checklist items.
+- **`not_scored`: the agent's items the key leaves unscored.**
+  - Each entry has a `part` (`records`, `links`, `budget_lines`, `answers` or `checklist_items`) and at least one of `line_id`, `file`, `kind` or `question`.
+  - An agent item it picks is neither right nor wrong. The report lists it as not scored.
+
+So far, the trip case expects its per diem item, at 5 days of $100.00 cited from `per_diem_rates.txt`. The guest speaker case leaves L-7101's budget line unscored, as its README always said.
+
+`test_cases.py` checks both fields, including that the quantity times the rate is the amount, and that the rate is written in its file.
+
 ## What it does
 
 Each case gets its own grant, played through the app's ordinary paths, the way a sample grant's timeline is played:
@@ -59,7 +76,7 @@ These are counted on their own:
 - unsure answers where the key has an answer
 - values whose citation couldn't be found in their file
 
-A wrong bucket is listed with the checks' reasons for it. Which checks fail for a charge, checklist items and suggestions aren't scored yet, because the key's format doesn't cover them (contracts.md, "Not decided yet").
+A wrong bucket is listed with the checks' reasons for it. Checklist items the agent adds are scored when the key lists them. Which checks fail for a charge, and suggestions, aren't scored yet, because the key's format doesn't cover them (contracts.md, "Not decided yet").
 
 ## First run, Nov 11, 2026
 

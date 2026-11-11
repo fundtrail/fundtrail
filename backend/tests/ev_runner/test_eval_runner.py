@@ -95,6 +95,58 @@ def test_answers_count_false_clears_and_unsure_on_their_own() -> None:
     assert len(out.agent_false_clears) == 1 and len(out.unsure) == 1
 
 
+def test_a_checklist_item_matches_by_charge_amount_and_cited_rate() -> None:
+    from decimal import Decimal
+
+    item = {
+        "line_id": "L-5201",
+        "needed": "Per diem",
+        "file": "per_diem_rates.txt",
+        "amount_cents": 50000,
+        "rate": {"quantity": "5", "rate": "100.00"},
+    }
+    got = ev.Got(
+        checklist_items=[
+            ev.GotItem(
+                "L-5201",
+                "5 days of per diem",
+                50000,
+                "per_diem_rates.txt",
+                Decimal("5"),
+                Decimal("100"),
+            ),
+            ev.GotItem(
+                "L-5201", "Per diem", 50000, "expense_report.txt", Decimal("5"), Decimal("100")
+            ),
+        ]
+    )
+    out = ev.CaseScore(case="c")
+    ev.score_agent(_key(checklist_items=[item]), got, out)
+    assert out.checklist_items.right == 1
+    assert len(out.checklist_items.wrong) == 1 and not out.checklist_items.missing
+
+
+def test_checklist_items_are_unscored_when_the_key_has_none() -> None:
+    from decimal import Decimal
+
+    got = ev.Got(checklist_items=[ev.GotItem("L-1", "x", None, None, None, Decimal("1"))])
+    out = ev.CaseScore(case="c")
+    ev.score_agent(_key(), got, out)
+    assert out.unscored_parts == ["checklist_items"]
+    assert not out.checklist_items.wrong
+
+
+def test_an_item_the_key_leaves_unscored_is_neither_right_nor_wrong() -> None:
+    key = _key(not_scored=[{"part": "budget_lines", "line_id": "L-7101"}])
+    got = ev.Got(
+        budget_lines=[ev.GotBudget("L-7101", "Stipends"), ev.GotBudget("L-7102", "Stipends")]
+    )
+    out = ev.CaseScore(case="c")
+    ev.score_agent(key, got, out)
+    assert out.not_scored == ["budget line 'Stipends' for L-7101"]
+    assert out.budget_lines.wrong == ["budget line 'Stipends' for L-7102"]
+
+
 def test_buckets_are_right_wrong_or_missing_and_false_clears_counted() -> None:
     out = ev.CaseScore(case="c")
     want = {"line_id": "L-1", "at": "2026-03-09T12:00:00Z", "bucket": "missing_evidence"}
@@ -162,9 +214,10 @@ def test_every_case_plays_through_the_app_with_a_fake_model() -> None:
     assert not run.stopped
     for c in run.cases:
         key = _key_of(c.case)
-        for part in ("links", "budget_lines", "answers", "records"):
+        for part in ("links", "budget_lines", "answers", "records", "checklist_items"):
             t = getattr(c, part)
-            assert t.right + len(t.missing) == len(key[part]), (c.case, part)
+            assert t.right + len(t.missing) == len(key.get(part, [])), (c.case, part)
+        assert ("checklist_items" in c.unscored_parts) == ("checklist_items" not in key)
         b = c.buckets
         assert b.right + len(b.missing) + len(b.wrong) == len(key["buckets"]), c.case
         assert c.usage.calls > 0
