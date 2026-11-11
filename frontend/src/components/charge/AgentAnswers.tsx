@@ -119,7 +119,7 @@ export function AgentAnswers({
               <span className="ft-tag">Open question</span> <span className={styles.label}>{QUESTION_LABELS[q.question] ?? q.question}</span>
             </>
           }
-          status={q.answer_by === "agent" ? "Waiting for the agent" : "Waiting for the accountant"}
+          status={q.answer_by === "agent" ? "Waiting for the agent" : <span className={styles.waitingWord}>Waiting for the accountant</span>}
         >
           {onWrite ? <AnswerOpenQuestion chargeId={chargeId ?? q.charge_id} question={q} onWrite={onWrite} /> : null}
         </TrailNode>

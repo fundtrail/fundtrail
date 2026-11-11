@@ -160,6 +160,11 @@
   flex-direction: column;
 }
 
+/* "N checks pass" sits a step below the end of the trail. */
+.trail > details {
+  margin-top: var(--space-3);
+}
+
 /* A reason's actions: small, in one row at the end of its detail. A form
    that opens takes the whole row. */
 .reasonActions {
@@ -173,7 +178,16 @@
 .closedLines {
   display: flex;
   flex-direction: column;
+  /* Stack evenly under the trail's own closed line, without the section gap. */
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.trail + .closedLines {
   margin-top: var(--space-2);
+}
+
+.trail:has(> details:last-child) + .closedLines {
+  margin-top: calc(-1 * var(--space-2));
 }
 
 .label {
