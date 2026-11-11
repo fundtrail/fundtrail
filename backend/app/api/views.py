@@ -38,6 +38,8 @@ from app.contracts.api import (
     RecordProblemRow,
     RecordThreadEntry,
     ReusableNoteView,
+    RuleSource,
+    RuleView,
     SignOffState,
     StatusThreadEntry,
     SuggestionView,
@@ -224,6 +226,26 @@ def value_states(state: RecordState, record: Record) -> list[ValueState]:
                 )
             )
     return out
+
+
+def _rule_view(funder: str, rule_id: str | None) -> RuleView | None:
+    """The rule an answer names, from the funder's rulebook, in plain words (issue 303)."""
+    from app.agent.rulebook import load_rulebook, rule_entry
+
+    if rule_id is None:
+        return None
+    try:
+        entry = rule_entry(load_rulebook(funder), rule_id)
+    except FileNotFoundError:  # no rulebook for this funder
+        return None
+    if entry is None or not entry.text:
+        return None
+    return RuleView(
+        id=entry.id,
+        title=(entry.kind[:1].upper() + entry.kind[1:]) or entry.id,
+        text=entry.text,
+        sources=tuple(RuleSource(label=label, url=url) for label, url in entry.sources),
+    )
 
 
 def _link_view(snap: GrantSnapshot, link: Record) -> LinkView | None:
@@ -717,7 +739,11 @@ def charge_detail(
     questions = [q for q in snap.output.questions if q.charge_id == charge.id]
     open_keys = {(q.question, q.record_id) for q in questions}
     answers = [
-        AnswerView(judgment=r, out_of_date=(r.data.question, r.data.record_id) in open_keys)
+        AnswerView(
+            judgment=r,
+            out_of_date=(r.data.question, r.data.record_id) in open_keys,
+            rule=_rule_view(snap.grant.funder, r.data.rule),
+        )
         for r in state.current()
         if isinstance(r.data, Judgment) and r.data.charge_id == charge.id
     ]
