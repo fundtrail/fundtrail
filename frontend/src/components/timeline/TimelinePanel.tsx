@@ -144,16 +144,21 @@ function JustHappened({ grantId, played, waiting }: { grantId: Id; played: Playe
                   ))}
                 </ul>
               )}
-              {(p.charge_ids ?? []).map((chargeId, i, all) => (
-                <Link
-                  key={chargeId}
-                  className="ft-link ft-tl__open"
-                  href={routes.charge(grantId, chargeId)}
-                  aria-label={`Open the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`}
-                >
-                  {charges?.find((r) => r.charge.id === chargeId)?.charge.ledger_line_id ?? "Open the charge"}
-                </Link>
-              ))}
+              {(p.charge_ids ?? []).map((chargeId, i, all) => {
+                // The link reads its ledger line once the charges are loaded; what it says aloud starts with what it shows.
+                const line = charges?.find((r) => r.charge.id === chargeId)?.charge.ledger_line_id;
+                const from = `the charge from ${p.event.name}${all.length > 1 ? ` (${i + 1} of ${all.length})` : ""}`;
+                return (
+                  <Link
+                    key={chargeId}
+                    className="ft-link ft-tl__open"
+                    href={routes.charge(grantId, chargeId)}
+                    aria-label={line ? `${line}, open ${from}` : `Open ${from}`}
+                  >
+                    {line ?? "Open the charge"}
+                  </Link>
+                );
+              })}
             </li>
           ))}
         </ul>
