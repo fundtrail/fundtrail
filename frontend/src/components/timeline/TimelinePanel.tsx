@@ -29,6 +29,7 @@ import { date, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { useGrantDisplayName } from "@/lib/grantName";
 import "./timeline.css";
+import { Guide } from "./Guide";
 
 const SOURCE_WORDS: Record<ArrivalSource, string> = {
   ledger: "Ledger",
@@ -459,7 +460,7 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
  * place: the other controls and the trail with every mark. A refused move, a
  * load error, catching up and the run-through note show while folded too.
  */
-export function TimelinePanel({ grantId }: { grantId: Id }) {
+export function TimelinePanel({ grantId, workspaceId, sample }: { grantId: Id; workspaceId?: Id; sample?: string }) {
   const grantName = useGrantDisplayName();
   const api = useApi();
   const refresh = useRefresh();
@@ -474,6 +475,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const [leaving, setLeaving] = useState<(() => Promise<unknown>) | null>(null);
   // Everything but Next event stays folded until More.
   const [trailOpen, setTrailOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const trailId = useId();
   const skipId = useId();
   const highlightHintId = useId();
@@ -506,6 +508,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   }
 
   const view = timeline.data;
+  // The guide takes the folded line's place on a sample with highlights.
+  const guided = !!view?.highlight_total;
   const toDeliver = (view?.now.deliveries ?? []).filter((d) => !d.delivered).length;
   // Ruling 79: when the server says a move can't happen now, the control sends nothing and shows why, in the server's words.
   const moveReason = view?.move_unavailable_reason || null;
@@ -568,7 +572,8 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   );
   const otherControls = view && (
     <>
-      {!prerunGrant && nextHighlight}
+      {guided && nextEvent}
+      {!prerunGrant && !guided && nextHighlight}
       <GoToDate
         now={view.now.now}
         busy={busy}
@@ -592,8 +597,45 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const decisions = stop?.scripted_decisions ?? [];
   const next = (view?.coming_up ?? [])[0];
 
+  // The guide (where you are among the highlights, your step, one main button) takes the
+  // folded line's place on a sample with highlights; More opens everything else.
+  const moreButton = view && (
+    <button
+      ref={moreRef}
+      type="button"
+      className="ft-btn ft-btn--sm"
+      aria-expanded={trailOpen}
+      aria-controls={trailOpen ? trailId : undefined}
+      onClick={() => setTrailOpen(!trailOpen)}
+    >
+      {trailOpen ? "Less" : "More"}
+    </button>
+  );
+
   return (
     <section className="ft-tl" aria-labelledby="tl-heading" data-compact="" aria-busy={busy || undefined}>
+      {guided && view && (
+        <>
+          <span id="tl-heading" role="heading" aria-level={2} className="ft-guide__heading">
+            Sample timeline
+          </span>
+          <Guide
+            grantId={grantId}
+            workspaceId={workspaceId}
+            sample={sample}
+            view={view}
+            busy={busy}
+            menu={<span className="ft-guide__menu">{moreButton}</span>}
+            onNextHighlight={() => void act(() => api.moveTimeline(grantId, { next_highlight: true }))}
+            onDeliver={(eventId) => void act(() => api.deliverForMe(grantId, eventId))}
+            onGetFile={(eventId) =>
+              void act(async () => openFile((await api.deliveryFileUrl(grantId, eventId)).url, view.highlight_event?.name ?? "file"))
+            }
+            onCloseoutMove={(to) => void act(() => api.moveTimeline(grantId, { to, skip_human_steps: true }))}
+          />
+        </>
+      )}
+      {!guided && (
       <div className="ft-tl__line">
         <span className="ft-tl__dot" aria-hidden="true" />
         <p className="ft-tl__where">
@@ -641,6 +683,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
             {nextEvent}
             {prerunGrant && nextHighlight}
             <button
+              ref={moreRef}
               type="button"
               className="ft-btn ft-btn--sm"
               aria-expanded={trailOpen}
@@ -657,6 +700,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           </p>
         )}
       </div>
+      )}
       {leaving && (
         <LeaveConfirm
           busy={busy}
@@ -669,7 +713,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
         />
       )}
       {/* Folded, the stop's marks and what comes next, on a second quiet line. */}
-      {view && !trailOpen && (stop?.loaded || decisions.length > 0 || next || view.finished) && (
+      {view && !trailOpen && !guided && (stop?.loaded || decisions.length > 0 || next || view.finished) && (
         <ul className="ft-tl__also" aria-label="About the stop and what comes next">
           {stop?.loaded && (
             <li>
@@ -720,7 +764,17 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
           )}
           {view.on_run_through === false && <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>}
           {trailOpen && (
-            <div id={trailId} className="ft-tl__body">
+            <div
+              id={trailId}
+              className="ft-tl__body"
+              onKeyDown={(e) => {
+                // Escape folds it again and returns focus to More.
+                if (e.key === "Escape") {
+                  setTrailOpen(false);
+                  moreRef.current?.focus();
+                }
+              }}
+            >
               <div className="ft-tl__controls">{otherControls}</div>
               {asking && <StartOverConfirm busy={busy} onStartOver={() => attempt(() => api.startOver(grantId, true))} onCancel={() => setAsking(false)} />}
               <div className="ft-tl__track">
@@ -743,5 +797,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
 
 /** The timeline panel when the grant is a sample grant; nothing for any other grant. */
 export function SampleTimeline({ summary }: { summary: GrantSummary }) {
-  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} /> : null;
+  return summary.grant.sample ? (
+    <TimelinePanel grantId={summary.grant.id} workspaceId={summary.grant.workspace_id} sample={summary.grant.sample.sample} />
+  ) : null;
 }

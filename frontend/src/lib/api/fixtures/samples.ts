@@ -13,7 +13,7 @@
 // agent, so the grant's other pages don't follow the timeline.
 
 import { ApiError, SampleRefusalError, type ApiClient } from "../client";
-import type { FileLink, FtRecord, Grant, GrantSample, GrantSummary, Id, IsoDatetime, PlayedEvent, SampleOption, TimelineEvent, TimelineView } from "../types";
+import type { FileLink, FtRecord, Grant, GrantSample, GrantSummary, GuideStep, Id, IsoDatetime, PlayedEvent, SampleOption, TimelineEvent, TimelineView } from "../types";
 import { SAMPLE_DOCUMENTS } from "./documents";
 import { FAKE_NOW, fakeId, sample, served, SAMPLE_GRANT_ID } from "./sample";
 
@@ -168,10 +168,27 @@ function sampleGrantState(events: TimelineEvent[]): TimelineState {
 }
 
 /** Ruling 86: the highlight's own step due and unmade that Next highlight waits for, in plain words. */
-function ownStepWaiting(events: TimelineEvent[], state: TimelineState, marks: Record<string, string>): string | null {
-  const step = scriptedSteps(events).find(
+function ownStep(events: TimelineEvent[], state: TimelineState, marks: Record<string, string>): Step | undefined {
+  return scriptedSteps(events).find(
     (s) => !!marks[s.id] && s.decision?.data.kind !== "sign_off" && !isDone(s, state) && time(s.at) <= time(state.now),
   );
+}
+
+/** The timeline guide's step for the step waiting, as the backend gives it. */
+function guideStep(step: Step | undefined): GuideStep | null {
+  if (!step) return null;
+  if (step.delivery) return { action: "deliver_file", open: "delivery", id: step.id };
+  if (step.decision?.data.kind === "confirmation") return { action: "confirm_terms", open: "terms", id: null };
+  // As the backend does: the charge the decision is about, else its file, else the problem list.
+  const data = (step.decision?.data ?? {}) as { charge_id?: Id | null; file_id?: Id | null; copy_file_id?: Id | null };
+  if (data.charge_id) return { action: "decide_suggestion", open: "charge", id: data.charge_id };
+  const file = data.copy_file_id ?? data.file_id;
+  if (file) return { action: "decide_suggestion", open: "file", id: file };
+  return { action: "decide_suggestion", open: "problems", id: null };
+}
+
+function ownStepWaiting(events: TimelineEvent[], state: TimelineState, marks: Record<string, string>): string | null {
+  const step = ownStep(events, state, marks);
   if (!step) return null;
   const read = step.decision?.data.kind === "confirmation" ? termsFile(step.decision.data.record_ids) : null;
   const what = step.delivery
@@ -200,6 +217,8 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     .filter((e) => e.kind === "user_delivery" && state.played.has(e.id) && !state.delivered.has(e.id))
     .map((event) => ({ event, delivered: false, delivered_at: null }));
   const comingUp = events.filter((e) => !state.played.has(e.id));
+  const highlights = events.filter((e) => e.highlight);
+  const reached = highlights.filter((e) => state.played.has(e.id));
   return {
     just_happened: state.justHappened.map((id) => ({
       ...played(byId.get(id)!),
@@ -223,6 +242,12 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     leaves_run_through_at: null,
     // Ruling 86 only; the fake has never given a reason for no highlight being left.
     next_highlight_unavailable_reason: ownStepWaiting(events, state, marks),
+    // The timeline guide: the highlight reached of how many, its event, the step waiting.
+    highlight_index: highlights.length > 0 ? reached.length : null,
+    highlight_total: highlights.length || null,
+    highlight_event: reached.at(-1) ?? null,
+    your_step: guideStep(ownStep(events, state, marks)),
+    sign_off_at: null,
   };
 }
 

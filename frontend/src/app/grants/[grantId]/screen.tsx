@@ -92,6 +92,8 @@ function Head({ summary, start }: { summary: GrantSummary; start: IsoDate | null
  * grant summary's count.
  */
 function NeedsYou({ grantId, summary, rows }: { grantId: string; summary: GrantSummary; rows: ProblemRow[] | undefined }) {
+  // On a sample grant the timeline guide's button is the page's filled one, so this one is outlined.
+  const main = summary.grant.sample ? "ft-btn" : "ft-btn ft-btn--main";
   const n = rows ? rows.length : summary.on_problem_list;
   const first = (rows ?? []).slice(0, 3);
   if (rows && rows.length === 0) {
@@ -110,7 +112,7 @@ function NeedsYou({ grantId, summary, rows }: { grantId: string; summary: GrantS
         <h2 id="need-heading" className={styles.needTitle}>
           {needWords(n)}
         </h2>
-        <Link className="ft-btn ft-btn--main" href={routes.problemList(grantId)}>
+        <Link className={main} href={routes.problemList(grantId)}>
           Open the problem list
         </Link>
       </div>
