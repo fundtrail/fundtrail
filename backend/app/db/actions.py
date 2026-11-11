@@ -288,7 +288,7 @@ def write_record(
     arrival_runs = [
         queue_run(conn, grant, file_triggers[f.id], now, catch_up=catch_up) for f in arrived
     ]
-    review = clock.queue_review_if_due(conn, grant, now)
+    review = clock.queue_review_if_due(conn, grant, now, catch_up=catch_up)
     runs = [r for r in (run, review, *arrival_runs) if r is not None]
     return record, runs, arrived
 

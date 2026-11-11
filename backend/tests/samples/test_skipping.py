@@ -105,7 +105,11 @@ def test_the_sample_accountant_brings_the_users_items_in(api: Api, real_checks: 
     brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
     grant_id = _open(api)
     end = max(i.at for i in player.items_for(SMALL)) + timedelta(days=1)
-    timeline = _skip(api, grant_id, end)
+    _skip(api, grant_id, end)
+    # The walk waits for the agent before each decision: let it get to the end.
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(end)
     assert timeline["now"]["deliveries"] == []
     with transaction(api.platform.pool) as conn:
         files = {f.sha256: f for f in store.list_files(conn, grant_id, end)}
@@ -179,27 +183,96 @@ def test_a_step_whose_target_isnt_there_is_left_for_the_user(api: Api, real_chec
     assert left["state"] == "left" and left["record_id"] is None
 
 
-def test_skipping_through_the_small_sample_gives_the_keys_buckets(
-    api: Api, real_checks: None
-) -> None:
-    """The do-everything play by skipping: one move to the end, the agent reading as the
-    clock passes, the Sample accountant making the script's steps."""
-    pack = player.pack_for(SMALL)
-    grant_id = _open(api)
+def _skip_through(api: Api, sample: str) -> str:
+    """One skipping move from the sample's start to past its end, the agent (faked by
+    agent_records.json) reading as the clock walks; returns the grant."""
+    pack = player.pack_for(sample)
+    grant_id = _open(api, "small_live" if sample == SMALL else "larger_live")
     _records_agent(api, pack, grant_id)
-    end = max(i.at for i in player.items_for(SMALL)) + timedelta(days=1)
+    end = max(i.at for i in player.items_for(sample)) + timedelta(days=1)
     _skip(api, grant_id, end)
     run_worker_until_idle(str(api.platform.pool.conninfo))
-    assert {s["state"] for s in _scripted(api, grant_id)} == {"done"}
-    key = json.loads((pack.folder / "answer_key.json").read_text())["buckets"]
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
+    return grant_id
+
+
+def _wrong_buckets(api: Api, grant_id: str, sample: str) -> list[str]:
+    key = json.loads((player.pack_for(sample).folder / "answer_key.json").read_text())
     grant = _grant(api, grant_id)
-    wrong = [
-        b
-        for b in key
-        if bucket_at(api.platform, grant, b["line_id"], datetime.fromisoformat(b["at"]))
+    return [
+        f"{b['line_id']} at {b['at']}: {got} != {b['bucket']}"
+        for b in key["buckets"]
+        if (got := bucket_at(api.platform, grant, b["line_id"], datetime.fromisoformat(b["at"])))
         != b["bucket"]
     ]
-    assert wrong == []
+
+
+def _emails_arrive_at_their_own_time(api: Api, grant_id: str, sample: str) -> None:
+    """Every scheduled email arrives at its own time, or, held from a sender nobody named,
+    when the script lets it in."""
+    pack = player.pack_for(sample)
+    let_in = {a.file: a.at for a in pack.actions if a.action == "let_in_mail"}
+    with transaction(api.platform.pool) as conn:
+        arrived = {
+            f.sha256: f.arrived_at for f in store.list_files(conn, grant_id, store.END_OF_TIME)
+        }
+    for e in pack.events:
+        if e.source.value != "gmail" or e.deliver_by_user:
+            continue
+        assert arrived.get(pack.sha256(e.name)) == let_in.get(e.name, e.at), e.name
+
+
+LARGER = "salt-marsh-carbon"
+
+# agent_records.json's link for L-1835-0015 (highlight 5) carries an amount but fills no
+# checklist item that carries one, so the save's write check refuses it, and the run that
+# writes it fails. The checks-only play stores the records directly and doesn't meet it.
+# Strict: once the seed's record is fixed, this marker must go.
+SEED_LINK = pytest.mark.xfail(
+    strict=True, reason="agent_records.json: L-1835-0015's link carries an amount"
+)
+
+
+@pytest.mark.parametrize("sample", [SMALL, LARGER])
+def test_skipping_through_a_sample_brings_every_email_at_its_own_time(
+    api: Api, real_checks: None, sample: str
+) -> None:
+    """One skipping move to the end, the clock walking event by event and step by step:
+    every scripted step is made, and every email arrives at its own time (or when the
+    script lets it in), after the confirmation that makes its sender known."""
+    grant_id = _skip_through(api, sample)
+    assert {s["state"] for s in _scripted(api, grant_id)} == {"done"}
+    _emails_arrive_at_their_own_time(api, grant_id, sample)
+
+
+@pytest.mark.parametrize("sample", [SMALL, pytest.param(LARGER, marks=SEED_LINK)])
+def test_skipping_through_a_sample_gives_the_keys_buckets(
+    api: Api, real_checks: None, sample: str
+) -> None:
+    """The do-everything play by skipping, as a user making each step at its own time: every
+    agent run saves, and every bucket in the answer key holds."""
+    grant_id = _skip_through(api, sample)
+    with transaction(api.platform.pool) as conn:
+        runs = store.list_runs(conn, grant_id)
+    assert {r.status.value for r in runs} == {"done"}
+    assert _wrong_buckets(api, grant_id, sample) == []
+
+
+def test_a_decision_made_after_a_later_move_is_listed_once(api: Api, real_checks: None) -> None:
+    """A decision move A passed, made only after move B, is listed under B, once."""
+    pack = player.pack_for(SMALL)
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _skip(api, grant_id, confirm.at + timedelta(minutes=1))  # waits for the letter's run
+    later = _post(
+        api, f"/grants/{grant_id}/timeline", {"to": _iso(confirm.at + timedelta(minutes=2))}
+    )
+    assert later.status_code == 200, later.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    just = _get(api, f"/grants/{grant_id}/timeline")["just_happened"]
+    decisions = [d["id"] for p in just for d in p["scripted_decisions"]]
+    assert len(decisions) == 1
 
 
 def test_a_scripted_sign_off_waits_for_every_run(

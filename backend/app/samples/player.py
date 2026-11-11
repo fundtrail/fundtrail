@@ -275,7 +275,7 @@ def _ledger(p: Platform, conn: Conn, grant: Grant, content: bytes, at: datetime)
     store.insert_charges(conn, read.charges)
 
 
-def _store_events(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, played: Sequence[str]):
+def store_events(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, played: Sequence[str]):
     """Store each played event at its own time, in order, as its channel would."""
     for event_id in played:
         e = pack.event(event_id)
@@ -304,7 +304,7 @@ def _begin(p: Platform, conn: Conn, grant: Grant, info: GrantSample) -> list[Age
     pack = pack_for(info.sample)
     start = plan_start(items_for(info.sample), pack.starts_at)
     sample_store.set_sample(conn, grant.id, info)
-    _store_events(p, conn, grant, pack, [e.id for e in start.play])
+    store_events(p, conn, grant, pack, [e.id for e in start.play])
     runs = clock.set_and_replay(p, conn, grant, None, start.until)
     sample_store.insert_move(conn, grant.id, None, start.until)
     return runs
@@ -456,13 +456,21 @@ def move(
         locked = _lock_grant(conn, grant.id)
         check_read_live_limit(conn, user_id, locked)
         now = clock.grant_now(conn, grant.id)
+        # A skipping move's walk may still be under way: the move goes on from its end.
+        walking = sample_store.walk_target(conn, grant.id)
+        start = max(now, walking) if walking is not None else now
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
-        plan = plan_move(items, now, to)
-        move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
-        _store_events(p, conn, locked, pack, [e.id for e in plan.play])
-        if skip:
-            skipping.deliver_and_queue(p, conn, locked, pack, move_id, now, plan.until)
-        runs = clock.set_and_replay(p, conn, locked, now, plan.until)
+        plan = plan_move(items, start, to)
+        move_id = sample_store.insert_move(conn, grant.id, start, plan.until)
+        runs: list[AgentRun] = []
+        if skip or walking is not None:
+            if skip:
+                skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
+            sample_store.start_walk(conn, grant.id, plan.until)
+            skipping.advance(p, conn, locked)
+        else:
+            store_events(p, conn, locked, pack, [e.id for e in plan.play])
+            runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
 
 

@@ -26,7 +26,6 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Any
 
 from app.contracts.checks import ChecksOutput
 from app.contracts.evidence import Source
@@ -153,13 +152,15 @@ def review_due(conn: Conn, grant: Grant, at: datetime) -> datetime | None:
     return window
 
 
-def queue_review_if_due(conn: Conn, grant: Grant, now: datetime) -> AgentRun | None:
+def queue_review_if_due(
+    conn: Conn, grant: Grant, now: datetime, *, catch_up: bool = False
+) -> AgentRun | None:
     """Queue the closeout review now if the window is open and it hasn't run for this end
     date: after the accountant confirms dates already inside the window, after the end date
     in force moves, or when a daily check was missed."""
     if review_due(conn, grant, now) is None:
         return None
-    return jobs.queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), now)
+    return jobs.queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), now, catch_up=catch_up)
 
 
 @dataclass(frozen=True)
@@ -201,39 +202,20 @@ def replay(
     points = [m for m in _midnights(after, until) if first is None or m < first]
     if first is None and until not in points:
         points.append(until)
-    _step_through(p, conn, grant, points, first)
+    clock = Trigger(kind=TriggerKind.CLOCK)
+    for at in points:
+        recheck_grant(conn, p.checks, grant, at, clock)
     return [jobs.queue_run(conn, grant, i.trigger, i.at, catch_up=True) for i in items]
 
 
-def _scripted_due(p: Platform, conn: Conn, grant: Grant, before: datetime | None) -> list[Any]:
-    """A sample grant's scripted decisions waiting to be made before `before` (all with
-    None), from the skip in app.samples (ruling 47). Any other grant has none."""
+def continue_walk(p: Platform, conn: Conn, grant: Grant) -> None:
+    """After a run saves or fails: a sample grant's walk (a skipping move, ruling 47) goes on
+    as far as it can without waiting for the agent again. Any other grant has none."""
     if grant.sample is None:
-        return []
-    from app.samples.skipping import due
+        return
+    from app.samples.skipping import advance
 
-    return list(due(p, conn, grant, before))
-
-
-def _step_through(
-    p: Platform, conn: Conn, grant: Grant, points: list[datetime], before: datetime | None
-) -> None:
-    """Work time out at each point, and make each scripted decision due before `before`
-    at its own time among them: a decision first when they share a moment."""
-    clock = Trigger(kind=TriggerKind.CLOCK)
-    steps: list[tuple[datetime, int, Any]] = [(at, 1, None) for at in points]
-    steps += [(d.at, 0, d) for d in _scripted_due(p, conn, grant, before)]
-    for at, _, decision in sorted(steps, key=lambda s: (s[0], s[1])):
-        if decision is None:
-            recheck_grant(conn, p.checks, grant, at, clock)
-        else:
-            decision.make()
-
-
-def make_due_scripted(p: Platform, conn: Conn, grant: Grant, run_id: str) -> None:
-    """After an ordinary run saves or fails: a sample's scripted decision that waited for
-    every run to finish (a sign-off) may be made now, before the next catch-up run."""
-    _step_through(p, conn, grant, [], store.next_catch_up_time(conn, grant.id, run_id))
+    advance(p, conn, grant)
 
 
 def set_stored_clock(conn: Conn, grant_id: str, at: datetime) -> None:
@@ -271,7 +253,10 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     points = [m for m in _midnights(at, end) if following is None or m < following]
     if following is None and end > at and end not in points:
         points.append(end)
-    _step_through(p, conn, grant, points, following)
+    clock = Trigger(kind=TriggerKind.CLOCK)
+    for point in points:
+        recheck_grant(conn, p.checks, grant, point, clock)
+    continue_walk(p, conn, grant)
     return output
 
 

@@ -72,13 +72,55 @@ def insert_scripted(conn: Conn, grant_id: str, s: Scripted) -> None:
 
 
 def finish_scripted(
-    conn: Conn, grant_id: str, step: int, state: str, record_id: str | None = None
+    conn: Conn,
+    grant_id: str,
+    step: int,
+    state: str,
+    record_id: str | None = None,
+    *,
+    file_id: str | None = None,
+    move_id: int | None = None,
 ) -> None:
+    """A step made (done) or left for the user. `move_id` moves it under the move it was
+    made in, when that's a later move than the one that passed it."""
     conn.execute(
-        """update public.sample_scripted set state = %s, record_id = %s
+        """update public.sample_scripted
+             set state = %s, record_id = %s, file_id = coalesce(%s, file_id),
+                 move_id = coalesce(%s, move_id)
            where grant_id = %s and step = %s""",
-        (state, record_id, grant_id, step),
+        (state, record_id, file_id, move_id, grant_id, step),
     )
+
+
+def walk_target(conn: Conn, grant_id: str) -> datetime | None:
+    """Where a skipping move's walk is going, while it's under way."""
+    row = conn.execute(
+        "select target from public.sample_walks where grant_id = %s", (grant_id,)
+    ).fetchone()
+    return row["target"] if row else None
+
+
+def start_walk(conn: Conn, grant_id: str, target: datetime) -> None:
+    conn.execute(
+        """insert into public.sample_walks (grant_id, target) values (%s, %s)
+           on conflict (grant_id) do update
+             set target = greatest(sample_walks.target, excluded.target)""",
+        (grant_id, target),
+    )
+
+
+def end_walk(conn: Conn, grant_id: str) -> None:
+    conn.execute("delete from public.sample_walks where grant_id = %s", (grant_id,))
+
+
+def catch_up_runs_before(conn: Conn, grant_id: str, at: datetime) -> bool:
+    """Whether an agent run working as of `at` or earlier is still queued or running."""
+    row = conn.execute(
+        """select 1 from public.agent_runs
+           where grant_id = %s and status in ('queued', 'running') and clock_now <= %s limit 1""",
+        (grant_id, at),
+    ).fetchone()
+    return row is not None
 
 
 def pending_scripted(conn: Conn, grant_id: str, before: datetime | None) -> list[Scripted]:
