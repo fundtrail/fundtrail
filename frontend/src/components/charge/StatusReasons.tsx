@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Bucket, Cents, ChargeStatus, FtRecord, Id, Reason } from "@/lib/api";
+import type { Bucket, Cents, ChargeStatus, FtRecord, Id, Reason, SuggestionView } from "@/lib/api";
 import { date, money } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
 import type { OnWrite } from "../thread/useThreadActions";
-import { AcceptReason, OfferedNote, ReopenReason, SnoozeCharge } from "./actions";
+import { AcceptReason, DecideWaiting, OfferedNote, ReopenReason, SnoozeCharge } from "./actions";
 import { field } from "./labels";
 import { Disclosure, TrailGroup, TrailNode, TrailNote, type Mark } from "./Trail";
 import styles from "./charge.module.css";
@@ -19,6 +19,19 @@ const BUCKET_MARKS: Record<Bucket, Mark> = {
 
 function reasonKey(r: Reason): string {
   return `${r.check}:${r.problem}`;
+}
+
+/** The check code gives a reason that shows one of the agent's suggestions waiting for the accountant. */
+const SUGGESTION_CHECK = "suggestion";
+
+/**
+ * The waiting record a reason shows, to decide on the reason's row: one the
+ * server lists as waiting on this charge (`decideHere`) and that the reason
+ * names. Undefined for any other reason.
+ */
+function waitingOn(r: Reason, decideHere: SuggestionView[]): Id | undefined {
+  if (r.check !== SUGGESTION_CHECK || r.accepted_by) return undefined;
+  return decideHere.find((w) => (r.record_ids ?? []).includes(w.record.id))?.record.id;
 }
 
 /**
@@ -68,13 +81,16 @@ function AcceptedBy({
  * with its detail open; Snooze for the whole charge on its own row after
  * them; then the reasons that pass, closed to one line that opens in place.
  * The screen builds no status text of its own. With `onWrite`, each failing
- * reason can be accepted with a note, and the charge can be snoozed.
+ * reason can be accepted with a note, and the charge can be snoozed. A
+ * reason that shows one of the agent's records waiting in `decideHere` also
+ * offers Confirm and Reject for that record.
  */
 export function StatusReasons({
   status,
   chargeId,
   chargedCents,
   records = {},
+  decideHere = [],
   onWrite,
 }: {
   status: ChargeStatus | null;
@@ -82,6 +98,8 @@ export function StatusReasons({
   /** The charge's amount, to set beside an amount code expected (ruling 61). */
   chargedCents?: Cents;
   records?: Record<Id, FtRecord>;
+  /** The agent's records waiting on this charge that nothing else on the page offers to decide. */
+  decideHere?: SuggestionView[];
   onWrite?: OnWrite;
 }) {
   const reasons = status?.reasons ?? [];
@@ -111,6 +129,7 @@ export function StatusReasons({
       {failing.length > 0 && (
         <TrailGroup label="Reasons">
           {failing.map((r) => {
+            const waiting = waitingOn(r, decideHere);
             const hasDetail = (r.expected_cents != null && chargedCents !== undefined) || r.expected_by || r.accepted_by || onWrite;
             return (
               <TrailNode
@@ -141,6 +160,7 @@ export function StatusReasons({
                     {!r.accepted_by && onWrite && r.offered_note_id && (
                       <OfferedNote chargeId={id} reason={r} note={records[r.offered_note_id] ?? null} onWrite={onWrite} />
                     )}
+                    {onWrite && waiting && <DecideWaiting recordId={waiting} onWrite={onWrite} />}
                     {!r.accepted_by && onWrite && <AcceptReason chargeId={id} reason={r} onWrite={onWrite} />}
                   </>
                 ) : null}

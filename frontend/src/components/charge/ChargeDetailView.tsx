@@ -49,6 +49,9 @@ export function ChargeDetailView({
   const files = detail.files ?? {};
   const links_ = detail.links ?? [];
   const waiting = detail.waiting ?? [];
+  // The agent's waiting records the review thread already offers to decide; the rest are decided on their reason.
+  const inThread = new Set(detail.thread.entries.flatMap((e) => (e.kind === "record" && e.state === "waiting" ? [e.record.id] : [])));
+  const decideHere = waiting.filter((w) => !inThread.has(w.record.id));
   const history = detail.history ?? [];
   const checklist = status?.checklist ?? [];
   const charges: Record<Id, Charge> = { [charge.id]: charge };
@@ -92,6 +95,7 @@ export function ChargeDetailView({
                 chargeId={charge.id}
                 chargedCents={status?.net_cents ?? charge.amount_cents}
                 records={records}
+                decideHere={decideHere}
                 onWrite={onWrite}
               />
             </div>

@@ -309,6 +309,36 @@ export function RemoveChecklistItem({ chargeId, entry, onWrite }: { chargeId: Id
   );
 }
 
+// --- Deciding one of the agent's waiting records ---
+
+/**
+ * Confirm and Reject for one of the agent's records that the server says waits
+ * for the accountant, on the reason that shows it, when nothing else on the
+ * page offers that decision (a duplicate mark is about files, so it isn't in
+ * the charge's thread). Each writes a confirmation naming that record and
+ * shows nothing of its own after: the page refetches and shows the server's
+ * new state.
+ */
+export function DecideWaiting({ recordId, onWrite }: { recordId: Id; onWrite: OnWrite }) {
+  const write = useWrite(onWrite);
+  function decide(decision: "confirmed" | "rejected") {
+    void write.run({ data: { kind: "confirmation", record_ids: [recordId], decision } });
+  }
+  return (
+    <>
+      <div className={styles.actions} role="group" aria-label="Decide the agent's suggestion">
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--approve" disabled={write.busy} onClick={() => decide("confirmed")}>
+          Confirm
+        </button>
+        <button type="button" className="ft-btn ft-btn--sm ft-btn--reject" disabled={write.busy} onClick={() => decide("rejected")}>
+          Reject
+        </button>
+      </div>
+      <Errors errors={write.errors} />
+    </>
+  );
+}
+
 // --- Accepting a reason, and reopening it ---
 
 /**
