@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { CloseoutCharges } from "@/components/closeout/CloseoutCharges";
 import { CloseoutSteps } from "@/components/closeout/CloseoutSteps";
 import { ReportDraft } from "@/components/closeout/ReportDraft";
