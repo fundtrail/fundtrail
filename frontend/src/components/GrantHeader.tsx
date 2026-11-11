@@ -1,8 +1,10 @@
+"use client";
+
 import type { Bucket, BudgetView, GrantSummary, IsoDate } from "@/lib/api";
 import Link from "next/link";
 import { BUCKET_LABELS, date, FUNDER_LABELS, money } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { grantName } from "./GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 import styles from "./GrantHeader.module.css";
 
 const BAR_ORDER: Bucket[] = ["possible_conflict", "needs_human", "missing_evidence", "evidence_complete"];
@@ -52,6 +54,7 @@ function Period({ start, now, end }: { start: IsoDate; now: string; end: IsoDate
  * it, and `budget` gives the amounts charged and the award's limit.
  */
 export function GrantHeader({ summary, start = null, budget = null }: { summary: GrantSummary; start?: IsoDate | null; budget?: BudgetView | null }) {
+  const grantName = useGrantDisplayName();
   const { grant } = summary;
   const counts = summary.bucket_counts;
   const segments = BAR_ORDER.filter((b) => (counts?.[b] ?? 0) > 0);

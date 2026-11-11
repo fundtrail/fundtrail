@@ -26,7 +26,7 @@ import {
 } from "@/lib/api";
 import { date, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { grantName } from "../GrantList";
+import { useGrantDisplayName } from "@/lib/grantName";
 import "./timeline.css";
 
 const SOURCE_WORDS: Record<ArrivalSource, string> = {
@@ -383,6 +383,7 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
 
 /** The panel itself, for a grant known to be a sample. */
 export function TimelinePanel({ grantId }: { grantId: Id }) {
+  const grantName = useGrantDisplayName();
   const api = useApi();
   const refresh = useRefresh();
   const timeline = useTimeline(grantId);

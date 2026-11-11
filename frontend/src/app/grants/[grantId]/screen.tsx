@@ -8,9 +8,9 @@ import { BudgetFigures } from "@/components/BudgetFigures";
 import { ChargesTable } from "@/components/ChargesTable";
 import disclosure from "@/components/Disclosure.module.css";
 import { GrantHeader } from "@/components/GrantHeader";
-import { grantName } from "@/components/GrantList";
 import { ProblemList, problemRowKey } from "@/components/ProblemList";
 import { SampleTimeline } from "@/components/timeline/TimelinePanel";
+import { useGrantDisplayName } from "@/lib/grantName";
 import { useCharges, useGrant, useProblemList, usePings, type IsoDate, type PeriodOfPerformance, type TermView } from "@/lib/api";
 import { SelectedItem } from "./SelectedItem";
 import styles from "./grant.module.css";
@@ -38,6 +38,7 @@ const STACKED = "(max-width: 1100px)";
  */
 export function GrantScreen() {
   const { grantId } = useParams<{ grantId: string }>();
+  const grantName = useGrantDisplayName();
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
