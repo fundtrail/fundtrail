@@ -8,11 +8,22 @@ import { useAuth } from "@/lib/auth";
 import { routes } from "@/lib/routes";
 import { grantName } from "./GrantList";
 
-function NavLink({ href, children, count }: { href: string; children: ReactNode; count?: number }) {
+function NavLink({
+  href,
+  children,
+  count,
+  grant = false,
+}: {
+  href: string;
+  children: ReactNode;
+  count?: number;
+  grant?: boolean;
+}) {
   const pathname = usePathname();
   const active = pathname === href;
+  const className = `ft-nav__item${grant ? " ft-nav__item--grant" : ""}${active ? " is-active" : ""}`;
   return (
-    <Link href={href} className={`ft-nav__item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
+    <Link href={href} className={className} aria-current={active ? "page" : undefined}>
       <span>{children}</span>
       {count !== undefined && count > 0 && (
         <span className="ft-count ft-count--alert">
@@ -21,6 +32,42 @@ function NavLink({ href, children, count }: { href: string; children: ReactNode;
         </span>
       )}
     </Link>
+  );
+}
+
+/**
+ * One grant in the sidebar. While one of its pages is open, it is the current
+ * grant and opens to its pages, read from the path against routes.ts.
+ */
+function GrantItem({ grantId, count, children }: { grantId: Id; count: number; children: ReactNode }) {
+  const pathname = usePathname();
+  const href = routes.grant(grantId);
+  const current = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <li>
+      <NavLink href={href} count={count} grant={current}>
+        {children}
+      </NavLink>
+      {current && (
+        <ul className="ft-nav__children">
+          <li>
+            <NavLink href={routes.problemList(grantId)}>Problem list</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.evidence(grantId)}>Evidence</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.terms(grantId)}>Grant terms</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.ledger(grantId)}>Ledger</NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.closeout(grantId)}>Closeout</NavLink>
+          </li>
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -43,11 +90,9 @@ function Sidebar({ workspaceId }: { workspaceId: Id | null }) {
           <NavLink href={routes.workspace(workspaceId)}>Grants</NavLink>
           <ul className="ft-nav__grants">
             {grants.data?.map((g) => (
-              <li key={g.grant.id}>
-                <NavLink href={routes.grant(g.grant.id)} count={g.on_problem_list}>
-                  {g.grant.award_number ?? grantName(g)}
-                </NavLink>
-              </li>
+              <GrantItem key={g.grant.id} grantId={g.grant.id} count={g.on_problem_list}>
+                {g.grant.award_number ?? grantName(g)}
+              </GrantItem>
             ))}
           </ul>
           <NavLink href={routes.newGrant(workspaceId)}>Add a grant</NavLink>
