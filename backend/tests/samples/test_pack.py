@@ -12,6 +12,7 @@ import pytest
 from app.contracts.api import ArrivalSource
 from app.contracts.records import RecordKind
 from app.samples.pack import (
+    DATA_DIR,
     LARGER_SAMPLE,
     SMALL_SAMPLE,
     SUGGESTION_KINDS,
@@ -362,3 +363,121 @@ def test_ids_are_the_same_on_every_load() -> None:
     first, second = load_pack(LARGER_SAMPLE), load_pack(LARGER_SAMPLE)
     assert [(e.id, e.name) for e in first.events] == [(e.id, e.name) for e in second.events]
     assert len({e.id for e in first.events}) == len(first.events)
+
+
+def _labels(sample: str) -> dict[str, str]:
+    """The highlight labels timeline.json gives, by event name."""
+    raw = json.loads((DATA_DIR / "samples" / sample / "timeline.json").read_text())["events"]
+    return {e.get("file") or e.get("line_id"): e["highlight"] for e in raw if "highlight" in e}
+
+
+@pytest.mark.parametrize(("sample", "count"), [(SMALL_SAMPLE, 3), (LARGER_SAMPLE, 14)])
+def test_keeps_each_events_highlight(sample: str, count: int) -> None:
+    pack = load_pack(sample)
+    labels = {e.name: e.highlight for e in pack.events if e.highlight is not None}
+    assert labels == _labels(sample) and len(labels) == count
+
+
+def test_refuses_a_blank_highlight(tmp_path: Path) -> None:
+    blank = {**EVENTS[0], "highlight": "  "}
+    with pytest.raises(PackError, match="highlight"):
+        load_folder(write_pack(tmp_path / "s", events=[blank, *EVENTS[1:]], actions=[]))
+
+
+def _receipt_highlighted(tmp_path: Path, label: Any) -> Path:
+    receipt = "receipt_R-3.txt"
+    events = [{**e, "highlight": "Receipt"} if e["file"] == receipt else e for e in EVENTS]
+    actions = [{**a, "highlight": label} if a["action"] == "deliver_file" else a for a in ACTIONS]
+    return write_pack(tmp_path / "s", events=events, actions=actions)
+
+
+def test_keeps_a_steps_highlight(tmp_path: Path) -> None:
+    """Ruling 77: a step may name the highlight it's the user's own step for."""
+    pack = load_folder(_receipt_highlighted(tmp_path, "Receipt"))
+    assert {a.action: a.highlight for a in pack.actions} == {
+        "confirm_terms": None,
+        "deliver_file": "Receipt",
+    }
+
+
+@pytest.mark.parametrize("label", ["  ", 3, "Not a highlight"])
+def test_refuses_a_steps_highlight_no_event_carries(tmp_path: Path, label: Any) -> None:
+    with pytest.raises(PackError, match="highlight"):
+        load_folder(_receipt_highlighted(tmp_path, label))
+
+
+# A step's file that is an email's attachment.
+
+INVOICE_PDF = b"%PDF-1.4\n% Synthetic invoice INV-9, $310.00\n%%EOF\n"
+
+
+def _email_with_invoice() -> bytes:
+    from email.message import EmailMessage
+
+    msg = EmailMessage()
+    msg["From"] = "vendor@supplies.example"
+    msg["To"] = "grant@fundtrail.example"
+    msg["Subject"] = "Invoice INV-9"
+    msg["Date"] = "Fri, 20 Nov 2026 09:00:00 -0800"
+    msg["Message-ID"] = "<inv-9@supplies.example>"
+    msg.set_content("Invoice INV-9 attached.")
+    msg.add_attachment(INVOICE_PDF, maintype="application", subtype="pdf", filename="INV-9.pdf")
+    return msg.as_bytes()
+
+
+EMAIL_AT = "2026-11-20T17:00:00Z"
+
+
+def _attachment_pack(tmp_path: Path, actions: list[dict[str, Any]]) -> Path:
+    """The test pack, with a Gmail event whose attachment is also a file in the folder that
+    isn't an event of its own."""
+    email = {
+        "at": EMAIL_AT,
+        "kind": "file",
+        "file": "email_INV-9.eml",
+        "source": "gmail",
+        "sender": "vendor@supplies.example",
+    }
+    folder = write_pack(tmp_path / "s", events=[*EVENTS, email], actions=actions)
+    (folder / "email_INV-9.eml").write_bytes(_email_with_invoice())
+    (folder / "invoice_INV-9.pdf").write_bytes(INVOICE_PDF)
+    return folder
+
+
+def _step(at: str, action: str = "confirm_terms", **fields: Any) -> dict[str, Any]:
+    return {"at": at, "action": action, "file": "invoice_INV-9.pdf", **fields}
+
+
+def test_a_step_may_name_an_emails_attachment(tmp_path: Path) -> None:
+    pack = load_folder(_attachment_pack(tmp_path, [_step("2026-11-20T18:00:00Z")]))
+    assert [a.file for a in pack.actions] == ["invoice_INV-9.pdf"]
+    assert "invoice_INV-9.pdf" not in {e.name for e in pack.events}
+
+
+def test_a_step_on_an_attachment_comes_after_its_email(tmp_path: Path) -> None:
+    with pytest.raises(PackError, match="arrives with email_INV-9.eml"):
+        load_folder(_attachment_pack(tmp_path, [_step("2026-11-20T16:00:00Z")]))
+
+
+def test_a_held_emails_attachment_arrives_when_its_let_in(tmp_path: Path) -> None:
+    let_in = {"at": "2026-11-21T17:00:00Z", "action": "let_in_mail", "file": "email_INV-9.eml"}
+    with pytest.raises(PackError, match="arrives with"):
+        load_folder(_attachment_pack(tmp_path, [_step("2026-11-20T18:00:00Z"), let_in]))
+    pack = load_folder(_attachment_pack(tmp_path, [let_in, _step("2026-11-21T18:00:00Z")]))
+    assert len(pack.actions) == 2
+
+
+@pytest.mark.parametrize("action", ["deliver_file", "let_in_mail"])
+def test_an_attachment_is_never_delivered_or_let_in_on_its_own(tmp_path: Path, action: str) -> None:
+    with pytest.raises(PackError, match="is an attachment of email_INV-9.eml"):
+        load_folder(_attachment_pack(tmp_path, [_step("2026-11-20T18:00:00Z", action)]))
+
+
+def test_a_file_in_the_folder_that_no_email_carries_isnt_on_the_timeline(tmp_path: Path) -> None:
+    folder = _attachment_pack(tmp_path, [])
+    (folder / "stray.pdf").write_bytes(b"%PDF-1.4 something else")
+    (folder / "user_actions.json").write_text(
+        json.dumps({"actions": [{**_step("2026-11-20T18:00:00Z"), "file": "stray.pdf"}]})
+    )
+    with pytest.raises(PackError, match="isn't on the timeline"):
+        load_folder(folder)
