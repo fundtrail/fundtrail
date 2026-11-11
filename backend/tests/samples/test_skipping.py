@@ -659,7 +659,8 @@ def _highlight_pack(monkeypatch: pytest.MonkeyPatch) -> tuple[SamplePack, str]:
         at=receipt.at - timedelta(days=1), action="sign_off", note="Signed by the script."
     )
     actions = [
-        replace(a, highlight=receipt.highlight) if a.action == "deliver_file" else a
+        # Only the receipt's delivery marked: the sample's other marks set aside.
+        replace(a, highlight=receipt.highlight if a.action == "deliver_file" else None)
         for a in pack.actions
     ]
     marked = replace(pack, actions=tuple(sorted([*actions, sign], key=lambda a: a.at)))
@@ -721,9 +722,14 @@ def test_the_user_making_a_held_step_first_is_never_made_again(
     assert [f.id for f in files if f.sha256 == pack.sha256(receipt.name)] == [uploaded.json()["id"]]
 
 
-def test_next_highlight_stops_on_a_ledger_lines_posting(api: Api) -> None:
-    """A highlight on a ledger line: Next highlight stops where the line posts."""
-    pack = player.pack_for(LARGER)
+def test_next_highlight_stops_on_a_ledger_lines_posting(
+    api: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A highlight on a ledger line: Next highlight stops where the line posts. (The
+    sample's own-step marks are set aside, so no step holds it up.)"""
+    real = player.pack_for(LARGER)
+    pack = replace(real, actions=tuple(replace(a, highlight=None) for a in real.actions))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: pack)
     items = player.items_for(LARGER)
     line = next(i for i in items if i.line_id and i.event and i.event.highlight)
     before = max(i.at for i in items if i.at < line.at and i.event and i.event.highlight)
@@ -853,3 +859,69 @@ def test_the_do_everything_play_signs_off_after_everything_before_it(
     [receipt_run] = [r for r in runs if r.trigger.id == brought.id]
     assert receipt_run.status.value == "done"
     assert receipt_run.finished_at is not None
+
+
+def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ruling 77, amended: the receipt highlight's own step (its delivery) is due half an
+    hour after the receipt's event. Next highlight stops at the later of the two and holds
+    the step; the next Next highlight press leaves it held; a later skip makes it."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    due = receipt.at + timedelta(minutes=30)
+    actions = tuple(
+        replace(a, highlight=receipt.highlight, at=due)
+        if a.action == "deliver_file"
+        else replace(a, highlight=None)
+        for a in pack.actions
+    )
+    late = replace(pack, actions=tuple(sorted(actions, key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: late)
+    grant_id = _open(api)
+    _records_agent(api, late, grant_id)
+    assert _next_highlight(api, grant_id).status_code == 200
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(due)
+    # Ruling 85: Now names the highlight reached, though the clock stopped later.
+    assert timeline["now"]["stopped_on"]["name"] == receipt.name
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+    assert _states(api, late, grant_id)["deliver_file"] == "held"
+    # Ruling 86: Next highlight waits for it, and says so.
+    reason = f"Bring in {receipt.name} first: that's this highlight's step."
+    assert timeline["next_highlight_unavailable_reason"] == reason
+    refused = _next_highlight(api, grant_id)
+    assert refused.status_code == 409 and refused.json()["detail"] == reason
+    assert _states(api, late, grant_id)["deliver_file"] == "held"
+    _skip(api, grant_id, None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, late, grant_id)["deliver_file"] == "done"
+
+
+def test_a_marked_sign_off_never_moves_the_stop(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sign-off marked as the receipt highlight's own, dated days later: Next highlight
+    still stops on the receipt's event, Now names it, and the sign-off stays held."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    sign = UserAction(
+        at=receipt.at + timedelta(days=3),
+        action="sign_off",
+        note="Signed by the script.",
+        highlight=receipt.highlight,
+    )
+    others = [replace(a, highlight=None) for a in pack.actions]
+    marked = replace(pack, actions=tuple(sorted([*others, sign], key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: marked)
+    grant_id = _open(api)
+    _records_agent(api, marked, grant_id)
+    assert _next_highlight(api, grant_id).status_code == 200
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+    assert _states(api, marked, grant_id).get("sign_off") in (None, "held")  # not made
+    with transaction(api.platform.pool) as conn:
+        assert all(r.kind.value != "sign_off" for r in store.list_records(conn, grant_id))

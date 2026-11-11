@@ -970,37 +970,12 @@ def _delivery_state(api: Api, grant_id: str) -> str | None:
     return next((s.state for s in rows if pack.actions[s.step].action == "deliver_file"), None)
 
 
-def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
-    setup: Api, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Live: it stops at the later of the highlight's event and its own step's time, the
-    step held; the next Next highlight press leaves it held; a later skip makes it."""
-    api = setup
-    receipt, step = _late_receipt(monkeypatch)
-    grant_id = _open(api)  # live
-    _reading_agent(api)
-    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
-    assert moved.status_code == 200, moved.text
-    run_worker_until_idle(str(api.platform.pool.conninfo))
-    timeline = _get(api, f"/grants/{grant_id}/timeline")
-    assert timeline["now"]["now"] == _iso(step.at) and step.at > receipt.at
-    assert _delivery_state(api, grant_id) == "held"
-    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
-    assert again.status_code == 200, again.text
-    run_worker_until_idle(str(api.platform.pool.conninfo))
-    assert _delivery_state(api, grant_id) == "held"  # never on a Next highlight press
-    later = _post(api, f"/grants/{grant_id}/timeline", {"skip_human_steps": True})
-    assert later.status_code == 200, later.text
-    run_worker_until_idle(str(api.platform.pool.conninfo))
-    assert _delivery_state(api, grant_id) == "done"
-
-
 def test_on_the_run_through_a_late_own_step_is_held_and_matched(
     setup: Api, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """On a prerun grant: Next highlight loads up to the own step's time and holds it; the
-    next press loads nothing past it; the user delivers it, the grant stays on, and a
-    later skip loads the rest."""
+    next press is refused until the user makes it (ruling 86); the user delivers it, the
+    grant stays on, and a later skip loads the rest."""
     api = setup
     receipt, step = _late_receipt(monkeypatch)
     # The moved delivery puts the receipt's evidence after the key's time, so the key
@@ -1016,8 +991,10 @@ def test_on_the_run_through_a_late_own_step_is_held_and_matched(
     assert timeline["on_run_through"] is True
     assert timeline["now"]["now"] == _iso(step.at)
     assert _delivery_state(api, grant_id) == "held"
-    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True}).json()
-    assert again["on_run_through"] is True and _delivery_state(api, grant_id) == "held"
+    # Ruling 86: Next highlight waits for the user's step, on the run-through too.
+    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert again.status_code == 409 and "Bring in" in again.json()["detail"]
+    assert _delivery_state(api, grant_id) == "held"
     delivered = _post(api, f"/grants/{grant_id}/timeline/deliveries/{receipt.id}", {})
     assert delivered.json()["on_run_through"] is True
     assert _delivery_state(api, grant_id) == "user"
@@ -1128,3 +1105,57 @@ def test_loading_maps_read_points_and_parents(setup: Api, monkeypatch: pytest.Mo
     files = {r["id"]: r for r in copied["files"]}
     children = [f for f in files.values() if f["parent_id"]]
     assert children and all(f["parent_id"] in files for f in children)
+
+
+# Ruling 86 on a loaded grant.
+
+
+def _at_the_opening_step(api: Api) -> tuple[str, Any]:
+    """A prerun grant whose first Next highlight press stopped at the award letter's own
+    step, confirming its terms, which comes due before the next highlight."""
+    confirm = next(a for a in player.pack_for(SMALL).actions if a.action == "confirm_terms")
+    assert confirm.highlight is not None
+    _released(api)
+    grant_id = _open(api, "larger_prerun")
+    first = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert first.status_code == 200, first.text
+    timeline = first.json()
+    assert timeline["on_run_through"] is True and timeline["now"]["now"] == _iso(confirm.at)
+    assert all(p["loaded"] for p in timeline["just_happened"])
+    assert _confirmations(api, grant_id) == []  # held: not loaded as made
+    return grant_id, confirm
+
+
+def test_on_the_run_through_next_highlight_waits_for_the_held_step(setup: Api) -> None:
+    """Next highlight is refused with the step's reason, so the clock never moves past
+    what's loaded; once the user confirms as read, the grant stays on and the next press
+    loads at once."""
+    api = setup
+    grant_id, confirm = _at_the_opening_step(api)
+    reason = f"Confirm the terms read from {confirm.file} first: that's this highlight's step."
+    assert _get(api, f"/grants/{grant_id}/timeline")["next_highlight_unavailable_reason"] == reason
+    refused = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert refused.status_code == 409 and refused.json()["detail"] == reason
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(confirm.at)
+    write = _scripted_write(api, grant_id, "confirm_terms")
+    assert _post(api, f"/grants/{grant_id}/records", {"data": write.data}).status_code == 201
+    second = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert second.status_code == 200, second.text
+    assert second.json()["on_run_through"] is True and _pending(api, grant_id) == 0
+
+
+def test_on_the_run_through_a_skipping_next_event_makes_the_held_step(setup: Api) -> None:
+    """Next event with skipping on loads the sample accountant's step the press held, and
+    the grant stays on; Next highlight is available again."""
+    api = setup
+    grant_id, _confirm = _at_the_opening_step(api)
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"skip_human_steps": True})
+    assert moved.status_code == 200, moved.text
+    timeline = moved.json()
+    assert timeline["on_run_through"] is True
+    [confirmation] = _confirmations(api, grant_id)
+    assert confirmation.author_user_id != api.user_id  # the sample accountant's
+    assert timeline["next_highlight_unavailable_reason"] is None
+    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert again.status_code == 200, again.text
+    assert again.json()["on_run_through"] is True

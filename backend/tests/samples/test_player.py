@@ -461,22 +461,53 @@ def test_one_move_at_a_time_per_user(api: Api) -> None:
     assert not _blocked(api, lambda conn: sample_store.lock_users_moves(conn, api.user_id))
 
 
-def test_next_highlight_on_the_route_goes_to_the_next_highlight(api: Api) -> None:
-    """Ruling 77: {next_highlight: true} goes to the next highlighted event; `to` is
-    ignored. (Which steps it leaves to the user: test_skipping.)"""
+def test_next_highlight_on_the_route_waits_for_the_opening_highlights_step(api: Api) -> None:
+    """Rulings 77 and 86, on the sample as it is: the award letter (highlight 1) is played
+    at the opening, and its own step, confirming its terms, comes due before the next
+    highlight. The first press stops there and holds it; Next highlight then waits for the
+    user, saying why; once the user confirms, it goes on to the receipt. `to` is ignored."""
+    from app.samples.script import WriteRecord, resolve
+
     pack = player.pack_for("nitrate-sensors")
+    confirm = next(a for a in pack.actions if a.action == "confirm_terms")
     receipt = next(e for e in pack.events if e.deliver_by_user and e.highlight)
+    assert confirm.highlight is not None
     grant_id = _open(api)  # on the award letter, the first highlight
-    response = _post(
+    _reading(api, grant_id)
+    first = _post(
         api,
         f"/grants/{grant_id}/timeline",
         {"next_highlight": True, "to": "2027-06-01T00:00:00Z"},
     )
-    assert response.status_code == 200, response.text
+    assert first.status_code == 200, first.text
     run_worker_until_idle(str(api.platform.pool.conninfo))  # the walk waits on the agent
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(confirm.at)
+    reason = f"Confirm the terms read from {confirm.file} first: that's this highlight's step."
+    assert timeline["next_highlight_unavailable_reason"] == reason
+    refused = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert refused.status_code == 409 and refused.json()["detail"] == reason
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        step = resolve(api.platform, conn, grant, pack, confirm, confirm.at)
+    assert isinstance(step, WriteRecord)
+    confirmed = _post(api, f"/grants/{grant_id}/records", {"data": step.data})
+    assert confirmed.status_code == 201, confirmed.text
+    assert _get(api, f"/grants/{grant_id}/timeline")["next_highlight_unavailable_reason"] is None
+    second = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert second.status_code == 200, second.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
     timeline = _get(api, f"/grants/{grant_id}/timeline")
     assert timeline["now"]["now"] == _iso(receipt.at)
     assert timeline["now"]["stopped_on"]["highlight"] == receipt.highlight
+
+
+def _reading(api: Api, grant_id: str) -> None:
+    """The agent, faked by the small sample's agent_records.json."""
+    from tests.samples.test_skipping import _records_agent
+
+    _records_agent(api, player.pack_for("nitrate-sensors"), grant_id)
 
 
 def test_the_move_controls_say_why_they_cant_move(api: Api) -> None:

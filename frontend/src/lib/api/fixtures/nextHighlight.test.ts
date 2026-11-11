@@ -41,9 +41,10 @@ describe("Next highlight in the fake (ruling 77)", () => {
     expect(names(atHighlight.now.deliveries)).toEqual(["invoice_1001.txt"]);
     expect(deliveredForUser(atHighlight)).toEqual(["award_letter.txt"]);
 
-    // The next Next highlight press leaves it, and so does a plain Next event.
-    const nextPress = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
-    expect(names(nextPress.now.deliveries)).toEqual(["invoice_1001.txt"]);
+    // Next highlight waits for it, saying why (ruling 86); a plain Next event leaves it.
+    const reason = "Bring in invoice_1001.txt first: that's this highlight's step.";
+    expect(atHighlight.next_highlight_unavailable_reason).toBe(reason);
+    await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({ status: 409, detail: reason });
     const plain = await api.moveTimeline(SAMPLE_GRANT_ID, {});
     expect(names(plain.now.deliveries)).toEqual(["invoice_1001.txt"]);
 
@@ -62,6 +63,10 @@ describe("Next highlight in the fake (ruling 77)", () => {
     const atExtension = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
     expect(atExtension.now.now).toBe("2026-04-10T16:00:00Z");
     expect(decided(atExtension)).not.toContain("rec-confirm-extension");
+    // Ruling 85: Now names the highlight reached, though the clock stopped later.
+    const reached = atExtension.now.stopped_on;
+    expect(reached?.highlight).toBeTruthy();
+    expect(reached ? Date.parse(reached.at) : NaN).toBeLessThan(Date.parse(atExtension.now.now));
 
     await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({
       status: 409,
@@ -69,6 +74,18 @@ describe("Next highlight in the fake (ruling 77)", () => {
     });
     const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-11T00:00:00Z", skip_human_steps: true });
     expect(decided(skipping)).toEqual(["rec-confirm-extension"]);
+  });
+
+  it("stops at an earlier highlight's own step that comes due first, and waits for the user there (ruling 86)", async () => {
+    // Confirming the award terms marked as the award letter's own step.
+    const api = timeline({ "rec-confirm-award-terms": "Terms tied to their passages" });
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    const first = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
+    expect(first.now.now).not.toBe("2026-02-21T17:30:00Z");
+    expect(decided(first)).not.toContain("rec-confirm-award-terms");
+    const reason = "Confirm the terms read from award_letter.txt first: that's this highlight's step.";
+    expect(first.next_highlight_unavailable_reason).toBe(reason);
+    await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({ status: 409, detail: reason });
   });
 
   it("queues nothing on a plain move: a later skipping move doesn't make what it passed", async () => {

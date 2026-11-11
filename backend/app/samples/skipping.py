@@ -92,8 +92,8 @@ def queue_steps(
 ) -> None:
     """A skipping move's scripted steps in (after, until], pending for the walk.
 
-    Held for the user instead (ruling 77): on a Next highlight move to the highlight
-    labelled `highlight`, a step marked with that label; and a sign-off, always, unless
+    Held for the user instead (rulings 77 and 86): on a Next highlight move (`highlight`
+    is the label it goes to), any highlight's own marked step; and a sign-off, always, unless
     `sign_off` (set only where no user is present: the do-everything play and making a
     prerun). A step an earlier move held is taken up again, at the walk's clock, by a
     skipping move that isn't Next highlight (never the sign-off but with `sign_off`):
@@ -102,7 +102,9 @@ def queue_steps(
     def held(a: UserAction) -> bool:
         if a.action == "sign_off":
             return not sign_off
-        return highlight is not None and a.highlight == highlight
+        # On a Next highlight move, every highlight's own step is held: it's the user's
+        # (ruling 86).
+        return highlight is not None and a.highlight is not None
 
     # Only a skip that isn't Next highlight takes held steps up (ruling 77, amended): a
     # highlight's own step is never made on the move that reaches it, nor on a later Next

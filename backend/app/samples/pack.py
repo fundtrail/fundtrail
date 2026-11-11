@@ -515,12 +515,24 @@ def _check_script(pack: SamplePack, where: str) -> None:
     lines = _line_arrivals(pack)
     brought = {a.file: a.at for a in pack.actions if a.action == "deliver_file"}
     labels = {e.highlight for e in pack.events if e.highlight is not None}
+    # Ruling 77: Next highlight stops where a highlight's own steps are due, so one due
+    # after the next highlight's event would play past that highlight. A sign-off never
+    # moves the stop, so it's free.
+    labelled = sorted((e.at, e.highlight) for e in pack.events if e.highlight is not None)
     let_in = {a.file: a.at for a in pack.actions if a.action == "let_in_mail"}
     attachments: dict[str, ScheduledEvent] | None = None
     for a in pack.actions:
         what = f"{where}: {a.action} at {a.at.isoformat()}"
         if a.highlight is not None and a.highlight not in labels:
             raise PackError(f"{what}: no timeline event is the highlight {a.highlight!r}.")
+        if a.highlight is not None and a.action != "sign_off":
+            own = max(at for at, label in labelled if label == a.highlight)
+            later = [(at, label) for at, label in labelled if at > own and label != a.highlight]
+            if later and a.at > later[0][0]:
+                raise PackError(
+                    f"{what}: it's due after the next highlight, {later[0][1]!r}, so Next "
+                    "highlight would play past it."
+                )
         if a.line_id is not None:
             if a.line_id not in lines:
                 raise PackError(f"{what}: {LEDGER_FILE} has no line {a.line_id}.")
