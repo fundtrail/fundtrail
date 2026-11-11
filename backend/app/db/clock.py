@@ -152,13 +152,15 @@ def review_due(conn: Conn, grant: Grant, at: datetime) -> datetime | None:
     return window
 
 
-def queue_review_if_due(conn: Conn, grant: Grant, now: datetime) -> AgentRun | None:
+def queue_review_if_due(
+    conn: Conn, grant: Grant, now: datetime, *, catch_up: bool = False
+) -> AgentRun | None:
     """Queue the closeout review now if the window is open and it hasn't run for this end
     date: after the accountant confirms dates already inside the window, after the end date
     in force moves, or when a daily check was missed."""
     if review_due(conn, grant, now) is None:
         return None
-    return jobs.queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), now)
+    return jobs.queue_run(conn, grant, Trigger(kind=TriggerKind.CLOCK), now, catch_up=catch_up)
 
 
 @dataclass(frozen=True)
@@ -197,13 +199,35 @@ def replay(
     first = min(
         (t for t in (items[0].at if items else None, pending) if t is not None), default=None
     )
-    clock = Trigger(kind=TriggerKind.CLOCK)
     points = [m for m in _midnights(after, until) if first is None or m < first]
     if first is None and until not in points:
         points.append(until)
+    clock = Trigger(kind=TriggerKind.CLOCK)
     for at in points:
         recheck_grant(conn, p.checks, grant, at, clock)
     return [jobs.queue_run(conn, grant, i.trigger, i.at, catch_up=True) for i in items]
+
+
+def continue_walk(p: Platform, grant_id: str) -> None:
+    """After a run's save or failure has committed: a sample grant's walk (a skipping move,
+    ruling 47) goes on as far as it can without waiting for the agent again, in a
+    transaction of its own. Any other grant has none. Never raises."""
+    from app.samples.skipping import go_on
+
+    go_on(p, grant_id)
+
+
+def check_walks(p: Platform) -> None:
+    """Every minute: sample grants' walks that nothing is taking on (app.samples.skipping)."""
+    from app.samples.skipping import check_walks as check
+
+    check(p)
+
+
+def set_stored_clock(conn: Conn, grant_id: str, at: datetime) -> None:
+    """Set a grant's stored clock, here and nowhere else in the app: a scripted step on a
+    sample grant is written at its own time and the clock set back after."""
+    store.set_grant_clock(conn, grant_id, at)
 
 
 def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) -> ChecksOutput:
@@ -232,10 +256,10 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     )
     following = store.next_catch_up_time(conn, grant.id, run.id)
     end = following or grant_now(conn, grant.id)
-    clock = Trigger(kind=TriggerKind.CLOCK)
     points = [m for m in _midnights(at, end) if following is None or m < following]
     if following is None and end > at and end not in points:
         points.append(end)
+    clock = Trigger(kind=TriggerKind.CLOCK)
     for point in points:
         recheck_grant(conn, p.checks, grant, point, clock)
     return output
