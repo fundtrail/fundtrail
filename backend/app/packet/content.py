@@ -387,6 +387,23 @@ class _Report:
                     f"of {fmt.money(b.limit_cents)}.{over}"
                 )
             )
+        # Ruling 84: a grant-level problem the accountant accepted with a note, such as
+        # spending over the award's limit: the problem in the checks' words, the note,
+        # and who accepted it and when.
+        for gs in self.inp.checks.grants:
+            if gs.grant_id != self.inp.grant.id:
+                continue
+            for p in gs.problems:
+                accepted = self.by_id.get(p.accepted_by or "")
+                if accepted is None or not isinstance(accepted.data, AcceptedReason):
+                    continue
+                blocks.append(
+                    Para(
+                        f"{p.text} Accepted by {self.who(accepted)} on "
+                        f"{fmt.day(accepted.written_at)}, with the note: "
+                        f"“{accepted.data.note.strip()}”"
+                    )
+                )
         # An overspent line is a grant note from the checks, naming the lines it's about.
         budget_notes = [
             n

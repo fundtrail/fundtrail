@@ -875,3 +875,41 @@ def test_a_place_in_a_replaced_header_counts_the_reading_date_line():
     assert fmt.place(cite, files, texts_by_id, reading=view) == (
         f"sequencing_statement.eml, line {date_line}"
     )
+
+
+def test_an_accepted_grant_problem_shows_under_spending_with_its_note():
+    """Ruling 84: spending over the award's limit, accepted with a note, shows under Spending
+    in the checks' words, with the note and who accepted it and when."""
+    base = sample_inputs()
+    accepted = user_record(
+        "rec-accept-over-limit",
+        APRIL_10,
+        {
+            "kind": "accepted_reason",
+            "reason": {"check": "budget", "problem": "over_limit"},
+            "note": "The second increment is expected in June.",
+            "amount_cents": 4000,
+        },
+    )
+    over = GrantStatus(
+        grant_id="grant-sample",
+        problems=(
+            Problem(
+                check="budget",
+                problem="over_limit",
+                text="Spending of $124,000.00 is over the award's limit of $120,000.00.",
+                accepted_by=accepted.id,
+                amount_cents=4000,
+            ),
+        ),
+        flagged=False,
+        accepted=True,
+    )
+    checks = base.checks.model_copy(update={"grants": (over,)})
+    inputs = sample_inputs(checks=checks, records=(*base.records, accepted))
+    text = texts(section(inputs, 1))
+    assert (
+        "Spending of $124,000.00 is over the award's limit of $120,000.00. Accepted by "
+        f"{USER.name or USER.email} on Apr 10, 2026, with the note: "
+        "“The second increment is expected in June.”"
+    ) in text
