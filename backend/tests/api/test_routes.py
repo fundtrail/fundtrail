@@ -186,7 +186,8 @@ def test_a_term_added_without_a_date_is_dated_by_the_clock(api: Api) -> None:
     assert record["data"]["dated"]["value"] == "2026-04-10"
     assert record["author"] == "user" and record["author_user_id"] == api.user_id
     assert record["written_at"] == "2026-04-10T17:00:00Z"
-    assert api.client.get(f"/grants/{grant['id']}/records", headers=api.headers).json() == [record]
+    rows = api.client.get(f"/grants/{grant['id']}/records", headers=api.headers).json()
+    assert rows == [{"record": record, "state": "counts"}]
     checks = api.platform.checks
     assert isinstance(checks, FakeChecks)
     assert checks.calls[-1].records[-1].id == record["id"]
