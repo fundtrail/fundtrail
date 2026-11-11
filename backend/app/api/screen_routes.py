@@ -204,7 +204,7 @@ def get_signed_report(record_id: str, user: UserDep, platform: PlatformDep) -> R
     if hashlib.sha256(pdf).hexdigest() != record.data.report_sha256:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            ["The stored report doesn't match the checksum on its sign-off, so it isn't served."],
+            "The stored report doesn't match the checksum on its sign-off, so it isn't served.",
         )
     return _pdf(pdf, grant, f"-signed-{record.id[:8]}")
 

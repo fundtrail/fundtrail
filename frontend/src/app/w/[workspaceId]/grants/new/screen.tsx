@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { AppShell, Loadable } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { AddGrantForm } from "@/components/setup/AddGrantForm";
 import { SampleCard } from "@/components/setup/SampleCard";
 import { useApi, useRefresh, useSamples, useWorkspaces } from "@/lib/api";

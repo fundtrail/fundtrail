@@ -1,6 +1,6 @@
 # data
 
-The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' content is a placeholder until it's decided.
+The two sample grants, and two more seed grants kept unused for now (issue 165). All of it is synthetic: award numbers start with `SYN-`, email addresses use the `.example` domain, and the people, vendors and documents are made up. No document here was issued by any agency or institution. The samples' people, amounts and dates are placeholders until the product owner settles them.
 
 | Path | What it is |
 |---|---|
@@ -9,11 +9,12 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `samples/<sample>/timeline.json` | Its scheduled events only: files, the ledger file or each ledger line, each with its time. No user decision is in it. |
 | `samples/<sample>/user_actions.json` | What the user does in the play the answer key assumes: confirming terms, and bringing in the files marked for them |
 | `samples/<sample>/answer_key.json` | Each charge's expected result, in the eval's format (contracts.md section 14) |
-| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves, with placeholder names |
+| `samples/<sample>/sample.json` | Where its clock starts, its counts, and the Add-a-grant options it serves |
 | `samples/<sample>/agent_records.json` | The agent's expected records, shaped as the contract's records, for the checks-only play |
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
+| `test_write_check.py` | Runs every agent record through the save's write check |
 
 ## The two samples
 
@@ -24,7 +25,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 
 There's no opening date. Every sample, in all three choices, starts at the start of its timeline and plays the same events. `starts_at` is where a sample grant's clock begins.
 
-The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`, marked `"placeholder": true` until the docs give the words.
+The larger sample serves the Add-a-grant options `larger_live` and `larger_prerun`, and the small one serves `small_live` (SampleChoice, issue 165). `sample.json` gives each option a `name` and a `description`. The names follow decision 0027's three choices. The docs give no description text, so the descriptions are plain words drawn from 0027 and product.md. `"placeholder"` is false on all three.
 
 ### The highlights (the sample content brief, ruling 58)
 
@@ -122,6 +123,8 @@ The static test checks five things:
 - nothing is written before what it rests on
 - no record comes before a record it points to
 
+The checks-only play stores these records straight into the database, so it never runs the write check a real save runs. `test_write_check.py` does: it runs every record, in file order, through the contract's `check_new_record` with the checks' own `default_items`, over the charges and files that have arrived by the record's time. It needs the backend's dependencies, so run it from `backend/` (below). CI runs it through `backend/tests/samples/test_agent_records_write_check.py`.
+
 ## The seed grants
 
 Grants B and C, from the earlier placeholder seed, stay in `data/demo/` in the same format, unused. The placeholder Grant A they were built with is no longer written: the larger sample replaced it. The table and the situations below describe that placeholder seed.
@@ -185,8 +188,9 @@ The grants, people, amounts and dates are this build's picks, and the samples us
 ```
 uv run --no-project --with pillow python data/generator/build.py
 python3 data/test_seed.py
+cd backend && uv run python ../data/test_write_check.py
 ```
 
 The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
 
-The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so neither test runs there yet. Running them in CI is a separate follow-up issue.
+The test checks each ledger against section 13, each key against section 14, that every value a key expects is written in its file (PDFs read back from their text, photos from the words drawn on them, and checked against their hashes), the rules behind the buckets, and the synthetic-data rule. For the samples, it also checks that no user decision is in a timeline, that each user action is possible at its time (a file confirmed after it arrives, only a marked file delivered, on or after its date, any step about a line after the line arrives, a flag answered only where the key expects one, and a share entered only for a part of a bill the key links), and that `sample.json` agrees with the timeline and the key. A bucket that rests on an accountant decision needs its scripted step before it: Evidence complete after a flag needs the scripted answer, and on part of a bill with no basis on file it needs the scripted share, which must work out to the link to within one cent. It also checks that every SampleChoice is served by exactly one sample, with the values compared to the contract code's enum once that exists. It uses only the standard library and borrows the eval cases' checks from `eval/test_cases.py`. CI (continuous integration) runs only the backend's and frontend's checks for now, so `test_seed.py` and the eval cases' test don't run there yet. Running them in CI is a separate follow-up issue. The write check over the agent records does run there, through the backend's tests.
