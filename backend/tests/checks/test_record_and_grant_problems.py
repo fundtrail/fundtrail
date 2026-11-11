@@ -6,7 +6,7 @@ from app.contracts.checks import Bucket, ChecksOutput
 from app.contracts.mail import SkippedFile, SkipReason
 from app.contracts.runs import AgentRun, RunStatus, Trigger, TriggerKind
 
-from .grant_builder import STIPENDS, Grant, at, problems
+from .grant_builder import STIPENDS, Grant, at, families
 
 
 def record_problems(out: ChecksOutput) -> dict[str, set[str]]:
@@ -38,7 +38,7 @@ def test_a_bill_linked_for_more_than_its_total_is_a_problem_and_needs_a_human_on
     assert record_problems(out) == {b: {"over_linked"}}
     assert out.records[0].flagged
     for status in out.charges:
-        assert problems(status) == {("checklist", "bill_over_linked")}
+        assert families(status) == {("checklist", "bill_over_linked")}
         assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -86,7 +86,7 @@ def test_links_of_the_opposite_sign_to_a_bill_are_over_not_unused() -> None:
     out = g.run(at(2024, 5, 1))  # well past 60 days
     assert record_problems(out) == {memo: {"over_linked"}}
     assert "isn't linked" not in out.records[0].problems[0].text
-    assert ("checklist", "bill_over_linked") in problems(out.charges[0])
+    assert ("checklist", "bill_over_linked") in families(out.charges[0])
     assert out.charges[0].bucket == Bucket.NEEDS_HUMAN
 
 
@@ -282,7 +282,7 @@ def test_a_run_that_failed_for_good_raises_a_problem_on_its_file_or_charge() -> 
     g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
     g.failed_runs = [_failed(Trigger(kind=TriggerKind.CHARGE, id="c1"))]
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("agent_run", "failed:run-1")}
+    assert families(status) == {("agent_run", "failed:run-1")}
     assert failing_text(status) == ["The agent couldn't finish reading this."]
 
 
@@ -731,7 +731,7 @@ def test_a_failed_thread_message_run_goes_on_its_threads_charge_or_record() -> N
     out = g.run(at(2024, 3, 2))
     assert out.grants == ()
     status = out.charges[0]
-    assert problems(status) == {("agent_run", "failed:run-1")}
+    assert families(status) == {("agent_run", "failed:run-1")}
     assert status.bucket == Bucket.NEEDS_HUMAN and status.flagged
     assert record_problems(out) == {t["period"]: {"failed:run-2"}}
 
@@ -742,7 +742,7 @@ def test_a_failed_open_question_run_goes_on_the_charge_whose_question_is_open() 
     g.supplies_charge("c1", date(2024, 3, 1), 10000, at(2024, 3, 1), line=t["ms"])
     g.failed_runs = [_failed(Trigger(kind=TriggerKind.OPEN_QUESTION, id="c1"))]
     out = g.run(at(2024, 3, 2))
-    assert problems(out.charges[0]) == {("agent_run", "failed:run-1")}
+    assert families(out.charges[0]) == {("agent_run", "failed:run-1")}
     assert out.records == () and out.grants == ()
 
 

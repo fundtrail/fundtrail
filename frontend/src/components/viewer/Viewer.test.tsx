@@ -281,6 +281,26 @@ describe("Viewer: photos and scans", () => {
     highlight: null,
   });
 
+  it("opens a value that can't be placed at the top when switched to in place, not at the last value's spot", () => {
+    const scrollTo = vi.fn();
+    const original = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as typeof HTMLElement.prototype.scrollTo;
+    try {
+      const photo = { name: "receipt.jpg", media_type: "image/jpeg" };
+      const view = render(<Viewer file={photo} url="data:image/png;base64,iVBORw0KGgo=" citation={box("exact")} valueText="$86.40" openAt="r:total" />);
+      const area = screen.getByTestId("viewer-scroll");
+      scrollTo.mockClear();
+      // In place, to a value whose box the second look didn't confirm: nothing to scroll to.
+      view.rerender(<Viewer file={photo} url="data:image/png;base64,iVBORw0KGgo=" citation={box("not_found")} valueText="Example Bay Boat Rentals" openAt="r:vendor" />);
+      expect(screen.getByTestId("viewer-scroll")).toBe(area);
+      expect(screen.queryAllByTestId("highlight-box")).toHaveLength(0);
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0 });
+      expect(scrollTo.mock.contexts.at(-1)).toBe(area);
+    } finally {
+      HTMLElement.prototype.scrollTo = original;
+    }
+  });
+
   it("outlines a box on a photo, zoomed in, with the value beside it", () => {
     render(<Viewer file={{ name: "receipt.jpg", media_type: "image/jpeg" }} url="data:image/png;base64,iVBORw0KGgo=" citation={box("exact")} valueText="$86.40" />);
     const b = screen.getByTestId("highlight-box");

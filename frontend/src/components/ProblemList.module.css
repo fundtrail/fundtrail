@@ -62,9 +62,12 @@
 .row[data-selectable]:hover {
   background: color-mix(in srgb, var(--paper-sunken) 55%, transparent);
 }
-/* The row shown beside the list: the sunken fill and a heavier name. */
+/* The row shown beside the list: the sunken fill, a heavier name, and an
+   inset bar in ink, which holds in dark mode where the fill alone is faint.
+   The Evidence page's file list marks its picked row the same way. */
 .row[data-selected] {
   background: var(--paper-sunken);
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 .row[data-selected]:hover {
   background: var(--paper-sunken);

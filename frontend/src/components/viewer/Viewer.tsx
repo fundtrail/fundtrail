@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BoxOverlay } from "./BoxOverlay";
 import type { EvidenceFile, ReadingView } from "@/lib/api/types";
@@ -71,6 +72,126 @@ export interface ViewerProps {
    * carries each highlight into it; the original stays downloadable from `url`.
    */
   reading?: ReadingView | null;
+  /**
+   * Every fact read from the file, in its card's order, listed in the side
+   * panel as "In this file". Built from the file's card; absent, no list.
+   */
+  facts?: FileFactGroup[];
+  /** The level of the file's name: 1 when the viewer is the page, 2 (the default) inside one. */
+  headingLevel?: 1 | 2;
+  /**
+   * Names the value the viewer is open at (the page's record and value). When
+   * it changes, the viewer opens at the new spot in place, without remounting,
+   * so the side panel keeps its place and focus. Absent, the citation names it.
+   */
+  openAt?: string | null;
+}
+
+/** One value in "In this file": its words, where it is, and the link to its spot. */
+export interface FileFact {
+  key: string;
+  label: string;
+  /** The value as the card shows it. */
+  value: string;
+  /** Its page ("p. 2"), when the citation names one. */
+  location: string | null;
+  /** The card's words for its state when it isn't confirmed; null when it is. */
+  note: string | null;
+  /** The viewer at this value's spot. */
+  href: string;
+  /** The value the viewer is open at. */
+  current: boolean;
+}
+
+/** One fact of the file in "In this file": its title and its values. */
+export interface FileFactGroup {
+  key: string;
+  title: string;
+  values: FileFact[];
+}
+
+/**
+ * Scrolls the document area, and only it, so the target is in view: a whole
+ * page at its top, a highlight in the middle. scrollIntoView would also scroll
+ * the window, moving the page's heading and the viewer's head away.
+ */
+function scrollAreaTo(area: HTMLElement, target: HTMLElement, whole: boolean) {
+  if (typeof area.scrollTo !== "function") return;
+  const a = area.getBoundingClientRect();
+  const t = target.getBoundingClientRect();
+  const top = area.scrollTop + (t.top - a.top) - (whole ? 0 : (area.clientHeight - t.height) / 2);
+  const left = area.scrollLeft + (t.left - a.left) - (whole ? 0 : (area.clientWidth - t.width) / 2);
+  area.scrollTo({ top: Math.max(0, top), left: Math.max(0, left) });
+}
+
+/**
+ * Brings the document area into the window when it isn't wholly in view, as
+ * on a narrow screen where the viewer stacks below the page's head: the
+ * window scrolls just far enough to put the viewer's bar at the top (its
+ * scroll-margin keeps it clear of anything pinned there). On a wide screen
+ * the area is already in view and the window doesn't move.
+ */
+function showDocumentArea(bar: HTMLElement, area: HTMLElement) {
+  const margin = parseFloat(getComputedStyle(bar).scrollMarginTop) || 0;
+  const r = area.getBoundingClientRect();
+  if (r.top >= margin && r.bottom <= window.innerHeight) return;
+  bar.scrollIntoView?.({ block: "start" });
+}
+
+/**
+ * "In this file": every value read from the file, each a link to its spot,
+ * the open one marked. The viewer isn't remounted when the value changes, so
+ * this list stays put and keyboard focus stays on the link just followed,
+ * which is now the current one; the panel scrolls only as far as it needs to
+ * keep the current item in view.
+ */
+function InThisFile({ groups }: { groups: FileFactGroup[] }) {
+  const titled = groups.length > 1;
+  const navRef = useRef<HTMLElement>(null);
+  const currentKey = groups.flatMap((g) => g.values).find((v) => v.current)?.key ?? null;
+  useEffect(() => {
+    const panel = navRef.current?.closest("aside");
+    const item = navRef.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!panel || !item || panel.scrollHeight <= panel.clientHeight) return;
+    const p = panel.getBoundingClientRect();
+    const i = item.getBoundingClientRect();
+    if (i.top < p.top) panel.scrollTop += i.top - p.top - 8;
+    else if (i.bottom > p.bottom) panel.scrollTop += i.bottom - p.bottom + 8;
+  }, [currentKey]);
+  return (
+    <nav className={styles.inFile} aria-label="In this file" ref={navRef}>
+      <h2 className={styles.sideLabel}>In this file</h2>
+      {groups.map((g) => (
+        <div key={g.key} className={styles.inFileGroup}>
+          {titled && <p className={styles.inFileTitle}>{g.title}</p>}
+          <ul className={styles.inFileList}>
+            {g.values.map((v) => {
+              const body = (
+                <>
+                  <span className={styles.inFileLabel}>{v.label}</span>
+                  <span className={styles.inFileValue}>{v.value}</span>
+                  {(v.location || v.note) && (
+                    <span className={styles.inFileMeta}>
+                      {v.location}
+                      {v.location && v.note && " · "}
+                      {v.note && <span className={styles.unconfirmed}>{v.note}</span>}
+                    </span>
+                  )}
+                </>
+              );
+              return (
+                <li key={v.key}>
+                  <Link className={styles.inFileItem} href={v.href} scroll={false} aria-current={v.current ? "true" : undefined}>
+                    {body}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
 }
 
 /**
@@ -80,17 +201,38 @@ export interface ViewerProps {
  * quote beside it and nothing highlighted. It draws only what the server
  * stored, and guesses nothing.
  */
-export function Viewer({ file, url, citation, valueText = null, label = null, confirmation = null, reading = null }: ViewerProps) {
+export function Viewer({
+  file,
+  url,
+  citation,
+  valueText = null,
+  label = null,
+  confirmation = null,
+  reading = null,
+  facts,
+  headingLevel = 2,
+  openAt,
+}: ViewerProps) {
   const kind = fileKind(file.media_type, file.name);
   const placement = useMemo(() => (citation ? placeCitation(citation, valueText) : null), [citation, valueText]);
   const boxes = placement?.kind === "boxes" ? placement.boxes : [];
+  const spot = openAt !== undefined ? (openAt ?? "") : citation ? JSON.stringify([citation.file_id, citation.location, citation.passage]) : "";
   const [zoom, setZoom] = useState(() => zoomForBoxes(boxes));
+  const [openedAt, setOpenedAt] = useState(spot);
+  // Opening at another value in place: its own zoom, as if it had just opened.
+  if (openedAt !== spot) {
+    setOpenedAt(spot);
+    setZoom(zoomForBoxes(boxes));
+  }
   const scrollRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const shownFor = useRef<string | null>(null);
+  const resetFor = useRef<string | null>(null);
   const [readyTick, setReadyTick] = useState(0);
   const onReady = useCallback(() => setReadyTick((t) => t + 1), []);
 
   // A PDF opens no wider than its document area, so a small value doesn't open
-  // on a page cut off on both sides. Measured once, when the viewer opens.
+  // on a page cut off on both sides. Measured each time it opens at a value.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (kind !== "pdf" || !el) return;
@@ -98,17 +240,35 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
     const area = el.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
     const opening = openingZoom(boxes, area, PAGE_WIDTH);
     setZoom((z) => (z === zoomForBoxes(boxes) ? opening : z));
-    // Only at opening: the viewer is keyed by the value it opens at.
+    // Only when it opens at a value, not after the accountant zooms.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [spot]);
 
-  // Scroll to the spot once something has drawn, and again after a zoom.
+  // Scroll to the spot once something has drawn, again after a zoom, and when
+  // the viewer opens at another value. The first time for each value, the
+  // document area is brought into the window if it isn't in view (a narrow
+  // screen); after that only the area scrolls.
   useEffect(() => {
-    const target = scrollRef.current?.querySelector<HTMLElement>('[data-scroll-target="true"]');
+    const area = scrollRef.current;
+    if (!area) return;
+    const target = area.querySelector<HTMLElement>('[data-scroll-target="true"]');
+    if (!target) {
+      // Nothing to scroll to (a value that couldn't be placed, or a page not
+      // drawn yet): a value opened in place starts at the top, where opening
+      // it directly lands, not at the last value's spot. Once per value, so a
+      // later zoom doesn't move the accountant's own scrolling.
+      if (resetFor.current !== spot) {
+        resetFor.current = spot;
+        area.scrollTo?.({ top: 0, left: 0 });
+      }
+      return;
+    }
+    if (citation && barRef.current && shownFor.current !== spot) showDocumentArea(barRef.current, area);
+    shownFor.current = spot;
     // A whole page opens at its top; a highlight opens in the middle of the view.
-    const whole = target?.hasAttribute("data-page");
-    target?.scrollIntoView?.(whole ? { block: "start", inline: "start" } : { block: "center", inline: "center" });
-  }, [readyTick, zoom]);
+    scrollAreaTo(area, target, target.hasAttribute("data-page"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyTick, zoom, spot]);
 
   let body: ReactNode;
   if (kind === "text" && reading) {
@@ -144,11 +304,14 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
   const close = !!citation && citation.match === "close" && placement?.kind !== "unplaced";
   const location = citation ? pageCaption(citation) : null;
   const source = file.source ? ((SOURCE_LABELS as Record<string, string>)[file.source] ?? file.source) : null;
+  const FileHeading = headingLevel === 1 ? "h1" : "h2";
+  const listed = (facts ?? []).some((g) => g.values.length > 0);
+  const side = !!citation || listed;
 
   return (
     <section className={styles.viewer} aria-label={`Viewer: ${file.name}`}>
       <header className={styles.head}>
-        <h2 className={styles.fileName}>{file.name}</h2>
+        <FileHeading className={styles.fileName}>{file.name}</FileHeading>
         {(source || file.arrived_at || file.sender) && (
           <p className={styles.meta}>
             {source && <span>{source}</span>}
@@ -158,7 +321,7 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
         )}
       </header>
 
-      <div className={styles.bar} data-testid="viewer-bar">
+      <div className={styles.bar} data-testid="viewer-bar" ref={barRef}>
         <div className={styles.cite}>
           {!citation && <span>Whole file, nothing highlighted</span>}
           {citation && (
@@ -192,48 +355,53 @@ export function Viewer({ file, url, citation, valueText = null, label = null, co
         </div>
       </div>
 
-      <div className={citation ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
+      <div className={side ? styles.body : `${styles.body} ${styles.bodyWhole}`}>
         <div className={styles.scroll} ref={scrollRef} data-testid="viewer-scroll">
           {body}
         </div>
 
-        {citation && (
-          <aside className={styles.side} aria-label="The quote">
-            <div className={styles.active}>
-              <span className={styles.sideLabel}>{label ?? "Quote"}</span>
-              {valueText && (
-                <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
-                  {valueText}
-                </span>
-              )}
-              {location && <span className={styles.sideMeta}>{location}</span>}
-              {confirmation && (
-                <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
-                  {confirmation.text}
-                </span>
-              )}
-            </div>
-            {placement?.kind === "unplaced" && (
-              <p className={styles.notice} role="note">
-                Nothing is highlighted: this value couldn&apos;t be placed in the file
-                {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
-                {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
-              </p>
-            )}
-            {quote && (
-              <figure className={styles.quoteFigure}>
-                <blockquote className={styles.quote} data-testid="side-quote">
-                  {exact && placement?.kind === "text" ? (
-                    <SideQuoteText placement={placement} reading={reading} />
-                  ) : exact ? (
-                    <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
-                  ) : (
-                    collapseSpaces(quote)
+        {side && (
+          <aside className={styles.side} aria-label={citation ? "The quote" : "In this file"}>
+            {citation && (
+              <>
+                <div className={styles.active}>
+                  <span className={styles.sideLabel}>{label ?? "Quote"}</span>
+                  {valueText && (
+                    <span className={styles.value} data-testid={noPassage ? "side-value" : undefined}>
+                      {valueText}
+                    </span>
                   )}
-                </blockquote>
-                {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
-              </figure>
+                  {location && <span className={styles.sideMeta}>{location}</span>}
+                  {confirmation && (
+                    <span className={confirmation.confirmed ? styles.sideMeta : styles.unconfirmed} data-testid="value-state">
+                      {confirmation.text}
+                    </span>
+                  )}
+                </div>
+                {placement?.kind === "unplaced" && (
+                  <p className={styles.notice} role="note">
+                    Nothing is highlighted: this value couldn&apos;t be placed in the file
+                    {confirmation && !confirmation.confirmed ? ", so it's unconfirmed." : "."}
+                    {placement.page !== null && ` The viewer is open at page ${placement.page}.`}
+                  </p>
+                )}
+                {quote && (
+                  <figure className={styles.quoteFigure}>
+                    <blockquote className={styles.quote} data-testid="side-quote">
+                      {exact && placement?.kind === "text" ? (
+                        <SideQuoteText placement={placement} reading={reading} />
+                      ) : exact ? (
+                        <mark className={styles.quoteMark}>{collapseSpaces(quote)}</mark>
+                      ) : (
+                        collapseSpaces(quote)
+                      )}
+                    </blockquote>
+                    {close && <figcaption className={styles.sideMeta}>{CLOSE_MATCH}</figcaption>}
+                  </figure>
+                )}
+              </>
             )}
+            {listed && <InThisFile groups={facts ?? []} />}
           </aside>
         )}
       </div>

@@ -17,7 +17,7 @@ from .grant_builder import (
     at,
     cited,
     failing,
-    problems,
+    families,
 )
 
 # The cost's date (check 1).
@@ -39,7 +39,7 @@ def test_a_cost_after_the_end_date_is_possible_conflict() -> None:
     g.supplies_charge("c1", date(2026, 2, 20), 10000, at(2026, 2, 20), line=t["ms"])
     status = g.status("c1", at(2026, 2, 21))
     assert status.bucket == Bucket.POSSIBLE_CONFLICT
-    assert problems(status) == {("period_of_performance", "after_end_date")}
+    assert families(status) == {("period_of_performance", "after_end_date")}
     assert status.flagged
 
 
@@ -53,7 +53,7 @@ def test_a_cost_up_to_90_days_before_the_start_asks_for_the_universitys_pre_awar
     date_reason = next(r for r in status.reasons if r.check == "period_of_performance")
     assert date_reason.bucket == Bucket.EVIDENCE_COMPLETE
     assert status.bucket == Bucket.MISSING_EVIDENCE
-    assert problems(status) == {("approval", "missing:pre_award_approval")}
+    assert families(status) == {("approval", "missing:pre_award_approval")}
     assert status.flagged  # a missing approval goes on the list right away
     assert "pre_award_approval" in [e.default_item for e in status.checklist]
 
@@ -64,7 +64,7 @@ def test_a_cost_more_than_90_days_before_the_start_is_possible_conflict() -> Non
     g.supplies_charge("c1", date(2022, 10, 1), 10000, at(2023, 1, 13), line=t["ms"])
     status = g.status("c1", at(2023, 1, 14))
     assert status.bucket == Bucket.POSSIBLE_CONFLICT
-    assert ("period_of_performance", "before_start") in problems(status)
+    assert ("period_of_performance", "before_start") in families(status)
     # Code asks whether an approval covers it only once one is linked.
     assert "pre_award_approval" not in [e.default_item for e in status.checklist]
 
@@ -78,7 +78,7 @@ def test_nsf_approval_on_file_clears_a_cost_more_than_90_days_before_the_start()
     g.link(a, "c1", at(2023, 1, 13))
     out = g.run(at(2023, 1, 13, 13))
     status = next(c for c in out.charges if c.charge_id == "c1")
-    assert ("covers", "not_answered") in problems(status)
+    assert ("covers", "not_answered") in families(status)
     assert [(q.question, q.record_id) for q in out.questions if q.charge_id == "c1"] == [
         ("allowable", None),
         ("covers", a),
@@ -87,7 +87,7 @@ def test_nsf_approval_on_file_clears_a_cost_more_than_90_days_before_the_start()
     g.answer("c1", "supports", at(2023, 1, 13, 14), question="covers", record_id=a, rests_on=[a])
     g.answer("c1", "supports", at(2023, 1, 13, 14))  # a fresh Allowable answer after the new link
     status = g.status("c1", at(2023, 1, 13, 15))
-    assert ("period_of_performance", "before_start") not in problems(status)
+    assert ("period_of_performance", "before_start") not in families(status)
     assert status.bucket == Bucket.EVIDENCE_COMPLETE
 
 
@@ -99,7 +99,7 @@ def test_with_no_confirmed_dates_each_charge_is_needs_a_human_and_other_checks_s
     assert status.bucket == Bucket.NEEDS_HUMAN
     date_reason = next(r for r in status.reasons if r.check == "period_of_performance")
     assert date_reason.text == "The grant's dates aren't confirmed yet."
-    assert ("budget_line", "line_not_confirmed") in problems(status)
+    assert ("budget_line", "line_not_confirmed") in families(status)
     checklist = next(r for r in status.reasons if r.check == "checklist")
     assert checklist.bucket == Bucket.EVIDENCE_COMPLETE  # the checklist and amounts still run
 
@@ -126,7 +126,7 @@ def test_confirmed_periods_that_disagree_put_the_date_check_in_needs_a_human() -
     g.supplies_charge("c1", date(2024, 5, 1), 10000, at(2024, 5, 1), line=t["ms"])
     out = g.run(at(2024, 5, 2))
     status = out.charges[0]
-    assert ("period_of_performance", "terms_disagree") in problems(status)
+    assert ("period_of_performance", "terms_disagree") in families(status)
     assert {r.record_id for r in out.records if r.problems[0].problem == "disagree"} == {
         t["period"],
         other,
@@ -173,7 +173,7 @@ def test_bills_under_the_item_are_missing_evidence_and_over_is_needs_a_human() -
     )
     over = g.status("over", at(2024, 3, 2))
     assert over.bucket == Bucket.NEEDS_HUMAN
-    assert problems(over) == {("checklist", "over:bill")}
+    assert families(over) == {("checklist", "over:bill")}
 
 
 def _trip(g: Grant, t: dict[str, str], per_diem_amount: int = 50000, airfare: int = 180000) -> None:
@@ -220,7 +220,7 @@ def test_a_rate_whose_math_doesnt_check_is_needs_a_human() -> None:
     t = g.standard_terms()
     _trip(g, t, per_diem_amount=48000)
     status = g.status("trip", at(2024, 4, 3))
-    assert ("checklist", "rate_math:item:per_diem_5_days_at_100_a_day") in problems(status)
+    assert ("checklist", "rate_math:item:per_diem_5_days_at_100_a_day") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -229,7 +229,7 @@ def test_items_that_add_up_to_more_than_the_charge_are_needs_a_human() -> None:
     t = g.standard_terms()
     _trip(g, t, airfare=200000)
     status = g.status("trip", at(2024, 4, 3))
-    assert ("checklist", "items_over_charge") in problems(status)
+    assert ("checklist", "items_over_charge") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -261,7 +261,7 @@ def test_an_empty_checklist_is_needs_a_human() -> None:
     g.charge("c1", date(2024, 3, 1), 10000, account=NO_GROUP)
     status = g.status("c1", at(2024, 3, 2))
     assert status.checklist == ()
-    assert problems(status) == {("checklist", "empty"), ("budget_line", "not_assigned")}
+    assert families(status) == {("checklist", "empty"), ("budget_line", "not_assigned")}
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -275,7 +275,7 @@ def test_a_charge_with_no_budget_line_assigned_is_needs_a_human() -> None:
     g.link(b, "c2", at(2024, 3, 1), amount=10000, default="bill")
     g.answer("c2", "supports", at(2024, 3, 1), rests_on=[b])
     status = g.status("c2", at(2024, 3, 2))
-    assert problems(status) == {("budget_line", "not_assigned")}
+    assert families(status) == {("budget_line", "not_assigned")}
     assert status.bucket == Bucket.NEEDS_HUMAN and status.flagged
 
 
@@ -290,7 +290,7 @@ def test_the_agents_removal_waits_and_the_accountants_takes_effect() -> None:
     status = g.status("c1", at(2024, 3, 3))
     (entry,) = status.checklist
     assert entry.removal_waiting_id == removal
-    assert ("suggestion", f"waiting:{removal}") in problems(status)
+    assert ("suggestion", f"waiting:{removal}") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
 
     g.user({"kind": "checklist_removal", "charge_id": "c1", "default_item": "bill"}, at(2024, 3, 4))
@@ -307,7 +307,7 @@ def test_a_line_that_takes_money_off_gets_only_the_two_correction_items() -> Non
         status = g.status("rev", at(2024, 3, 2))
         assert [e.default_item for e in status.checklist] == ["corrected_line", "justification"]
         # No amounts to add up: the two items are filled or they aren't.
-        assert problems(status) == {
+        assert families(status) == {
             ("checklist", "missing:corrected_line"),
             ("checklist", "missing:justification"),
         }
@@ -362,7 +362,7 @@ def test_a_required_approval_that_is_missing_is_missing_evidence_flagged_right_a
     _stipend(g, t)
     status = g.status("stip", at(2024, 6, 2, 13))
     assert status.bucket == Bucket.MISSING_EVIDENCE
-    assert problems(status) == {("approval", f"missing:approval:{t['rule']}")}
+    assert families(status) == {("approval", f"missing:approval:{t['rule']}")}
     assert status.flagged
     entry = next(e for e in status.checklist if e.default_item == f"approval:{t['rule']}")
     assert entry.needed == "The Program Officer's approval through Research.gov"
@@ -384,7 +384,7 @@ def test_an_email_approval_from_the_program_officer_stays_in_needs_a_human() -> 
     _stipend(g, t)
     _approve(g, t, channel=None, source="gmail")
     status = g.status("stip", at(2024, 6, 4))
-    assert problems(status) == {("approval", "email_approval")}
+    assert families(status) == {("approval", "email_approval")}
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -394,7 +394,7 @@ def test_an_approval_from_the_wrong_person_or_too_late_is_possible_conflict() ->
     _stipend(g, t)
     _approve(g, t, email=PI_EMAIL, on=date(2024, 7, 1))
     status = g.status("stip", at(2024, 6, 4))
-    assert problems(status) == {("approval", "wrong_approver"), ("approval", "approval_late")}
+    assert families(status) == {("approval", "wrong_approver"), ("approval", "approval_late")}
     assert status.bucket == Bucket.POSSIBLE_CONFLICT
 
 
@@ -403,7 +403,7 @@ def test_an_approver_nobody_named_on_the_grant_is_needs_a_human() -> None:
     t = g.standard_terms()
     _stipend(g, t)
     _approve(g, t, email="someone@elsewhere.example")
-    assert problems(g.status("stip", at(2024, 6, 4))) == {("approval", "approver_unknown")}
+    assert families(g.status("stip", at(2024, 6, 4))) == {("approval", "approver_unknown")}
 
 
 def test_the_rule_applies_when_the_ledger_account_says_so_even_if_the_line_doesnt() -> None:
@@ -412,8 +412,8 @@ def test_the_rule_applies_when_the_ledger_account_says_so_even_if_the_line_doesn
     t = g.standard_terms()
     _stipend(g, t, line="ms")
     status = g.status("stip", at(2024, 6, 2, 13))
-    assert ("budget_line", "disagrees") in problems(status)
-    assert ("approval", f"missing:approval:{t['rule']}") in problems(status)
+    assert ("budget_line", "disagrees") in families(status)
+    assert ("approval", f"missing:approval:{t['rule']}") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
 
 
@@ -445,13 +445,13 @@ def test_an_nsf_standing_list_approval_asks_covers_and_passes_from_an_nsf_offici
 def test_an_nsf_standing_list_approval_from_someone_not_an_nsf_official_is_a_conflict() -> None:
     g = Grant()
     _standing_list(g, email=PI_EMAIL)
-    assert ("approval", "wrong_approver") in problems(g.status("stip", at(2024, 6, 4)))
+    assert ("approval", "wrong_approver") in families(g.status("stip", at(2024, 6, 4)))
 
 
 def test_an_emailed_nsf_standing_list_approval_stays_with_a_human() -> None:
     g = Grant()
     _standing_list(g, channel=None, source="gmail")
-    assert ("approval", "email_approval") in problems(g.status("stip", at(2024, 6, 4)))
+    assert ("approval", "email_approval") in families(g.status("stip", at(2024, 6, 4)))
 
 
 def test_guest_speaker_ends_in_needs_a_human() -> None:
@@ -465,7 +465,7 @@ def test_guest_speaker_ends_in_needs_a_human() -> None:
     )
     g.answer("stip", "unsure", when, question="flag")
     status = g.status("stip", at(2024, 6, 4))
-    assert problems(status) >= {
+    assert families(status) >= {
         ("budget_line", "disagrees"),
         ("approval", "missing:item:nsf_approval"),
     }
@@ -480,7 +480,7 @@ def test_a_rule_code_cant_place_is_needs_a_human_on_every_charge() -> None:
     rule = g.approval_rule("Field safety gear", "Grants Officer", None, at(2023, 1, 12, 15))
     g.confirm(rule, when=at(2023, 1, 12, 17))
     g.supplies_charge("c1", date(2024, 5, 1), 10000, at(2024, 5, 1), line=t["ms"])
-    assert problems(g.status("c1", at(2024, 5, 2))) == {("approval", f"rule_unmatched:{rule}")}
+    assert families(g.status("c1", at(2024, 5, 2))) == {("approval", f"rule_unmatched:{rule}")}
 
 
 def test_a_waiting_approval_rule_that_would_apply_is_needs_a_human() -> None:
@@ -490,7 +490,7 @@ def test_a_waiting_approval_rule_that_would_apply_is_needs_a_human() -> None:
         "Participant Support Costs", "Program Officer", "Research.gov", at(2024, 6, 1)
     )
     _stipend(g, t)
-    assert ("approval", f"rule_not_confirmed:{rule}") in problems(
+    assert ("approval", f"rule_not_confirmed:{rule}") in families(
         g.status("stip", at(2024, 6, 2, 13))
     )
 
@@ -510,7 +510,7 @@ def test_a_bill_total_that_couldnt_be_found_is_needs_a_human_until_the_accountan
     g.assign("c1", t["ms"], at(2024, 3, 1))
     g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
     status = g.status("c1", at(2024, 3, 2))
-    assert problems(status) == {("values_confirmed", "unconfirmed")}
+    assert families(status) == {("values_confirmed", "unconfirmed")}
     assert failing(status)[0].text == "The bill: total couldn't be confirmed in its file."
     g.confirm(b, when=at(2024, 3, 3))
     assert g.status("c1", at(2024, 3, 4)).bucket == Bucket.EVIDENCE_COMPLETE
@@ -568,7 +568,7 @@ def test_a_benefit_charge_keeps_its_benefit_rate_item_unfilled() -> None:
     g.assign("ben", g.confirmed_line("Fringe Benefits", "fringe_benefits", when), when)
     status = g.status("ben", at(2024, 2, 1))
     assert [(e.default_item, e.filled) for e in status.checklist] == [("benefit_rate", False)]
-    assert problems(status) == {("checklist", "missing:benefit_rate")}
+    assert families(status) == {("checklist", "missing:benefit_rate")}
     assert status.bucket == Bucket.MISSING_EVIDENCE
 
 
@@ -597,7 +597,7 @@ def test_a_link_of_the_opposite_sign_puts_the_item_over() -> None:
     g.assign("c1", t["ms"], at(2024, 3, 1))
     g.answer("c1", "supports", at(2024, 3, 1), rests_on=[memo])
     status = g.status("c1", at(2024, 3, 2))
-    assert ("checklist", "over:bill") in problems(status)
+    assert ("checklist", "over:bill") in families(status)
     assert status.bucket == Bucket.NEEDS_HUMAN
     over = next(r for r in status.reasons if r.problem == "over:bill")
     assert over.text == (

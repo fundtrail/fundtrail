@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePings, useRecords } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
 import { Loadable } from "@/components/Loadable";
+import { fileFacts } from "@/components/evidence/fileFacts";
 import { findCitation } from "@/components/evidence/findCitation";
 import { GrantFrame } from "@/components/evidence/GrantFrame";
 import { useEvidence, useFileLink } from "@/components/evidence/hooks";
@@ -12,7 +13,9 @@ import { Viewer } from "@/components/viewer/Viewer";
 
 /**
  * One file in the viewer, opened at a value when the query names one:
- * `?record=<record id>&value=<path>` (first version, may change).
+ * `?record=<record id>&value=<path>` (first version, may change). The file's
+ * name is the page's heading, and the side panel lists every fact on the
+ * file's card ("In this file"), each a link to its own spot.
  */
 export function FileScreen() {
   const { grantId, fileId } = useParams<{ grantId: string; fileId: string }>();
@@ -43,7 +46,7 @@ export function FileScreen() {
             <Loadable result={link}>
               {(fileLink) => (
                 <Viewer
-                  key={`${recordId}:${path}`}
+                  openAt={recordId && path ? `${recordId}:${path}` : null}
                   file={found.file}
                   url={fileLink.url}
                   citation={spot?.citation.file_id === fileId ? spot.citation : null}
@@ -51,6 +54,8 @@ export function FileScreen() {
                   label={spot?.label ?? null}
                   confirmation={spot?.confirmation ?? null}
                   reading={fileLink.reading ?? null}
+                  facts={fileFacts(grantId, found, { recordId, value: path })}
+                  headingLevel={1}
                 />
               )}
             </Loadable>
