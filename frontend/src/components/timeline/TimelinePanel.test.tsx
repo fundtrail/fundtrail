@@ -95,6 +95,21 @@ describe("a refused move", () => {
   });
 });
 
+describe("the compact form", () => {
+  it("keeps to one row with where the clock stands, and opens the trail in place", async () => {
+    const { Wrapper } = harness();
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} compact />, { wrapper: Wrapper });
+    const toggle = await screen.findByRole("button", { name: "Show the timeline" });
+    expect(screen.getByText("Apr 9, 2026")).toBeInTheDocument();
+    expect(screen.getByText("extension_notice.txt")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Just happened" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Next event" })).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(part("Just happened")).getByText("The agent wrote: Period of performance.")).toBeInTheDocument();
+  });
+});
+
 describe("SampleTimeline", () => {
   it("shows the panel only on a sample grant", async () => {
     const { client, Wrapper } = harness();

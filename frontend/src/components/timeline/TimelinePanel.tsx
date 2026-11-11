@@ -381,8 +381,12 @@ function StartOverConfirm({ busy, onStartOver, onCancel }: { busy: boolean; onSt
   );
 }
 
-/** The panel itself, for a grant known to be a sample. */
-export function TimelinePanel({ grantId }: { grantId: Id }) {
+/**
+ * The panel itself, for a grant known to be a sample. `compact` keeps it to
+ * one row: where the clock stands and the controls, with the trail opening in
+ * place from Show the timeline.
+ */
+export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compact?: boolean }) {
   const grantName = useGrantDisplayName();
   const api = useApi();
   const refresh = useRefresh();
@@ -393,6 +397,9 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
   const [skip, setSkip] = useState(false);
   // Start over asks first, under the controls.
   const [asking, setAsking] = useState(false);
+  // The compact form keeps the trail closed until asked.
+  const [trailOpen, setTrailOpen] = useState(false);
+  const trailId = useId();
   const skipId = useId();
   const highlightHintId = useId();
 
@@ -422,12 +429,28 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
 
   const view = timeline.data;
   const nextHighlight = (view?.coming_up ?? []).find((e) => e.highlight);
+  const showTrail = !compact || trailOpen;
+  const toDeliver = (view?.now.deliveries ?? []).filter((d) => !d.delivered).length;
   return (
-    <section className="ft-panel ft-tl" aria-labelledby="tl-heading">
+    <section className="ft-panel ft-tl" aria-labelledby="tl-heading" data-compact={compact || undefined}>
       <div className="ft-tl__head">
         <h2 id="tl-heading" className="ft-tl__title">
           Sample timeline
         </h2>
+        {compact && view && (
+          <p className="ft-tl__where">
+            <span className="ft-tl__nowtag">Now</span> <span className="ft-num ft-strong">{date(view.now.now)}</span>
+            {view.now.stopped_on && (
+              <span className="ft-tl__where-stop">
+                {" "}
+                · stopped on <span className="ft-tl__name">{view.now.stopped_on.name}</span>
+              </span>
+            )}
+            <button type="button" className="ft-tl__toggle" aria-expanded={trailOpen} aria-controls={trailId} onClick={() => setTrailOpen(!trailOpen)}>
+              {trailOpen ? "Hide the timeline" : toDeliver > 0 ? `Show the timeline · ${toDeliver} for you to deliver` : "Show the timeline"}
+            </button>
+          </p>
+        )}
         {view && (
           <div className="ft-tl__controls">
             <button
@@ -496,15 +519,17 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               )}
             </p>
           )}
-          <div className="ft-tl__track">
-            <JustHappened
-              grantId={grantId}
-              played={view.just_happened ?? []}
-              waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
-            />
-            <Now grantId={grantId} view={view} busy={busy} act={act} />
-            <ComingUp events={view.coming_up ?? []} finished={view.finished} />
-          </div>
+          {showTrail && (
+            <div id={trailId} className="ft-tl__track">
+              <JustHappened
+                grantId={grantId}
+                played={view.just_happened ?? []}
+                waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
+              />
+              <Now grantId={grantId} view={view} busy={busy} act={act} />
+              <ComingUp events={view.coming_up ?? []} finished={view.finished} />
+            </div>
+          )}
         </>
       )}
     </section>
@@ -512,6 +537,6 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
 }
 
 /** The timeline panel when the grant is a sample grant; nothing for any other grant. */
-export function SampleTimeline({ summary }: { summary: GrantSummary }) {
-  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} /> : null;
+export function SampleTimeline({ summary, compact = false }: { summary: GrantSummary; compact?: boolean }) {
+  return summary.grant.sample ? <TimelinePanel grantId={summary.grant.id} compact={compact} /> : null;
 }
