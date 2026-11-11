@@ -23,7 +23,7 @@ function harness() {
 const part = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
 describe("highlights (ruling 58)", () => {
-  it("marks highlights in Coming up, and Next highlight moves to the next one with the human steps skipped", async () => {
+  it("marks highlights in Coming up, and Next highlight moves to the next one without skipping the human steps", async () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
     const move = vi.spyOn(client, "moveTimeline");
@@ -34,12 +34,14 @@ describe("highlights (ruling 58)", () => {
     expect(within(coming).getByText("Highlight: Work after the end date")).toBeInTheDocument();
 
     const next = screen.getByRole("button", { name: "Next highlight" });
-    // It says it skips the human steps, since the Skip checkbox stays unticked.
-    expect(next).toHaveAccessibleDescription("Always skips the human steps.");
-    expect(screen.getByLabelText("Skip the human steps")).not.toBeChecked();
+    // The skip isn't offered: no toggle, and nothing says Next highlight skips.
+    expect(next).toHaveAccessibleDescription("");
+    expect(screen.queryByLabelText("Skip the human steps")).toBeNull();
+    expect(screen.queryByText(/skip/i)).toBeNull();
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
-    await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { to: "2026-02-21T17:30:00Z", skip_human_steps: true }));
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+    expect(move.mock.calls[0]).toStrictEqual([SAMPLE_GRANT_ID, { to: "2026-02-21T17:30:00Z" }]);
     // The highlight it moved to is marked under Just happened too.
     await waitFor(() => expect(within(part("Just happened")).getByText("Highlight: A bill by email")).toBeInTheDocument());
     expect(within(part("Coming up")).queryByText("Highlight: A bill by email")).toBeNull();

@@ -21,6 +21,7 @@ import {
   type PlayedEvent,
   type TimelineEvent,
   type TimelineEventKind,
+  type TimelineMove,
   type TimelineView,
   type UserDelivery,
 } from "@/lib/api";
@@ -28,6 +29,20 @@ import { date, recordKindLabel } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { grantName } from "../GrantList";
 import "./timeline.css";
+
+/**
+ * Whether the panel offers skipping the human steps (ruling 47). Off is the
+ * fallback for when the server can't take `skip_human_steps` yet (pull request
+ * 243): no toggle, no help line, and no move sends the flag. Set it to true to
+ * offer the skip again, exactly as before.
+ */
+const SKIP_OFFERED = false;
+
+/** The body of a move: `to` is where it stops, none plays the next event; `skip` adds `skip_human_steps`. */
+export function moveBody(skip: boolean, to?: string): TimelineMove {
+  const body: TimelineMove = to === undefined ? {} : { to };
+  return skip ? { ...body, skip_human_steps: true } : body;
+}
 
 const SOURCE_WORDS: Record<ArrivalSource, string> = {
   ledger: "Ledger",
@@ -372,34 +387,38 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               type="button"
               className="ft-btn ft-btn--main ft-btn--sm"
               disabled={busy || (view.coming_up ?? []).length === 0}
-              onClick={() => void act(() => api.moveTimeline(grantId, skip ? { skip_human_steps: true } : {}))}
+              onClick={() => void act(() => api.moveTimeline(grantId, moveBody(SKIP_OFFERED && skip)))}
             >
               Next event
             </button>
-            {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says. */}
+            {/* Ruling 58: straight to the next highlight, with the human steps skipped whatever the checkbox says (while the skip is offered). */}
             <span className="ft-tl__hinted">
               <button
                 type="button"
                 className="ft-btn ft-btn--sm"
-                aria-describedby={highlightHintId}
+                aria-describedby={SKIP_OFFERED ? highlightHintId : undefined}
                 disabled={busy || !nextHighlight}
-                onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, { to: nextHighlight.at, skip_human_steps: true }))}
+                onClick={() => nextHighlight && void act(() => api.moveTimeline(grantId, moveBody(SKIP_OFFERED, nextHighlight.at)))}
               >
                 Next highlight
               </button>
-              <span id={highlightHintId} className="ft-caption">
-                Always skips the human steps.
-              </span>
+              {SKIP_OFFERED && (
+                <span id={highlightHintId} className="ft-caption">
+                  Always skips the human steps.
+                </span>
+              )}
             </span>
             <GoToDate
               now={view.now.now}
               busy={busy}
-              onGo={(to) => void act(() => api.moveTimeline(grantId, skip ? { to, skip_human_steps: true } : { to }))}
+              onGo={(to) => void act(() => api.moveTimeline(grantId, moveBody(SKIP_OFFERED && skip, to)))}
             />
-            <span className="ft-tl__skip">
-              <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
-              <label htmlFor={skipId}>Skip the human steps</label>
-            </span>
+            {SKIP_OFFERED && (
+              <span className="ft-tl__skip">
+                <input id={skipId} type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+                <label htmlFor={skipId}>Skip the human steps</label>
+              </span>
+            )}
           </div>
           {view.on_run_through === false && (
             <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>

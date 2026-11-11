@@ -5,7 +5,7 @@ import { ApiProvider, type ApiClient, type TimelineView } from "@/lib/api";
 import { createFakeApiClient } from "@/lib/api/fake";
 import { sampleRecord, SAMPLE_GRANT_ID } from "@/lib/api/fixtures/sample";
 import { FAKE_USER, StaticAuthProvider } from "@/lib/auth";
-import { TimelinePanel } from "./TimelinePanel";
+import { moveBody, TimelinePanel } from "./TimelinePanel";
 
 function harness() {
   const client: ApiClient = createFakeApiClient();
@@ -97,24 +97,43 @@ describe("skipping the human steps (ruling 47)", () => {
     expect(within(part("Just happened")).queryByText("Delivered for you by the sample accountant")).toBeNull();
   });
 
-  it("sends skip_human_steps from Next event and Go to a date when chosen", async () => {
+  it("builds the move bodies the skip sends when it's offered", () => {
+    // Next event and Go to a date, with the toggle ticked and unticked; Next highlight always passes true.
+    expect(moveBody(true)).toStrictEqual({ skip_human_steps: true });
+    expect(moveBody(false)).toStrictEqual({});
+    expect(moveBody(true, "2025-11-15T00:00:00Z")).toStrictEqual({ to: "2025-11-15T00:00:00Z", skip_human_steps: true });
+    expect(moveBody(false, "2025-11-15T00:00:00Z")).toStrictEqual({ to: "2025-11-15T00:00:00Z" });
+  });
+
+  it("doesn't offer the skip, and Next event and Go to a date send no skip_human_steps", async () => {
     const { client, Wrapper } = harness();
     await client.startOver(SAMPLE_GRANT_ID, true);
     const move = vi.spyOn(client, "moveTimeline");
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
     const next = await screen.findByRole("button", { name: "Next event" });
-    fireEvent.click(screen.getByLabelText("Skip the human steps"));
+    expect(screen.queryByLabelText("Skip the human steps")).toBeNull();
+    expect(screen.queryByText(/skip/i)).toBeNull();
+    await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
-    await waitFor(() => expect(move).toHaveBeenCalledWith(SAMPLE_GRANT_ID, { skip_human_steps: true }));
-    // What the sample accountant delivered shows under Just happened, not just gone from Now.
-    await waitFor(() => expect(within(part("Just happened")).getAllByText("Delivered for you by the sample accountant")).toHaveLength(2));
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+    expect(move.mock.calls[0]).toStrictEqual([SAMPLE_GRANT_ID, {}]);
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.change(screen.getByLabelText("Go to a date"), { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
-    await waitFor(() => expect(move).toHaveBeenLastCalledWith(SAMPLE_GRANT_ID, { to: "2025-11-15T00:00:00Z", skip_human_steps: true }));
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
+    expect(move.mock.calls[1]).toStrictEqual([SAMPLE_GRANT_ID, { to: "2025-11-15T00:00:00Z" }]);
     // The date field starts empty again.
     expect((screen.getByLabelText("Go to a date") as HTMLInputElement).value).toBe("");
+  });
 
+  it("shows what the sample accountant delivered under Just happened after a skipped move", async () => {
+    const { client, Wrapper } = harness();
+    await client.startOver(SAMPLE_GRANT_ID, true);
+    // The body Next event sends with the skip offered and ticked.
+    await client.moveTimeline(SAMPLE_GRANT_ID, moveBody(true));
+    render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
+    // What the sample accountant delivered shows under Just happened, not just gone from Now.
+    await waitFor(() => expect(within(part("Just happened")).getAllByText("Delivered for you by the sample accountant")).toHaveLength(2));
   });
 
   it("marks loaded results, lists the sample accountant's decisions, and says when the grant is off the run-through", async () => {
