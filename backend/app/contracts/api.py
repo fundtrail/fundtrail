@@ -16,7 +16,7 @@ from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .base import Cents, Id, Model, Text, UtcDatetime
 from .buckets import Bucket
@@ -127,6 +127,27 @@ class CloseoutDate(Model):
     label: Text  # for example "Notice of Expiration", worded by the server
 
 
+class ReadingProgress(Model):
+    """How far the agent is through the files and ledger lines it has to read (ruling 71).
+
+    Counts the current stretch of work: the files and ledger lines that the grant's
+    queued and running runs cover, and those of runs that finished since the grant
+    last had none queued or running. Read means its run finished. Enough for
+    "Reading 3 of 8 files". A first version.
+    """
+
+    files_read: int = Field(ge=0)
+    files_total: int = Field(ge=0)
+    lines_read: int = Field(ge=0)  # ledger lines
+    lines_total: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _read_within_total(self):
+        if self.files_read > self.files_total or self.lines_read > self.lines_total:
+            raise ValueError("the agent can't have read more than it has to read")
+        return self
+
+
 class GrantSummary(Model):
     """One row of GET /workspaces/{workspace_id}/grants (issue 22, answer 7)."""
 
@@ -141,6 +162,12 @@ class GrantSummary(Model):
     # Issue 165: the grant's "now" (its simulated clock on a sample grant, else the
     # real date), sent with every grant so screens never ask the browser for the date.
     now: UtcDatetime
+    # Ruling 71: while the agent works on the grant, how far it is; None while it has
+    # nothing queued or running.
+    reading: ReadingProgress | None = None
+    # Ruling 71: the one-line summary of the grant's last finished run (its
+    # AgentRun.summary); None before any run finishes or when it left none.
+    last_run_summary: Text | None = None
 
 
 class SampleOption(Model):
@@ -213,6 +240,11 @@ class BudgetLineView(Model):
     line: Record  # the budget_line term in force
     amount_cents: Cents
     spent_cents: Cents
+    # Ruling 74: for a sub-line, the category it sits inside (records.CATEGORY_PARENT),
+    # for example other_direct_costs for materials_and_supplies; None for a top-level
+    # line. A sub-line's amount and spending are already inside its parent's, so the
+    # rows don't add up: the screen nests a sub-line under its parent.
+    parent: BudgetCategory | None = None
 
 
 class BudgetView(Model):
@@ -239,6 +271,10 @@ class SignOffState(Model):
     state: SignOffStateName
     sign_off: Record | None = None  # the current sign_off record
     changes: tuple[SnapshotChange, ...] = ()
+    # Ruling 72: why signing off can't be done now, in plain words, for example "The
+    # agent is still working on this grant. Sign off once it's done."; None when it
+    # can. The same reason the sign-off route refuses with.
+    unavailable_reason: Text | None = None
 
 
 class GrantDetail(Model):
