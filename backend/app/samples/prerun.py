@@ -52,12 +52,13 @@ from typing import Any, LiteralString
 from urllib.parse import urlsplit
 
 from psycopg.types.json import Jsonb
+from pydantic import TypeAdapter
 
 from app.contracts.charges import Charge
 from app.contracts.checks import ChecksInput
 from app.contracts.evidence import EvidenceFile, storage_path
 from app.contracts.mail import HeldMail
-from app.contracts.records import Author, Record, RecordKind
+from app.contracts.records import Author, Record, RecordData, RecordKind
 from app.contracts.runs import RunStatus, Trigger
 from app.contracts.threads import ThreadMessage
 from app.contracts.workspaces import Grant, SampleChoice
@@ -235,8 +236,10 @@ class Budget:
     spent: float = 0.0
     held: float = 0.0  # the worst case of the calls under way
     calls: int = 0
+    failed_calls: int = 0  # calls that raised: their worst case counted as spent
     tokens: dict[str, int] = field(default_factory=dict[str, int])
     stopped: bool = False
+    underestimated: bool = False  # a call cost more than its worst case
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def worst_case(self, request: Any) -> float:
@@ -252,9 +255,17 @@ class Budget:
         return ((size // 3) * input_price + request.max_tokens * output_price) / 1_000_000
 
     def start(self, request: Any) -> float:
-        """Hold a call's worst case, or refuse the call: raises SpendCapReached."""
+        """Hold a call's worst case, or refuse the call: raises SpendCapReached. Once a
+        call has cost more than its worst case, every later call is refused: the estimate
+        can't be trusted, and the counting proxy is the backstop."""
         worst = self.worst_case(request)
         with self._lock:
+            if self.underestimated:
+                self.stopped = True
+                raise SpendCapReached(
+                    f"the prerun's spend cap: ${self.spent:.2f} spent, and a call cost more "
+                    "than its worst case was estimated, so no further call starts"
+                )
             if self.spent + self.held + worst > self.cap:
                 self.stopped = True
                 raise SpendCapReached(
@@ -264,21 +275,31 @@ class Budget:
             self.held += worst
         return worst
 
-    def finish(self, worst: float, usage: Any) -> None:
-        """A call ended: let go of its worst case and add what it used (None: nothing)."""
+    def finish(self, worst: float, usage: Any, *, failed: bool = False) -> None:
+        """A call ended: let go of its worst case and add what it used. A call that raised
+        may have been billed, so its whole worst case counts as spent."""
         with self._lock:
             self.held -= worst
+            if failed:
+                self.failed_calls += 1
+                self.spent += worst
+                return
             if usage is None:
                 return
             self.calls += 1
+            cost = 0.0
             for name, price in self.prices.items():
                 n = int(getattr(usage, name, 0) or 0)
                 self.tokens[name] = self.tokens.get(name, 0) + n
-                self.spent += n * price / 1_000_000
+                cost += n * price / 1_000_000
+            self.spent += cost
+            if cost > worst:
+                self.underestimated = True
 
     def totals(self) -> dict[str, Any]:
         return {
             "calls": self.calls,
+            "failed_calls": self.failed_calls,
             **{name: self.tokens.get(name, 0) for name in self.prices},
             "spent_dollars": round(self.spent, 4),
             "cap_dollars": self.cap,
@@ -295,13 +316,13 @@ class CappedModel:
 
     def __call__(self, request: Any) -> Any:
         worst = self.budget.start(request)
-        usage = None
         try:
             message = self.inner(request)
-            usage = getattr(message, "usage", None)
-            return message
-        finally:
-            self.budget.finish(worst, usage)
+        except BaseException:
+            self.budget.finish(worst, None, failed=True)
+            raise
+        self.budget.finish(worst, getattr(message, "usage", None))
+        return message
 
 
 def usage_of(p: Platform, grant_id: str, prices: dict[str, float] | None = None) -> dict[str, Any]:
@@ -429,8 +450,10 @@ def make(
 
 def cleanup(p: Platform) -> list[str]:
     """Remove the seeding workspaces no prerun was saved from (a command that stopped):
-    their grants, files' rows and jobs. Returns the workspaces removed. Run it only while
+    their grants with every row on them, their jobs, and their stored objects (files,
+    held mail, reports, the runs' logs). Returns the workspaces removed. Run it only while
     no prerun command is running."""
+    paths: list[str] = []
     with transaction(p.pool) as conn:
         rows = conn.execute(
             """select s.workspace_id from public.sample_seeding s
@@ -442,8 +465,28 @@ def cleanup(p: Platform) -> list[str]:
         gone = [r["workspace_id"] for r in rows]
         for workspace_id in gone:
             stop_seeding(conn, workspace_id, "Removed: no prerun was saved from it.")
+            for g in store.list_grants(conn, workspace_id):
+                paths += _stored_paths(conn, g)
             conn.execute("delete from public.workspaces where id = %s", (workspace_id,))
+    if paths:
+        p.storage.remove(paths)  # once the rows are gone, so none is left pointing at nothing
     return gone
+
+
+def _stored_paths(conn: Conn, grant: Grant) -> list[str]:
+    """Every object stored for the grant: its files, its held mail, its signed reports and
+    its runs' debug logs."""
+    paths = [f.storage_path for f in store.list_files(conn, grant.id, store.END_OF_TIME)]
+    paths += [
+        f.storage_path for h in grant_held_mail(conn, grant, store.END_OF_TIME) for f in h.files
+    ]
+    paths += [
+        str(getattr(r.data, "report_path", ""))
+        for r in store.list_records(conn, grant.id)
+        if getattr(r.data, "report_path", None)
+    ]
+    paths += [r.log_path for r in store.list_runs(conn, grant.id) if r.log_path]
+    return paths
 
 
 # The run-through.
@@ -462,6 +505,122 @@ def take_off(conn: Conn, grant_id: str) -> None:
     conn.execute("update public.sample_runthrough set off = true where grant_id = %s", (grant_id,))
 
 
+def loaded_to(conn: Conn, grant_id: str) -> datetime | None:
+    row = conn.execute(
+        "select loaded_to from public.sample_runthrough where grant_id = %s", (grant_id,)
+    ).fetchone()
+    return row["loaded_to"] if row else None
+
+
+def set_loaded_to(conn: Conn, grant_id: str, at: datetime) -> None:
+    conn.execute(
+        "update public.sample_runthrough set loaded_to = %s where grant_id = %s", (at, grant_id)
+    )
+
+
+# A user's step that matches the script (ruling 80).
+
+# Free text a user's step may word their own way.
+_FREE_TEXT = frozenset({"note", "basis"})
+_record_data: TypeAdapter[Any] = TypeAdapter(RecordData)
+
+
+def _compared(data: dict[str, Any]) -> Any:
+    """A step's write as two are compared: its action, choice and values; free text left
+    out; lists in any order."""
+
+    def norm(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: norm(v) for k, v in value.items() if k not in _FREE_TEXT}  # pyright: ignore[reportUnknownVariableType]
+        if isinstance(value, list):
+            items = [norm(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
+            return sorted(items, key=lambda v: json.dumps(v, sort_keys=True, default=str))
+        return value
+
+    return norm(_record_data.validate_python(data).model_dump(mode="json"))
+
+
+def match_user_step(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    *,
+    data: dict[str, Any] | None = None,
+    replaces_id: str | None = None,
+    sha256: str | None = None,
+) -> int | None:
+    """A person's act on a sample grant: a decision (`data`, `replaces_id`) or a file
+    brought in (`sha256`). On a grant still on a prerun's run-through, the scripted step
+    it matches, if any: one not made yet and whose time the clock hasn't passed (or one a
+    Next highlight move held), with the same action, choice and values (free text aside).
+    Anything else, and anything at all once off, takes the grant off for good (ruling 80)."""
+    row = conn.execute(
+        "select off from public.sample_runthrough where grant_id = %s", (grant.id,)
+    ).fetchone()
+    if row is None or row["off"]:
+        return None
+    from .player import pack_for
+    from .script import WriteRecord, resolve
+
+    if run_through(conn, grant) is not None and grant.sample is not None:
+        pack = pack_for(grant.sample.sample)
+        made = {s.step: s for s in _scripted_of(conn, grant.id)}
+        now = clock.grant_now(conn, grant.id)
+        for n, a in enumerate(pack.actions):
+            s = made.get(n)
+            if (s is not None and s.state != "held") or (s is None and a.at <= now):
+                continue
+            if a.action in ("sign_off", "let_in_mail"):
+                continue  # the user signs off themselves; a let-in brings in mail live
+            if sha256 is not None:
+                if a.action == "deliver_file" and a.file and pack.sha256(a.file) == sha256:
+                    return n
+                continue
+            if data is None or a.action == "deliver_file":
+                continue
+            try:
+                with conn.transaction():
+                    step = resolve(p, conn, grant, pack, a, now)
+                    same = (
+                        isinstance(step, WriteRecord)
+                        and step.replaces_id == replaces_id
+                        and _compared(step.data) == _compared(data)
+                    )
+            except Exception:  # noqa: BLE001 - a write that can't be compared doesn't match
+                same = False
+            if same:
+                return n
+    take_off(conn, grant.id)
+    return None
+
+
+def made_by_user(
+    conn: Conn,
+    grant: Grant,
+    step: int,
+    *,
+    record_id: str | None = None,
+    file_id: str | None = None,
+) -> None:
+    """The user made a scripted step themselves (ruling 80): it's theirs, listed under the
+    grant's last move, and a load points what rests on the prerun's step at it."""
+    from .player import pack_for
+
+    assert grant.sample is not None
+    at = pack_for(grant.sample.sample).actions[step].at
+    last = sample_store.last_move(conn, grant.id)
+    assert last is not None
+    conn.execute(
+        """insert into public.sample_scripted
+             (grant_id, step, move_id, at, state, record_id, file_id)
+           values (%s, %s, %s, %s, 'user', %s, %s)
+           on conflict (grant_id, step) do update
+             set state = 'user', record_id = excluded.record_id, file_id = excluded.file_id,
+                 move_id = excluded.move_id""",
+        (grant.id, step, last.id, at, record_id, file_id),
+    )
+
+
 def run_through(conn: Conn, grant: Grant) -> Prerun | None:
     """The prerun a grant is still on the run-through of, or None. Off once a person did
     anything on the grant (sample_store.user_acted), or a decision is anyone's but the
@@ -473,10 +632,11 @@ def run_through(conn: Conn, grant: Grant) -> Prerun | None:
     if row is None or row["off"]:
         return None
     accountant = store.sample_accountant_id(conn, grant.workspace_id)
-    users = {
-        r.author_user_id for r in store.list_records(conn, grant.id) if r.author == Author.USER
-    }
-    if users - {accountant}:
+    theirs = {s.record_id for s in _scripted_of(conn, grant.id) if s.state == "user"}
+    if any(
+        r.author == Author.USER and r.author_user_id != accountant and r.id not in theirs
+        for r in store.list_records(conn, grant.id)
+    ):
         return None
     saved = get(conn, row["prerun_id"])
     if saved is None or not saved.released or saved.version != version(saved.sample):
@@ -556,6 +716,18 @@ def load(
     ]
     renamed = {x.id: new_id(x.id) for x in (*files, *charges, *records, *held, *messages)}
     renamed |= {src: target.id, source.workspace_id: target.workspace_id}
+    # Ruling 80: a step the user made themselves stands for the prerun's, so what rests on
+    # the prerun's record or file points at the user's, which isn't copied over it.
+    mine = {s.step: s for s in _scripted_of(conn, target.id)}
+    theirs: set[str] = set()
+    for s in _scripted_of(conn, src):
+        user = mine.get(s.step)
+        if user is None or user.state != "user":
+            continue
+        for old, new in ((s.record_id, user.record_id), (s.file_id, user.file_id)):
+            if old and new:
+                renamed[old] = new
+                theirs.add(old)
     seeding_ids = re.compile("|".join(re.escape(k) for k in sorted(renamed, key=len, reverse=True)))
 
     def remap(value: Any) -> Any:
@@ -603,14 +775,16 @@ def load(
         return int(row["stored_seq"])
 
     items: list[tuple[int, EvidenceFile | Charge | Record]] = [
-        (f.stored_seq or 0, f) for f in files if within(f.arrived_at)
+        (f.stored_seq or 0, f) for f in files if within(f.arrived_at) and f.id not in theirs
     ]
     items += [(c.stored_seq or 0, c) for c in charges if within(c.arrived_at)]
     # The sign-off is never loaded: the user always signs off themselves (ruling 77). Its
     # stored report and snapshot go with it.
     signed = {r.id for r in records if r.kind is RecordKind.SIGN_OFF}
     items += [
-        (r.stored_seq or 0, r) for r in records if within(r.written_at) and r.id not in signed
+        (r.stored_seq or 0, r)
+        for r in records
+        if within(r.written_at) and r.id not in signed and r.id not in theirs
     ]
     for old_seq, item in sorted(items, key=lambda x: x[0]):
         if isinstance(item, EvidenceFile):
@@ -694,6 +868,8 @@ def load(
     for s in _scripted_of(conn, src):
         if s.state != "done" or not within(s.at) or s.record_id in signed:
             continue
+        if s.step in mine and mine[s.step].state != "held":
+            continue  # the user made it, or it's on the grant already
         made = sample_store.Scripted(
             s.step,
             move_id,
@@ -701,6 +877,11 @@ def load(
             "done",
             record_id=renamed.get(s.record_id) if s.record_id else None,
             file_id=renamed.get(s.file_id) if s.file_id else None,
+        )
+        # A step a Next highlight move held, made now by the sample accountant's skip.
+        conn.execute(
+            "delete from public.sample_scripted where grant_id = %s and step = %s",
+            (target.id, s.step),
         )
         sample_store.insert_scripted(conn, target.id, made)
         loaded.scripted.append(made)

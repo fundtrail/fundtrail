@@ -85,7 +85,7 @@ def _store_file(
 
 def arrive_upload(
     p: Platform, conn: store.Conn, grant: Grant, upload: Upload
-) -> tuple[EvidenceFile, AgentRun]:
+) -> tuple[EvidenceFile, AgentRun | None]:
     """An upload, in the caller's transaction: the file arrives at the grant's now, the
     checks rerun, and its agent run is queued. The caller pings after the commit."""
     return _arrive_file(p, conn, grant, upload)
@@ -93,14 +93,42 @@ def arrive_upload(
 
 def _arrive_file(
     p: Platform, conn: store.Conn, grant: Grant, upload: Upload
-) -> tuple[EvidenceFile, AgentRun]:
+) -> tuple[EvidenceFile, AgentRun | None]:
     now = clock.grant_now(conn, grant.id)
     store.get_grant(conn, grant.id, lock=True)
-    sample_store.user_acted(conn, grant.id)
+    step = _user_step(p, conn, grant, sha256=hashlib.sha256(upload.data).hexdigest())
     f = _store_file(p, conn, grant, upload, now)
     trigger = Trigger(kind=TriggerKind.FILE, id=f.id)
     recheck_grant(conn, p.checks, grant, now, trigger)
+    if step is not None:
+        # The user's own delivery of the file a prerun's run-through brings in (ruling
+        # 80): the prerun's reading of it is loaded with the rest, so nothing runs live.
+        _made_by_user(conn, grant, step, file_id=f.id)
+        return f, None
     return f, queue_run(conn, grant, trigger, now)
+
+
+def _user_step(p: Platform, conn: store.Conn, grant: Grant, **act: Any) -> int | None:
+    """A person's act on the grant. On a sample grant still on a prerun's run-through, the
+    scripted step it matches (ruling 80); anything else takes the grant off for good."""
+    if grant.sample is None:
+        return None
+    from app.samples.prerun import match_user_step
+
+    return match_user_step(p, conn, grant, **act)
+
+
+def _made_by_user(
+    conn: store.Conn,
+    grant: Grant,
+    step: int,
+    *,
+    record_id: str | None = None,
+    file_id: str | None = None,
+) -> None:
+    from app.samples.prerun import made_by_user
+
+    made_by_user(conn, grant, step, record_id=record_id, file_id=file_id)
 
 
 def add_grant(p: Platform, workspace_id: str, award_letter: Upload) -> Grant:
@@ -109,7 +137,8 @@ def add_grant(p: Platform, workspace_id: str, award_letter: Upload) -> Grant:
     with transaction(p.pool) as conn:
         grant = store.create_grant(conn, workspace_id)
         _, run = _arrive_file(p, conn, grant, award_letter)
-    ping_run(p.pinger, run)
+    if run is not None:
+        ping_run(p.pinger, run)
     ping_changed(p.pinger, grant.workspace_id, grant.id)
     return grant
 
@@ -117,7 +146,8 @@ def add_grant(p: Platform, workspace_id: str, award_letter: Upload) -> Grant:
 def add_evidence(p: Platform, grant: Grant, upload: Upload) -> EvidenceFile:
     with transaction(p.pool) as conn:
         f, run = _arrive_file(p, conn, grant, upload)
-    ping_run(p.pinger, run)
+    if run is not None:
+        ping_run(p.pinger, run)
     ping_changed(p.pinger, grant.workspace_id, grant.id, "evidence", "statuses")
     return f
 
@@ -219,8 +249,13 @@ def add_record(
     """
     with transaction(p.pool) as conn:
         store.get_grant(conn, grant.id, lock=True)
-        sample_store.user_acted(conn, grant.id)
-        record, runs, arrived = write_record(p, conn, grant, user_id, data, replaces_id)
+        step = _user_step(p, conn, grant, data=data, replaces_id=replaces_id)
+        # A step matching a prerun's scripted one queues nothing: what rests on it is loaded.
+        record, runs, arrived = write_record(
+            p, conn, grant, user_id, data, replaces_id, queue=step is None
+        )
+        if step is not None:
+            _made_by_user(conn, grant, step, record_id=record.id)
     for queued in runs:
         ping_run(p.pinger, queued)
     what = ("records", "statuses", "evidence") if arrived else ("records", "statuses")
@@ -237,11 +272,14 @@ def write_record(
     replaces_id: str | None,
     *,
     catch_up: bool = False,
+    queue: bool = True,
 ) -> tuple[Record, list[AgentRun], list[EvidenceFile]]:
     """add_record's write, in the caller's transaction, which holds the grant's lock: at
     the grant's now, it returns the record, the runs it queued and the files it let in.
     With `catch_up`, the runs it queues are a clock move's catch-up runs, as of that now
-    (a sample's scripted step during a jump). The caller pings after the commit."""
+    (a sample's scripted step during a jump). With `queue` False it queues no run (a
+    user's step a prerun's run-through loads the rest of). The caller pings after the
+    commit."""
     run: AgentRun | None = None
     if data.get("kind") == "sign_off":
         # A sign-off stores the evidence report with it (decision 0022): add_sign_off.
@@ -286,6 +324,8 @@ def write_record(
     output = recheck_grant(conn, p.checks, grant, now, trigger, file_triggers=file_triggers)
     # Queued whether or not a run is in progress; a queued run that hasn't started
     # reads this record when it starts, so it's shared (the run-order ruling, 5).
+    if not queue:
+        return record, [], arrived
     if agent_questions_open(output.questions) and not store.has_queued_run(conn, grant.id):
         run = queue_run(conn, grant, trigger, now, catch_up=catch_up)
     arrival_runs = [

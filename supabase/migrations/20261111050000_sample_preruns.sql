@@ -26,8 +26,19 @@ create table public.sample_runthrough (
   off boolean not null default false,
   -- What the copied rows' new IDs are made from, new on each start, so a start over
   -- never reuses an ID or a storage path.
-  salt text not null default gen_random_uuid()::text
+  salt text not null default gen_random_uuid()::text,
+  -- How far the saved result is loaded: a Next highlight move stops loading before the
+  -- highlight's own step, which waits for the user (ruling 80). Null before the first.
+  loaded_to timestamptz
 );
+
+-- Ruling 80: a scripted step the user made themselves, matching the script, on a grant
+-- that stays on its prerun's run-through. The loaded results that rest on it point at
+-- the user's record or file.
+alter table public.sample_scripted drop constraint sample_scripted_state_check;
+alter table public.sample_scripted
+  add constraint sample_scripted_state_check
+  check (state in ('pending', 'done', 'left', 'held', 'user'));
 
 create index sample_preruns_grant_id_idx on public.sample_preruns (grant_id);
 create index sample_runthrough_prerun_id_idx on public.sample_runthrough (prerun_id);

@@ -139,6 +139,11 @@ class Storage(Protocol):
         """A link to the object that works for expires_in seconds."""
         ...
 
+    def remove(self, paths: Sequence[str], /) -> None:
+        """Delete these objects; one that isn't there is skipped. Only the prerun's cleanup
+        removes anything: evidence is never deleted."""
+        ...
+
 
 class Pinger(Protocol):
     def ping(self, topic: str, event: str, payload: dict[str, Any], /) -> None:

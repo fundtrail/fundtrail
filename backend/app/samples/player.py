@@ -22,7 +22,7 @@ import mimetypes
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from functools import cache
 from typing import Any
 
@@ -333,13 +333,56 @@ def _load(
     saved: prerun.Prerun,
     after: datetime | None,
     until: datetime,
+    *,
+    hold: str | None = None,
 ) -> None:
-    """A loaded move (ruling 47): the prerun's saved result up to `until`, copied at once;
-    the clock set; the statuses worked out at the new now. Nothing runs."""
+    """A loaded move (ruling 47): the prerun's saved result up to `until`, copied at once
+    from where the last load stopped; the clock set; the statuses worked out at the new
+    now. Nothing runs. With `hold` (a Next highlight move to that highlight, ruling 80),
+    the loading stops before the highlight's own steps, which wait for the user."""
+    pack = pack_for(saved.sample)
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant.id)}
+    held = [
+        (n, a)
+        for n, a in enumerate(pack.actions)
+        if hold is not None and a.highlight == hold and a.at <= until and n not in rows
+    ]
+    # On a Next highlight move, the loading also stops before a step an earlier one held
+    # that nobody has made: what the prerun built on it waits for the user's step, or a
+    # later skip's (ruling 77, amended).
+    waiting = [
+        a.at
+        for n, a in enumerate(pack.actions)
+        if hold and getattr(rows.get(n), "state", "") == "held"
+    ]
+    load_to = min(
+        [until, *(at - timedelta(microseconds=1) for at in [*(a.at for _, a in held), *waiting])]
+    )
+    loaded_to = prerun.loaded_to(conn, grant.id)
+    if loaded_to is not None:
+        load_to = max(load_to, loaded_to)  # never back
     move_id = sample_store.insert_move(conn, grant.id, after, until, loaded=True)
-    prerun.load(p, conn, grant, saved, after, until, move_id)
+    prerun.load(p, conn, grant, saved, loaded_to, load_to, move_id)
+    for n, a in held:
+        sample_store.insert_scripted(
+            conn, grant.id, sample_store.Scripted(n, move_id, a.at, "held")
+        )
+    prerun.set_loaded_to(conn, grant.id, load_to)
     clock.set_stored_clock(conn, grant.id, until)
     recheck_grant(conn, p.checks, grant, until, Trigger(kind=TriggerKind.CLOCK))
+
+
+def _undone(conn: Conn, grant_id: str, pack: SamplePack, start: datetime, until: datetime) -> bool:
+    """Whether a move from `start` to `until` passes a scripted step (but the sign-off,
+    always the user's) that nobody has made: one in the move, or one held earlier."""
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant_id)}
+    for n, a in enumerate(pack.actions):
+        if a.action == "sign_off" or a.at > until:
+            continue
+        row = rows.get(n)
+        if (row is None and a.at > start) or (row is not None and row.state == "held"):
+            return True
+    return False
 
 
 class GrantGone(Exception):
@@ -424,7 +467,7 @@ def deliver_for_me(p: Platform, grant: Grant, event_id: str) -> EvidenceFile:
         if delivered_at(pack, e, _on_grant(p, pack, items, files)) is not None:
             raise SampleError(f"{e.name} is already on the grant.")
         f, run = arrive_upload(p, conn, grant, _item_upload(pack, e))
-    _ping(p, grant, [run])
+    _ping(p, grant, [run] if run is not None else [])
     return f
 
 
@@ -507,14 +550,20 @@ def move(
         highlight: str | None = None
         if next_highlight:
             to, highlight = _next_highlight(items, start)
+            # It stops where the highlight's own steps are due, if that's later than its
+            # event, and holds them there for the user (ruling 77, amended).
+            made = {s.step for s in sample_store.grant_scripted(conn, grant.id)}
+            due = [
+                a.at
+                for n, a in enumerate(pack.actions)
+                if a.highlight == highlight and n not in made and a.at > start
+            ]
+            to = max([to, *due])
             skip = True
         plan = plan_move(items, start, to)
         saved = prerun.run_through(conn, locked)
-        passed = [a for a in pack.actions if start < a.at <= plan.until]
-        if saved is not None and passed and not skip:
-            saved = None  # a scripted step passed without skipping is missed
-        if saved is not None and any(highlight and a.highlight == highlight for a in passed):
-            saved = None  # Next highlight leaves the highlight's own step to the user
+        if saved is not None and not skip and _undone(conn, grant.id, pack, start, plan.until):
+            saved = None  # a scripted step moved past without skipping, and not made, is missed
         if saved is None:
             # Off the run-through for good, if it was on one: the agent works live from here.
             prerun.take_off(conn, grant.id)
@@ -522,7 +571,7 @@ def move(
         walked = skipping.Walked()
         if saved is not None:
             # On the run-through: the saved result, loaded at once. Nothing runs.
-            _load(p, conn, locked, saved, start, plan.until)
+            _load(p, conn, locked, saved, now, plan.until, hold=highlight)
         elif skip or walking is not None:
             # The move plays what the clock passes from where it stands now, a walk's later
             # steps included, so every played event is under exactly one move.
@@ -813,7 +862,7 @@ def _decisions(conn: Conn, last: Any, records: Sequence[Record]) -> list[Record]
         return []
     by_id = {r.id: r for r in records}
     made = sample_store.move_scripted(conn, last.id)
-    return [by_id[s.record_id] for s in made if s.record_id in by_id]
+    return [by_id[s.record_id] for s in made if s.state == "done" and s.record_id in by_id]
 
 
 def _stood_on(

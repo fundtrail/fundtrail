@@ -3,11 +3,12 @@ sample's own agent_records.json. The command itself makes paid calls and never r
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import uuid
 from dataclasses import replace
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, LiteralString
@@ -23,6 +24,7 @@ from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult, ModuleChecks
 from app.samples import player, prerun
 from app.samples.pack import DATA_DIR, LARGER_SAMPLE, UserAction
+from app.samples.script import WriteRecord, resolve
 from tests.api.conftest import Api
 from tests.db.platform_fixtures import FakeAgent, run_worker_until_idle
 
@@ -283,9 +285,13 @@ def test_a_command_that_stops_stops_its_play(setup: Api) -> None:
             "select count(*) as n from procrastinate_jobs where queue_name = %s", (queue,)
         ).fetchone()
     assert left is not None and left["n"] == 0
+    with transaction(api.platform.pool) as conn:
+        stored = [f.storage_path for f in store.list_files(conn, grant.id, store.END_OF_TIME)]
+    assert stored and all(path in api.platform.storage.objects for path in stored)  # type: ignore[attr-defined]
     assert workspace_id in prerun.cleanup(api.platform)
     with transaction(api.platform.pool) as conn:
         assert store.get_grant(conn, grant.id) is None
+    assert not any(path in api.platform.storage.objects for path in stored)  # type: ignore[attr-defined]
 
 
 # The spend cap.
@@ -329,6 +335,28 @@ def test_no_model_call_starts_that_could_pass_the_cap() -> None:
     assert len(made) == 3 and budget.stopped
     assert budget.spent == pytest.approx(0.042) and budget.spent <= budget.cap
     assert budget.totals()["calls"] == 3 and budget.totals()["output_tokens"] == 1500
+
+
+def test_a_call_that_raises_counts_its_worst_case() -> None:
+    """It may have been billed: its whole worst case counts as spent."""
+    budget = prerun.Budget(cap=1.0)
+
+    def broken(_request: Any) -> Any:
+        raise ConnectionError("the connection dropped")
+
+    with pytest.raises(ConnectionError):
+        _call_with(budget, broken)
+    assert budget.failed_calls == 1 and budget.spent == pytest.approx(0.02, abs=0.001)
+    assert budget.held == 0
+
+
+def test_a_call_dearer_than_its_worst_case_stops_the_budget() -> None:
+    """The estimate can't be trusted once it's been wrong: no further call starts."""
+    budget = prerun.Budget(cap=10.0)
+    _call_with(budget, lambda _r: _usage(1000, 5000))  # $0.104, past its ~$0.02 worst case
+    with pytest.raises(prerun.SpendCapReached, match="worst case"):
+        _call_with(budget, lambda _r: _usage(10, 10))
+    assert budget.stopped and budget.calls == 1
 
 
 def test_the_cap_stops_a_run_partway_and_the_prerun_isnt_released(setup: Api) -> None:
@@ -602,11 +630,6 @@ def _upload(api: Api, grant_id: str) -> Any:
     )
 
 
-def _deliver(api: Api, grant_id: str) -> Any:
-    item = next(e for e in player.pack_for(SMALL).events if e.deliver_by_user)
-    return _post(api, f"/grants/{grant_id}/timeline/deliveries/{item.id}", {})
-
-
 def _ledger(api: Api, grant_id: str) -> Any:
     return api.client.post(
         f"/grants/{grant_id}/ledger",
@@ -621,10 +644,10 @@ def _ask(api: Api, grant_id: str) -> Any:
     return _post(api, f"/records/{record.id}/thread", {"text": "Where does this come from?"})
 
 
-@pytest.mark.parametrize("act", [_upload, _deliver, _ledger, _ask])
+@pytest.mark.parametrize("act", [_upload, _ledger, _ask])
 def test_anything_a_user_does_takes_it_off_the_run_through(setup: Api, act: Any) -> None:
-    """An upload, a Deliver for me, a ledger upload or a thread question: the grant goes
-    live, and the next move loads nothing on top of it."""
+    """An upload the script doesn't make, a ledger upload or a thread question: the grant
+    goes live, and the next move loads nothing on top of it."""
     api = setup
     saved = _released(api)
     grant_id = _open(api, "larger_prerun")
@@ -725,3 +748,383 @@ def test_the_command_needs_its_targets_given(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("SUPABASE_URL", "http://127.0.0.1:54321")
     with pytest.raises(SystemExit, match="SUPABASE_SERVICE_ROLE_KEY isn't set"):
         prerun.main(["cleanup"])
+
+
+# A user's own step that matches the script (ruling 80).
+
+
+def _scripted_write(api: Api, grant_id: str, action: str) -> Any:
+    """The write the script's step would make on the grant now."""
+    pack = player.pack_for(SMALL)
+    step = next(a for a in pack.actions if a.action == action)
+    with transaction(api.platform.pool) as conn:
+        grant = store.get_grant(conn, grant_id)
+        assert grant is not None
+        found = resolve(api.platform, conn, grant, pack, step, prerun_clock(conn, grant_id))
+    assert isinstance(found, WriteRecord)
+    return found
+
+
+def prerun_clock(conn: Any, grant_id: str) -> Any:
+    from app.db import clock
+
+    return clock.grant_now(conn, grant_id)
+
+
+def _confirmations(api: Api, grant_id: str) -> list[Record]:
+    with transaction(api.platform.pool) as conn:
+        return [r for r in store.list_records(conn, grant_id) if r.kind.value == "confirmation"]
+
+
+def test_confirming_as_read_keeps_it_on_and_the_next_highlight_loads_at_once(
+    setup: Api,
+) -> None:
+    """Highlight 1, path 1: the user confirms the letter's terms as the script would. The
+    grant stays on the run-through; the confirmation is the user's own; Next highlight
+    then loads at once, and what rests on the confirmation points at the user's record."""
+    api = setup
+    saved = _released(api)
+    grant_id = _open(api, "larger_prerun")
+    write = _scripted_write(api, grant_id, "confirm_terms")
+    # The same terms, listed in another order.
+    data = {**write.data, "record_ids": list(reversed(write.data["record_ids"]))}
+    mine = _post(api, f"/grants/{grant_id}/records", {"data": data})
+    assert mine.status_code == 201, mine.text
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is True
+    assert _pending(api, grant_id) == 0  # nothing runs live for it
+
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert moved.status_code == 200, moved.text
+    timeline = moved.json()
+    assert timeline["on_run_through"] is True and _pending(api, grant_id) == 0
+    assert timeline["just_happened"] and all(p["loaded"] for p in timeline["just_happened"])
+    # One confirmation, the user's: none of the script's is copied over it, and no
+    # decision is shown as the sample accountant's that the user made.
+    [confirmation] = _confirmations(api, grant_id)
+    assert confirmation.id == mine.json()["id"] and confirmation.author_user_id == api.user_id
+    shown = [d["id"] for p in timeline["just_happened"] for d in p["scripted_decisions"]]
+    assert confirmation.id not in shown
+    _to_the_end(api, grant_id)
+    assert _counts(api, grant_id) == _counts(api, saved.grant_id)
+    _no_seeding_ids(api, saved, grant_id)
+    checked, wrong = prerun.key_check(api.platform, grant_id, SMALL)
+    assert checked and wrong == []
+
+
+def test_changing_a_term_before_confirming_goes_live(setup: Api) -> None:
+    """Highlight 1, path 2: the user changes one of the terms the letter was read for: a
+    decision the script doesn't make. The grant goes live, and the panel says so."""
+    api = setup
+    _released(api)
+    grant_id = _open(api, "larger_prerun")
+    with transaction(api.platform.pool) as conn:
+        term = next(
+            r
+            for r in store.list_records(conn, grant_id)
+            if r.author == Author.AGENT and r.kind.value == "period_of_performance"
+        )
+    data = term.data.model_dump(mode="json")
+    end = date.fromisoformat(data["end"]["value"]) + timedelta(days=1)
+    data["end"]["value"] = end.isoformat()  # one day later than the letter says
+    changed = _post(api, f"/grants/{grant_id}/records", {"data": data, "replaces_id": term.id})
+    assert changed.status_code == 201, changed.text
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is False
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True}).json()
+    assert moved["on_run_through"] is False
+    assert not any(p["loaded"] for p in moved["just_happened"])
+
+
+def test_moving_on_without_confirming_skipping_off_goes_live(setup: Api) -> None:
+    """Highlight 1, path 3: the user moves past the confirmation's time without making it
+    and without skipping. The grant goes live for good."""
+    api = setup
+    _released(api)
+    grant_id = _open(api, "larger_prerun")
+    confirm = next(a for a in player.pack_for(SMALL).actions if a.action == "confirm_terms")
+    moved = _post(
+        api, f"/grants/{grant_id}/timeline", {"to": _iso(confirm.at + timedelta(minutes=1))}
+    ).json()
+    assert moved["on_run_through"] is False
+    later = _to_the_end(api, grant_id)
+    assert later["on_run_through"] is False
+    assert not any(p["loaded"] for p in later["just_happened"])
+
+
+def test_delivering_the_scripted_file_keeps_it_on(setup: Api) -> None:
+    """Deliver for me of the file the script delivers, before its time: the user's file
+    stands for the prerun's, nothing runs live for it, and loading points the prerun's
+    reading of it at the user's file."""
+    api = setup
+    saved = _released(api)
+    grant_id = _open(api, "larger_prerun")
+    write = _scripted_write(api, grant_id, "confirm_terms")
+    assert _post(api, f"/grants/{grant_id}/records", {"data": write.data}).status_code == 201
+    receipt = next(e for e in player.pack_for(SMALL).events if e.deliver_by_user)
+    delivered = _post(api, f"/grants/{grant_id}/timeline/deliveries/{receipt.id}", {})
+    assert delivered.status_code == 200, delivered.text
+    assert delivered.json()["on_run_through"] is True and _pending(api, grant_id) == 0
+    _to_the_end(api, grant_id)
+    assert _counts(api, grant_id) == _counts(api, saved.grant_id)
+    with transaction(api.platform.pool) as conn:
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+        runs = store.list_runs(conn, grant_id)
+    sha = player.pack_for(SMALL).sha256(receipt.name)
+    [mine] = [f for f in files if f.sha256 == sha]
+    assert any(r.trigger.id == mine.id for r in runs)  # the prerun's reading, pointed at it
+    _no_seeding_ids(api, saved, grant_id)
+
+
+def _marked(monkeypatch: pytest.MonkeyPatch) -> str:
+    """The small sample with its receipt delivery marked as the receipt highlight's own
+    step (built here, not in data/). Returns the receipt's event name."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    actions = tuple(
+        replace(a, highlight=receipt.highlight) if a.action == "deliver_file" else a
+        for a in pack.actions
+    )
+    monkeypatch.setattr(player, "pack_for", lambda _s: replace(pack, actions=actions))
+    return receipt.name
+
+
+def _to_highlight_2(api: Api, grant_id: str) -> Any:
+    """From highlight 1, confirmed as read, Next highlight to the receipt."""
+    write = _scripted_write(api, grant_id, "confirm_terms")
+    assert _post(api, f"/grants/{grant_id}/records", {"data": write.data}).status_code == 201
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert moved.status_code == 200, moved.text
+    return moved.json()
+
+
+def test_next_highlight_on_the_run_through_holds_its_own_step(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The receipt's delivery waits for the user; the user delivers it, and the grant
+    stays on. A later skipping move loads the rest."""
+    api = setup
+    name = _marked(monkeypatch)
+    saved = _released(api)
+    grant_id = _open(api, "larger_prerun")
+    timeline = _to_highlight_2(api, grant_id)
+    assert timeline["on_run_through"] is True
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == [name]
+    receipt = next(e for e in player.pack_for(SMALL).events if e.name == name)
+    delivered = _post(api, f"/grants/{grant_id}/timeline/deliveries/{receipt.id}", {})
+    assert delivered.json()["on_run_through"] is True
+    _to_the_end(api, grant_id)
+    assert _counts(api, grant_id) == _counts(api, saved.grant_id)
+    _no_seeding_ids(api, saved, grant_id)
+
+
+def test_skipping_on_past_a_held_step_has_the_accountant_make_it(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = setup
+    name = _marked(monkeypatch)
+    saved = _released(api)
+    grant_id = _open(api, "larger_prerun")
+    _to_highlight_2(api, grant_id)
+    later = _to_the_end(api, grant_id)  # skipping on
+    assert later["on_run_through"] is True
+    assert _counts(api, grant_id) == _counts(api, saved.grant_id)
+    shown = [p for p in later["just_happened"] if p["event"]["name"] == name]
+    assert shown and shown[0]["delivered_by_sample_accountant"] is True
+
+
+def test_moving_past_a_held_step_skipping_off_goes_live(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = setup
+    _marked(monkeypatch)
+    _released(api)
+    grant_id = _open(api, "larger_prerun")
+    _to_highlight_2(api, grant_id)
+    moved = _post(api, f"/grants/{grant_id}/timeline", {}).json()  # Next event, skipping off
+    assert moved["on_run_through"] is False
+
+
+# Next highlight to a highlight whose own step is due after its event (ruling 77, amended).
+
+
+def _late_receipt(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
+    """The small sample with the receipt's delivery marked as the receipt highlight's own
+    step and due half an hour after the receipt's event (built here, not in data/). Returns
+    the receipt event and its delivery step."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    actions = tuple(
+        replace(a, highlight=receipt.highlight, at=receipt.at + timedelta(minutes=30))
+        if a.action == "deliver_file"
+        else a
+        for a in pack.actions
+    )
+    late = replace(pack, actions=tuple(sorted(actions, key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _s: late)
+    return receipt, next(a for a in late.actions if a.action == "deliver_file")
+
+
+def _delivery_state(api: Api, grant_id: str) -> str | None:
+    with transaction(api.platform.pool) as conn:
+        rows = sample_store.grant_scripted(conn, grant_id)
+    pack = player.pack_for(SMALL)
+    return next((s.state for s in rows if pack.actions[s.step].action == "deliver_file"), None)
+
+
+def test_next_highlight_stops_where_its_own_step_is_due_and_holds_it(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live: it stops at the later of the highlight's event and its own step's time, the
+    step held; the next Next highlight press leaves it held; a later skip makes it."""
+    api = setup
+    receipt, step = _late_receipt(monkeypatch)
+    grant_id = _open(api)  # live
+    _reading_agent(api)
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert moved.status_code == 200, moved.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(step.at) and step.at > receipt.at
+    assert _delivery_state(api, grant_id) == "held"
+    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+    assert again.status_code == 200, again.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _delivery_state(api, grant_id) == "held"  # never on a Next highlight press
+    later = _post(api, f"/grants/{grant_id}/timeline", {"skip_human_steps": True})
+    assert later.status_code == 200, later.text
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _delivery_state(api, grant_id) == "done"
+
+
+def test_on_the_run_through_a_late_own_step_is_held_and_matched(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a prerun grant: Next highlight loads up to the own step's time and holds it; the
+    next press loads nothing past it; the user delivers it, the grant stays on, and a
+    later skip loads the rest."""
+    api = setup
+    receipt, step = _late_receipt(monkeypatch)
+    # The moved delivery puts the receipt's evidence after the key's time, so the key
+    # doesn't hold; this test is about loading, so the prerun is released here directly.
+    saved = _make(api)
+    with transaction(api.platform.pool) as conn:
+        conn.execute("update public.sample_preruns set released = true where id = %s", (saved.id,))
+    agent = api.platform.agent
+    assert isinstance(agent, FakeAgent)
+    agent.behave = lambda _i: AgentResult()
+    grant_id = _open(api, "larger_prerun")
+    timeline = _to_highlight_2(api, grant_id)
+    assert timeline["on_run_through"] is True
+    assert timeline["now"]["now"] == _iso(step.at)
+    assert _delivery_state(api, grant_id) == "held"
+    again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True}).json()
+    assert again["on_run_through"] is True and _delivery_state(api, grant_id) == "held"
+    delivered = _post(api, f"/grants/{grant_id}/timeline/deliveries/{receipt.id}", {})
+    assert delivered.json()["on_run_through"] is True
+    assert _delivery_state(api, grant_id) == "user"
+    _to_the_end(api, grant_id)
+    assert _counts(api, grant_id) == _counts(api, saved.grant_id)
+    _no_seeding_ids(api, saved, grant_id)
+
+
+# What the review's mutations showed untested.
+
+
+def test_a_stale_prerun_stops_loading(setup: Api, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The app changed since the prerun was made (another version): the grant goes live."""
+    api = setup
+    _released(api)
+    grant_id = _open(api, "larger_prerun")
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is True
+    made_at = prerun.version
+    monkeypatch.setattr(prerun, "version", lambda *a, **k: "another" + made_at(*a, **k))
+    assert _get(api, f"/grants/{grant_id}/timeline")["on_run_through"] is False
+    moved = _to_the_end(api, grant_id)
+    assert not any(p["loaded"] for p in moved["just_happened"])
+
+
+def test_the_walk_check_never_takes_a_seeding_walk_on(setup: Api) -> None:
+    api = setup
+    _reading_agent(api)
+    seen: dict[str, Any] = {}
+
+    def drain(queue: str) -> None:
+        with transaction(api.platform.pool) as conn:
+            seen["walking"] = [
+                r["grant_id"]
+                for r in conn.execute("select grant_id from public.sample_walks").fetchall()
+            ]
+            seen["checked"] = sample_store.walking_grants(conn)
+        prerun.drain_jobs(str(api.platform.pool.conninfo), queue)
+
+    made = prerun.make(api.platform, SMALL, api.user_id, drain=drain)
+    assert made.grant_id in seen["walking"]  # its walk waits on the agent
+    assert made.grant_id not in seen["checked"]
+
+
+def _attachment_on(api: Api, grant_id: str) -> None:
+    """An attachment on the prerun's grant: a file whose parent is one of its files."""
+    from app.contracts.evidence import storage_path
+
+    with transaction(api.platform.pool) as conn:
+        # The latest file, so the attachment is stored after everything, as it was read.
+        parent = max(
+            store.list_files(conn, grant_id, store.END_OF_TIME), key=lambda f: f.arrived_at
+        )
+        child_id = str(uuid.uuid4())
+        path = storage_path(parent.workspace_id, grant_id, child_id, "attachment.pdf")
+        data = b"%PDF-1.4 a synthetic attachment"
+        api.platform.storage.put(path, data, "application/pdf")
+        store.insert_file(
+            conn,
+            parent.model_copy(
+                update={
+                    "id": child_id,
+                    "name": "attachment.pdf",
+                    "media_type": "application/pdf",
+                    "storage_path": path,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "parent_id": parent.id,
+                    "stored_seq": None,
+                }
+            ),
+        )
+
+
+def test_loading_maps_read_points_and_parents(setup: Api, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each copied record's read point covers the same rows, by the prerun's stored order,
+    as the prerun's did; each copied file's parent is the copy of its parent."""
+    api = setup
+    monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_PRERUN, LARGER_SAMPLE)
+    saved = _released(api, sample=LARGER_SAMPLE)
+    _attachment_on(api, saved.grant_id)
+    grant_id = _open(api, "larger_prerun")
+    _to_the_end(api, grant_id, LARGER_SAMPLE)
+
+    def seqs(rows: dict[str, list[dict[str, Any]]]) -> list[int]:
+        return sorted(
+            int(r["stored_seq"]) for k in ("files", "charges", "records") for r in rows[k]
+        )
+
+    source, copied = _rows(api, saved.grant_id), _rows(api, grant_id)
+    signed = {r["id"] for r in source["records"] if r["kind"] == "sign_off"}
+    source_seqs = sorted(
+        int(r["stored_seq"])
+        for k in ("files", "charges", "records")
+        for r in source[k]
+        if r["id"] not in signed
+    )
+    copied_seqs = seqs(copied)
+    by_point = {
+        int(r["read_through_seq"])
+        for r in source["records"]
+        if r["read_through_seq"] is not None and r["id"] not in signed
+    }
+    expected = {p: sum(1 for s in source_seqs if s <= p) for p in by_point}
+    for r in copied["records"]:
+        if r["read_through_seq"] is None:
+            continue
+        covered = sum(1 for s in copied_seqs if s <= int(r["read_through_seq"]))
+        assert covered in expected.values()
+    files = {r["id"]: r for r in copied["files"]}
+    children = [f for f in files.values() if f["parent_id"]]
+    assert children and all(f["parent_id"] in files for f in children)
