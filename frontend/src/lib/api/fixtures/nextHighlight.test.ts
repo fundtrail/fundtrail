@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { Grant } from "../types";
+import type { Grant, TimelineView } from "../types";
 import { createFakeApiClient } from "../fake";
 import { newGrantDetail } from "./grant";
 import { SAMPLE_GRANT_ID } from "./sample";
@@ -17,6 +17,8 @@ function timeline(stepHighlights?: Record<string, string>) {
 }
 
 const names = (items: { event: { name: string } }[] | undefined) => (items ?? []).map((i) => i.event.name);
+const decided = (view: TimelineView) => (view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id));
+const deliveredForUser = (view: TimelineView) => names((view.just_happened ?? []).filter((p) => p.delivered_by_sample_accountant));
 
 describe("Next highlight in the fake (ruling 77)", () => {
   it("moves to the next event carrying a highlight, with the sample accountant doing the steps before it", async () => {
@@ -27,41 +29,66 @@ describe("Next highlight in the fake (ruling 77)", () => {
     expect(view.now.stopped_on?.highlight).toBe("A bill by email");
     // Both uploads delivered for the user, and the award terms confirmed, on the way.
     expect(view.now.deliveries).toEqual([]);
-    expect((view.just_happened ?? []).filter((p) => p.delivered_by_sample_accountant).map((p) => p.event.name)).toEqual([
-      "award_letter.txt",
-      "invoice_1001.txt",
-    ]);
-    expect((view.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id))).toEqual(["rec-confirm-award-terms"]);
+    expect(deliveredForUser(view)).toEqual(["award_letter.txt", "invoice_1001.txt"]);
+    expect(decided(view)).toEqual(["rec-confirm-award-terms"]);
   });
 
-  it("leaves the highlight's own steps for the user, and a later skipping move makes them", async () => {
+  it("holds the highlight's own steps for the user: the next Next highlight press doesn't make them, a later skip does", async () => {
     // Delivering the invoice marked as the emailed bill highlight's own step.
     const api = timeline({ "event-file-invoice-1001": "A bill by email" });
     await api.startOver(SAMPLE_GRANT_ID, true);
     const atHighlight = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
     expect(names(atHighlight.now.deliveries)).toEqual(["invoice_1001.txt"]);
-    expect(names((atHighlight.just_happened ?? []).filter((p) => p.delivered_by_sample_accountant))).toEqual(["award_letter.txt"]);
+    expect(deliveredForUser(atHighlight)).toEqual(["award_letter.txt"]);
 
-    // A plain Next event leaves it waiting; a skipping one delivers it.
+    // The next Next highlight press leaves it, and so does a plain Next event.
+    const nextPress = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
+    expect(names(nextPress.now.deliveries)).toEqual(["invoice_1001.txt"]);
     const plain = await api.moveTimeline(SAMPLE_GRANT_ID, {});
     expect(names(plain.now.deliveries)).toEqual(["invoice_1001.txt"]);
-    const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { skip_human_steps: true });
+
+    // A later skipping move that isn't Next highlight makes it.
+    const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-11T00:00:00Z", skip_human_steps: true });
     expect(skipping.now.deliveries).toEqual([]);
-    expect(names((skipping.just_happened ?? []).filter((p) => p.delivered_by_sample_accountant))).toEqual(["invoice_1001.txt"]);
+    expect(deliveredForUser(skipping)).toEqual(["invoice_1001.txt"]);
   });
 
-  it("leaves a highlight's own decision for the user until a later skipping move passes it", async () => {
+  it("stops at the later of the highlight's event and its own steps' due times, and holds them (the amendment)", async () => {
+    // The extension notice arrives Apr 9; confirming it, its own step, is due Apr 10.
     const api = createFakeApiClient();
     await api.startOver(SAMPLE_GRANT_ID, true);
-    // Go past the extension's confirmation (Apr 10, 2026) without skipping, then to the end with skipping.
-    await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-11T00:00:00Z" });
-    const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-12T00:00:00Z", skip_human_steps: true });
-    const decided = (skipping.just_happened ?? []).flatMap((p) => (p.scripted_decisions ?? []).map((d) => d.id));
-    expect(decided).toEqual(["rec-confirm-award-terms", "rec-confirm-extension"]);
+    await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true }); // A bill by email
+    await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true }); // Work after the end date
+    const atExtension = await api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true });
+    expect(atExtension.now.now).toBe("2026-04-10T16:00:00Z");
+    expect(decided(atExtension)).not.toContain("rec-confirm-extension");
+
+    await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({
+      status: 409,
+      detail: "No highlight is left to play.",
+    });
+    const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-11T00:00:00Z", skip_human_steps: true });
+    expect(decided(skipping)).toEqual(["rec-confirm-extension"]);
   });
 
-  it("answers a 409 when no highlight is coming up", async () => {
+  it("queues nothing on a plain move: a later skipping move doesn't make what it passed", async () => {
     const api = createFakeApiClient();
-    await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({ status: 409 });
+    await api.startOver(SAMPLE_GRANT_ID, true);
+    // A plain move past both confirmations and both uploads.
+    await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-11T00:00:00Z" });
+    const skipping = await api.moveTimeline(SAMPLE_GRANT_ID, { to: "2026-04-12T00:00:00Z", skip_human_steps: true });
+    expect(decided(skipping)).toEqual([]);
+    expect(deliveredForUser(skipping)).toEqual([]);
+    // The uploads stay the user's to deliver.
+    expect(names(skipping.now.deliveries)).toEqual(["award_letter.txt", "invoice_1001.txt"]);
+  });
+
+  it("words its 409s as the backend does", async () => {
+    const api = createFakeApiClient();
+    await expect(api.moveTimeline(SAMPLE_GRANT_ID, { next_highlight: true })).rejects.toMatchObject({
+      status: 409,
+      detail: "No highlight is left to play.",
+    });
+    await expect(api.moveTimeline(SAMPLE_GRANT_ID, {})).rejects.toMatchObject({ status: 409, detail: "Nothing is left to play." });
   });
 });
