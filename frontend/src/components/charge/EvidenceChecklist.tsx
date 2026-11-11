@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { ChecklistEntry, EvidenceFile, FtRecord, Id, LinkView, SuggestionView } from "@/lib/api";
+import { routes } from "@/lib/routes";
 import { date, money } from "@/lib/format";
 import { SuggestionBox } from "../thread/Decide";
 import { changeFor } from "../thread/describe";
@@ -6,6 +8,47 @@ import type { OnWrite } from "../thread/useThreadActions";
 import { AddChecklistItem, RemoveChecklistItem } from "./actions";
 import { addedByLabel, recordName } from "./labels";
 import styles from "./charge.module.css";
+
+/**
+ * Ruling 61: an item code fills by recalculating, such as a benefit charge's
+ * rate times its salary lines. It has no links: it shows the rate term and the
+ * salary lines it used.
+ */
+function Recalculated({ entry, records, grantId }: { entry: ChecklistEntry; records: Record<Id, FtRecord>; grantId?: Id }) {
+  const rate = entry.rate_id ? records[entry.rate_id] : undefined;
+  const rateName = rate?.data.kind === "rate" ? `${rate.data.name.value} (${rate.data.rate.value})` : "the rate term";
+  const lines = entry.charge_ids ?? [];
+  return (
+    <p className="ft-caption">
+      Recalculated from{" "}
+      {entry.rate_id && grantId ? (
+        <Link className="ft-link" href={routes.record(grantId, entry.rate_id)}>
+          {rateName}
+        </Link>
+      ) : (
+        rateName
+      )}
+      {lines.length > 0 && (
+        <>
+          {" "}
+          on {lines.length} salary {lines.length === 1 ? "line" : "lines"}:{" "}
+          {lines.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ", "}
+              {grantId ? (
+                <Link className="ft-link" href={routes.charge(grantId, id)}>
+                  salary line {i + 1}
+                </Link>
+              ) : (
+                `salary line ${i + 1}`
+              )}
+            </span>
+          ))}
+        </>
+      )}
+    </p>
+  );
+}
 
 function entryKey(entry: ChecklistEntry): string {
   return entry.item_record_id ?? `default:${entry.default_item}`;
@@ -25,6 +68,7 @@ export function EvidenceChecklist({
   records,
   files,
   chargeId,
+  grantId,
   onWrite,
 }: {
   checklist: ChecklistEntry[];
@@ -33,6 +77,8 @@ export function EvidenceChecklist({
   records: Record<Id, FtRecord>;
   files: Record<Id, EvidenceFile>;
   chargeId?: Id;
+  /** For linking a recalculation's rate term and salary lines. */
+  grantId?: Id;
   onWrite?: OnWrite;
 }) {
   const add =
@@ -75,6 +121,9 @@ export function EvidenceChecklist({
               )}
               {!entry.filled && entry.expected_by && <> · Expected by {date(entry.expected_by)}</>}
             </p>
+            {(entry.rate_id || (entry.charge_ids ?? []).length > 0) && (
+              <Recalculated entry={entry} records={records} grantId={grantId} />
+            )}
             {fillers.length > 0 && (
               <p className="ft-caption">
                 Filled by {fillers.map((l) => recordName(l.record, files)).join(", ")}

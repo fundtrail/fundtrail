@@ -65,7 +65,7 @@ export function ChargeDetailView({
       <div className={styles.layout}>
         <div className={styles.column}>
           <Section id="reasons-heading" title="Why it's in this bucket">
-            <StatusReasons status={status ?? null} chargeId={charge.id} records={records} onWrite={onWrite} />
+            <StatusReasons status={status ?? null} chargeId={charge.id} chargedCents={charge.amount_cents} records={records} onWrite={onWrite} />
           </Section>
           <Section id="checklist-heading" title="Evidence checklist">
             <EvidenceChecklist
@@ -75,6 +75,7 @@ export function ChargeDetailView({
               records={records}
               files={files}
               chargeId={charge.id}
+              grantId={charge.grant_id}
               onWrite={onWrite}
             />
           </Section>
