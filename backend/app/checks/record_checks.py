@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from app.checks.answers import ANSWER_BUCKET
+from app.checks.codes import flag_code
 from app.checks.findings import AGENT_RUN, APPROVAL, BILL, SAME_FILE, TERMS, Finding
 from app.checks.rules_match import rule_category
 from app.checks.text import day, money, norm
@@ -277,6 +278,7 @@ def record_problems(
                 )
             )
 
+    taken: dict[tuple[str | None, str | None], set[str]] = {}
     for r in view.judgments:
         j = r.data
         assert isinstance(j, Judgment)
@@ -297,7 +299,9 @@ def record_problems(
                 subject,
                 Finding(
                     "flag",
-                    f"flag:{j.rule or view.root(r.id)}",
+                    flag_code(
+                        view, r, taken.setdefault((subject.record_id, subject.file_id), set())
+                    ),
                     ANSWER_BUCKET[j.answer],
                     f"{who}: {j.text}",
                     [r.id, *j.rests_on],

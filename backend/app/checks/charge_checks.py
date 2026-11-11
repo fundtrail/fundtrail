@@ -13,6 +13,7 @@ from app.checks import benefits
 from app.checks import checklist as checklist_check
 from app.checks.answers import ANSWER_BUCKET, AnswerState, answer_state
 from app.checks.checklist import compare
+from app.checks.codes import flag_code
 from app.checks.findings import (
     AGENT_RUN,
     APPROVAL,
@@ -331,6 +332,7 @@ def _approval_check(
             )
         )
     checked = [i for i in result.items if i.spec.kind in ("rule", "nsf") and i.filled]
+    seen: set[str] = set()  # issue 307: an approval in two items is one reason per code
     for item in checked:
         approvals = [lk.fact for lk in item.links if isinstance(lk.fact.data, Approval)]
         others = [lk.fact for lk in item.links if not isinstance(lk.fact.data, Approval)]
@@ -338,12 +340,19 @@ def _approval_check(
         if any(not fs for fs in per):
             continue  # one approval is right on every count
         for fs in per:
-            out.extend(fs)
+            for f in fs:
+                if f.problem not in seen:
+                    seen.add(f.problem)
+                    out.append(f)
         for fact in others:
+            code = f"not_an_approval:{view.root(fact.id)}"
+            if code in seen:
+                continue
+            seen.add(code)
             out.append(
                 Finding(
                     APPROVAL,
-                    f"not_an_approval:{view.root(fact.id)}",
+                    code,
                     Bucket.NEEDS_HUMAN,
                     f"{item.spec.needed}: it's filled by {describe(fact).lower()}, not an "
                     "approval.",
@@ -598,6 +607,7 @@ def _budget_line_check(charge: Charge, view: GrantView) -> list[Finding]:
 
 def _flags(charge: Charge, view: GrantView) -> list[Finding]:
     out: list[Finding] = []
+    taken: set[str] = set()
     for r in view.judgments:
         j = r.data
         assert isinstance(j, Judgment)
@@ -610,7 +620,7 @@ def _flags(charge: Charge, view: GrantView) -> list[Finding]:
         out.append(
             Finding(
                 "flag",
-                f"flag:{j.rule or view.root(r.id)}",
+                flag_code(view, r, taken),
                 ANSWER_BUCKET[j.answer],
                 text,
                 [r.id, *j.rests_on],

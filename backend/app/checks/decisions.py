@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 
+from app.checks.codes import same_code, same_family
 from app.checks.findings import Finding
 from app.checks.grant_checks import award_limit
 from app.checks.text import money, norm
@@ -275,7 +276,7 @@ class Decisions:
         assert isinstance(data, AcceptedReason) and data.charge_id is not None
         if data.charge_id == charge.id:
             return None
-        if not same_code(data.reason.check, data.reason.problem, check, problem):
+        if not same_family(data.reason.check, data.reason.problem, check, problem):
             return None
         noted = self.charges[data.charge_id]
         if noted.account != charge.account or not _later(charge, note):
@@ -425,21 +426,6 @@ def note_covers(
     if found is None:
         return None
     return found[0].coverage(found[1], charge, check, problem)
-
-
-def same_code(check: str, problem: str, found_check: str, found_problem: str) -> bool:
-    """Whether a stored reason code names a reason the checks give now.
-
-    Issue 307 made some codes unique on their subject by adding a key after a colon
-    ("unsure" became "unsure:{root}", "approver_unknown" became "approver_unknown:{root}").
-    A code stored before that, with no colon, still names the reasons whose code starts
-    with it; an acceptance among them still covers only the one whose records it rested on.
-    """
-    if check != found_check:
-        return False
-    if problem == found_problem:
-        return True
-    return ":" not in problem and found_problem.split(":", 1)[0] == problem
 
 
 def same_reason(check: str, problem: str, finding: Finding) -> bool:

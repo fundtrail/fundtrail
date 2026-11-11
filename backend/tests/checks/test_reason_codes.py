@@ -122,3 +122,90 @@ def test_no_subject_in_the_sample_has_two_reasons_with_one_code() -> None:
         lists += [[(p.check, p.problem) for p in g.problems] for g in out.grants]
         for codes in lists:
             assert len(codes) == len(set(codes)), (now, codes)
+
+
+def _scan_charge(g: Grant, t: dict[str, str], cid: str, day: int) -> None:
+    """A charge whose bill total couldn't be found in its file (values: unconfirmed)."""
+    g.charge(cid, date(2024, 3, day), 10000)
+    f = g.file(f"f-{cid}", at(2024, 3, day))
+    b = g.bill(10000, f, at(2024, 3, day), match="not_found")
+    g.link(b, cid, at(2024, 3, day), amount=10000, default="bill")
+    g.assign(cid, t["ms"], at(2024, 3, day))
+    g.answer(cid, "supports", at(2024, 3, day), rests_on=[b])
+
+
+def _values_reason(g: Grant, cid: str, day: int):
+    status = g.status(cid, at(2024, 3, day))
+    return next(r for r in status.reasons if r.check == "values_confirmed")
+
+
+def test_a_reusable_note_still_reaches_a_later_charges_reason_of_its_family() -> None:
+    """#315's review: a keyed code names one charge's record, so a reusable note matches a
+    later charge's reason by family, as it did before issue 307."""
+    for stored in ("new", "old"):
+        g = Grant()
+        t = g.standard_terms()
+        _scan_charge(g, t, "c1", 1)
+        first = _values_reason(g, "c1", 2)
+        g.user(
+            {
+                "kind": "accepted_reason",
+                "charge_id": "c1",
+                "reason": {
+                    "check": first.check,
+                    "problem": first.problem if stored == "new" else "unconfirmed",
+                },
+                "note": "This supplier's scans never read.",
+                "rests_on": list(first.record_ids),
+                "reusable": True,
+            },
+            at(2024, 3, 3),
+        )
+        _scan_charge(g, t, "c2", 4)
+        later = _values_reason(g, "c2", 5)
+        assert later.problem != first.problem  # about another bill
+        assert later.accepted_by is not None or later.offered_note_id is not None, stored
+
+
+def test_a_colon_less_code_names_only_issue_307s_families() -> None:
+    """An acceptance of ("approval", "missing") must not accept "missing:approval:{rule}":
+    only issue 307's keyed families match a code stored without its key."""
+    from app.checks.codes import same_code
+
+    assert same_code("unusual_term", "unsure", "unusual_term", "unsure:r15")
+    assert same_code("approval", "wrong_approver", "approval", "wrong_approver:r17")
+    assert not same_code("approval", "missing", "approval", "missing:approval:rule-1")
+    assert not same_code("checklist", "missing", "checklist", "missing:bill")
+    assert not same_code("flag", "flag", "flag", "flag:refund")
+
+
+def test_two_current_flags_with_one_rule_have_their_own_codes() -> None:
+    g = Grant()
+    t = g.standard_terms()
+    g.charge("c1", date(2024, 3, 1), 10000)
+    f = g.file("f1", at(2024, 3, 1))
+    b = g.bill(10000, f, at(2024, 3, 1))
+    g.link(b, "c1", at(2024, 3, 1), amount=10000, default="bill")
+    g.assign("c1", t["ms"], at(2024, 3, 1))
+    g.answer("c1", "supports", at(2024, 3, 1), rests_on=[b])
+    g.answer("c1", "unsure", at(2024, 3, 1), question="flag", rule="refund")
+    g.answer("c1", "unsure", at(2024, 3, 2), question="flag", rule="refund")
+    codes = [r.problem for r in g.status("c1", at(2024, 3, 3)).reasons if r.check == "flag"]
+    assert len(codes) == 2 == len(set(codes))
+    assert "flag:refund" in codes  # the first keeps its code, so its acceptances still match
+
+
+def test_one_approval_filling_two_items_is_one_reason_per_code() -> None:
+    from .test_charge_checks import _stipend
+
+    g = Grant()
+    t = g.standard_terms()
+    _stipend(g, t)
+    f = g.file("f1", at(2024, 6, 3))
+    a = g.approval(f, at(2024, 6, 3), on=date(2024, 7, 1))
+    item = g.item("stip", "Sponsor approval", at(2024, 6, 3), nsf_standing_list="x")
+    g.link(a, "stip", at(2024, 6, 3), default=f"approval:{t['rule']}")
+    g.link(a, "stip", at(2024, 6, 3), item=item)
+    codes = [(r.check, r.problem) for r in g.status("stip", at(2024, 6, 4)).reasons]
+    assert len(codes) == len(set(codes))
+    assert any(p.startswith("approval_late:") for c, p in codes if c == "approval")
