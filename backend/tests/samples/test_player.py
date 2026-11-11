@@ -63,10 +63,15 @@ def _files(api: Api, grant_id: str) -> list[Any]:
 
 def test_the_choices_come_from_the_packs(api: Api) -> None:
     options = _get(api, "/samples")
-    assert [o["choice"] for o in options] == ["small_live", "larger_live", "larger_prerun"]
-    assert [o["needs_confirm"] for o in options] == [False, True, False]
-    assert [o["available"] for o in options] == [True, True, False]
-    assert options[2]["unavailable_reason"]
+    assert [o["choice"] for o in options] == [
+        "small_live",
+        "larger_live",
+        "larger_prerun",
+        "larger_expected",
+    ]
+    assert [o["needs_confirm"] for o in options] == [False, True, False, False]
+    assert [o["available"] for o in options] == [True, True, False, False]
+    assert options[2]["unavailable_reason"] and options[3]["unavailable_reason"]
     assert options[0]["name"] == "Small sample, read live"
 
 
@@ -413,6 +418,7 @@ def test_options_are_in_the_contracts_order() -> None:
         "small_live",
         "larger_live",
         "larger_prerun",
+        "larger_expected",
     ]
 
 

@@ -66,7 +66,9 @@ def list_samples(user: UserDep, platform: PlatformDep) -> list[SampleOption]:
     from app.samples import prerun
 
     with transaction(platform.pool) as conn:
-        return player.options(prerun.unavailable_reason(conn))
+        return player.options(
+            prerun.unavailable_reason(conn), prerun.unavailable_reason(conn, expected=True)
+        )
 
 
 @router.post(

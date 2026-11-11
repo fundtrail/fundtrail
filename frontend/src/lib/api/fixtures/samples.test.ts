@@ -14,6 +14,7 @@ describe("sample grants in fake mode", () => {
       ["small_live", false, true],
       ["larger_live", true, true],
       ["larger_prerun", false, false],
+      ["larger_expected", false, false],
     ]);
   });
 
