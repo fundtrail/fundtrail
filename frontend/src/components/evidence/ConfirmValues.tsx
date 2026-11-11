@@ -6,6 +6,7 @@ import { ApiError, useApi, type FactView, type Id, type RecordDataInput } from "
 import { pageCaption } from "@/components/viewer/placement";
 import styles from "./evidence.module.css";
 import { viewerHref } from "./links";
+import { QuoteLink } from "./QuoteLink";
 import { displayValue, isCited, parseTyped, valueAt, valueLabel, valueType, withValueAt } from "./values";
 
 type Choice = "confirm" | "type";
@@ -90,7 +91,7 @@ export function ConfirmValues({
   return (
     <form onSubmit={submit} aria-label="Confirm or correct values">
       {fact.state === "waiting" && (
-        <p className={styles.problems} role="note" style={{ marginBottom: "var(--space-3)" }}>
+        <p className={styles.waitingNote} role="note">
           This record is still waiting for you. Saving accepts the whole record, not only these values: &quot;Confirm as read&quot;
           confirms the record as the agent wrote it, and a typed value replaces it with your own.
         </p>
@@ -105,22 +106,18 @@ export function ConfirmValues({
           const inputId = `typed-${v.path}`;
           return (
             <li key={v.path} className={styles.confirmRow}>
-              <span className="ft-heading">{label}</span>
-              <span>
-                Read as <span className="ft-strong">{isCited(cited) ? displayValue(v.path, cited) : "nothing"}</span>
+              <span className={styles.confirmLabel}>{label}</span>
+              <span className={styles.readAs}>
+                Read as <span className={styles.value}>{isCited(cited) ? displayValue(v.path, cited) : "nothing"}</span>
               </span>
-              {citation && (
-                <Link className={styles.quote} href={viewerHref(grantId, citation.file_id, record.id, v.path)}>
-                  {citation.passage ?? "A box on the image"}
-                </Link>
-              )}
-              <span className="ft-caption">
+              {citation && <QuoteLink citation={citation} href={viewerHref(grantId, citation.file_id, record.id, v.path)} />}
+              <span className={styles.state}>
                 {citation && pageCaption(citation) ? `${pageCaption(citation)} · ` : ""}
                 Couldn&apos;t be confirmed in the file
               </span>
               <fieldset className={styles.choice}>
                 <legend className="ft-sr">{label}</legend>
-                <label>
+                <label className={styles.radio}>
                   <input
                     type="radio"
                     name={`choice-${v.path}`}
@@ -129,7 +126,7 @@ export function ConfirmValues({
                   />{" "}
                   Confirm as read
                 </label>
-                <label>
+                <label className={styles.radio}>
                   <input
                     type="radio"
                     name={`choice-${v.path}`}
@@ -157,7 +154,7 @@ export function ConfirmValues({
                 )}
               </fieldset>
               {errors[v.path] && (
-                <span id={`${inputId}-error`} className="ft-error">
+                <span id={`${inputId}-error`} className={`${styles.fieldError} ft-error`}>
                   {errors[v.path]}
                 </span>
               )}
@@ -167,14 +164,14 @@ export function ConfirmValues({
       </ul>
 
       {problems.length > 0 && (
-        <ul className="ft-error" role="alert">
+        <ul className={`${styles.saveErrors} ft-error`} role="alert">
           {problems.map((p, i) => (
             <li key={i}>{p}</li>
           ))}
         </ul>
       )}
 
-      <div className={styles.actions}>
+      <div className={styles.formActions}>
         <button type="submit" className={`ft-btn ft-btn--main${busy ? " is-busy" : ""}`} aria-disabled={busy || undefined}>
           {busy ? "Saving…" : "Save"}
         </button>

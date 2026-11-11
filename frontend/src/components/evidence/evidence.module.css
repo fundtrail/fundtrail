@@ -1,16 +1,35 @@
-/* Evidence cards and the confirm screen, on the design system's tokens (globals.css). */
+/*
+ * Evidence cards and the confirm screen, on the design system's tokens
+ * (globals.css). One fact per row: label, the value, its quote in the serif on
+ * the highlighter, then where it is and whether it's confirmed.
+ *
+ * Yellow means a verbatim passage found in the file, and nothing else. It stays
+ * yellow with dark text in both themes. The fallbacks hold until the UI
+ * foundation (issue 238) defines the tokens.
+ */
 
 .cards {
+  --e-hl: var(--hl, #ffe45c);
+  --e-on-hl: var(--on-hl, #1d1a05);
+  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
+
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
 .card {
+  --e-hl: var(--hl, #ffe45c);
+  --e-on-hl: var(--on-hl, #1d1a05);
+  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
+
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   background: var(--paper-raised);
+  overflow: hidden;
 }
+
+/* --- Card head: the file ------------------------------------------------------ */
 
 .head {
   display: flex;
@@ -22,10 +41,35 @@
   border-bottom: 1px solid var(--rule);
 }
 
+.fileName {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.fileName:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.fileName:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
+  gap: 2px 0;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.meta > span + span::before {
+  content: "·";
+  padding: 0 var(--space-2);
 }
 
 .problems {
@@ -35,7 +79,18 @@
   border-bottom: 1px solid var(--rule);
   background: var(--needs-human-tint);
   color: var(--needs-human);
+  font-size: 13px;
+  font-weight: 600;
 }
+
+.noFacts {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* --- Facts -------------------------------------------------------------------- */
 
 .facts {
   margin: 0;
@@ -44,7 +99,6 @@
 }
 
 .fact {
-  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--rule);
 }
 .fact:first-child {
@@ -56,39 +110,85 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+}
+/* Waiting for the accountant: the needs-human tint, as the problem list uses it. */
+.factHeadWaiting {
+  padding-bottom: var(--space-2);
+  background: var(--needs-human-tint);
+  border-bottom: 1px solid var(--rule);
+}
+.factHeadWaiting + * {
+  margin-top: var(--space-1);
+}
+
+.factTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.waitingTag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--needs-human);
+}
+
+.noValues {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 
 .values {
-  display: grid;
-  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
   margin: 0;
-}
-.values dt {
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 600;
-  padding-top: 2px;
-}
-.values dd {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  padding: 0 var(--space-4);
 }
 
-.quote {
-  display: block;
-  padding: var(--space-1) var(--space-2);
-  border-left: 3px solid var(--rule-strong);
-  background: var(--paper-sunken);
-  color: var(--ink);
-  text-decoration: none;
-  white-space: pre-wrap;
+.valueRow {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
 }
-.quote:hover {
-  border-left-color: var(--ledger);
+.valueRow:first-child {
+  border-top: 0;
+}
+@media (max-width: 640px) {
+  .valueRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.valueRow dt {
+  padding-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.valueRow dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.value {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  font-size: 12px;
+  color: var(--ink-muted);
 }
 
 .unconfirmed {
@@ -96,18 +196,118 @@
   font-weight: 600;
 }
 
-.links {
-  margin: var(--space-2) 0 0;
+/* --- The quote ----------------------------------------------------------------- */
+
+.quoteWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 72ch;
+}
+
+.quote {
+  display: block;
+  max-width: 72ch;
+  border-radius: 2px;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--e-serif);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.quote:hover .hl {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--e-on-hl) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.quote:hover .quoteText {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.quote:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A photo's box has no passage: it says so plainly, never on the highlighter. */
+.quoteBox {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+
+.quoteText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.hl {
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: var(--e-hl);
+  color: var(--e-on-hl);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.more {
   padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.more:hover {
+  color: var(--ink);
+}
+.more:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* --- Pays for, and the fact's action ---------------------------------------------- */
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
   list-style: none;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
 }
+.values + .actions,
+.links + .actions {
+  padding-top: var(--space-1);
+}
+
+/* --- The confirm screen ------------------------------------------------------------ */
 
 .confirmList {
   display: flex;
@@ -116,16 +316,46 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  --e-hl: var(--hl, #ffe45c);
+  --e-on-hl: var(--on-hl, #1d1a05);
+  --e-serif: var(--serif, "Newsreader", Georgia, "Times New Roman", serif);
 }
 
 .confirmRow {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--paper-raised);
+}
+
+.confirmLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.readAs {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.readAs .value {
+  margin-left: 2px;
+}
+
+.waitingNote {
+  max-width: 72ch;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--needs-human-tint);
+  color: var(--needs-human);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .choice {
@@ -133,17 +363,79 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
+  margin: var(--space-1) 0 0;
+  padding: var(--space-3) 0 0;
   border: 0;
+  border-top: 1px solid var(--rule);
+  align-self: stretch;
+}
+
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.radio input {
+  width: 16px;
+  height: 16px;
   margin: 0;
-  padding: 0;
+  accent-color: var(--ledger);
+}
+.radio input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .input {
   height: var(--control-md);
-  padding: 0 var(--space-2);
+  min-width: 200px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
   color: var(--ink);
   font: inherit;
+  font-size: 14px;
+}
+.input:hover {
+  border-color: var(--ink-muted);
+}
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--focus);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--conflict);
+}
+
+.fieldError {
+  font-size: 13px;
+}
+
+.saveErrors {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--conflict-tint);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote,
+  .more {
+    transition: none;
+  }
 }

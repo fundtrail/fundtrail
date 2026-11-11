@@ -99,6 +99,24 @@ describe("EvidenceCardView", () => {
     const links = screen.getByRole("list", { name: "Charges it pays for" });
     expect(within(links).getAllByRole("link")[0].getAttribute("href")).toMatch(/^\/grants\/grant-sample\/charges\//);
   });
+
+  it("puts only a passage found in the file on the highlighter", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "field_station_invoice_FS-2207.pdf")} />);
+    // Found in the file: the passage, verbatim, marked.
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total.querySelector("mark")).toHaveTextContent("Total Due: $3,400.00");
+    // Couldn't be placed: the quote shows plain.
+    expect(screen.getByRole("link", { name: "Open dated in the viewer" }).querySelector("mark")).toBeNull();
+  });
+
+  it("never puts a photo's box on the highlighter, as it has no passage", async () => {
+    const cards = await sampleCards();
+    render(<EvidenceCardView grantId={GRANT} card={card(cards, "boat_rental_receipt.jpg")} />);
+    const total = screen.getByRole("link", { name: "Open total in the viewer" });
+    expect(total).toHaveTextContent("A box on the image");
+    expect(total.querySelector("mark")).toBeNull();
+  });
 });
 
 describe("findCitation", () => {
