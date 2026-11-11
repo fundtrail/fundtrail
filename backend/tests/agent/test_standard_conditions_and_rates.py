@@ -20,7 +20,7 @@ from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.rulebook import load_rulebook
 from app.agent.tools import run_tool
 from app.contracts.fixtures import load_sample_grant
-from app.contracts.records import ChecklistItem, OtherTerm
+from app.contracts.records import ChecklistItem, OtherTerm, Record
 from app.contracts.runs import Trigger, TriggerKind
 
 from .fakes import sample_inputs
@@ -206,3 +206,43 @@ def test_the_prompt_says_a_per_diem_is_an_item_at_a_rate_and_an_expense_report_a
     )
     assert "Don't link the rate document for an amount" in flat
     assert "An expense report is a note, linked with no amount" in flat
+
+
+def test_a_fix_of_the_standard_conditions_while_one_waits_is_accepted():
+    """The term confirmed by the accountant, a fix of it waiting, and a second fix of it: all
+    one chain, so none is refused as a second recording (PR 325's review)."""
+    ctx = award_context()
+    result, error = write_conditions(ctx)
+    assert not error, result
+    term = ctx.staged.pop().record
+    confirm = Record.model_validate(
+        {
+            "id": "rec-confirm",
+            "workspace_id": term.workspace_id,
+            "grant_id": term.grant_id,
+            "author": "user",
+            "author_user_id": "00000000-0000-4000-8000-0000000000aa",
+            "written_at": "2023-01-12T16:00:00Z",
+            "data": {"kind": "confirmation", "record_ids": [term.id], "decision": "confirmed"},
+        }
+    )
+    ctx.inputs = replace(ctx.inputs, records=[term, confirm])
+    fix = {
+        "kind": "other_term",
+        "label": "Standard conditions",
+        "standard_conditions": True,
+        "replaces_id": term.id,
+        "values": [
+            {"field": "dated", "label": "dated", "value": "2023-01-10"},
+            {"field": "statement", "label": "conditions"},
+        ],
+    }
+    for _ in range(2):  # a fix, then another fix of the confirmed term while the first waits
+        result, error = run_tool(ctx, "write_term", fix)
+        assert not error, result
+        assert ctx.staged[-1].waits
+
+    result, error = write_conditions(ctx)  # a new term with the same sentence
+    assert error and f"already recorded ({term.id})" in result
+    assert "recorded once: leave this sentence out" in result
+    assert "standard_conditions false" not in result

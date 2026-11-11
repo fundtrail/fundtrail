@@ -28,6 +28,7 @@ from .adapter import (
     Question,
     Record,
     RecordKind,
+    RecordState,
     ThreadMessage,
     applies_to_is_matchable,
     citation_of,
@@ -605,6 +606,30 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
     return text, False
 
 
+def _chain(state: RecordState, record_id: str | None) -> set[str]:
+    """Every record in `record_id`'s correction chain: the record it corrects, back to the
+    first, and every correction of any of them, current or waiting. Empty for None."""
+    if record_id is None:
+        return set()
+    by_id = {r.id: r for r in state.records}
+
+    def root(rid: str) -> str:
+        seen: set[str] = set()
+        while rid in by_id and by_id[rid].replaces_id and rid not in seen:
+            seen.add(rid)
+            rid = by_id[rid].replaces_id or rid
+        return rid
+
+    first = root(record_id)
+    return {r.id for r in state.records if root(r.id) == first} | {record_id}
+
+
+def _version_now(state: RecordState, r: Record) -> str:
+    """The version of a record's chain that counts now, or the record itself."""
+    now = state.current_version(r.id)
+    return now.id if now is not None else r.id
+
+
 def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: str | None) -> None:
     """One document, one note, with every value cited inside it (ruling 81).
 
@@ -630,14 +655,17 @@ def _one_note_per_document(ctx: RunContext, data: dict[str, Any], replaces_id: s
         return
     [file_id] = files
     state = ctx.state()
-    for r in [*state.current(), *state.waiting()]:  # a note in a thread run waits
-        if r.kind != RecordKind.NOTE or r.id == replaces_id or file_id not in files_of(r):
+    own = _chain(state, replaces_id)  # the note this corrects, and its other fixes
+    # Waiting notes count too: every correction the agent writes waits, as does a note
+    # written in a thread run.
+    for r in [*state.current(), *state.waiting()]:
+        if r.kind != RecordKind.NOTE or r.id in own or file_id not in files_of(r):
             continue
         label = getattr(r.data, "label", "")
         raise WriteProblem(
-            f'file {file_id} already has its note ({r.id}, "{label}"). One document is one '
-            "note: if this fact belongs on it, correct that note with replaces_id and a statement "
-            "that holds it; otherwise leave it out"
+            f'file {file_id} already has its note ({_version_now(state, r)}, "{label}"). One '
+            "document is one note: if this fact belongs on it, correct that note with "
+            "replaces_id and a statement that holds it; otherwise leave it out"
         )
 
 
@@ -653,14 +681,16 @@ def _standard_conditions_once(
         return
     key = " ".join(said.split()).casefold()
     state = ctx.state()
+    own = _chain(state, replaces_id)  # the term this corrects, and its other fixes
     for r in [*state.current(), *state.waiting()]:  # a term the agent writes waits
-        if r.kind != RecordKind.OTHER_TERM or r.id == replaces_id:
+        if r.kind != RecordKind.OTHER_TERM or r.id in own:
             continue
         if not getattr(r.data, "standard_conditions", False):
             continue
         if " ".join(r.data.statement.value.split()).casefold() == key:  # pyright: ignore[reportAttributeAccessIssue]
             raise WriteProblem(
-                f"these standard conditions are already recorded ({r.id}); they're recorded once"
+                f"these standard conditions are already recorded ({_version_now(state, r)}), and "
+                "they're recorded once: leave this sentence out"
             )
 
 

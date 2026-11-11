@@ -112,3 +112,31 @@ def test_the_prompt_says_one_note_per_document_and_no_flag_for_a_check():
     assert "An award letter or an amendment gives terms, not a note" in flat
     assert "Don't flag what code's checks already report" in flat
     assert "budget line that disagrees with the ledger account" in flat
+
+
+def test_a_second_fix_while_the_first_waits_is_accepted_and_a_new_note_is_still_refused():
+    """Every correction the agent writes waits, so a note can have a waiting fix. Fixing that
+    fix, or the note again, is the same note's chain, not a second note (PR 325's review)."""
+    ctx = context()
+    label(ctx, "what", LINERS, 0, LINERS)
+    label(ctx, "award", "Award: SYN-2300117", 0, "Award: SYN-2300117")
+    what = [{"field": "statement", "label": "what"}]
+    award = [{"field": "statement", "label": "award"}]
+    result, error = note(ctx, "Liners invoice", what)
+    assert not error, result
+    first = ctx.staged[-1].record.id
+
+    result, error = note(ctx, "Liners invoice", award, first)
+    assert not error, result
+    fix = ctx.staged[-1]
+    assert fix.waits  # a correction of the agent's own fact waits
+
+    # Fixing the waiting fix is the contract's to refuse (a replaced record has to be current),
+    # never this check's: it's the same note's chain.
+    result, error = note(ctx, "Liners invoice", what, fix.record.id)
+    assert error and "isn't current" in result and "already has its note" not in result
+    result, error = note(ctx, "Liners invoice", award, first)
+    assert not error, result  # fixing the note again, while the first fix waits
+
+    result, error = note(ctx, "Another note", award)
+    assert error and f"already has its note ({first}," in result  # the version that counts now
