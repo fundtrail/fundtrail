@@ -21,11 +21,13 @@
   border-top: 0;
 }
 
+/* Who and what on the left, when and for which grant in a column on the right.
+   A long sender or subject wraps inside its own column, so the right column
+   never drops below it and stays aligned. */
 .head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-1) var(--space-5);
 }
 .who {
@@ -86,13 +88,16 @@
   padding: 0;
   list-style: none;
 }
+/* Icon, name and note sit on the name's first line, so a wrapped name keeps
+   them at its top. One 16px line plus 3px padding and the border is 24px,
+   so a one-line chip is still centred. */
 .chip {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   min-height: 24px;
   max-width: 100%;
-  padding: 2px var(--space-2);
+  padding: 3px var(--space-2);
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
   background: var(--paper-sunken);
@@ -107,11 +112,19 @@
   background: transparent;
   color: var(--ink-muted);
 }
+/* A long file name wraps; the reason beside it stays whole. */
+.chipName {
+  min-width: 0;
+}
 .chipNote {
+  flex: none;
   font-family: var(--sans);
+  white-space: nowrap;
 }
 .fileGlyph {
   flex: none;
+  /* The 12px glyph centred on the first 16px line. */
+  margin-top: 2px;
   color: var(--ink-muted);
 }
 
@@ -148,11 +161,19 @@
   .message {
     padding: var(--space-4);
   }
+  .head {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .when {
     align-items: flex-start;
     text-align: left;
   }
   .filesLabel {
     width: 100%;
+  }
+  /* Touch targets: each of a row's two buttons at least 44px tall. */
+  .actions :global(.ft-btn) {
+    min-height: 44px;
+    padding-inline: var(--space-4);
   }
 }

@@ -56,3 +56,18 @@
   overflow-wrap: anywhere;
 }
 
+
+/* A problem on the grant itself: its text in ink, then Accept with a note inline, or its acceptance. */
+.problemText {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.accept,
+.accepted {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  align-self: stretch;
+}
