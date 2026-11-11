@@ -107,6 +107,19 @@ describe("the evidence trail opens only what needs the accountant", () => {
   });
 });
 
+describe("an answer's quotes", () => {
+  it("ask the screen for a link with the answer's id and each quote's index", () => {
+    const detail = sample("chg-l-1002");
+    const judgment = (detail.answers ?? [])[0].judgment;
+    const data = judgment.data as unknown as { quotes: unknown[] };
+    data.quotes = [data.quotes[0], { ...(data.quotes[0] as object), passage: "A second passage" }];
+    const quote = vi.fn(() => "/viewer");
+    render(<ChargeDetailView detail={detail} onDecide={noop} onAsk={noop} links={{ quote }} />);
+    expect(quote).toHaveBeenCalledWith(data.quotes[0], judgment.id, 0);
+    expect(quote).toHaveBeenCalledWith(data.quotes[1], judgment.id, 1);
+  });
+});
+
 describe("a linked bill", () => {
   it("keeps the viewer link and its toggle as siblings, never the link inside a control", () => {
     render(

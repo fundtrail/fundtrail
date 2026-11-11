@@ -61,4 +61,10 @@ describe("Quote", () => {
     expect(links[0]).toHaveTextContent("Run 7 was completed on February 20, 2026");
     expect(links[0]).toHaveAttribute("href", "/viewer");
   });
+
+  it("describes the link with the file and where in it, so it says what it opens", () => {
+    render(<Quote citation={citation({ match: "close" })} files={files} href="/viewer" />);
+    const link = screen.getByRole("link", { name: "Run 7 was completed on February 20, 2026" });
+    expect(link).toHaveAccessibleDescription("statement.pdf, p. 2 · Close match on the page");
+  });
 });

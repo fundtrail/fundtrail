@@ -182,7 +182,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding: var(--space-3) 0 0 28px;
+  /* Flush with the trail's left edge and set apart above, so it reads as
+     the charge's action, not the last reason's second button. */
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--rule);
 }
 
 /* The result of accepting a reason; focus lands here after the accept. */

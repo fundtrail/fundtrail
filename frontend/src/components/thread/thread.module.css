@@ -47,8 +47,9 @@
   padding-top: 1px;
 }
 
-/* On a phone the author and date sit on one line above the entry. */
-@container thread (max-width: 420px) {
+/* In a truly narrow thread (a phone; the desktop dock is 360px or wider) the
+   author and date sit on one line above the entry. */
+@container thread (max-width: 340px) {
   .entry {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);

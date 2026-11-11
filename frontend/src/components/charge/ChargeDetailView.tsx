@@ -1,8 +1,8 @@
-import type { Charge, ChargeDetail, Citation, Id, LinkView } from "@/lib/api";
+import type { Charge, ChargeDetail, Id, LinkView } from "@/lib/api";
 import { ReviewThread } from "../thread/ReviewThread";
 import type { OnDecide } from "../thread/Decide";
 import type { OnWrite } from "../thread/useThreadActions";
-import { AgentAnswers } from "./AgentAnswers";
+import { AgentAnswers, type QuoteHref } from "./AgentAnswers";
 import { BillsCovering } from "./BillsCovering";
 import { ChargeHeader } from "./ChargeHeader";
 import { EvidenceChecklist, MissingItems } from "./EvidenceChecklist";
@@ -14,8 +14,8 @@ import styles from "./charge.module.css";
 export interface ChargeLinks {
   /** The viewer at a link's part, highlighted. */
   link?: (view: LinkView) => string | undefined;
-  /** The viewer at a quoted passage. */
-  quote?: (citation: Citation) => string | undefined;
+  /** The viewer at a quoted passage; an answer's quotes also pass the answer's id and the quote's index. */
+  quote?: QuoteHref;
   /** The viewer at a file. */
   file?: (fileId: Id) => string | undefined;
 }

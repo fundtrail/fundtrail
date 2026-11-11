@@ -20,6 +20,7 @@ import { BucketBadge } from "../BucketBadge";
 import { ANSWER_LABELS, AUTHOR_LABELS, field } from "../charge/labels";
 import { DisputeBox, errorLines, SuggestionBox, type Decision, type DecisionMade, type OnDecide } from "./Decide";
 import { changeFor } from "./describe";
+import { scrollTarget, threadShape, type ThreadShape } from "./scrollTarget";
 import styles from "./thread.module.css";
 
 export interface ThreadContext {
@@ -192,6 +193,7 @@ function Entry({ entry, ctx, decisions, onDecide }: { entry: ThreadEntry; ctx: T
       data-kind={entry.kind}
       data-who={who}
       data-waiting={(entry.kind === "record" && entry.state === "waiting") || undefined}
+      data-record={entry.kind === "record" ? entry.record.id : undefined}
     >
       <div className={styles.who} data-who={who}>
         <span className={styles.whoName}>{who === "code" ? "Code" : AUTHOR_LABELS[who]}</span>
@@ -303,16 +305,20 @@ export function ReviewThread({
 }) {
   const decisions = decisionsFrom(thread, ctx.records);
   const scroller = useRef<HTMLDivElement>(null);
-  const count = thread.entries.length;
-  // Newest entry last, and scrolled to it when one arrives, unless something
-  // waits for the accountant: then the first waiting entry is what's in view.
+  const shown = useRef<ThreadShape | null>(null);
+  // Newest entry last. scrollTarget decides which entry comes into view, and
+  // leaves the scroll alone when a refetch brings nothing new.
   useEffect(() => {
     const el = scroller.current;
-    if (!el) return;
-    const waiting = el.querySelector<HTMLElement>("[data-waiting]");
+    const next = threadShape(thread);
+    const target = scrollTarget(shown.current, next);
+    shown.current = next;
+    if (!el || target.to === "stay") return;
+    const entry =
+      target.to === "record" ? [...el.querySelectorAll<HTMLElement>("[data-record]")].find((n) => n.dataset.record === target.id) : undefined;
     // The scroll area is positioned, so an entry's offsetTop is measured from its top.
-    el.scrollTop = waiting ? Math.max(0, waiting.offsetTop - 12) : el.scrollHeight;
-  }, [count]);
+    el.scrollTop = entry ? Math.max(0, entry.offsetTop - 12) : el.scrollHeight;
+  }, [thread]);
   return (
     <div className={styles.thread}>
       <div className={styles.scroll} ref={scroller}>

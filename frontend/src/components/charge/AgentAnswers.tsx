@@ -7,6 +7,13 @@ import { ANSWER_LABELS, field, QUESTION_LABELS } from "./labels";
 import { TrailGroup, TrailNode, TrailNote, type Mark } from "./Trail";
 import styles from "./charge.module.css";
 
+/**
+ * A link into the viewer at a quoted passage. `recordId` and `index` name the
+ * record the quote belongs to and its place in that record's `quotes`; they
+ * are optional, so a link built from the citation alone still fits.
+ */
+export type QuoteHref = (citation: Citation, recordId?: Id, index?: number) => string | undefined;
+
 const ANSWER_MARKS: Record<string, Mark> = { supports: "holds", contradicts: "conflict", unsure: "human" };
 
 /**
@@ -31,7 +38,11 @@ export function AgentAnswers({
   questions: OpenQuestion[];
   rechecking: boolean;
   files: Record<Id, EvidenceFile>;
-  quoteHref?: (citation: Citation) => string | undefined;
+  /**
+   * The viewer at a quote. Called with the answer's record id and the quote's
+   * index in its `quotes`, so the screen can link to that exact quote.
+   */
+  quoteHref?: QuoteHref;
   chargeId?: Id;
   onWrite?: OnWrite;
 }) {
@@ -101,7 +112,7 @@ export function AgentAnswers({
               </p>
             )}
             {quotes.map((q, i) => (
-              <Quote key={i} citation={q} files={files} href={quoteHref?.(q)} highlight={!settled} />
+              <Quote key={i} citation={q} files={files} href={quoteHref?.(q, judgment.id, i)} highlight={!settled} />
             ))}
             {onWrite && <OverruleAnswer judgment={judgment} onWrite={onWrite} />}
           </TrailNode>

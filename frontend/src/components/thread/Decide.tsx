@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ApiError, type Citation, type EvidenceFile, type FtRecord, type Id, type RecordState } from "@/lib/api";
 import { date } from "@/lib/format";
 import { field } from "../charge/labels";
@@ -124,6 +124,7 @@ export function Quote({
   const name = file?.name ?? "a file";
   const where = pageCaption(citation);
   const marked = highlight && isExactPassage(citation);
+  const captionId = useId();
   let passage: ReactNode = null;
   if (citation.passage) passage = marked ? <mark>{citation.passage}</mark> : citation.passage;
   return (
@@ -131,7 +132,8 @@ export function Quote({
       {passage ? (
         <blockquote>
           {href ? (
-            <Link className={styles.quoteLink} href={href}>
+            // The passage is the link; the caption naming the file and where in it describes it.
+            <Link className={styles.quoteLink} href={href} aria-describedby={captionId}>
               {passage}
             </Link>
           ) : (
@@ -141,7 +143,7 @@ export function Quote({
       ) : (
         <p className="ft-caption">A marked area, with no text to quote.</p>
       )}
-      <figcaption className="ft-caption">
+      <figcaption id={captionId} className="ft-caption">
         {href && !passage ? (
           <Link className="ft-link" href={href}>
             {name}

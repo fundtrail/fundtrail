@@ -168,7 +168,7 @@ export function Disclosure({
       <summary className={styles.disclosureHead}>
         <span>
           <span className={styles.disclosureLabel}>{label}</span>
-          {count !== undefined && count !== null && <span className={styles.disclosureCount}> · {count}</span>}
+          {count !== undefined && count !== null && <span> · {count}</span>}
         </span>
         <span className={styles.toggle} aria-hidden="true">
           <span className={styles.show}>Show</span>
