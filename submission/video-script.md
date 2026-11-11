@@ -57,16 +57,15 @@ Every jump below is **Go to a date with Skip the human steps ticked**, so the sa
 | 06 Extension | Sep 9, 2026, then Sep 15, 2026 | Boat time posts Sep 8; the extension arrives Sep 14; its scripted confirm is Sep 15 at 17:00 |
 | 07 Closeout | Mar 1, 2027 | Four more events arrive after the Nov 2 notice; the scripted sign-off is Mar 10 |
 
-**Getting around:** the sidebar under the grant has Problem list, Evidence, Grant terms, Ledger and Closeout. It has no Overview entry yet, so get back to the overview from the grant's name in the workspace's Grants list, or "Back to the grant" on a charge.
+**Getting around:** the sidebar under the grant has Overview, Problem list, Charges, Evidence, Grant terms, Ledger and Closeout. Buttons in the folded timeline ("Deliver for me", "Go to a date") sit behind **More**. In a review thread, click **Send**; Return only adds a line.
 
 ### Beats
 
 Click paths are for main after tonight's restyle. Recheck the labels before recording.
 
 ### 0:00 Open (15 s)
-- **Clicks:** the workspace home, then **Add a grant** (top right). On the **Sample** card, set **Which sample** to "Larger sample, read live from the start", click **Open**, then **Start it**.
+- **Clicks:** the workspace home, then **Add a grant**. On the **Sample** card, set **Which sample** to "Larger sample, prerun" (or "Larger sample, read live from the start" without a prerun, which asks you to confirm with **Start it**), then **Open**.
 - **On screen:** the grant overview, with the sample timeline stopped on the award letter.
-- **Note:** the confirm line before "Start it" repeats the sample's name awkwardly. Click through it quickly, or cut it.
 - **Say:** "Automate the Old Way. When a research grant ends, a university has a few months to prove every charge followed the rules. That proof is scattered across email, shared drives and receipts. FundTrail keeps a running evidence file for every grant, so the proof is ready before anyone asks."
 
 ### 0:15 Terms tied to their passages (20 s)
