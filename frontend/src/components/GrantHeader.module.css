@@ -3,7 +3,7 @@
 .head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2) var(--space-6);
+  gap: var(--space-3) var(--space-7);
   align-items: end;
 }
 .what {
@@ -12,7 +12,7 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 14px;
+  gap: 2px var(--space-4);
   margin-bottom: var(--space-1);
   color: var(--ink-muted);
   font-size: 13px;

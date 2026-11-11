@@ -439,11 +439,13 @@ export function TimelinePanel({ grantId, compact = false }: { grantId: Id; compa
         </h2>
         {compact && view && (
           <p className="ft-tl__where">
-            <span className="ft-tl__nowtag">Now</span> <span className="ft-num ft-strong">{date(view.now.now)}</span>
+            <span>
+              <span className="ft-tl__nowtag">Now</span> <span className="ft-num ft-strong">{date(view.now.now)}</span>
+            </span>
             {view.now.stopped_on && (
               <span className="ft-tl__where-stop">
                 {" "}
-                · stopped on <span className="ft-tl__name">{view.now.stopped_on.name}</span>
+                <span className="ft-tl__sep">·</span> stopped on <span className="ft-tl__name">{view.now.stopped_on.name}</span>
               </span>
             )}
             <button type="button" className="ft-tl__toggle" aria-expanded={trailOpen} aria-controls={trailId} onClick={() => setTrailOpen(!trailOpen)}>
