@@ -106,7 +106,22 @@ function ShowAll({ open, count, controls, onToggle }: { open: boolean; count: nu
   );
 }
 
-function JustHappened({ grantId, played, waiting }: { grantId: Id; played: PlayedEvent[]; waiting: Set<Id> }) {
+/** The tag on a result loaded from a prerun, saying which kind it came from. */
+function loadedTag(expected: boolean | null | undefined): string {
+  return expected ? "Loaded from the expected prerun" : "Loaded from the prerun";
+}
+
+function JustHappened({
+  grantId,
+  played,
+  waiting,
+  expected,
+}: {
+  grantId: Id;
+  played: PlayedEvent[];
+  waiting: Set<Id>;
+  expected?: boolean | null;
+}) {
   // The grant's charges, to name each charge link by its ledger line. The page loads the same list.
   const charges = useCharges(grantId).data;
   const [open, setOpen] = useState(false);
@@ -131,7 +146,7 @@ function JustHappened({ grantId, played, waiting }: { grantId: Id; played: Playe
             <li key={p.event.id} className={`ft-tl__item ft-tl__ev ft-tl__ev--past${i < hidden ? " ft-tl__tail" : ""}`}>
               <EventLine event={p.event} />
               {/* A result loaded from the prerun is marked, so it never passes for live work. */}
-              {p.loaded && <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>}
+              {p.loaded && <span className="ft-tag ft-tl__loaded">{loadedTag(expected)}</span>}
               {/* Who delivered an item the user was to deliver (rulings 44 and 52). */}
               <DeliveredBy played={p} waiting={waiting} />
               <span className="ft-tl__wrote">{agentSummary(p)}</span>
@@ -597,7 +612,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
         <ul className="ft-tl__also" aria-label="About the stop and what comes next">
           {stop?.loaded && (
             <li>
-              <span className="ft-tag ft-tl__loaded">Loaded from the prerun</span>
+              <span className="ft-tag ft-tl__loaded">{loadedTag(view.expected_prerun)}</span>
             </li>
           )}
           {decisions.map((d) => (
@@ -637,6 +652,11 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
               )}
             </p>
           )}
+          {view.expected_prerun && (
+            <p className="ft-caption ft-tl__note">
+              This grant loads an expected prerun: the records we expect the agent to write, prepared ahead of time, not the agent&apos;s output.
+            </p>
+          )}
           {view.on_run_through === false && <p className="ft-caption ft-tl__note">This grant is off the run-through: from here the agent works live.</p>}
           {trailOpen && (
             <div id={trailId} className="ft-tl__body">
@@ -647,6 +667,7 @@ export function TimelinePanel({ grantId }: { grantId: Id }) {
                   grantId={grantId}
                   played={view.just_happened ?? []}
                   waiting={new Set((view.now.deliveries ?? []).filter((d) => !d.delivered).map((d) => d.event.id))}
+                  expected={view.expected_prerun}
                 />
                 <Now grantId={grantId} view={view} busy={busy} act={act} />
                 <ComingUp events={view.coming_up ?? []} finished={view.finished} />

@@ -43,6 +43,14 @@ export const SAMPLE_OPTIONS: SampleOption[] = [
     available: false,
     unavailable_reason: "Placeholder: not prepared in fake mode.",
   },
+  {
+    choice: "larger_expected",
+    name: "Larger sample, expected prerun",
+    description: "The same grant, with the records we expect the agent to write, prepared ahead of time. They aren't the agent's output.",
+    needs_confirm: false,
+    available: false,
+    unavailable_reason: "Placeholder: not prepared in fake mode.",
+  },
 ];
 
 /**
@@ -211,6 +219,7 @@ function view(events: TimelineEvent[], state: TimelineState, problemRows: number
     catching_up: false,
     // The fake's samples are read live, so there's no run-through.
     on_run_through: null,
+    expected_prerun: null,
     // Ruling 86 only; the fake has never given a reason for no highlight being left.
     next_highlight_unavailable_reason: ownStepWaiting(events, state, marks),
   };

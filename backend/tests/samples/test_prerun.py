@@ -50,6 +50,7 @@ def setup(api: Api, monkeypatch: pytest.MonkeyPatch) -> Api:
     api.platform.checks = ModuleChecks()
     _get(api, "/samples")  # the API stores the signed-in user
     monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_PRERUN, SMALL)
+    monkeypatch.setitem(player.PACK_FOR_CHOICE, SampleChoice.LARGER_EXPECTED, SMALL)
     with transaction(api.platform.pool) as conn:  # the database is shared across tests
         conn.execute("update public.sample_preruns set released = false")
     return api
@@ -1217,6 +1218,93 @@ def test_on_the_run_through_a_skipping_next_event_makes_the_held_step(setup: Api
     again = _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
     assert again.status_code == 200, again.text
     assert again.json()["on_run_through"] is True
+
+
+# The expected prerun: the demo's fallback, a choice of its own beside the prerun.
+
+
+def _as_expected(api: Api, made: prerun.Prerun) -> prerun.Prerun:
+    """Mark a prerun expected, as the script that writes expected preruns does, and
+    release it."""
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            """update public.sample_preruns
+                 set usage = usage || '{"expected": true}'::jsonb where id = %s""",
+            (made.id,),
+        )
+    return prerun.release(api.platform, made.id)
+
+
+def _own_prerun(api: Api, grant_id: str) -> str:
+    with transaction(api.platform.pool) as conn:
+        row = conn.execute(
+            "select prerun_id from public.sample_runthrough where grant_id = %s", (grant_id,)
+        ).fetchone()
+    assert row is not None
+    return row["prerun_id"]
+
+
+def _choices(api: Api) -> dict[str, Any]:
+    return {o["choice"]: o for o in _get(api, "/samples")}
+
+
+def test_each_prerun_choice_opens_only_its_kind(setup: Api) -> None:
+    api = setup
+    expected = _as_expected(api, _make(api))
+    played = prerun.release(api.platform, _make(api).id)
+    newer_expected = _as_expected(api, _make(api))  # newest of all: still only its own choice
+    assert prerun.is_expected(expected) and not prerun.is_expected(played)
+    assert _own_prerun(api, _open(api, "larger_prerun")) == played.id
+    assert _own_prerun(api, _open(api, "larger_expected")) == newer_expected.id
+
+
+def test_each_prerun_choice_is_unavailable_without_its_kind(setup: Api) -> None:
+    api = setup
+    choices = _choices(api)
+    assert choices["larger_prerun"]["available"] is False
+    assert choices["larger_expected"]["available"] is False
+    assert choices["larger_expected"]["unavailable_reason"]
+    _as_expected(api, _make(api))
+    choices = _choices(api)
+    assert choices["larger_expected"]["available"] is True
+    assert choices["larger_prerun"]["available"] is False  # an expected one never stands in
+    workspace_id = _workspace(api)
+    refused = _post(api, f"/workspaces/{workspace_id}/samples", {"choice": "larger_prerun"})
+    assert refused.status_code == 422
+    with transaction(api.platform.pool) as conn:
+        conn.execute("update public.sample_preruns set released = false")
+    prerun.release(api.platform, _make(api).id)  # a played one only
+    choices = _choices(api)
+    assert choices["larger_prerun"]["available"] is True
+    assert choices["larger_expected"]["available"] is False
+    refused = _post(api, f"/workspaces/{workspace_id}/samples", {"choice": "larger_expected"})
+    assert refused.status_code == 422
+
+
+def test_the_expected_choice_says_what_it_is(setup: Api) -> None:
+    api = setup
+    choice = _choices(api)["larger_expected"]
+    assert choice["name"] == "Larger sample, expected prerun"
+    assert "expect the agent to write" in choice["description"]
+    assert "aren't the agent's output" in choice["description"]
+    assert choice["needs_confirm"] is False
+
+
+def test_a_grant_opened_from_the_expected_prerun_says_so(setup: Api) -> None:
+    """Keyed off the grant's own prerun: the expected choice's grant says so as it loads
+    to the end; one opened from the played prerun doesn't; a live one has no prerun."""
+    api = setup
+    expected = _as_expected(api, _make(api))
+    prerun.release(api.platform, _make(api).id)
+    grant_id = _open(api, "larger_expected")
+    timeline = _to_the_end(api, grant_id)
+    assert timeline["expected_prerun"] is True and timeline["on_run_through"] is True
+    assert all(p["loaded"] for p in timeline["just_happened"])
+    assert _counts(api, grant_id) == _counts(api, expected.grant_id)
+    played_grant = _open(api, "larger_prerun")
+    assert _get(api, f"/grants/{played_grant}/timeline")["expected_prerun"] is False
+    live = _open(api, "small_live")
+    assert _get(api, f"/grants/{live}/timeline")["expected_prerun"] is None
 
 
 def test_letting_in_the_held_email_next_highlight_holds_keeps_it_on(
