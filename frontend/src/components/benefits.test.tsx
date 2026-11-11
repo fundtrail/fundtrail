@@ -41,6 +41,12 @@ describe("benefit charges (rulings 61 and 62)", () => {
     expect(screen.getByText(/Expected \$360\.00, charged \$366\.00/)).toBeInTheDocument();
   });
 
+  it("compares against the charge's net when the status carries it (decision 0020)", () => {
+    const netted = { ...status(benefits, [mismatch]), net_cents: 35_000 };
+    render(<ProblemList rows={[{ kind: "charge", charge: benefits, status: netted }]} />);
+    expect(screen.getByText(/Expected \$360\.00, charged \$350\.00/)).toBeInTheDocument();
+  });
+
   it("shows expected against charged on the charge page's reasons", () => {
     render(<StatusReasons status={status(benefits, [mismatch])} chargeId={benefits.id} chargedCents={benefits.amount_cents} />);
     expect(screen.getByText("Expected $360.00 · charged $366.00")).toBeInTheDocument();
@@ -76,7 +82,7 @@ describe("benefit charges (rulings 61 and 62)", () => {
     );
     const item = screen.getByRole("list", { name: "Evidence checklist" });
     expect(within(item).getByText(/Recalculated from/)).toBeInTheDocument();
-    expect(within(item).getByRole("link", { name: "Staff benefits (0.366)" })).toHaveAttribute("href", "/grants/grant-sample/records/rec-rate");
+    expect(within(item).getByRole("link", { name: "Staff benefits (36.6%)" })).toHaveAttribute("href", "/grants/grant-sample/records/rec-rate");
     expect(within(item).getByRole("link", { name: "salary line 2" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-salary-2");
     expect(within(item).queryByText(/Filled by/)).toBeNull();
   });
