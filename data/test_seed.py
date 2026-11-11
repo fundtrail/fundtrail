@@ -26,7 +26,7 @@ import json
 import math
 import re
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 DATA = Path(__file__).resolve().parent
@@ -65,7 +65,18 @@ ACTION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
     "answer_flag": ({"line_id", "answer"}, set()),
     # A share and its basis typed for part of a bill (decision 0021).
     "enter_share": ({"line_id", "file", "share", "out_of", "basis"}, set()),
+    # Ruling 59. A held Gmail file let in; a reason accepted with the accountant's
+    # note, about a line, a file, or neither (the grant); the sign-off with its
+    # note. For these two, `note` is the accountant's note and is required.
+    "let_in_mail": ({"file"}, set()),
+    "accept_reason": ({"check"}, {"problem", "line_id", "file"}),
+    "sign_off": (set(), set()),
 }
+# Steps the answer key can't measure (it doesn't express suggestions, grant
+# problems, held mail or the sign-off), so "no more than the key assumes" can't
+# be checked for them.
+UNMEASURED = {"decide_suggestion", "let_in_mail", "accept_reason", "sign_off"}
+NOTE_REQUIRED = {"accept_reason", "sign_off"}
 USER_ACTIONS = set(ACTION_FIELDS)
 DECISIONS = {"accept", "reject"}
 RECORDS_SOURCE = DATA.parent / "backend" / "app" / "contracts" / "records.py"
@@ -156,9 +167,17 @@ ACCOUNT_CATEGORIES: tuple[tuple[str, frozenset[str] | None], ...] = tuple(
 # the key's value isn't looked for in the file.
 RECORD_FIELDS = {
     **ev.RECORD_FIELDS,
+    # Ruling 61: a benefit rate term, one row of the rate agreement. Its rate is a
+    # fraction and its group the contract's BenefitGroup, so neither is written as
+    # such in the file; its name and dates are.
+    "rate": {"name", "rate", "applies_to", "effective_from", "effective_to", "dated"},
     "approval_rule": ev.RECORD_FIELDS["approval_rule"] | {"scope"},
 }
-UNCITED_FIELDS = ev.UNCITED_FIELDS | {"scope"}
+UNCITED_FIELDS = ev.UNCITED_FIELDS | {"scope", "rate", "applies_to"}
+DATE_FIELDS = ev.DATE_FIELDS | {"effective_from", "effective_to"}
+# The composite benefit rate accounts (ruling 61): code fills a benefit charge's
+# "Benefit rate" item from the confirmed rate and its salary lines, with no link.
+BENEFIT_ACCOUNTS = {"53060", "53070", "53080", "53085", "53086"}
 APPROVAL_SCOPES = {"every_charge", "moved_out"}
 # The photos depend on the machine's fonts, so the generator's bytes can't be
 # compared. Their hashes catch a photo swapped or edited by hand. After
@@ -170,6 +189,34 @@ PHOTO_SHA256 = {
     "samples/nitrate-sensors/hardware_receipt.jpg": (
         "384fbd3a259b36408c6e5ec0004ec178359e4be02ac8e90d0f5cfe659e953827"
     ),
+    "samples/salt-marsh-carbon/taxi_receipt_egu_2024.jpg": (
+        "400df989b207c25b05757423ae17216b4d54b7e4af756163cb2238c378c3fb7d"
+    ),
+    "samples/salt-marsh-carbon/scan_invoice_ESS-55120.jpg": (
+        "880275c8c0a60534f22d411230cef399d946e86c8f0921f961406f851a185342"
+    ),
+}
+# The highlights each sample marks in its timeline (the sample content brief).
+LARGER_HIGHLIGHTS = {
+    "Terms tied to their passages",  # 1
+    "Invoice before its line",  # 2
+    "Receipt photo you deliver",  # 3
+    "Shared invoice, 56 of 96",  # 4
+    "Own fee, own approval",  # 5
+    "Extension found in Drive",  # 6
+    "Held vendor email",  # 7
+    "Moved off the grant",  # 7
+    "Over budget",  # 8
+    "More money, a higher limit",  # 8
+    "Closeout",  # 9
+    "Same invoice twice",  # 10
+    "One report, six salary lines",  # 11
+    "Bill under its charge",  # 12
+}
+SMALL_HIGHLIGHTS = {
+    "Terms tied to their passages",
+    "Invoice before its line",
+    "Receipt photo you deliver",
 }
 TJ = re.compile(rb"\(((?:\\.|[^\\)])*)\)\s*Tj")
 
@@ -330,7 +377,7 @@ def check_timeline(
         last = t
         kind = e.get("kind")
         if kind == "file":
-            allowed = {"at", "kind", "file", "source", "sender", "deliver", "note"}
+            allowed = {"at", "kind", "file", "source", "sender", "deliver", "highlight", "note"}
             name = e.get("file")
             if name not in documents:
                 problems.append(f"{where}: {name!r} isn't a document")
@@ -349,12 +396,12 @@ def check_timeline(
             if e.get("deliver", "user") != "user":
                 problems.append(f"{where}: deliver can only be user")
         elif kind == "ledger":
-            allowed = {"at", "kind", "file", "note"}
+            allowed = {"at", "kind", "file", "highlight", "note"}
             if e.get("file") != "ledger.csv" or ledger_at is not None:
                 problems.append(f"{where}: one ledger event, for ledger.csv")
             ledger_at = t
         elif kind == "ledger_line":
-            allowed = {"at", "kind", "line_id", "note"}
+            allowed = {"at", "kind", "line_id", "highlight", "note"}
             lid = e.get("line_id")
             seen_lines[lid] = seen_lines.get(lid, 0) + 1
             out[f"line:{lid}"] = t
@@ -367,6 +414,8 @@ def check_timeline(
             continue
         if extra := set(e) - allowed:
             problems.append(f"{where}: unknown fields {sorted(extra)}")
+        if "highlight" in e and not (isinstance(e["highlight"], str) and e["highlight"].strip()):
+            problems.append(f"{where}: a highlight label can't be blank")
     if ledger_at is not None:
         if seen_lines:
             problems.append("timeline.json: a ledger event and ledger_line events together")
@@ -390,6 +439,8 @@ def check_timeline(
             continue
         required, optional = ACTION_FIELDS[a["action"]]
         given = set(a) - {"at", "action", "note"}
+        if a["action"] in NOTE_REQUIRED and not str(a.get("note", "")).strip():
+            problems.append(f"{where}: {a['action']} needs the accountant's note")
         if not required <= given or given - required - optional:
             problems.append(
                 f"{where}: {a['action']} takes {sorted(required)}, and may take {sorted(optional)}"
@@ -420,8 +471,9 @@ def check_timeline(
             out[f"answer_flag_value:{a['line_id']}"] = a["answer"]  # type: ignore[assignment]
         if share is not None:
             out[f"enter_share_value:{a['line_id']}"] = (a["file"], *share)  # type: ignore[assignment]
-        if a["action"] == "deliver_file":
-            # A file marked for the user arrives when the user brings it in.
+        if a["action"] in ("deliver_file", "let_in_mail"):
+            # A file marked for the user arrives when the user brings it in, and a
+            # held email when the accountant lets it in.
             out[f"file:{a['file']}"] = t
     return out
 
@@ -471,7 +523,7 @@ def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -
         elif ftype == "category":
             if value not in CATEGORIES:
                 problems.append(f"{where}: category {value!r} isn't one of {sorted(CATEGORIES)}")
-        elif ftype in ev.DATE_FIELDS:
+        elif ftype in DATE_FIELDS:
             d = date.fromisoformat(value)
             if not any(ev.normalize(r) in body for r in ev.date_renderings(d)):
                 problems.append(f"{where}: {field} {value} isn't written in {name}")
@@ -483,7 +535,7 @@ def check_record(rec: dict, i: int, text: dict[str, str], problems: list[str]) -
                 problems.append(f"{where}: scope must be one of {sorted(APPROVAL_SCOPES)}")
         elif ftype not in UNCITED_FIELDS and ev.normalize(value) not in body:
             problems.append(f"{where}: {field} {value!r} doesn't appear in {name}")
-    if kind in ev.TERM_KINDS and "dated" not in fields:
+    if kind in ev.TERM_KINDS | {"rate"} and "dated" not in fields:
         problems.append(f"{where}: a term should give its dated")
 
 
@@ -576,7 +628,10 @@ def check_key_data(
             for link in key["links"]
             if link["line_id"] == lid and "amount_cents" in link
         )
-        if bills and bills != ev.cents_of(lines[lid]):
+        complete = any(
+            b["line_id"] == lid and b["bucket"] == "evidence_complete" for b in key["buckets"]
+        )
+        if complete and bills and bills != ev.cents_of(lines[lid]):
             problems.append(f"answer_key.json: bills linked to {lid} don't add up to it")
 
     assigned = set()
@@ -855,7 +910,8 @@ def check_invariants(
         )
         if lid in doubtful and not cleared:
             problems.append(f"{where}: complete, but an answer isn't supports")
-        if not links_by_line.get(lid):
+        benefit = lines[lid]["account"].split(" ")[0] in BENEFIT_ACCOUNTS
+        if not links_by_line.get(lid) and not benefit:
             problems.append(f"{where}: complete with nothing linked")
         shared = arrivals.get(f"enter_share:{lid}")
         if lid in unbased and (shared is None or shared >= when):
@@ -935,7 +991,7 @@ def test_invariants_catch_false_clears() -> None:
 
     for folder in ("salt-marsh-carbon", "coastal-microbial-genomics", "river-delta-sediment"):
         assert not run(folder, lambda key, ref: None), folder
-    assert run("salt-marsh-carbon", complete("ECX-7702")), "S3c marked complete"
+    assert run("river-delta-sediment", complete("ECX-7702")), "S3c marked complete"
     assert run("river-delta-sediment", complete("EMS-2609-14", "2026-11-23")), "S2 early"
     assert run("coastal-microbial-genomics", complete("REG-2026-0457")), "S1 marked complete"
     assert run("salt-marsh-carbon", relink), "S3a linked for $5,900"
@@ -981,6 +1037,7 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
     delivered = {
         a["file"]: ev.parse_time(a["at"]) for a in actions if a["action"] == "deliver_file"
     }
+    let_in = {a["file"]: ev.parse_time(a["at"]) for a in actions if a["action"] == "let_in_mail"}
     ledger_at = next((ev.parse_time(e["at"]) for e in events if e["kind"] == "ledger"), None)
     line_at = {}
     with (folder / "ledger.csv").open(newline="", encoding="utf-8") as fh:
@@ -1013,6 +1070,17 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
             problems.append(f"{where}: its file isn't on the timeline")
             continue
         clock_at = ev.parse_time(event["at"])
+        if a["action"] == "let_in_mail":
+            known = {
+                r["fields"].get("email", "").casefold()
+                for r in key["records"]
+                if r["kind"] == "person"
+            }
+            if event.get("source") != "gmail" or str(event.get("sender", "")).casefold() in known:
+                problems.append(f"{where}: only a Gmail file from an unknown sender is held")
+            if at < clock_at:
+                problems.append(f"{where}: comes before the email arrives")
+            continue
         if a["action"] == "deliver_file":
             if event.get("deliver") != "user":
                 problems.append(f"{where}: the file isn't marked for the user to deliver")
@@ -1020,7 +1088,7 @@ def check_user_actions(folder: Path, problems: list[str]) -> None:
                 problems.append(f"{where}: comes before the file's date")
         else:
             marked = event.get("deliver") == "user"
-            arrived = delivered.get(a["file"]) if marked else clock_at
+            arrived = delivered.get(a["file"]) if marked else let_in.get(a["file"], clock_at)
             if arrived is None or at <= arrived:
                 problems.append(f"{where}: comes before its file arrives")
 
@@ -1096,6 +1164,8 @@ def check_needed(a: dict, key: dict, actions: list[dict], problems: list[str], w
         "deliver_file",
         "enter_share",
         "answer_flag",
+        "let_in_mail",
+        "sign_off",
     ):
         problems.append(f"{where}: scripted more than once")
     if a["action"] == "confirm_terms" and not any(
@@ -1251,7 +1321,7 @@ def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
     import shutil
     import tempfile
 
-    folder = LARGER
+    folder = DEMO / "river-delta-sediment"
     g = gen()[folder]
     problems: list[str] = []
     lines, arrivals, text = folder_inputs(folder, g, problems)
@@ -1273,7 +1343,7 @@ def test_a_bucket_that_rests_on_a_decision_needs_its_scripted_action() -> None:
         return out
 
     assert any("no basis" in p for p in run(None))
-    assert not run(("invoice_ECX-7702.txt", 3, 5)), run(("invoice_ECX-7702.txt", 3, 5))
+    assert not run(("invoice_ECX-7702.txt", 2, 5)), run(("invoice_ECX-7702.txt", 2, 5))
     assert any("scripted share" in p for p in run(("invoice_ECX-7702.txt", 1, 2)))
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -1333,7 +1403,6 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
 
     g = gen()[LARGER]
     s3a = next(ln.line_id for ln in g.lines if ln.reference == "EGS-20931")
-    s3c = next(ln.line_id for ln in g.lines if ln.reference == "ECX-7702")
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / LARGER.name
         shutil.copytree(LARGER, copy)
@@ -1369,16 +1438,6 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
             {"at": later, "action": "answer_flag", "line_id": "L-0000-0000", "answer": "supports"},
             # An answer that isn't supports, contradicts or unsure.
             {"at": later, "action": "answer_flag", "line_id": s3a, "answer": "maybe"},
-            # S3c's key stays Needs a human, so a typed share clears it to nothing.
-            {
-                "at": later,
-                "action": "enter_share",
-                "line_id": s3c,
-                "file": "invoice_ECX-7702.txt",
-                "share": "3",
-                "out_of": "5",
-                "basis": "Three fifths of the shared dewar's nitrogen",
-            },
         ]
         (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
         problems: list[str] = []
@@ -1392,10 +1451,32 @@ def test_a_script_with_more_than_the_key_assumes_fails() -> None:
         "isn't one of",
         "must be numbers",
         "isn't in the ledger",
-        "isn't one it clears to",
         "answer must be one of",
     ):
         assert expected in text, (expected, problems)
+
+    # S3c's key stays Needs a human, so a typed share clears it to nothing.
+    c = DEMO / "river-delta-sediment"
+    s3c = next(ln.line_id for ln in gen()[c].lines if ln.reference == "ECX-7702")
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / c.name
+        shutil.copytree(c, copy)
+        actions = load(copy, "user_actions.json")
+        actions["actions"].append(
+            {
+                "at": "2026-06-01T12:00:00Z",
+                "action": "enter_share",
+                "line_id": s3c,
+                "file": "invoice_ECX-7702.txt",
+                "share": "2",
+                "out_of": "5",
+                "basis": "Two fifths of the shared dewar's nitrogen",
+            }
+        )
+        (copy / "user_actions.json").write_text(json.dumps(actions), encoding="utf-8")
+        found: list[str] = []
+        check_user_actions(copy, found)
+    assert any("isn't one it clears to" in p for p in found), found
 
 
 def citations(obj) -> list[dict]:
@@ -1429,7 +1510,7 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
     by_id = {r["id"]: r for r in records}
     file_of: dict[str, str] = {}
     for r in records:
-        if r["data"]["kind"] in ("bill", "note"):
+        if r["data"]["kind"] in ("bill", "note", "approval"):
             cites = citations(r["data"])
             file_of[r["id"]] = cites[0]["file_id"].removeprefix("file-") if cites else ""
     links = {
@@ -1465,7 +1546,16 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
             problems.append(f"{where}: no {a['question']} answer {a['answer']} on {a['line_id']}")
 
     docs = {d.name: d for d in grant.docs}
-    arrived = {d.name: d.at for d in grant.docs}
+    arrived = {d.name: grant.file_arrival(d.name) for d in grant.docs}
+    # File order: a record comes after every record it points to, as a run writes
+    # them (a note before the link to it).
+    seen: set[str] = set()
+    for r in records:
+        d = r["data"]
+        refs = {d.get("record_id"), r.get("replaces_id"), *d.get("rests_on", [])} - {None}
+        if missing := refs - seen:
+            problems.append(f"{where}: {r['id']} comes before {sorted(missing)} it points to")
+        seen.add(r["id"])
     line_at = {f"chg-{ln.line_id}": grant.line_arrival(ln) for ln in grant.lines}
     for r in records:
         rid = r["id"]
@@ -1520,9 +1610,32 @@ def test_larger_sample() -> None:
     """The larger sample reaches closeout: its timeline starts with its award
     letter and runs past the start of its 90-day closeout window."""
     g = gen()[LARGER]
-    end = datetime.combine(g.end, datetime.min.time(), g.first_event_at().tzinfo)
+    final_end = max([g.end, *(new_end for _, new_end in g.extensions)])
+    end = datetime.combine(final_end, datetime.min.time(), g.first_event_at().tzinfo)
     assert g.docs[0].name.startswith("award_letter.") and g.docs[0].at == g.first_event_at()
-    assert g.last_event_at() > end - timedelta(days=90), "never reaches its closeout window"
+    assert g.last_event_at() > end, "never reaches closeout, past its end date"
+    actions = load(LARGER, "user_actions.json")["actions"]
+    assert any(a["action"] == "sign_off" for a in actions), "never signed off"
+
+
+def test_highlights() -> None:
+    """Each sample marks its highlights, and a blank label is refused."""
+    import shutil
+    import tempfile
+
+    for folder, want in ((LARGER, LARGER_HIGHLIGHTS), (SMALL, SMALL_HIGHLIGHTS)):
+        events = load(folder, "timeline.json")["events"]
+        labels = {e["highlight"] for e in events if "highlight" in e}
+        assert labels == want, (folder.name, labels ^ want)
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / SMALL.name
+        shutil.copytree(SMALL, copy)
+        timeline = load(copy, "timeline.json")
+        timeline["events"][1]["highlight"] = "   "
+        (copy / "timeline.json").write_text(json.dumps(timeline), encoding="utf-8")
+        problems: list[str] = []
+        check_timeline(copy, copy, check_ledger(copy, problems), problems)
+    assert any("highlight label can't be blank" in p for p in problems), problems
 
 
 def test_small_sample() -> None:
@@ -1561,6 +1674,7 @@ if __name__ == "__main__":
         test_a_script_with_more_than_the_key_assumes_fails,
         test_agent_records_match_the_key,
         test_larger_sample,
+        test_highlights,
         test_small_sample,
         test_line_ids_are_unique,
     ):
