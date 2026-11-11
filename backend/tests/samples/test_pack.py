@@ -481,3 +481,39 @@ def test_a_file_in_the_folder_that_no_email_carries_isnt_on_the_timeline(tmp_pat
     )
     with pytest.raises(PackError, match="isn't on the timeline"):
         load_folder(folder)
+
+
+def _two_highlights(tmp_path: Path, step: dict[str, Any]) -> Path:
+    """The test pack with the receipt and the emailed invoice as highlights, and `step`
+    marked as the receipt highlight's own."""
+    labels = {"receipt_R-3.txt": "Receipt", "email_INV-4.eml": "Email"}
+    events = [
+        {**e, "highlight": labels[e["file"]]} if e.get("file") in labels else e for e in EVENTS
+    ]
+    return write_pack(tmp_path / "s", events=events, actions=[step])
+
+
+def test_refuses_a_marked_step_due_after_the_next_highlight(tmp_path: Path) -> None:
+    """Next highlight stops where a highlight's own steps are due: one due after the next
+    highlight's event would play past it (ruling 77)."""
+    late = {
+        "at": "2026-11-19T18:00:00Z",
+        "action": "deliver_file",
+        "file": "receipt_R-3.txt",
+        "highlight": "Receipt",
+    }
+    with pytest.raises(PackError, match="after the next highlight, 'Email'"):
+        load_folder(_two_highlights(tmp_path, late))
+    on_time = {**late, "at": "2026-11-19T16:00:00Z"}
+    assert load_folder(_two_highlights(tmp_path / "ok", on_time)).actions[0].highlight == "Receipt"
+
+
+def test_a_marked_sign_off_may_come_after_the_next_highlight(tmp_path: Path) -> None:
+    """A sign-off never moves Next highlight's stop, so its date is free."""
+    sign = {
+        "at": "2026-11-25T18:00:00Z",
+        "action": "sign_off",
+        "note": "Signed.",
+        "highlight": "Receipt",
+    }
+    assert load_folder(_two_highlights(tmp_path, sign)).actions[0].action == "sign_off"

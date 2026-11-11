@@ -22,6 +22,7 @@ from app.contracts.api import (
     FileLink,
     LedgerUploadResult,
     NewRecordInput,
+    RecordView,
     SignOffInput,
     WorkspaceCreate,
     WriteRejected,
@@ -37,6 +38,7 @@ from app.db.pool import transaction
 
 from .bodies import RunRow
 from .deps import NOT_FOUND, GrantDep, PlatformDep, UserDep, WorkspaceDep
+from .views import record_views
 
 
 class PlainErrorsRoute(APIRoute):
@@ -133,11 +135,14 @@ async def upload_evidence(grant: GrantDep, platform: PlatformDep, file: UploadFi
 
 
 @router.get("/grants/{grant_id}/records")
-def list_records(grant: GrantDep, platform: PlatformDep) -> list[Record]:
-    """Every record on the grant, replaced and waiting ones included, in the order written."""
+def list_records(grant: GrantDep, platform: PlatformDep) -> list[RecordView]:
+    """Every record on the grant, replaced and waiting ones included, in the order written,
+    each with its state (contracts api.RecordView)."""
     with transaction(platform.pool) as conn:
         now = grant_now(conn, grant.id)
-        return store.list_records(conn, grant.id, now)
+        records = store.list_records(conn, grant.id, now)
+        files = store.list_files(conn, grant.id, now)
+    return record_views(records, files)
 
 
 @router.post("/grants/{grant_id}/records", status_code=status.HTTP_201_CREATED, responses=_REJECTED)

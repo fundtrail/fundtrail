@@ -335,17 +335,23 @@ def _load(
     until: datetime,
     *,
     hold: str | None = None,
+    reached: str | None = None,
 ) -> None:
     """A loaded move (ruling 47): the prerun's saved result up to `until`, copied at once
     from where the last load stopped; the clock set; the statuses worked out at the new
-    now. Nothing runs. With `hold` (a Next highlight move to that highlight, ruling 80),
-    the loading stops before the highlight's own steps, which wait for the user."""
+    now. Nothing runs. With `hold` (a Next highlight move, rulings 80 and 86), the loading
+    stops before any highlight's own step (but the sign-off) it reaches, which waits for
+    the user. `reached`: the highlight the move went to (ruling 85)."""
     pack = pack_for(saved.sample)
     rows = {s.step: s for s in sample_store.grant_scripted(conn, grant.id)}
     held = [
         (n, a)
         for n, a in enumerate(pack.actions)
-        if hold is not None and a.highlight == hold and a.at <= until and n not in rows
+        if hold is not None
+        and a.highlight is not None
+        and a.action != "sign_off"
+        and a.at <= until
+        and n not in rows
     ]
     # On a Next highlight move, the loading also stops before a step an earlier one held
     # that nobody has made: what the prerun built on it waits for the user's step, or a
@@ -362,6 +368,8 @@ def _load(
     if loaded_to is not None:
         load_to = max(load_to, loaded_to)  # never back
     move_id = sample_store.insert_move(conn, grant.id, after, until, loaded=True)
+    if reached is not None:
+        sample_store.set_reached(conn, move_id, reached)
     prerun.load(p, conn, grant, saved, loaded_to, load_to, move_id)
     for n, a in held:
         sample_store.insert_scripted(
@@ -547,18 +555,35 @@ def move(
         walking = sample_store.walk_target(conn, grant.id)
         start = max(now, walking) if walking is not None else now
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
-        highlight: str | None = None
+        highlight: str | None = None  # the highlight a Next highlight move goes to
+        hold: str | None = None  # on a Next highlight move: its own steps are held
         if next_highlight:
-            to, highlight = _next_highlight(items, start)
-            # It stops where the highlight's own steps are due, if that's later than its
-            # event, and holds them there for the user (ruling 77, amended).
+            event_at, label = _next_highlight(items, start)
+            waiting = own_step_waiting(p, conn, locked, pack)
+            if waiting is not None:
+                raise MoveRefused(waiting)  # ruling 86: the user's step first
+            # The highlights' own steps not made yet, due after the clock. A sign-off never
+            # moves the stop: it's held, and Closeout stops on its own event.
             made = {s.step for s in sample_store.grant_scripted(conn, grant.id)}
-            due = [
-                a.at
+            own = [
+                (a.at, a.highlight)
                 for n, a in enumerate(pack.actions)
-                if a.highlight == highlight and n not in made and a.at > start
+                if a.highlight is not None
+                and a.action != "sign_off"
+                and n not in made
+                and a.at > start
             ]
-            to = max([to, *due])
+            earlier = [at for at, mark in own if mark != label and at <= event_at]
+            if earlier:
+                # An earlier highlight's own step comes due first (the opening one's, say):
+                # the move stops there and holds it (ruling 86).
+                to = min(earlier)
+            else:
+                # It stops where this highlight's own steps are due, if that's later than
+                # its event, and holds them there (ruling 77, amended).
+                to = max([event_at, *(at for at, mark in own if mark == label)])
+                highlight = label
+            hold = label
             skip = True
         plan = plan_move(items, start, to)
         saved = prerun.run_through(conn, locked)
@@ -571,11 +596,13 @@ def move(
         walked = skipping.Walked()
         if saved is not None:
             # On the run-through: the saved result, loaded at once. Nothing runs.
-            _load(p, conn, locked, saved, now, plan.until, hold=highlight)
+            _load(p, conn, locked, saved, now, plan.until, hold=hold, reached=highlight)
         elif skip or walking is not None:
             # The move plays what the clock passes from where it stands now, a walk's later
             # steps included, so every played event is under exactly one move.
             move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
+            if highlight is not None:
+                sample_store.set_reached(conn, move_id, highlight)
             if skip:
                 skipping.queue_steps(
                     conn,
@@ -584,7 +611,7 @@ def move(
                     move_id,
                     start,
                     plan.until,
-                    highlight=highlight,
+                    highlight=hold,
                     sign_off=sign_off,
                 )
             sample_store.start_walk(conn, grant.id, plan.until)
@@ -807,7 +834,21 @@ def view(
     )
     until = last.moved_to if last else now
     stopped = next((i for i in items if i.at == until), None) if until == now else None
-    move_reason, highlight_reason = _unavailable(conn, grant, items, now, user_id)
+    if last is not None and last.reached is not None:
+        # Ruling 85: after Next highlight, the highlight's event it reached, even where the
+        # clock stopped later to hold the highlight's own steps.
+        stopped = next(
+            (
+                i
+                for i in reversed(items)
+                if i.event is not None
+                and i.event.highlight == last.reached
+                and (after is None or i.at > after)
+                and i.at <= now
+            ),
+            None,
+        )
+    move_reason, highlight_reason = _unavailable(p, conn, grant, items, now, user_id)
     return TimelineView(
         just_happened=tuple(just),
         now=TimelineNow(
@@ -834,8 +875,52 @@ NOTHING_LEFT = "Nothing is left to play."
 NO_HIGHLIGHT_LEFT = "No highlight is left to play."
 
 
+# Ruling 86: what a highlight's own step asks of the user, in plain words.
+_OWN_STEP = {
+    "confirm_terms": "Confirm the terms read from {target}",
+    "deliver_file": "Bring in {target}",
+    "decide_suggestion": "Decide on the agent's suggestion for {target}",
+    "answer_flag": "Answer the question on {target}",
+    "enter_share": "Enter the grant's share of {target}",
+    "let_in_mail": "Let in or dismiss the held email {target}",
+    "accept_reason": "Decide on the open problem on {target}",
+}
+
+
+def own_step_waiting(p: Platform, conn: Conn, grant: Grant, pack: SamplePack) -> str | None:
+    """Ruling 86: while a highlight's own step (but the sign-off) is due and nobody has
+    made it, Next highlight waits for it. The reason, naming the step, or None. A step is
+    made when the sample accountant or the user made it as scripted, or when there's
+    nothing left for it to do (the user did it their own way, say)."""
+    from .script import resolve
+
+    now = clock.grant_now(conn, grant.id)
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant.id)}
+    for n, a in enumerate(pack.actions):
+        if a.highlight is None or a.action == "sign_off" or a.at > now:
+            continue
+        row = rows.get(n)
+        if row is not None and row.state in ("done", "user"):
+            continue
+        try:
+            with conn.transaction():
+                needed = resolve(p, conn, grant, pack, a, now) is not None
+        except Exception:  # noqa: BLE001 - a step that can't be worked out doesn't hold anything up
+            needed = False
+        if needed:
+            target = a.file or a.line_id or "the grant"
+            what = _OWN_STEP.get(a.action, "Make this highlight's step").format(target=target)
+            return f"{what} first: that's this highlight's step."
+    return None
+
+
 def _unavailable(
-    conn: Conn, grant: Grant, items: Sequence[TimelineItem], now: datetime, user_id: str | None
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    items: Sequence[TimelineItem],
+    now: datetime,
+    user_id: str | None,
 ) -> tuple[str | None, str | None]:
     """Ruling 72: why the move controls can't move the clock now, in plain words, as `move`
     would refuse them; None for a control that can. Returns the reasons for the move
@@ -853,6 +938,8 @@ def _unavailable(
     highlight = move
     if not any(i.at > start and i.event is not None and i.event.highlight for i in items):
         highlight = NO_HIGHLIGHT_LEFT
+    elif highlight is None:
+        highlight = own_step_waiting(p, conn, grant, pack_for(_sample_of(grant).sample))
     return move, highlight
 
 

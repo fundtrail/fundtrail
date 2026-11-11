@@ -37,6 +37,7 @@ from app.contracts.api import (
     ReadingProgress,
     RecordProblemRow,
     RecordThreadEntry,
+    RecordView,
     ReusableNoteView,
     RuleSource,
     RuleView,
@@ -189,18 +190,37 @@ def _reading(counts: dict[str, int] | None) -> ReadingProgress | None:
 # Records.
 
 
-def record_state(state: RecordState, record: Record) -> RecordStateName:
+def record_state(
+    state: RecordState, record: Record, retracted: set[str] | None = None
+) -> RecordStateName:
+    """A record's state on the screens. `retracted` is the IDs a retraction that counts
+    replaces (`retracted_ids`), when the caller has it for many records at once."""
     if state.is_waiting(record.id):
         return RecordStateName.WAITING
     if state.is_current(record.id):
         return RecordStateName.COUNTS
     if state.decision(record.id) == Decision.REJECTED:
         return RecordStateName.REJECTED
-    retracted = any(
-        isinstance(r.data, Retraction) and r.replaces_id == record.id and state.is_effective(r.id)
+    if retracted is None:
+        retracted = retracted_ids(state)
+    return RecordStateName.RETRACTED if record.id in retracted else RecordStateName.REPLACED
+
+
+def retracted_ids(state: RecordState) -> set[str]:
+    """The records a retraction that counts replaces."""
+    return {
+        r.replaces_id
         for r in state.records
-    )
-    return RecordStateName.RETRACTED if retracted else RecordStateName.REPLACED
+        if isinstance(r.data, Retraction) and r.replaces_id and state.is_effective(r.id)
+    }
+
+
+def record_views(records: list[Record], files: list[EvidenceFile]) -> list[RecordView]:
+    """Issue 337: GET /grants/{grant_id}/records: every record, in the order stored, with
+    its state, worked out in one pass over the grant's records."""
+    state = RecordState(records, files)
+    retracted = retracted_ids(state)
+    return [RecordView(record=r, state=record_state(state, r, retracted)) for r in records]
 
 
 def value_states(state: RecordState, record: Record) -> list[ValueState]:

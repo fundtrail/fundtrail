@@ -32,11 +32,17 @@ function placeholderPdf(line: string): Blob {
   return new Blob([pdf], { type: "application/pdf" });
 }
 
-export function closeoutFake(): Pick<ApiClient, "getReport"> {
+export function closeoutFake(): Pick<ApiClient, "getReport" | "getSignedReport"> {
   return {
     getReport: (grantId) =>
       grantId === SAMPLE_GRANT_ID
         ? Promise.resolve(placeholderPdf("Fake mode: placeholder evidence report for SYN-2300117. Synthetic data."))
+        : served<Blob>(undefined),
+    // The fake keeps its records in grant.ts, so any sign-off record id gets the
+    // placeholder signed report; an id that isn't a record's is a 404.
+    getSignedReport: (recordId) =>
+      recordId.startsWith("rec-")
+        ? Promise.resolve(placeholderPdf("Fake mode: placeholder signed evidence report for SYN-2300117. Synthetic data."))
         : served<Blob>(undefined),
   };
 }
