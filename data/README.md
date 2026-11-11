@@ -14,6 +14,7 @@ The two sample grants, and two more seed grants kept unused for now (issue 165).
 | `demo/<grant>/` | Grants B and C, in the same format, unused for now |
 | `generator/` | The script that makes all of the above |
 | `test_seed.py` | The test |
+| `test_write_check.py` | Runs every agent record through the save's write check |
 
 ## The two samples
 
@@ -122,6 +123,8 @@ The static test checks five things:
 - nothing is written before what it rests on
 - no record comes before a record it points to
 
+The checks-only play stores these records straight into the database, so it never runs the write check a real save runs. `test_write_check.py` does: it runs every record, in file order, through the contract's `check_new_record` with the checks' own `default_items`, over the charges and files that have arrived by the record's time. It needs the backend's dependencies, so run it from `backend/` (below).
+
 ## The seed grants
 
 Grants B and C, from the earlier placeholder seed, stay in `data/demo/` in the same format, unused. The placeholder Grant A they were built with is no longer written: the larger sample replaced it. The table and the situations below describe that placeholder seed.
@@ -185,6 +188,7 @@ The grants, people, amounts and dates are this build's picks, and the samples us
 ```
 uv run --no-project --with pillow python data/generator/build.py
 python3 data/test_seed.py
+cd backend && uv run python ../data/test_write_check.py
 ```
 
 The generator uses only the standard library, except for drawing the receipt photos, which needs Pillow. Without Pillow it keeps the photos on disk. Its output is the same every time, except the photos, which depend on the machine's fonts. The test fails if any file differs from what the generator makes, so change the generator, not the files.
