@@ -34,6 +34,7 @@ from app.contracts.api import (
     LinkView,
     MessageThreadEntry,
     ProblemRow,
+    ReadingProgress,
     RecordProblemRow,
     RecordThreadEntry,
     ReusableNoteView,
@@ -66,6 +67,7 @@ from app.contracts.checks import (
 from app.contracts.evidence import EvidenceFile
 from app.contracts.mail import HeldMail
 from app.contracts.records import (
+    CATEGORY_PARENT,
     FOUND,
     TERM_KINDS,
     AcceptedReason,
@@ -114,6 +116,8 @@ class GrantSnapshot:
     messages: list[ThreadMessage]
     output: ChecksOutput
     held: list[HeldMail]  # the grant's messages still held at "now" (rules.still_held)
+    reading: ReadingProgress | None = None  # ruling 71
+    last_run_summary: str | None = None  # ruling 71
     state: RecordState = field(init=False)
 
     def __post_init__(self) -> None:
@@ -147,6 +151,7 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
             skipped_files=tuple(store.list_skipped(conn, grant.id, now)),
         )
     )
+    pending = store.pending_runs(conn, grant.id)
     return GrantSnapshot(
         workspace=workspace,
         grant=grant,
@@ -155,10 +160,27 @@ def load_snapshot(p: Platform, conn: Conn, grant: Grant) -> GrantSnapshot:
         files=files,
         records=records,
         statuses=store.current_statuses(conn, grant.id),
-        pending=store.pending_runs(conn, grant.id),
+        pending=pending,
         messages=store.grant_messages(conn, grant.id, now),
         output=output,
         held=still_held_mail(conn, grant, now, RecordState(records, files)),
+        # Only while the agent has work queued or running: an idle grant asks nothing.
+        reading=_reading(store.reading_counts(conn, grant.id)) if pending else None,
+        last_run_summary=store.last_run_summary(conn, grant.id),
+    )
+
+
+def _reading(counts: dict[str, int] | None) -> ReadingProgress | None:
+    """Ruling 71: how far the agent is, while it has anything queued or running. The
+    counts come from one query over one set of runs, and read is clamped to total, so a
+    run finishing meanwhile can't push read past it."""
+    if counts is None:
+        return None
+    return ReadingProgress(
+        files_read=min(counts["files_read"], counts["files_total"]),
+        files_total=counts["files_total"],
+        lines_read=min(counts["lines_read"], counts["lines_total"]),
+        lines_total=counts["lines_total"],
     )
 
 
@@ -267,6 +289,8 @@ def summary(snap: GrantSnapshot) -> GrantSummary:
         bucket_counts=counts,
         next_closeout=CloseoutDate(date=step.date, label=step.label) if step else None,
         now=snap.now,
+        reading=snap.reading,
+        last_run_summary=snap.last_run_summary,
     )
 
 
@@ -421,6 +445,8 @@ def budget(snap: GrantSnapshot) -> BudgetView:
                 line=snap.state.by_id[f.record_ids[-1]],
                 amount_cents=f.budget_cents,
                 spent_cents=f.spent_cents,
+                # Ruling 74: a sub-line sits inside its parent category.
+                parent=CATEGORY_PARENT.get(f.category),
             )
             for f in figures.categories
         ),
