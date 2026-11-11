@@ -257,3 +257,31 @@ def test_known_senders_and_the_preparer_come_from_members(platform: Platform) ->
         conn.execute("update public.grants set clock_now = %s where id = %s", (now, grant.id))
         inputs = report_inputs(platform, conn, grant, now, second, None)
     assert inputs.preparer.id == second
+
+
+def test_a_first_workspace_is_named_after_the_user() -> None:
+    from app.db.store import first_workspace_name
+
+    alex = User(id="u", email="alex@lab.example", name="Alex")
+    assert first_workspace_name(alex) == "Alex's workspace"
+    assert first_workspace_name(User(id="u", email="alex.z@lab.example")) == "alex.z's workspace"
+
+
+def test_two_first_requests_at_once_make_one_workspace(platform: Platform) -> None:  # noqa: F811
+    import threading
+
+    user = User(id=_user(platform), email="new@university.example", name="New")
+    barrier = threading.Barrier(2)
+
+    def first_request() -> None:
+        with transaction(platform.pool) as conn:
+            barrier.wait()
+            store.ensure_first_workspace(conn, user)
+
+    threads = [threading.Thread(target=first_request) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    with transaction(platform.pool) as conn:
+        assert [w.name for w in store.list_workspaces(conn, user.id)] == ["New's workspace"]

@@ -78,3 +78,10 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
 export const UNREADABLE_FROM_LABEL = "The From line couldn't be read.";
 
 export const SOURCE_LABELS = { gmail: "Gmail", drive: "Google Drive", upload: "Upload" } as const;
+
+/** A rate stored as a fraction, as a percentage: "0.366" is "36.6%". */
+export function percent(fraction: string | number): string {
+  const n = Number(fraction);
+  if (!Number.isFinite(n)) return String(fraction);
+  return `${Number((n * 100).toFixed(4))}%`;
+}

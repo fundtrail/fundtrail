@@ -54,6 +54,27 @@ def upsert_user(conn: Conn, user: User) -> User:
     return user
 
 
+def first_workspace_name(user: User) -> str:
+    """A first workspace's name: the user's name if Supabase has one, else the local part of
+    their email address, for example "Alex's workspace"."""
+    who = (user.name or "").strip() or user.email.split("@", 1)[0]
+    return f"{who}'s workspace"
+
+
+def ensure_first_workspace(conn: Conn, user: User) -> Workspace | None:
+    """Ruling 64: a user in no workspace gets one, named after them, with its Sample
+    accountant (the workspace trigger). The user's row is locked first, so two first
+    requests at once make one workspace: the second waits, then finds the first's.
+    Returns the new workspace, or None when the user already had one."""
+    conn.execute("select 1 from public.users where id = %s for update", (user.id,))
+    member = conn.execute(
+        "select 1 from public.workspace_members where user_id = %s limit 1", (user.id,)
+    ).fetchone()
+    if member is not None:
+        return None
+    return create_workspace(conn, user.id, first_workspace_name(user))
+
+
 def reaches(kind: Literal["workspace", "grant"], column: LiteralString) -> LiteralString:
     """The one access rule, as a SQL condition on `column` for a user ID parameter: whether
     the user may reach that workspace or grant (issue 160). It asks the migration's
