@@ -455,6 +455,10 @@ class RecordThreadEntry(Model):
     kind: Literal["record"] = "record"
     record: Record
     state: RecordState
+    # Issue 304: for the agent's record waiting for the accountant, what accepting it
+    # changes, worded by the server as in SuggestionView.change, so a record's thread
+    # titles it the same way a charge's page does. None for every other entry.
+    change: SuggestionChange | None = None
 
 
 ThreadEntry = Annotated[

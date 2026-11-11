@@ -1058,6 +1058,8 @@ export interface RecordThreadEntry {
   kind: "record";
   record: FtRecord;
   state: RecordState;
+  /** For the agent's waiting record: what accepting it changes, worded by the server (issue 304). */
+  change?: SuggestionChange | null;
 }
 export type ThreadEntry = StatusThreadEntry | MessageThreadEntry | RecordThreadEntry;
 

@@ -42,6 +42,7 @@ from app.contracts.api import (
     RuleView,
     SignOffState,
     StatusThreadEntry,
+    SuggestionChange,
     SuggestionView,
     TermsWaitingRow,
     TermView,
@@ -279,10 +280,31 @@ def _touched_charges(snap: GrantSnapshot, record: Record) -> list[str]:
     return sorted({i for i in ids if i})
 
 
+def _change(snap: GrantSnapshot, record: Record) -> SuggestionChange:
+    """What accepting one of the agent's waiting records changes, worded by the checks."""
+    from app.checks.suggestions import suggestion_change
+
+    replaces = snap.state.by_id.get(record.replaces_id) if record.replaces_id else None
+    charge_id = getattr(record.data, "charge_id", None)
+    status = snap.charge_status(charge_id) if isinstance(charge_id, str) else None
+    return suggestion_change(
+        record,
+        replaces,
+        records=snap.records,
+        files=snap.files,
+        charges=snap.charges,
+        checklist=status.checklist if status else (),
+        state=snap.state,
+    )
+
+
 def _suggestion(snap: GrantSnapshot, record: Record) -> SuggestionView:
     replaces = snap.state.by_id.get(record.replaces_id) if record.replaces_id else None
     return SuggestionView(
-        record=record, replaces=replaces, charge_ids=tuple(_touched_charges(snap, record))
+        record=record,
+        replaces=replaces,
+        charge_ids=tuple(_touched_charges(snap, record)),
+        change=_change(snap, record),
     )
 
 
@@ -635,9 +657,13 @@ def thread(
         items.append((m.written_at, 2, MessageThreadEntry(message=m)))
     for r in _records_about(snap, charge_id, subject):
         if (r.author == Author.AGENT and snap.state.waits(r.id)) or r.author == Author.USER:
-            items.append(
-                (r.written_at, 0, RecordThreadEntry(record=r, state=record_state(snap.state, r)))
+            waiting = r.author == Author.AGENT and snap.state.is_waiting(r.id)
+            entry = RecordThreadEntry(
+                record=r,
+                state=record_state(snap.state, r),
+                change=_change(snap, r) if waiting else None,
             )
+            items.append((r.written_at, 0, entry))
     items.sort(key=lambda x: (x[0], x[1]))
     return Thread(
         entries=tuple(i for _, _, i in items),
