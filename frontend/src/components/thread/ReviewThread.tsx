@@ -225,10 +225,16 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  // Never sends twice at once: `busy` is state, so two sends in the same task
+  // (before a re-render) both see it false. A send made while one is in flight
+  // does nothing at all: no second message, no error line, and the typed text
+  // stays. Set before `onAsk` is called, released in `finally`.
+  const inFlight = useRef(false);
 
   async function send() {
     const message = text.trim();
-    if (!message || busy) return;
+    if (!message || busy || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors([]);
     try {
@@ -237,6 +243,7 @@ function AskBox({ about, onAsk }: { about: string; onAsk: (text: string) => Prom
     } catch (error) {
       setErrors(errorLines(error));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

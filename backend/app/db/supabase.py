@@ -6,6 +6,7 @@ The key never leaves the backend and is never logged.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Any
 from urllib.parse import quote
 
@@ -50,6 +51,15 @@ class SupabaseStorage:
         )
         response.raise_for_status()
         return f"{self._base}{response.json()['signedURL']}"
+
+    def remove(self, paths: Sequence[str], /) -> None:
+        for start in range(0, len(paths), 1000):  # Storage takes a list of prefixes at a time
+            response = self._client.request(
+                "DELETE",
+                f"{self._base}/object/{self._bucket}",
+                json={"prefixes": list(paths[start : start + 1000])},
+            )
+            response.raise_for_status()
 
 
 class SupabasePinger:
