@@ -30,7 +30,7 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 
 **Evidence:**
 
-- Every case's `award_letter.txt`, lines 45 and 46: "This award is subject to the NSF Grant General Conditions (GC-1) effective October 1, 2024, and to the terms of this notice."
+- Every case's `award_letter.txt`, lines 46 and 47: "This award is subject to the NSF Grant General Conditions (GC-1) effective October 1, 2024, and to the terms of this notice."
 - contracts.md, section 1: "`other_term` holds anything an award letter or amendment says that no other kind holds, such as a principal investigator (PI) on leave."
 - contracts.md, section 4: `unusual_term` is asked "Once for each confirmed `other_term` in force on the charge's date."
 
@@ -59,8 +59,7 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 
 **Verdict:**
 
-- **The 5 + 5 extra notes from the appointment and honorarium letters, and the award letter's note: the agent, leaning.** The contract's examples treat a document as one note. The contract doesn't forbid several, though.
-  - **Call needed (contract):** one note per document, or many?
+- **The 5 + 5 extra notes from the appointment and honorarium letters, and the award letter's note: the agent.** The contract's examples treat a document as one note, and ruling 81 settles it: one note per document, with every fact cited inside it.
 - **The 6 notes from `per_diem_rates.txt`: the key's format.** The case expects something read from that file (a rate on a checklist item), and the key can't say what. Whatever the agent writes from it counts as wrong.
 
 ## 3. `approval` records from an appointment letter and an effort certification: 2 wrong records
@@ -92,7 +91,7 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 - domain.md, the travel row: "Travel | 5721x, 5722x | Expense report. Bills that add up to the charge." The expense report is its own checklist item, apart from the bills.
 - `arrivals.json`: "The department's approved expense report: airfare plus 5 days of per diem."
 
-**Verdict: the agent, leaning.** The report does claim an amount, but the docs separate it from bills. The agent did link the report with no amount, which is the key's link, and that link matched.
+**Verdict: the agent.** The report does claim an amount, but the docs separate it from bills. The agent did link the report with no amount, which is the key's link, and that link matched.
 
 ## 5. The per diem rates linked for $500, and the trip's bucket on Jun 24: 1 wrong link and 1 wrong bucket
 
@@ -163,14 +162,13 @@ The verdicts are the runner builder's reading of the evidence. Where the docs do
 
 **Evidence:**
 
-- contracts.md, section 4: a `flag` is "the agent's own question, for anything no other question covers".
+- contracts.md, section 4, lists `flag` as the agent's own question, asked whenever the agent sees something no other question covers.
 - contracts.md, section 2: "a disagreement between them [the budget line and the account] is Needs a human". Code already raises the misfiled account. The bucket was `needs_human`, as the key expects.
 
-**Verdict: unclear.**
+**Verdict: the agent.**
 
-- The flag repeats what code already raises, so by the contract's "anything no other question covers", the agent is at fault.
-- But the flag is a reasonable question, and the key may be incomplete.
-- **Call needed (product):** should the agent flag what a code check already catches?
+- The flag repeats what code already raises, and the contract keeps `flag` for what no other question covers.
+- Ruling 81 settles it: the agent doesn't flag what a code check already reports.
 
 ## Summary
 
@@ -178,16 +176,16 @@ Each wrong item is counted once.
 
 | Cause | Wrong | Missing | At fault |
 |---|---|---|---|
-| 1. GC-1 as `other_term`, and `unusual_term` on every charge | 17 (5 records, 12 answers) | 0 | the key, by the contract's wording (product call) |
-| 2a. Several notes per document, and a note from an award letter | 11 records | 0 | the agent, leaning (contract call) |
+| 1. GC-1 as `other_term`, and `unusual_term` on every charge | 17 (5 records, 12 answers) | 0 | the key, until the keys expect the standard-conditions term (ruling 81) |
+| 2a. Several notes per document, and a note from an award letter | 11 records | 0 | the agent (ruling 81: one note per document) |
 | 2b. Notes from the per diem rates | 6 records | 0 | the key's format: checklist items can't be expressed |
 | 3. Approvals from an appointment letter and an effort certification | 2 records | 0 | the agent |
-| 4. Expense report read as a bill | 1 record | 1 record | the agent, leaning |
+| 4. Expense report read as a bill | 1 record | 1 record | the agent |
 | 5. Per diem rates linked for $500, and the trip's bucket | 1 link, 1 bucket | 0 | the agent |
 | 6. Honorarium letter not linked | 0 | 1 link | the agent |
 | 7. Allowable `unsure` on the guest speaker | 1 answer | 1 answer | the agent, by a provisional key |
-| 8. A budget line the key leaves unscored | 1 budget line | 0 | the scoring rule and the key's format |
-| 9. Laptop flagged | 1 answer | 0 | unclear (product call) |
+| 8. A budget line the key leaves unscored | 1 budget line | 0 | the scoring rule and the key's format (ruling 81 adds `not_scored`) |
+| 9. Laptop flagged | 1 answer | 0 | the agent (ruling 81: no flag for what code reports) |
 | **Total** | **42** | **3** | |
 
 By part:
@@ -199,15 +197,13 @@ By part:
 
 | At fault | Wrong | Missing |
 |---|---|---|
-| The agent, outright or leaning | 17 | 3 |
-| The key or its format, by the contract | 23 | 0 |
+| The agent | 18 | 3 |
+| The key or its format | 23 | 0 |
 | The scoring rule | 1 | 0 |
-| Unclear | 1 | 0 |
 
-Five calls would settle the open ones:
+Ruling 81 settled the calls this file first left open:
 
-1. Is the GC-1 sentence an `other_term`?
-2. One note per document, or many?
-3. A way for a key to express agent-added checklist items.
-4. A way for a key to leave an item unscored.
-5. Should the agent flag what code already catches?
+- The GC-1 sentence is one `other_term` marked as the standard conditions, and it never raises `unusual_term`. Until the keys expect it that way, its 17 items are the key's.
+- One note per document.
+- The agent doesn't flag what a code check already reports.
+- The key's format gains agent-added checklist items and a way to leave items unscored.
