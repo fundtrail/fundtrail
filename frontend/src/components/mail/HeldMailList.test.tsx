@@ -70,6 +70,30 @@ describe("HeldMailList", () => {
     }
   });
 
+  it("shows when each message was held and which grant it is for", () => {
+    const { Wrapper } = fakeHarness();
+    render(<HeldMailList mail={SAMPLE_HELD_MAIL} grantNames={{ "grant-sample": "Sample grant name" }} />, { wrapper: Wrapper });
+    const message = screen.getByRole("listitem", { name: "Held message Invoice INV-1001" });
+    expect(within(message).getByText("Held Apr 8, 2026")).toBeInTheDocument();
+    expect(within(message).getByText("Sample grant name")).toBeInTheDocument();
+  });
+
+  it("marks busy only the button that was pressed while its action saves", () => {
+    for (const [pressed, other] of [
+      ["Let in", "Dismiss"],
+      ["Dismiss", "Let in"],
+    ] as const) {
+      const { writeRecord, Wrapper } = fakeHarness();
+      writeRecord.mockReturnValue(new Promise(() => {}));
+      const { unmount } = render(<HeldMailList mail={SAMPLE_HELD_MAIL} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByRole("button", { name: pressed }));
+      expect(screen.getByRole("button", { name: pressed })).toHaveClass("is-busy");
+      expect(screen.getByRole("button", { name: other })).not.toHaveClass("is-busy");
+      expect(screen.getByRole("button", { name: other })).toBeDisabled();
+      unmount();
+    }
+  });
+
   it("says so when no mail is held", () => {
     render(<HeldMailList mail={[]} />);
     expect(screen.getByText("No mail is held.")).toBeInTheDocument();
