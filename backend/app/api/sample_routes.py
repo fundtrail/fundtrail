@@ -101,12 +101,8 @@ def move_timeline(
 ) -> TimelineView:
     """Move the sample's timeline forward: to `to`, or with nothing, to the next item."""
     _sample_grant(grant)
-    if body.skip_human_steps:
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED, "Skipping the human steps isn't built yet."
-        )
     try:
-        player.move(platform, user.id, grant, body.to)
+        player.move(platform, user.id, grant, body.to, skip=body.skip_human_steps)
     except player.GrantGone as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND) from error
     except MoveRefused as error:
