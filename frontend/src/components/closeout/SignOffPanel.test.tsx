@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, ApiProvider, type ApiClient, type FtRecord, type SignOff, type SignOffState } from "@/lib/api";
 import { StaticAuthProvider, type Auth } from "@/lib/auth";
@@ -147,9 +147,71 @@ describe("why sign-off is unavailable (ruling 72)", () => {
     expect(button).not.toHaveAttribute("aria-disabled");
     expect(button).not.toHaveAttribute("aria-describedby");
     expect(button).toHaveAccessibleDescription("");
+    // No reason line of any wording renders without the server's field.
+    expect(document.querySelector(".ft-co-unavailable")).toBeNull();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     fireEvent.click(button);
     await waitFor(() => expect(write).toHaveBeenCalledWith("g-1", { data: { kind: "sign_off", note: null } }));
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a polite live region that announces again on a press, and not on a refetch", () => {
+    vi.useFakeTimers();
+    try {
+      const signOff: SignOffState = { state: "not_signed", sign_off: null, changes: [], unavailable_reason: reason };
+      const view = (state: SignOffState) => (
+        <StaticAuthProvider value={auth}>
+          <ApiProvider client={{ writeRecord: vi.fn() } as unknown as ApiClient}>
+            <SignOffPanel grantId="g-1" signOff={state} onSigned={vi.fn()} />
+          </ApiProvider>
+        </StaticAuthProvider>
+      );
+      const { rerender } = render(view(signOff));
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent(reason);
+      expect(status).toHaveAttribute("id", screen.getByRole("button", { name: "Sign off" }).getAttribute("aria-describedby"));
+
+      // A refetch with the same reason leaves the text untouched, so nothing is announced.
+      const text = status.firstChild;
+      rerender(view({ ...signOff }));
+      expect(screen.getByRole("status").firstChild).toBe(text);
+
+      // A press withdraws the text from screen readers for a moment, then brings it back.
+      fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+      expect(status.querySelector('[aria-hidden="true"]')).toHaveTextContent(reason);
+      act(() => vi.advanceTimersByTime(150));
+      expect(status.querySelector('[aria-hidden="true"]')).toBeNull();
+      expect(status).toHaveTextContent(reason);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("why signing again is unavailable (ruling 79)", () => {
+  const reason = "The agent is still working on this grant. Sign off once it's done.";
+  const signedState: SignOffState = { state: "signed", sign_off: signedRecord, changes: [] };
+
+  it("shows the server's reason next to Sign off again, which then opens nothing and sends nothing", () => {
+    const write = vi.fn();
+    setup(write, { ...signedState, unavailable_reason: reason });
+    const again = screen.getByRole("button", { name: "Sign off again" });
+    expect(again).toHaveAttribute("aria-disabled", "true");
+    expect(again).toHaveAccessibleDescription(reason);
+    expect(screen.getByRole("status")).toHaveTextContent(reason);
+    fireEvent.click(again);
+    expect(screen.queryByLabelText("Note")).not.toBeInTheDocument();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("opens the form as today when the server gives no reason", () => {
+    setup(vi.fn(), { ...signedState, unavailable_reason: null });
+    const again = screen.getByRole("button", { name: "Sign off again" });
+    expect(again).not.toHaveAttribute("aria-disabled");
+    expect(again).toHaveAccessibleDescription("");
+    expect(document.querySelector(".ft-co-unavailable")).toBeNull();
+    fireEvent.click(again);
+    expect(screen.getByLabelText("Note")).toHaveFocus();
   });
 });
 
@@ -194,6 +256,27 @@ describe("once signed, signing again is quiet", () => {
       changes: [{ kind: "charge", subject: "chg-l-1002", before: "possible_conflict", after: "evidence_complete" }],
     });
     expect(mainButtons()).toHaveLength(0);
+  });
+
+  it("closes the opened form with Cancel, sending nothing, and puts focus back on Sign off again", () => {
+    const write = vi.fn();
+    setup(write, { state: "signed", sign_off: signedRecord, changes: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Sign off again" }));
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Draft, not sent." } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Note")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign off again" })).toHaveFocus();
+    expect(mainButtons()).toHaveLength(0);
+    expect(write).not.toHaveBeenCalled();
+    // The stored sign-off is untouched.
+    expect(screen.getByTestId("sign-off-state")).toHaveTextContent("L-1002 waits on the extension.");
+  });
+
+  it("offers no Cancel before anything is signed", () => {
+    setup(vi.fn());
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 });
 
