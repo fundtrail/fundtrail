@@ -82,7 +82,7 @@ describe("TimelinePanel", () => {
     fireEvent.change(input, { target: { value: "2025-11-15" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await waitFor(() => expect(within(part("Just happened")).getByText("L-1001", { selector: ".ft-tl__name" })).toBeInTheDocument());
-    expect(within(part("Just happened")).getByRole("link", { name: "Open the charge from L-1001" })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
+    expect(within(part("Just happened")).getByRole("link", { name: /open the charge from L-1001$/i })).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
   });
 });
 
@@ -97,8 +97,9 @@ describe("a played charge's link (issue 275)", () => {
     await playL1001(client);
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
     await openMore();
-    const link = await screen.findByRole("link", { name: "Open the charge from L-1001" });
-    await waitFor(() => expect(link).toHaveTextContent("L-1001"));
+    // What it says aloud starts with what it shows.
+    const link = await screen.findByRole("link", { name: "L-1001, open the charge from L-1001" });
+    expect(link).toHaveTextContent("L-1001");
     expect(link).toHaveAttribute("href", "/grants/grant-sample/charges/chg-l-1001");
   });
 
@@ -108,7 +109,8 @@ describe("a played charge's link (issue 275)", () => {
     vi.spyOn(client, "listCharges").mockReturnValue(new Promise(() => {}));
     render(<TimelinePanel grantId={SAMPLE_GRANT_ID} />, { wrapper: Wrapper });
     await openMore();
-    expect(await screen.findByRole("link", { name: "Open the charge from L-1001" })).toHaveTextContent("Open the charge");
+    const link = await screen.findByRole("link", { name: "Open the charge from L-1001" });
+    expect(link).toHaveTextContent("Open the charge");
   });
 });
 

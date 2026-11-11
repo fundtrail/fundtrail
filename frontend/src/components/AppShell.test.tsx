@@ -55,23 +55,25 @@ function links(): string[] {
 }
 
 describe("the sidebar inside a grant", () => {
-  it("names the grant above its pages and marks Problem list on the grant page", async () => {
+  it("names the grant above its pages and marks Overview on the grant page", async () => {
     await renderAt("/grants/grant-sample");
-    expect(links()).toEqual(["All grants", "Held mail", "Problem list", "Evidence", "Grant terms", "Ledger", "Closeout", "Add a grant"]);
+    expect(links()).toEqual(["All grants", "Held mail", "Overview", "Problem list", "Charges", "Evidence", "Grant terms", "Ledger", "Closeout", "Add a grant"]);
     // The grant's name is a label for its pages, not a link.
     expect(within(nav()).getByText("SYN-2300117").closest("a")).toBeNull();
-    expect(marked()).toEqual([["Problem list", "page"]]);
+    expect(marked()).toEqual([["Overview", "page"]]);
+    expect(within(nav()).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/grants/grant-sample");
+    expect(within(nav()).getByRole("link", { name: "Charges" })).toHaveAttribute("href", "/grants/grant-sample/charges");
   });
 
   it("keeps the problem list count on Problem list", async () => {
     await renderAt("/grants/grant-sample");
     const problems = within(nav()).getByRole("link", { name: /Problem list/ });
-    expect(problems).toHaveAttribute("href", "/grants/grant-sample#problem-list");
+    expect(problems).toHaveAttribute("href", "/grants/grant-sample/problems");
     expect(problems.querySelector(".ft-count")).toHaveTextContent("on the problem list");
   });
 
   it.each([
-    ["/grants/grant-sample/charges/chg-l-1002", "Problem list"],
+    ["/grants/grant-sample/charges/chg-l-1002", "Charges"],
     ["/grants/grant-sample/records/rec-1", "Problem list"],
     ["/grants/grant-sample/files/file-award-letter", "Evidence"],
     ["/grants/grant-sample/files/file-award-letter/confirm", "Evidence"],
@@ -85,6 +87,9 @@ describe("the sidebar inside a grant", () => {
     ["/grants/grant-sample/terms", "Grant terms"],
     ["/grants/grant-sample/ledger", "Ledger"],
     ["/grants/grant-sample/closeout", "Closeout"],
+    ["/grants/grant-sample", "Overview"],
+    ["/grants/grant-sample/problems", "Problem list"],
+    ["/grants/grant-sample/charges", "Charges"],
   ])("marks the page itself on %s", async (path, page) => {
     await renderAt(path);
     expect(marked()).toEqual([[page, "page"]]);

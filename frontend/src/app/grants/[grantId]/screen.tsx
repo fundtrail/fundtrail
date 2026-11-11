@@ -191,13 +191,8 @@ function Charged({ budget, notes }: { budget: BudgetView; notes: GrantNote[] }) 
   );
 }
 
-/** The grant's period as the server gives it, and the grant's today, as plain text. Each part only when it's there. */
-function periodWords(summary: GrantSummary, start: IsoDate | null): string {
-  const period = summary.end_date ? (start ? `${date(start)} to ${date(summary.end_date)}` : `Ends ${date(summary.end_date)}`) : "End date not confirmed yet";
-  return summary.now ? `${period} · Today ${date(summary.now)}` : period;
-}
-
-function NextCloseout({ summary, start }: { summary: GrantSummary; start: IsoDate | null }) {
+/** The next closeout date and its label as the server gives them, and the grant's today. The period is in the head. */
+function NextCloseout({ summary }: { summary: GrantSummary }) {
   const next = summary.next_closeout;
   return (
     <div className={styles.fact}>
@@ -210,7 +205,7 @@ function NextCloseout({ summary, start }: { summary: GrantSummary; start: IsoDat
           <p className={styles.factSub}>{next.label}</p>
         </>
       )}
-      <p className={`ft-num ${styles.factSub}`}>{periodWords(summary, start)}</p>
+      {summary.now && <p className={`ft-num ${styles.factSub}`}>Today {date(summary.now)}</p>}
     </div>
   );
 }
@@ -296,7 +291,7 @@ export function GrantScreen() {
                 <div className={styles.facts}>
                   <Ready summary={data.summary} />
                   <Charged budget={data.budget} notes={data.grant_notes} />
-                  <NextCloseout summary={data.summary} start={start} />
+                  <NextCloseout summary={data.summary} />
                 </div>
                 <div className={styles.cols}>
                   <BudgetFigures budget={data.budget} ledgerHref={routes.ledger(grantId)} />

@@ -71,9 +71,12 @@ describe("the grant overview", () => {
     expect(within(need).queryByText(/more on the problem list/)).toBeNull();
   });
 
-  it("gives the period and the grant's today as text, in the server's dates", async () => {
+  it("gives the period once, in the head, and the grant's today under the next closeout date, in the server's dates", async () => {
     renderOverview(createFakeApiClient());
-    expect(await screen.findByText("Feb 1, 2023 to Jan 31, 2026 · Today Apr 9, 2026")).toBeInTheDocument();
+    expect(await screen.findByText("Feb 1, 2023 to Jan 31, 2026")).toBeInTheDocument();
+    expect(screen.getAllByText(/Feb 1, 2023 to Jan 31, 2026/)).toHaveLength(1);
+    expect(screen.getByText("May 1, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Today Apr 9, 2026")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "The grant's period" })).toBeNull();
   });
 
@@ -85,6 +88,7 @@ describe("the grant overview", () => {
     renderOverview(client);
     expect(await screen.findByRole("heading", { name: "Nothing on the problem list." })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open the problem list" })).toBeNull();
-    expect(screen.getByText("End date not confirmed yet · Today Apr 9, 2026")).toBeInTheDocument();
+    expect(screen.getAllByText("End date not confirmed yet")).toHaveLength(1);
+    expect(screen.getByText("Today Apr 9, 2026")).toBeInTheDocument();
   });
 });
