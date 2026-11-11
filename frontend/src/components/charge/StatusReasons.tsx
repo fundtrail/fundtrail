@@ -1,5 +1,5 @@
-import type { ChargeStatus, FtRecord, Id, Reason } from "@/lib/api";
-import { date } from "@/lib/format";
+import type { Cents, ChargeStatus, FtRecord, Id, Reason } from "@/lib/api";
+import { date, money } from "@/lib/format";
 import { BucketBadge } from "../BucketBadge";
 import type { OnWrite } from "../thread/useThreadActions";
 import { AcceptReason, OfferedNote, ReopenReason, SnoozeCharge } from "./actions";
@@ -38,11 +38,14 @@ function AcceptedBy({ chargeId, reason, records, onWrite }: { chargeId: Id; reas
 export function StatusReasons({
   status,
   chargeId,
+  chargedCents,
   records = {},
   onWrite,
 }: {
   status: ChargeStatus | null;
   chargeId?: Id;
+  /** The charge's amount, to set beside an amount code expected (ruling 61). */
+  chargedCents?: Cents;
   records?: Record<Id, FtRecord>;
   onWrite?: OnWrite;
 }) {
@@ -60,6 +63,11 @@ export function StatusReasons({
               <BucketBadge bucket={r.bucket} />
               <span>{r.text}</span>
             </p>
+            {r.expected_cents != null && chargedCents !== undefined && (
+              <p className="ft-caption">
+                Expected {money(r.expected_cents)} · charged {money(chargedCents)}
+              </p>
+            )}
             {(r.expected_by || r.accepted_by) && (
               <p className="ft-caption">
                 {r.expected_by && <>Expected by {date(r.expected_by)}</>}

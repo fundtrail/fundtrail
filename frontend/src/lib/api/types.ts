@@ -247,11 +247,19 @@ export interface ApprovalRule {
   channel?: CitedText | null;
   scope?: Cited<ApprovalScope> | null;
 }
+/** The group of employees a benefit rate applies to (ruling 61). */
+export type BenefitGroup = "academic" | "staff" | "limited" | "no_benefit_eligibility" | "student";
+
 export interface Rate {
   kind: "rate";
   dated: CitedDate;
   name: CitedText;
   rate: CitedDecimal;
+  /** Ruling 61: a benefit rate's employee group. Null for a rate that isn't a benefit rate. */
+  applies_to?: Cited<BenefitGroup> | null;
+  /** When the rate is in effect, both days included. No end means until it's amended. */
+  effective_from?: CitedDate | null;
+  effective_to?: CitedDate | null;
 }
 export interface Notice {
   kind: "notice";
@@ -498,6 +506,8 @@ export interface Problem {
   accepted_by?: Id | null;
   /** For the award limit's over_limit problem: the amount over. Null for every other problem. */
   amount_cents?: Cents | null;
+  /** Ruling 61: for a recalculation that doesn't match, the amount code expected. */
+  expected_cents?: Cents | null;
 }
 
 export interface Reason extends Problem {
@@ -524,6 +534,10 @@ export interface ChecklistEntry {
   removal_waiting_id?: Id | null;
   /** The approval rule that added it; set exactly when added_by is "rule". */
   rule_id?: Id | null;
+  /** Ruling 61: for an item code fills by recalculating, the rate term it used. */
+  rate_id?: Id | null;
+  /** Ruling 61: and the salary lines' charges. Such an item has no links. */
+  charge_ids?: Id[];
 }
 
 export interface ChargeStatus {
@@ -928,6 +942,8 @@ export interface ChargeProblemRow {
   kind: "charge";
   charge: Charge;
   status: ChargeStatus;
+  /** Ruling 62: benefit charges whose only problem is that they wait on this salary line. */
+  waiting_charge_ids?: Id[];
 }
 export interface HeldMailRow {
   kind: "held_mail";

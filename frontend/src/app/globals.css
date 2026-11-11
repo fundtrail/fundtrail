@@ -617,3 +617,9 @@ p {
   color: var(--ink);
   font: inherit;
 }
+
+/* Ruling 62: benefit charges waiting on a salary line, listed under its row. */
+.ft-problem__waiting {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}

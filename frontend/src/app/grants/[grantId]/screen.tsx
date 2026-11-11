@@ -37,7 +37,9 @@ export function GrantScreen() {
             Problem list
           </h2>
         </div>
-        <Loadable result={problems}>{(data) => <ProblemList rows={data.rows} />}</Loadable>
+        <Loadable result={problems}>
+          {(data) => <ProblemList rows={data.rows} charges={Object.fromEntries((charges.data ?? []).map((r) => [r.charge.id, r.charge]))} />}
+        </Loadable>
       </section>
 
       <Loadable result={grant}>
