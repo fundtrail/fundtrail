@@ -150,7 +150,7 @@
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   gap: var(--space-1) var(--space-4);
-  padding: var(--space-3) 0;
+  padding: 10px 0;
   border-top: 1px solid var(--rule);
 }
 .valueRow:first-child {
@@ -172,7 +172,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1);
+  gap: 2px;
   min-width: 0;
   margin: 0;
 }
@@ -383,31 +383,11 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--ledger);
-}
-.radio input:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
+/* The field itself is the foundation's form control (globals.css). */
 .input {
-  height: var(--control-md);
   min-width: 200px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-sm);
-  background: var(--paper-raised);
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-}
-.input:hover {
-  border-color: var(--ink-muted);
-}
-.input:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-  border-color: var(--focus);
 }
 .input[aria-invalid="true"] {
   border-color: var(--conflict);

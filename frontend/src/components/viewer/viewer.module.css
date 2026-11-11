@@ -160,6 +160,17 @@
 .bodyWhole {
   grid-template-columns: minmax(0, 1fr);
 }
+@media (max-width: 1200px) {
+  .body:not(.bodyWhole) {
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+  .body .side {
+    padding: var(--space-4);
+  }
+  .side .value {
+    font-size: 19px;
+  }
+}
 
 .scroll {
   height: max(440px, calc(100vh - 300px));
@@ -169,7 +180,8 @@
 }
 
 @media (max-width: 900px) {
-  .body {
+  .body,
+  .body:not(.bodyWhole) {
     grid-template-columns: minmax(0, 1fr);
   }
   .scroll {
@@ -305,7 +317,7 @@
   overflow-y: auto;
 }
 @media (max-width: 900px) {
-  .side {
+  .body .side {
     border-left: 0;
     border-top: 1px solid var(--rule);
   }
