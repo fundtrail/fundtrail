@@ -19,6 +19,8 @@ _CITED = {
     "CitedDecimal": "cited number",
     "CitedScope": "cited scope: every_charge or moved_out, as the clause's own words show it; "
     "leave it out and flag the term when the clause doesn't make it clear",
+    "CitedBenefitGroup": "cited employee group: academic, staff, limited, no_benefit_eligibility "
+    "or student, cited from the rate agreement's own name for it; for a benefit rate only",
 }
 
 

@@ -74,3 +74,8 @@ CATEGORY_NAMES: dict[BudgetCategory, tuple[str, ...]] = {
 
 def category_name(category: BudgetCategory) -> str:
     return CATEGORY_NAMES[category][0]
+
+
+def account_code(account: str) -> str | None:
+    """The 5-digit account code at the start of a ledger account, or None."""
+    return account_groups.account_code(account)

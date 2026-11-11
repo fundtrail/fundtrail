@@ -23,6 +23,7 @@ from .adapter import (
     Answer,
     ApprovalScope,
     Author,
+    BenefitGroup,
     BudgetCategory,
     Question,
     Record,
@@ -269,12 +270,15 @@ class FileRef(_In):
 # Building cited values.
 
 MONEY_FIELDS = {"total", "amount", "obligated_by_amendment", "obligated_to_date"}
-DATE_FIELDS = {"dated", "approved_on", "start", "end"}
+DATE_FIELDS = {"dated", "approved_on", "start", "end", "effective_from", "effective_to"}
 DECIMAL_FIELDS = {"rate", "quantity"}
 # A category the model names from the clause's own words, with the clause cited.
 CATEGORY_FIELDS: dict[str, frozenset[str]] = {
     "scope": frozenset(scope.value for scope in ApprovalScope),
 }
+# A benefit rate's employee group (ruling 61): the model names the group, and the cited text is
+# the rate agreement's own name for it. Only a rate's applies_to; an approval rule's is text.
+BENEFIT_GROUPS = frozenset(group.value for group in BenefitGroup)
 _PATH = re.compile(r"([A-Za-z_]+)(?:\[(\d+)\])?")
 
 
@@ -311,16 +315,32 @@ def _set_path(data: dict[str, Any], path: str, value: Any) -> None:
                 target = items[i]
 
 
-def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
+def _normalize(
+    field: str,
+    raw: str | int | float | None,
+    text: str,
+    kind: str | None = None,
+    percent: bool = False,
+) -> Any:
     """The value for a field, derived from its own text (trust rules 2 and 3).
 
     Money, dates, rates and quantities are read from the text as the document writes it, and a
     normalized value the model gives has to equal what code reads. Text that can't be read as
     its kind of value is refused, never taken on the model's word. A text field's value is its
-    text.
+    text. `kind` is the record's kind, for a field whose type depends on it. `percent` says a
+    bare number in a rate is a percent: a benefit rate agreement prints its rates in a column
+    headed "RATE(%)", so "15.00" there is 15%.
     """
     given = None if raw is None else str(raw).strip()
     leaf = _leaf(field)
+    if kind == "rate" and leaf == "applies_to":
+        if given not in BENEFIT_GROUPS:
+            raise WriteProblem(
+                f"{field}: give the employee group as one of {', '.join(sorted(BENEFIT_GROUPS))}, "
+                f"cited from the rate agreement's own name for it ('{text}'). If it's none of "
+                "these, leave applies_to out and flag the term"
+            )
+        return given
     if leaf in MONEY_FIELDS:
         derived = parse_money(text)
         if derived is None:
@@ -332,6 +352,11 @@ def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
         return derived
     if leaf in DATE_FIELDS:
         parsed = parse_date(text)
+        if parsed is None and leaf == "effective_to":
+            raise WriteProblem(
+                f"{field}: '{text}' isn't a date. A rate with no end date, such as one in effect "
+                "'Until Amended', leaves effective_to out"
+            )
         if parsed is None:
             raise WriteProblem(f"{field}: '{text}' can't be read as a date")
         if given is not None and given != parsed.isoformat():
@@ -352,6 +377,8 @@ def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
         number = parse_rate(text) if leaf == "rate" else parse_quantity(text)
         if number is None:
             raise WriteProblem(f"{field}: '{text}' can't be read as a {leaf}")
+        if leaf == "rate" and percent and parse_decimal(text.strip()) == number:
+            number = number / 100  # a bare number in a benefit rate's percent column
         if given is not None:
             claimed = parse_decimal(given)
             if claimed is None or claimed != number:
@@ -364,7 +391,9 @@ def _normalize(field: str, raw: str | int | float | None, text: str) -> Any:
     return text
 
 
-def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
+def cited(
+    ctx: RunContext, v: Value, kind: str | None = None, percent: bool = False
+) -> dict[str, Any] | None:
     """One cited value for a record, or None when an uncited value is left out."""
     if v.box is not None:
         if not v.text:
@@ -384,7 +413,8 @@ def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
         citation["match"] = (
             "exact" if look is not None and look(v.box.file_id, location, v.text) else "not_found"
         )
-        return {"value": _normalize(v.field, v.value, v.text), "text": v.text, "citation": citation}
+        value = _normalize(v.field, v.value, v.text, kind, percent)
+        return {"value": value, "text": v.text, "citation": citation}
     if not v.label:
         raise WriteProblem(
             f"{v.field}: name the @label line that cites it, or give a box for a photo or scan"
@@ -396,7 +426,7 @@ def cited(ctx: RunContext, v: Value) -> dict[str, Any] | None:
             "in a "
             "message of their own, with no tool call, then write the record"
         )
-    value = _normalize(v.field, v.value, line.text)
+    value = _normalize(v.field, v.value, line.text, kind, percent)
     if not line.citations:
         key = (v.field, line.text)
         ctx.uncited_refusals[key] += 1
@@ -445,12 +475,14 @@ def quote(ctx: RunContext, q: Quote) -> dict[str, Any]:
     raise WriteProblem("quote: give a label, or a record_id and a field")
 
 
-def _values(ctx: RunContext, values: list[Value]) -> dict[str, Any]:
+def _values(ctx: RunContext, values: list[Value], kind: str | None = None) -> dict[str, Any]:
     data: dict[str, Any] = {}
     problems: list[str] = []
+    # A rate with an employee group is a benefit rate, whose bare numbers are percents.
+    percent = kind == "rate" and any(_leaf(v.field) == "applies_to" for v in values)
     for v in values:
         try:
-            c = cited(ctx, v)
+            c = cited(ctx, v, kind, percent)
         except WriteProblem as error:
             problems.append(str(error))
             continue
@@ -483,7 +515,7 @@ def _saved(
 
 
 def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
-    data = {"kind": a.kind, **_values(ctx, a.values)}
+    data = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.label is not None:
         data["label"] = a.label
     text, error = _saved(ctx, data, a.replaces_id, "write_fact")
@@ -508,7 +540,7 @@ def t_write_fact(ctx: RunContext, a: WriteFact) -> tuple[str, bool]:
 
 
 def t_write_term(ctx: RunContext, a: WriteTerm) -> tuple[str, bool]:
-    data: dict[str, Any] = {"kind": a.kind, **_values(ctx, a.values)}
+    data: dict[str, Any] = {"kind": a.kind, **_values(ctx, a.values, a.kind)}
     if a.category is not None:
         data["category"] = a.category.value
     if a.label is not None:

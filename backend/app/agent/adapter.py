@@ -26,6 +26,7 @@ from app.contracts.records import (
     Answer,
     ApprovalScope,
     Author,
+    BenefitGroup,
     Bill,
     BudgetAssignment,
     BudgetCategory,
@@ -49,6 +50,7 @@ from app.contracts.workspaces import Grant
 __all__ = [
     "likely_duplicates",
     "ApprovalScope",
+    "BenefitGroup",
     "Bill",
     "BudgetAssignment",
     "Link",
