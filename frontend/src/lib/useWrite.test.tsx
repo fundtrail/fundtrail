@@ -26,7 +26,7 @@ function setup() {
 }
 
 describe("useWrite", () => {
-  it("sends one request for two calls in the same tick, and both get its result", async () => {
+  it("sends one request for two calls in the same tick; the second is not sent and resolves to null", async () => {
     const { send, hook } = setup();
     let first: FtRecord | null = null;
     let second: FtRecord | null = null;
@@ -37,7 +37,8 @@ describe("useWrite", () => {
     });
     expect(send).toHaveBeenCalledTimes(1);
     expect(first).not.toBeNull();
-    expect(second).toBe(first);
+    expect(second).toBeNull();
+    expect(hook.result.current.state).toEqual({ status: "saved", record: first });
   });
 
   it("sends again once the first write has settled", async () => {
@@ -64,16 +65,31 @@ describe("useWrite", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it("sends nothing for a second call with different arguments while one is in flight", async () => {
+  it("doesn't send a second call with different arguments, return a record for it, or change state", async () => {
     const { send, hook } = setup();
+    const confirm = { data: { kind: "confirmation" as const, record_ids: ["rec-1"], decision: "confirmed" as const } };
+    const reject = { data: { kind: "confirmation" as const, record_ids: ["rec-1"], decision: "rejected" as const } };
+    // Hold the first write open so the second call lands while it is in flight.
+    let finish: (record: FtRecord) => void = () => {};
+    const saved = { id: "rec-saved" } as FtRecord;
+    send.mockImplementationOnce(() => new Promise<FtRecord>((resolve) => (finish = resolve)));
+
+    let first: Promise<FtRecord | null> = Promise.resolve(null);
+    let second: FtRecord | null | undefined;
     await act(async () => {
-      const a = hook.result.current.write(SAMPLE_GRANT_ID, body);
-      const b = hook.result.current.write("another-grant", { data: { kind: "retraction" as const } });
-      const [first, second] = await Promise.all([a, b]);
-      expect(second).toBe(first);
+      first = hook.result.current.write(SAMPLE_GRANT_ID, confirm);
+      second = await hook.result.current.write(SAMPLE_GRANT_ID, reject);
+    });
+    expect(second).toBeNull();
+    expect(hook.result.current.state).toEqual({ status: "saving" });
+
+    await act(async () => {
+      finish(saved);
+      expect(await first).toBe(saved);
     });
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith(SAMPLE_GRANT_ID, body);
+    expect(send).toHaveBeenCalledWith(SAMPLE_GRANT_ID, confirm);
+    expect(hook.result.current.state).toEqual({ status: "saved", record: saved });
   });
 
   it("releases the guard when the client throws synchronously", async () => {
