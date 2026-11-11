@@ -65,6 +65,27 @@ function userFrom(session: Session): SignedInUser {
 function useSupabaseAuth(url: string, anonKey: string, devEmailSignIn: boolean): Auth {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
+  // Stable across token refreshes, so a screen's channel isn't torn down and
+  // rebuilt each time the session renews. supabase-js passes the renewed token
+  // to Realtime on its own.
+  const listen = useCallback(
+    (topic: string, onPing: () => void) => {
+      const client = supabaseClient(url, anonKey);
+      const channel = client.channel(topic, { config: { private: true } });
+      let stopped = false;
+      // A private channel needs the user's token before it subscribes.
+      void client.realtime.setAuth().then(() => {
+        if (stopped) return;
+        channel.on("broadcast", { event: "*" }, () => onPing()).subscribe();
+      });
+      return () => {
+        stopped = true;
+        void client.removeChannel(channel);
+      };
+    },
+    [url, anonKey],
+  );
+
   useEffect(() => {
     const client = supabaseClient(url, anonKey);
     const show = (session: Session | null) =>
@@ -103,22 +124,9 @@ function useSupabaseAuth(url: string, anonKey: string, devEmailSignIn: boolean):
         const { data } = await supabaseClient(url, anonKey).auth.getSession();
         return data.session?.access_token ?? null;
       },
-      listen(topic: string, onPing: () => void) {
-        const client = supabaseClient(url, anonKey);
-        const channel = client.channel(topic, { config: { private: true } });
-        let stopped = false;
-        // A private channel needs the user's token before it subscribes.
-        void client.realtime.setAuth().then(() => {
-          if (stopped) return;
-          channel.on("broadcast", { event: "*" }, () => onPing()).subscribe();
-        });
-        return () => {
-          stopped = true;
-          void client.removeChannel(channel);
-        };
-      },
+      listen,
     }),
-    [state, url, anonKey, devEmailSignIn],
+    [state, url, anonKey, devEmailSignIn, listen],
   );
 }
 
