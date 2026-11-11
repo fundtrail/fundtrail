@@ -1,6 +1,6 @@
 # 0030. A benefit charge is recalculated from its rate and its salary
 
-**Date:** 2026-11-10 · **Status:** accepted. Amends [0011](0011-evidence-checklist.md) and [0016](0016-default-checklists-by-account-group.md). The items under "First versions" aren't reviewed by Alex yet: they're built to be judged running, and may change.
+**Date:** 2026-11-10 · **Status:** accepted. Amends [0011](0011-evidence-checklist.md) and [0016](0016-default-checklists-by-account-group.md). The items under "First versions" were agreed to be built and judged running, and may change.
 
 ## Context
 
@@ -8,7 +8,7 @@ Every salary line on a grant has a benefit line beside it, and a benefit line ha
 
 What the sources say, with quotes and links in [domain.md](../domain.md#benefit-charges):
 
-- Berkeley charges benefits by a composite benefit rate for each employee group. The rates are agreed with the Department of Health and Human Services (DHHS) one fiscal year at a time, in a rate agreement.
+- Berkeley charges most benefits by a composite benefit rate for each employee group. The rates are agreed with the Department of Health and Human Services (DHHS) one fiscal year at a time, in a rate agreement.
 - Berkeley has one benefit ledger account for each rate group, so the account tells the group.
 - A benefit posts to the same department and fund as its salary.
 - Auditors check benefits by recalculating them on sampled salary.

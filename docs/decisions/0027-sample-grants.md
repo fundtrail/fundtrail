@@ -1,6 +1,6 @@
 # 0027. A sample is one grant, chosen when adding a grant
 
-**Date:** 2026-11-10 · **Status:** accepted. Supersedes [0024](0024-the-seeded-demo-workspace.md). The items under "First versions" were agreed to be built and judged running, and may change. What goes in the samples was decided on 2026-11-10, except the grants' people, amounts and dates. Three first versions added with it aren't reviewed by Alex yet: the twelfth highlight, the next highlight control, and what the small sample holds. Builds on [0007](0007-real-app-first.md), [0023](0023-the-clock.md), [0028](0028-one-clock-per-grant.md) and [0029](0029-workspace-members-and-one-access-check.md).
+**Date:** 2026-11-10 · **Status:** accepted. Supersedes [0024](0024-the-seeded-demo-workspace.md). The items under "First versions", including the twelfth highlight, the next highlight control and what the small sample holds, were agreed to be built and judged running, and may change. What goes in the samples was decided on 2026-11-10, except the grants' people, amounts and dates. Builds on [0007](0007-real-app-first.md), [0023](0023-the-clock.md), [0028](0028-one-clock-per-grant.md) and [0029](0029-workspace-members-and-one-access-check.md).
 
 ## Context
 
@@ -33,7 +33,7 @@ Two scenarios set the shape.
 
 ### What goes in the samples
 
-The samples show the app's features, above all hard cases handled well. A sample has many events, but only a few are highlights, chosen so that together they show every part of the app without repeating.
+The product owner's brief: the sample shows the app's features, especially hard cases handled well. There are many events, and only a few are highlighted, chosen so that together they show the app's parts without repeating.
 
 - **All three choices stay:** the larger sample prerun, the small sample read live, and the larger sample read live.
 - **The larger sample is one grant of about 30 charges,** running its whole life, from the award letter to sign-off. Most charges are ordinary and clear on their own. Benefit lines sit beside salary lines and clear with them. They aren't a highlight ([0030](0030-benefit-charges.md)).
@@ -43,7 +43,7 @@ The samples show the app's features, above all hard cases handled well. A sample
   3. A receipt photo that's the user's to deliver, by upload, email or Drive.
   4. An invoice shared with another award. An email gives this grant's share, and code checks the arithmetic. The agent's suggestion about the rest waits for the accountant.
   5. The professor's own conference fee on participant support, with her own "approved" email. It stays Possible conflict.
-  6. A charge dated after the end date. An extension dated before the old end date turns up in Drive. Once the extension is confirmed, the charge clears with no new agent work.
+  6. A charge dated after the end date. An extension dated before the old end date turns up in Drive. The charge clears once the extension is confirmed.
   7. A vendor's email from an unknown address is held until it's let in. It holds a cost that isn't allowed, and a correcting ledger line later moves the charge off the grant.
   8. The budget. Spending goes over on a line and on the award's total. The accountant accepts it with a note, and a later notice that adds money raises the limit.
   9. Closeout: the closeout review, sign-off with one item open and a note, and the evidence report.
@@ -60,7 +60,7 @@ These may change once they're seen running.
 - **How the prerun is made.** It saves the whole expected run-through: the sample's timeline played from its first event to its last with the real agent, while a sample accountant makes the scripted decisions through the app's ordinary paths. It's made again whenever the agent, the rulebook or the sample changes, and it's released only if it matches the sample's expected results.
 - **When a saved result is used.** Only while the grant is still on that run-through: every accountant decision so far is the sample accountant's scripted one, none missing and none the user's own. Then moving the clock loads the saved result up to that point at once, copied in with the workspace's sample accountant as author.
 - **Once the user makes a decision of their own,** saved results no longer apply as a whole. The agent works live from there, reusing a saved reading of a file where that reading doesn't depend on the grant's state.
-- **The small sample** is read live only. It holds highlights 1 to 3 on a tiny grant.
+- **The small sample** is read live only. It holds highlights 1 to 3.
 - **A twelfth highlight** in the larger sample: a bill whose amount doesn't match its charge.
 - **One larger read-live sample works at a time.** While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
 - **A timeline panel,** on a sample grant's page only. It shows:
@@ -104,7 +104,7 @@ The first versions above:
 - how the prerun is made, and releasing it only when it matches the expected results
 - using a saved result only while the grant is on the run-through, and loading it at once
 - working live after the user's own decision, reusing saved readings of files that don't depend on the grant's state
-- the small sample being read live only, and holding highlights 1 to 3 on a tiny grant
+- the small sample being read live only, and holding highlights 1 to 3
 - the twelfth highlight, a bill whose amount doesn't match its charge
 - the next highlight control on the timeline panel
 - one larger read-live sample working at a time: moving another's clock is refused, with a line naming the one still working, while opening or starting over is never refused

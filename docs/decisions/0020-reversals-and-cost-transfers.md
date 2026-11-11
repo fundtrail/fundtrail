@@ -1,6 +1,6 @@
 # 0020. A line that takes money off the grant is read together with the line it corrects
 
-**Date:** 2026-11-10 · **Status:** accepted. Reviewed by Alex on 2026-11-10 and kept as written: a line that takes money off the grant is read together with the line it names, a fully corrected charge shows Reversed and leaves the problem list with no action, when the ledger names no line code doesn't guess and the agent's suggestion waits, and a line that adds money to the grant stands on its own with its group's default plus the two correction items. Berkeley's 120-day limit on cost transfers stays unchecked, because the university's own policies come in only through the default checklists for now. Amends [0010](0010-agent-suggests-accountant-decides.md) and [0016](0016-default-checklists-by-account-group.md).
+**Date:** 2026-11-10 · **Status:** accepted. Reviewed by Alex on 2026-11-10 and kept as written: a line that takes money off the grant is read together with the line it names, a fully corrected charge shows Reversed and leaves the problem list with no action, when the ledger names no line, code doesn't guess and the agent's suggestion waits, and a line that adds money to the grant stands on its own with its group's default plus the two correction items. Berkeley's 120-day limit on cost transfers stays unchecked, because the university's own policies come in only through the default checklists for now. Amends [0010](0010-agent-suggests-accountant-decides.md) and [0016](0016-default-checklists-by-account-group.md).
 
 ## Context
 

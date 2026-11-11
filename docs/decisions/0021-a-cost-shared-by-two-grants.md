@@ -1,6 +1,6 @@
 # 0021. A shared cost: a part of a bill needs a cited basis, and the rest is the accountant's to explain
 
-**Date:** 2026-11-10 · **Status:** accepted. Reviewed by Alex on 2026-11-10 and kept as written: a link for part of a bill needs a cited basis or the charge is Needs a human, where the basis is a share code checks the arithmetic to within one cent, where no document gives the basis the accountant enters it, and the agent's suggestion that the rest belongs to another award waits for the accountant, while a remainder nobody has explained is flagged after 60 days.
+**Date:** 2026-11-10 · **Status:** accepted. Reviewed by Alex on 2026-11-10 and kept as written: a link for part of a bill needs a cited basis or the charge is Needs a human, where the basis is a share, code checks the arithmetic to within one cent, where no document gives the basis, the accountant enters it, and the agent's suggestion that the rest belongs to another award waits for the accountant, while a remainder nobody has explained is flagged after 60 days.
 
 ## Context
 

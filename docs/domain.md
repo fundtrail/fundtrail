@@ -125,7 +125,7 @@ This list is a starting point:
 |---|---|---|
 | Salaries | 50xxx, 51xxx | Appointment letter. Certified effort report covering the month. |
 | Benefits | 53xxx | Benefit rate, filled by code's recalculation (see [Benefit charges](#benefit-charges)) |
-| Tuition and fee remission | 538xx, 5742x | The student's appointment letter |
+| Tuition and fee remission | 538xx (unverified), 5742x | The student's appointment letter |
 | Travel | 5721x, 5722x | Expense report. Bills that add up to the charge. |
 | Supplies | 550xx, 553xx | A bill that adds up to the charge |
 | Equipment | 542xx | A bill that adds up to the charge |
@@ -163,9 +163,9 @@ The decision is [0030](decisions/0030-benefit-charges.md). Checked on Nov 10, 20
 - **The rate agreement.** The DHHS rate agreement dated May 27, 2026 lists a fixed rate for each group for July 1, 2025 to June 30, 2026, for example 44.00% for Staff. Its base is "Salaries and wages excluding vacation and catastrophic leave." From July 1, 2026 it says to use the same rates, as provisional rates, until amended.
 - **One ledger account for each group.** Berkeley's benefit assessment accounts are 53060 (Academic), 53070 (Staff), 53080 (Limited), 53085 (No Benefit Eligibility) and 53086 (Student). So the account on a benefit line tells its group.
 - **The same department and fund as the salary.** Berkeley's CFO page says the benefit "will post to the same department and fund" as the employee's salary.
-- **Auditors recalculate.** NSF OIG audits test the benefits applied to the salary they sample. Where a benefit was wrong, the finding recomputes it as the salary times the group's rate for the fiscal year the salary was earned. Using the rate in effect when the salary posted, or when it was moved by a cost transfer, was a finding at the University of Oklahoma and the University of Connecticut.
+- **Auditors recalculate.** NSF OIG audits test the benefits applied to the transactions they sample. In the wrong-year findings at the University of Oklahoma and the University of Connecticut, the university had used the rate in effect when the salary posted, or when it was moved by a cost transfer, and the auditors recomputed the benefit as the salary, split by the fiscal year it was earned, times that year's rate.
 - **Charged outside the rate, and left for later** ([0030](decisions/0030-benefit-charges.md)). Graduate student fee and tuition remission is charged at actual cost for each student employee, and includes graduate student health insurance. Vacation is outside the rate's base, and Berkeley assesses vacation leave separately, in its 52xxx accounts.
-- **Not found.** Which salary accounts belong to which rate group. Whether a Berkeley benefit ledger line carries the employee or the pay period. Whether Berkeley's vacation leave assessment posts to a federal award. Which rate Berkeley charges while a year's rate is provisional: the rate agreement carries the year before's rates, and Berkeley's pages show different projected rates for planning. The 538xx fee remission account codes, because Berkeley's full account list couldn't be opened.
+- **Not found.** Which salary accounts belong to which rate group. Berkeley's CFO page says the combination of employee class, earn codes and benefit eligibility codes decides the rate group, so salary accounts may not map one to one to rate groups. Whether a Berkeley benefit ledger line carries the employee or the pay period. Whether Berkeley's vacation leave assessment posts to a federal award. Which rate Berkeley charges while a year's rate is provisional: the rate agreement carries the year before's rates, and Berkeley's pages show different projected rates for planning. The 538xx fee remission account codes, because Berkeley's full account list couldn't be opened.
 
 ## Approvals
 
@@ -322,7 +322,7 @@ The supporting documents for every charge, kept for the retention period and han
 | Whether Berkeley has moved its equipment and subaward thresholds from $5,000 and $25,000 to the federal $10,000 and $50,000 | builder (W2), verified before coding |
 | Berkeley's effort report timing under its new system, re-checked before building | builder (W2) |
 | Berkeley's 120-day limit on cost transfers. It stays unchecked for now, because the university's own policies come in only through the default checklists ([0020](decisions/0020-reversals-and-cost-transfers.md)). | later |
-| Which Berkeley salary accounts belong to which benefit rate group. It isn't verified, and code needs it to sort a month's salary by group ([0030](decisions/0030-benefit-charges.md)). | builder (W2), verified before coding |
+| Which Berkeley salary accounts belong to which benefit rate group. It isn't verified, and code needs it to sort a month's salary by group ([0030](decisions/0030-benefit-charges.md)). | builder (W2), discussed with Alex before building |
 | Benefits beyond the rate on salary: pay left out of the calculation, such as vacation; tuition and fee remission, charged at actual cost; leave assessments; and benefits after a salary is moved by a cost transfer ([0030](decisions/0030-benefit-charges.md)) | later |
 | Anything specific to program solicitations: a cap that adds up over several charges, such as twelve monthly payments that pass a yearly cap together, and noticing that an award letter names a solicitation that isn't on file | product, later |
 | The university's own policies beyond the default checklists, such as an expense report within 45 days of a trip | later |

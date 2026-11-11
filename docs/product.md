@@ -254,10 +254,10 @@ The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
   - The prerun saves the whole expected run-through, made with the real agent. A saved result is loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live from there.
   - The small sample is read live only. One larger read-live sample works at a time. While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
   - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, the next highlight, going to a date, and starting over. Next highlight moves to the next highlight with the human steps skipped. The panel marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
-  - The small sample holds highlights 1 to 3 below, on a tiny grant.
+  - The small sample holds highlights 1 to 3 below.
   - The larger sample has a twelfth highlight: a bill whose amount doesn't match its charge.
 
-**What goes in the samples** ([0027](decisions/0027-sample-grants.md)). The samples show the app's features, above all hard cases handled well. A sample has many events, but only a few are highlights, chosen so that together they show every part of the app without repeating. The larger sample is one grant of about 30 charges, running its whole life, from the award letter to sign-off. Most charges are ordinary and clear on their own. Benefit lines sit beside salary lines and clear with them, and aren't a highlight. The grants' people, amounts and dates aren't decided yet. All of it is synthetic.
+**What goes in the samples** ([0027](decisions/0027-sample-grants.md)). The product owner's brief: the sample shows the app's features, especially hard cases handled well. There are many events, and only a few are highlighted, chosen so that together they show the app's parts without repeating. The larger sample is one grant of about 30 charges, running its whole life, from the award letter to sign-off. Most charges are ordinary and clear on their own. Benefit lines sit beside salary lines and clear with them, and aren't a highlight. The grants' people, amounts and dates aren't decided yet. All of it is synthetic.
 
 | # | Highlight in the larger sample | What FundTrail does |
 |---|---|---|
@@ -266,7 +266,7 @@ The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
 | 3 | A receipt photo | It's the user's to deliver, by upload, email or Drive |
 | 4 | An invoice shared with another award | An email gives this grant's share, and code checks the arithmetic. The agent's suggestion about the rest waits for the accountant |
 | 5 | The professor's own conference fee on participant support, with her own "approved" email | **Possible conflict**, and it stays there |
-| 6 | A charge dated after the end date. An extension dated before the old end date turns up in Drive | **Possible conflict**, then the charge clears once the extension is confirmed, with no new agent work |
+| 6 | A charge dated after the end date. An extension dated before the old end date turns up in Drive | **Possible conflict**, then the charge clears once the extension is confirmed |
 | 7 | A vendor's email from an unknown address | Held until it's let in. It holds a cost that isn't allowed, and a correcting ledger line later moves the charge off the grant |
 | 8 | Spending goes over on a budget line and on the award's total | The accountant accepts it with a note. A later notice that adds money raises the limit |
 | 9 | Closeout | The closeout review, sign-off with one item open and a note, and the evidence report |
