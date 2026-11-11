@@ -141,11 +141,21 @@ function Row({
         <>
           <Mark bucket={null} />
           <div className="ft-problem__main">
-            <p className="ft-problem__text">{row.problem.text}</p>
+            <p className="ft-problem__text">
+              {/* A grant has no page of its own, so its row picks it here: a real button, reachable from the keyboard. */}
+              {onSelect ? (
+                <button type="button" className={styles.rowButton} aria-current={selected ? "true" : undefined} onClick={() => onSelect(rowKey)}>
+                  {row.problem.text}
+                </button>
+              ) : (
+                row.problem.text
+              )}
+            </p>
           </div>
           <div className="ft-problem__side">
             <span className={`ft-tag ${styles.kind}`}>Grant</span>
-            {row.problem.accepted && <span className="ft-tag">Accepted</span>}
+            {/* Which problem is accepted is its own accepted_by; the row's accepted is about the whole grant. */}
+            {row.problem.accepted_by && <span className="ft-tag">Accepted</span>}
             {row.problem.snoozed && <span className="ft-tag">Snoozed</span>}
           </div>
         </>
