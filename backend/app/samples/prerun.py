@@ -295,12 +295,18 @@ def make(
     drain()
     with transaction(p.pool) as conn:
         walking = sample_store.walk_target(conn, grant.id) is not None
+        last = sample_store.last_move(conn, grant.id)
+        assert last is not None  # the move just made
+        left = [s for s in sample_store.move_scripted(conn, last.id) if s.state != "done"]
     checked, wrong = key_check(p, grant.id, sample)
     usage = usage_of(p, grant.id, prices)
     if capped is not None and capped.stopped:
         usage["stopped_at_cap"] = True
     if walking:
         wrong = [*wrong, "the walk didn't reach the sample's end: a step is still waiting"]
+    if last.walk_stopped:
+        wrong = [*wrong, last.walk_stopped]
+    wrong = [*wrong, *(f"scripted step {s.step} at {s.at.isoformat()} was {s.state}" for s in left)]
     with transaction(p.pool) as conn:
         row = conn.execute(
             f"""insert into public.sample_preruns

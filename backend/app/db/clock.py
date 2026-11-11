@@ -208,14 +208,20 @@ def replay(
     return [jobs.queue_run(conn, grant, i.trigger, i.at, catch_up=True) for i in items]
 
 
-def continue_walk(p: Platform, conn: Conn, grant: Grant) -> None:
-    """After a run saves or fails: a sample grant's walk (a skipping move, ruling 47) goes on
-    as far as it can without waiting for the agent again. Any other grant has none."""
-    if grant.sample is None:
-        return
-    from app.samples.skipping import advance
+def continue_walk(p: Platform, grant_id: str) -> None:
+    """After a run's save or failure has committed: a sample grant's walk (a skipping move,
+    ruling 47) goes on as far as it can without waiting for the agent again, in a
+    transaction of its own. Any other grant has none. Never raises."""
+    from app.samples.skipping import go_on
 
-    advance(p, conn, grant)
+    go_on(p, grant_id)
+
+
+def check_walks(p: Platform) -> None:
+    """Every minute: sample grants' walks that nothing is taking on (app.samples.skipping)."""
+    from app.samples.skipping import check_walks as check
+
+    check(p)
 
 
 def set_stored_clock(conn: Conn, grant_id: str, at: datetime) -> None:
@@ -256,7 +262,6 @@ def step_after_catch_up(p: Platform, conn: Conn, grant: Grant, run: AgentRun) ->
     clock = Trigger(kind=TriggerKind.CLOCK)
     for point in points:
         recheck_grant(conn, p.checks, grant, point, clock)
-    continue_walk(p, conn, grant)
     return output
 
 

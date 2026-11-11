@@ -5,8 +5,14 @@
 
 create table public.sample_walks (
   grant_id text primary key references public.grants (id) on delete cascade,
-  target timestamptz not null -- the move's date
+  target timestamptz not null, -- the move's date
+  -- How many checks in a row (one a minute) found the walk waiting on agent runs that no
+  -- job is left to run. At two the walk stops, with a reason on its move.
+  idle_checks integer not null default 0
 );
 
 -- As every table: row level security on, with no policies.
 alter table public.sample_walks enable row level security;
+
+-- Why a walk stopped before its move's date, for the panel. Null when it didn't.
+alter table public.sample_moves add column walk_stopped text;

@@ -495,13 +495,15 @@ def move(
             # On the run-through: the saved result, loaded at once. Nothing runs.
             _load(p, conn, locked, saved, start, plan.until)
         elif skip or walking is not None:
-            move_id = sample_store.insert_move(conn, grant.id, start, plan.until)
+            # The move plays what the clock passes from where it stands now, a walk's later
+            # steps included, so every played event is under exactly one move.
+            move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
             if skip:
                 skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
             sample_store.start_walk(conn, grant.id, plan.until)
             skipping.advance(p, conn, locked)
         else:
-            sample_store.insert_move(conn, grant.id, start, plan.until)
+            sample_store.insert_move(conn, grant.id, now, plan.until)
             store_events(p, conn, locked, pack, [e.id for e in plan.play])
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
@@ -653,10 +655,12 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
     charges = store.list_charges(conn, grant.id, now)
     on_grant = _on_grant(p, pack, items, files)
     last = sample_store.last_move(conn, grant.id)
-    after, until = (last.moved_from, last.moved_to) if last else (None, now)
+    after = last.moved_from if last else None
 
     def in_move(at: datetime) -> bool:
-        return (after is None or at > after) and at <= until
+        # What the last move has played so far: from the clock when it was made to the
+        # clock now, which a walk under way hasn't brought to the move's date yet.
+        return (after is None or at > after) and at <= now
 
     runs = store.list_runs(conn, grant.id)
     records = store.list_records(conn, grant.id, now)
@@ -693,6 +697,7 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         _decisions(conn, last, records),
         lambda: _stood_on(items, after, pack, files, charges),
     )
+    until = last.moved_to if last else now
     stopped = next((i for i in items if i.at == until), None) if until == now else None
     return TimelineView(
         just_happened=tuple(just),

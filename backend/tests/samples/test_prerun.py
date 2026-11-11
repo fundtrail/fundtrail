@@ -7,6 +7,7 @@ import json
 import shutil
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -170,6 +171,21 @@ def test_a_prerun_that_doesnt_match_isnt_released(setup: Api) -> None:
         prerun.release(setup.platform, made.id)
 
 
+def test_a_prerun_whose_walk_left_a_step_isnt_released(
+    setup: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.samples import skipping
+
+    def fails(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("the write broke")
+
+    monkeypatch.setattr(skipping, "write_record", fails)
+    made = _make(setup)
+    assert any("was left" in w for w in made.wrong)
+    with pytest.raises(prerun.NotReleasable):
+        prerun.release(setup.platform, made.id)
+
+
 def test_the_prerun_choice_opens_only_once_released(setup: Api) -> None:
     api = setup
     options = {o["choice"]: o for o in _get(api, "/samples")}
@@ -294,3 +310,9 @@ def test_starting_over_puts_it_back_on_the_run_through(setup: Api) -> None:
     timeline = response.json()
     assert timeline["on_run_through"] is True
     assert [p["loaded"] for p in timeline["just_happened"]] == [True]
+
+
+def test_the_command_needs_a_spend_cap() -> None:
+    with pytest.raises(SystemExit) as stopped:
+        prerun.main(["make", "salt-marsh-carbon", "--owner", "someone"])
+    assert stopped.value.code == 2  # argparse: --cap is required

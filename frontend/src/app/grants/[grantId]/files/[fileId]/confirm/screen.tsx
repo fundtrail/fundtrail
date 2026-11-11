@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Loadable } from "@/components/AppShell";
+import { Loadable } from "@/components/Loadable";
 import { ConfirmValues } from "@/components/evidence/ConfirmValues";
 import { GrantFrame } from "@/components/evidence/GrantFrame";
 import { useEvidence } from "@/components/evidence/hooks";

@@ -12,7 +12,13 @@ same as a user making each step at its own time while the clock walks forward:
   time, after everything before it. The grant's clock walks with it, and reaches the
   move's date when the walk is done.
 - **When it goes on.** The move starts it; after that, each agent run's save (or failure)
-  takes it on as far as it can go without waiting for the agent again.
+  takes it on as far as it can go without waiting for the agent again, once the run has
+  committed and in a transaction of its own (`go_on`), so nothing in the walk can fail or
+  undo the run. Each step is made in a savepoint of its own.
+- **When it stops short.** A step that fails, or whose write is refused, is left for the
+  user and the walk goes on. If playing the events fails, or the walk waits on agent runs
+  that no job is left to run (`check_walks`, every minute), it stops where it is: the
+  steps it hadn't made are left for the user and its move keeps the reason.
 - **A file the user brings in** (`deliver_file`) needs no agent: it arrives at its step's
   time with the events, and the panel tags it delivered by the Sample accountant (ruling
   52).
@@ -31,13 +37,14 @@ from __future__ import annotations
 import logging
 import mimetypes
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.contracts.workspaces import Grant
 from app.db import clock, sample_store, store
 from app.db.actions import WriteRejected, write_record, write_sign_off
 from app.db.mail_sink import arrive_files
 from app.db.platform import Platform
+from app.db.pool import transaction
 from app.db.sample_store import Scripted
 from app.db.store import Conn
 from app.ingest.incoming import IncomingFile
@@ -60,60 +67,104 @@ def queue_steps(
 def advance(p: Platform, conn: Conn, grant: Grant) -> None:
     """Take the grant's walk as far as it goes without waiting for the agent: play the
     events up to the next scripted decision, make the decision once the agent's runs
-    before it are done, and so on to the walk's end. The caller holds the grant's lock."""
-    if grant.sample is None:
+    before it are done, and so on to the walk's end. The caller holds the grant's lock.
+
+    It never raises for something in the walk. Each step is made in a savepoint of its
+    own: a scripted step that fails is left for the user and the walk goes on; any other
+    step that fails is undone and stops the walk where it is, with the reason on its move."""
+    if grant.sample is None or sample_store.walk_target(conn, grant.id) is None:
         return
+    from .player import pack_for
+
+    while True:
+        try:
+            with conn.transaction():  # a savepoint: a failed step is undone, earlier ones stand
+                going = _step(p, conn, grant, pack_for(grant.sample.sample))
+        except Exception as error:  # noqa: BLE001 - the walk stops; nothing else fails with it
+            log.exception("the walk on grant %s stopped", grant.id)
+            stop(conn, grant.id, _reason(conn, grant.id, error))
+            return
+        if not going:
+            return
+
+
+def _step(p: Platform, conn: Conn, grant: Grant, pack: SamplePack) -> bool:
+    """One step of the walk. Returns whether the walk can go on at once."""
     target = sample_store.walk_target(conn, grant.id)
     if target is None:
-        return
-    from .player import pack_for, store_events
+        return False
+    now = clock.grant_now(conn, grant.id)
+    pending = sample_store.pending_scripted(conn, grant.id, None)
+    decision = next((s for s in pending if pack.actions[s.step].action != "deliver_file"), None)
+    until = min(decision.at, target) if decision is not None else target
+    if until > now:
+        _play(p, conn, grant, pack, pending, now, until)
+        return True
+    if decision is None:
+        sample_store.end_walk(conn, grant.id)
+        return False
+    action = pack.actions[decision.step]
+    if action.action == "sign_off":
+        if store.has_pending_run(conn, grant.id):
+            return False  # a sign-off waits for every run
+    elif sample_store.catch_up_runs_before(conn, grant.id, decision.at):
+        return False  # the agent is still reading what came before it
+    _make(p, conn, grant, pack, decision)
+    return True
 
-    pack = pack_for(grant.sample.sample)
-    while True:
-        now = clock.grant_now(conn, grant.id)
-        pending = sample_store.pending_scripted(conn, grant.id, None)
-        decision = next((s for s in pending if pack.actions[s.step].action != "deliver_file"), None)
-        until = min(decision.at, target) if decision is not None else target
-        if until > now:
-            # Every event, and every file the user brings in, up to the next decision.
-            played = [e.id for e in pack.events if now < e.at <= until and not e.deliver_by_user]
-            store_events(p, conn, grant, pack, played)
-            for s in pending:
-                if pack.actions[s.step].action == "deliver_file" and s.at <= until:
-                    _deliver(p, conn, grant, pack, s)
-            clock.set_and_replay(p, conn, grant, now, until)
-            continue
-        if decision is None:
-            sample_store.end_walk(conn, grant.id)
-            return
-        action = pack.actions[decision.step]
-        if action.action == "sign_off":
-            if store.has_pending_run(conn, grant.id):
-                return  # a sign-off waits for every run
-        elif sample_store.catch_up_runs_before(conn, grant.id, decision.at):
-            return  # the agent is still reading what came before it
-        _make(p, conn, grant, pack, decision)
+
+def _play(
+    p: Platform,
+    conn: Conn,
+    grant: Grant,
+    pack: SamplePack,
+    pending: list[Scripted],
+    now: datetime,
+    until: datetime,
+) -> None:
+    """Every event, and every file the user brings in, after `now` up to `until`, and the
+    clock to `until`. Raises WalkStopped, with the reason, if it fails."""
+    from .player import store_events
+
+    try:
+        played = [e.id for e in pack.events if now < e.at <= until and not e.deliver_by_user]
+        store_events(p, conn, grant, pack, played)
+        for s in pending:
+            if pack.actions[s.step].action == "deliver_file" and s.at <= until:
+                _deliver(p, conn, grant, pack, s)
+        clock.set_and_replay(p, conn, grant, now, until)
+    except Exception as error:
+        raise WalkStopped(
+            f"The walk stopped at {_when(now)}: what comes after couldn't be played "
+            f"({type(error).__name__})."
+        ) from error
 
 
 def _deliver(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) -> None:
-    """A file the user brings in, at its step's time, as an upload, by the Sample accountant."""
+    """A file the user brings in, at its step's time, as an upload, by the Sample
+    accountant. One that can't be brought in is left for the user."""
     a = pack.actions[s.step]
-    step = resolve(p, conn, grant, pack, a, a.at)
-    if not isinstance(step, DeliverFile):
-        sample_store.finish_scripted(conn, grant.id, s.step, "left")
-        return
-    media_type = mimetypes.guess_type(step.name)[0] or "application/octet-stream"
-    incoming = IncomingFile(
-        key=f"sample-step-{s.step}",
-        grant_id=grant.id,
-        workspace_id=grant.workspace_id,
-        source="upload",
-        name=step.name,
-        media_type=media_type,
-        data=pack.file_bytes(step.name),
-    )
-    [f] = arrive_files(p, conn, grant, [replace(incoming, arrived_at=a.at)])
-    sample_store.finish_scripted(conn, grant.id, s.step, "done", file_id=f.id)
+    file_id: str | None = None
+    try:
+        with conn.transaction():  # a savepoint: a failed delivery brings nothing in
+            step = resolve(p, conn, grant, pack, a, a.at)
+            if isinstance(step, DeliverFile):
+                media_type = mimetypes.guess_type(step.name)[0] or "application/octet-stream"
+                incoming = IncomingFile(
+                    key=f"sample-step-{s.step}",
+                    grant_id=grant.id,
+                    workspace_id=grant.workspace_id,
+                    source="upload",
+                    name=step.name,
+                    media_type=media_type,
+                    data=pack.file_bytes(step.name),
+                )
+                [f] = arrive_files(p, conn, grant, [replace(incoming, arrived_at=a.at)])
+                file_id = f.id
+    except Exception:  # noqa: BLE001 - a delivery that fails is the user's to make
+        log.exception("scripted step %s on grant %s failed; left for the user", s.step, grant.id)
+    state = "done" if file_id is not None else "left"
+    sample_store.finish_scripted(conn, grant.id, s.step, state, file_id=file_id)
 
 
 def _make(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) -> None:
@@ -142,6 +193,73 @@ def _make(p: Platform, conn: Conn, grant: Grant, pack: SamplePack, s: Scripted) 
     sample_store.finish_scripted(
         conn, grant.id, s.step, state, record_id, move_id=last.id if last else None
     )
+
+
+# Stopping.
+
+
+class WalkStopped(Exception):
+    """The walk can't go on; the message is the reason the panel shows."""
+
+
+def stop(conn: Conn, grant_id: str, reason: str) -> None:
+    """Stop the walk where it is: the clock stays, the steps not yet made are left for the
+    user, and the grant's last move keeps `reason`."""
+    sample_store.stop_walk(conn, grant_id, reason)
+
+
+def _when(at: datetime) -> str:
+    return f"{at.astimezone(UTC):%Y-%m-%d %H:%M} UTC"
+
+
+def _reason(conn: Conn, grant_id: str, error: Exception) -> str:
+    if isinstance(error, WalkStopped):
+        return str(error)
+    return (
+        f"The walk stopped at {_when(clock.grant_now(conn, grant_id))}: "
+        f"something went wrong ({type(error).__name__})."
+    )
+
+
+def go_on(p: Platform, grant_id: str) -> None:
+    """After an agent run's save or failure has committed: the grant's walk goes on, in a
+    transaction of its own, so nothing in the walk can fail or undo the run."""
+    try:
+        with transaction(p.pool) as conn:
+            grant = store.get_grant(conn, grant_id, lock=True)
+            if grant is None or grant.sample is None:
+                return
+            advance(p, conn, grant)
+    except Exception:  # noqa: BLE001 - the run stands; check_walks takes the walk on later
+        log.exception("the walk on grant %s didn't go on after a run", grant_id)
+        return
+
+
+# Two checks a minute apart that find a walk waiting on runs no job will run stop it.
+IDLE_CHECKS = 2
+NO_JOB = "The walk stopped at {}: an agent run it was waiting for has nothing left to run it."
+
+
+def check_walks(p: Platform) -> None:
+    """Every minute: each walk under way goes on if nothing holds it (a walk whose going on
+    after a run was lost), and one waiting on agent runs that no job will ever run stops,
+    once two checks in a row find it so."""
+    with transaction(p.pool) as conn:
+        walking = sample_store.walking_grants(conn)
+    for grant_id in walking:
+        try:
+            with transaction(p.pool) as conn:
+                grant = store.get_grant(conn, grant_id, lock=True)
+                if grant is None or grant.sample is None:
+                    continue
+                if not store.has_pending_run(conn, grant_id):
+                    advance(p, conn, grant)
+                    continue
+                stuck = not sample_store.live_run_jobs(conn, grant_id)
+                if sample_store.idle_check(conn, grant_id, stuck) >= IDLE_CHECKS:
+                    stop(conn, grant_id, NO_JOB.format(_when(clock.grant_now(conn, grant_id))))
+        except Exception:  # noqa: BLE001 - one grant's walk mustn't hold up the others'
+            log.exception("checking the walk on grant %s failed", grant_id)
 
 
 def _sign_off(p: Platform, conn: Conn, grant: Grant, user_id: str, note: str):  # noqa: ANN202
