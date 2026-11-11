@@ -227,6 +227,7 @@ export function Viewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const shownFor = useRef<string | null>(null);
+  const resetFor = useRef<string | null>(null);
   const [readyTick, setReadyTick] = useState(0);
   const onReady = useCallback(() => setReadyTick((t) => t + 1), []);
 
@@ -249,8 +250,19 @@ export function Viewer({
   // screen); after that only the area scrolls.
   useEffect(() => {
     const area = scrollRef.current;
-    const target = area?.querySelector<HTMLElement>('[data-scroll-target="true"]');
-    if (!area || !target) return;
+    if (!area) return;
+    const target = area.querySelector<HTMLElement>('[data-scroll-target="true"]');
+    if (!target) {
+      // Nothing to scroll to (a value that couldn't be placed, or a page not
+      // drawn yet): a value opened in place starts at the top, where opening
+      // it directly lands, not at the last value's spot. Once per value, so a
+      // later zoom doesn't move the accountant's own scrolling.
+      if (resetFor.current !== spot) {
+        resetFor.current = spot;
+        area.scrollTo?.({ top: 0, left: 0 });
+      }
+      return;
+    }
     if (citation && barRef.current && shownFor.current !== spot) showDocumentArea(barRef.current, area);
     shownFor.current = spot;
     // A whole page opens at its top; a highlight opens in the middle of the view.
