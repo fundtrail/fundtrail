@@ -16,6 +16,15 @@ function steps() {
   return within(screen.getByRole("list")).getAllByRole("listitem");
 }
 
+/** An element's attributes, classes and inline style included, as one comparable string. */
+function attributes(element: Element): string {
+  return element
+    .getAttributeNames()
+    .sort()
+    .map((name) => `${name}=${element.getAttribute(name)}`)
+    .join(" ");
+}
+
 describe("CloseoutSteps", () => {
   it("draws every step with its description, in order", () => {
     render(<CloseoutSteps summary={sampleSummary} />);
@@ -45,13 +54,18 @@ describe("CloseoutSteps", () => {
     expect(summary).toHaveTextContent("End date in force: Jan 31, 2026.");
   });
 
-  it("marks no step as current or passed", () => {
+  it("marks no step as current or passed, in any way", () => {
     const { container } = render(<CloseoutSteps summary={sampleSummary} />);
     expect(container.querySelector("[aria-current]")).toBeNull();
-    for (const item of steps()) {
-      expect(item).toHaveAttribute("class", "ft-co-step");
-      expect(item).not.toHaveTextContent("Now");
-    }
+    // Every step, and every step's dot, carries exactly the same classes and
+    // attributes as the others. The line between dots is drawn by the step's own
+    // class, so a passed or current look added any way would show up here.
+    const items = steps();
+    const dots = items.map((item) => item.querySelector(".ft-co-step__dot"));
+    expect(dots.every((dot) => dot !== null)).toBe(true);
+    expect(new Set(items.map(attributes)).size).toBe(1);
+    expect(new Set(dots.map((dot) => attributes(dot!))).size).toBe(1);
+    for (const item of items) expect(item).not.toHaveTextContent("Now");
   });
 
   it("says so when no end date is confirmed, and shows no next step the server didn't send", () => {

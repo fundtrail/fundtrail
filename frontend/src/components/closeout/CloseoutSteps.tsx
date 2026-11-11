@@ -43,7 +43,8 @@ export function CloseoutSteps({ summary, links }: { summary: GrantSummary; links
         <div className="ft-co-summary" data-testid="closeout-summary">
           {next && (
             <p className="ft-co-next">
-              Next: <span className="ft-co-next__label">{next.label}</span>, {date(next.date)}.
+              Next: <span className="ft-co-next__label">{next.label}</span>,{" "}
+              <span className="ft-co-next__date">{date(next.date)}.</span>
             </p>
           )}
           <p className="ft-co-end">
