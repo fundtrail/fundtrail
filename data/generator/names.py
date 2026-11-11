@@ -115,7 +115,7 @@ MARINE_STATION = "Halden Marine Station at Carrow Point"
 # The small sample's project and places.
 SENSORS_TITLE = "Low-Cost Nitrate Sensors for Tolliver Valley Groundwater"
 VALLEY = "Tolliver Valley"
-VALLEY_FARM = f"Halden Tolliver Valley Research Farm, {VALLEY}, CA"
+VALLEY_FARM = f"{VALLEY}, CA"
 VALLEY_INN = "Tolliver Valley Motor Inn"
 VALLEY_AIRPORT = "FAT"
 SENSORS_DIVISION = "EAR"

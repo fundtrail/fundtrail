@@ -53,7 +53,7 @@ endobj
 endobj
 10 0 obj
 <<
-/Length 6153
+/Length 6115
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -62,7 +62,7 @@ BT /F2 15 Tf 18 TL ET
 BT 1 0 0 1 186.615 728 Tm (TOLLIVER VALLEY MOTOR INN) Tj T* ET
 .372549 .388235 .407843 rg
 BT /F3 9 Tf 10.8 TL ET
-BT 1 0 0 1 197.6445 713.3 Tm (Halden Tolliver Valley Research Farm, Tolliver Valley, CA) Tj T* ET
+BT 1 0 0 1 269.8785 713.3 Tm (Tolliver Valley, CA) Tj T* ET
 .066667 .066667 .066667 RG
 .8 w
 n 72 703.06 m 540 703.06 l S
@@ -279,5 +279,5 @@ trailer
 /Size 11
 >>
 startxref
-7353
+7315
 %%EOF
