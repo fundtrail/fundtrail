@@ -79,6 +79,7 @@ from .pack import (
 from .timeline import (
     ChecksDate,
     ItemKind,
+    MoveRefused,
     OnGrant,
     TimelineItem,
     checks_items,
@@ -125,6 +126,11 @@ class AnotherSampleWorking(Exception):
     def __init__(self, grant: Grant) -> None:
         super().__init__(grant.id)
         self.grant = grant
+
+    def reason(self) -> str:
+        """Why, in plain words, for the panel."""
+        name = self.grant.award_number or "another larger sample"
+        return f"The agent is still reading {name}. Its clock can move again once it's done."
 
 
 @cache
@@ -465,12 +471,26 @@ def check_read_live_limit(conn: Conn, user_id: str, grant: Grant) -> None:
 
 
 def move(
-    p: Platform, user_id: str, grant: Grant, to: datetime | None, *, skip: bool = False
+    p: Platform,
+    user_id: str,
+    grant: Grant,
+    to: datetime | None,
+    *,
+    skip: bool = False,
+    next_highlight: bool = False,
+    sign_off: bool = False,
 ) -> None:
     """Move a sample grant's timeline forward: to `to`, or with None, to the next item.
     With `skip`, the Sample accountant makes the script's steps the move passes (ruling
-    47, app.samples.skipping). Raises MoveRefused (timeline) for a move backwards or with
-    nothing left, and AnotherSampleWorking for the read-live limit."""
+    47, app.samples.skipping). With `next_highlight` (ruling 77), `to` is ignored: the
+    move goes to the next event carrying a highlight label, skipping the human steps on
+    the way, except the steps marked with that label and any sign-off, which are left to
+    the user. Raises MoveRefused (timeline) for a move backwards or with nothing left, and
+    AnotherSampleWorking for the read-live limit.
+
+    Skipping never makes the scripted sign-off: it waits for the user, unless `sign_off`,
+    which only the do-everything play and making a prerun set, where no user is present.
+    No route sets it."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     with transaction(p.pool) as conn:
@@ -484,6 +504,10 @@ def move(
         walking = sample_store.walk_target(conn, grant.id)
         start = max(now, walking) if walking is not None else now
         items = merge(items_for(info.sample), checks_items(_checks_dates(p, conn, locked, now)))
+        highlight: str | None = None
+        if next_highlight:
+            to, highlight = _next_highlight(items, start)
+            skip = True
         plan = plan_move(items, start, to)
         saved = prerun.run_through(conn, locked)
         if saved is not None and not skip and any(start < a.at <= plan.until for a in pack.actions):
@@ -500,7 +524,16 @@ def move(
             # steps included, so every played event is under exactly one move.
             move_id = sample_store.insert_move(conn, grant.id, now, plan.until)
             if skip:
-                skipping.queue_steps(conn, locked, pack, move_id, start, plan.until)
+                skipping.queue_steps(
+                    conn,
+                    locked,
+                    pack,
+                    move_id,
+                    start,
+                    plan.until,
+                    highlight=highlight,
+                    sign_off=sign_off,
+                )
             sample_store.start_walk(conn, grant.id, plan.until)
             walked = skipping.advance(p, conn, locked)
         else:
@@ -509,6 +542,15 @@ def move(
             runs = clock.set_and_replay(p, conn, locked, now, plan.until)
     _ping(p, grant, runs)
     skipping.ping(p, grant, walked)
+
+
+def _next_highlight(items: Sequence[TimelineItem], after: datetime) -> tuple[datetime, str]:
+    """The next item after `after` whose event carries a highlight label: its time and
+    label. A ledger line's posting can be one."""
+    for i in items:
+        if i.at > after and i.event is not None and i.event.highlight is not None:
+            return i.at, i.event.highlight
+    raise MoveRefused(NO_HIGHLIGHT_LEFT)
 
 
 # The view.
@@ -605,6 +647,7 @@ def _event(
         note=item.note,
         charge_id=charge_id,
         file_id=file_id,
+        highlight=item.event.highlight if item.event is not None else None,
     )
 
 
@@ -646,9 +689,12 @@ def _agent_records(
     )
 
 
-def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> TimelineView:
+def view(
+    p: Platform, conn: Conn, grant: Grant, summary: GrantSummary, user_id: str | None = None
+) -> TimelineView:
     """The timeline panel: Just happened, Now and Coming up (issue 165). `summary` is the
-    grant's summary at its now, for the problem list's count."""
+    grant's summary at its now, for the problem list's count. With `user_id`, the viewer,
+    the move controls' reasons include the read-live limit (ruling 72)."""
     info = _sample_of(grant)
     pack = pack_for(info.sample)
     now = clock.grant_now(conn, grant.id)
@@ -670,15 +716,22 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
     played: list[tuple[datetime, PlayedEvent]] = []
     for i in items:
         at = i.at
+        event = _event(i, pack, files, charges)
         if i.kind is ItemKind.USER_DELIVERY and i.event is not None:
-            # A user's item shows here for the move that brought it, by any channel.
+            # A user's item shows here for the move that brought it, by any channel; one
+            # the Sample accountant brought, under the move it's listed under (it may
+            # come in at the clock the move started from, for one an earlier move held).
             brought = delivered_at(pack, i.event, on_grant)
-            if brought is None or not in_move(brought):
+            if brought is None:
+                continue
+            listed = by_sample.get(event.file_id or "")
+            if listed is not None and (last is None or listed != last.id):
+                continue
+            if listed is None and not in_move(brought):
                 continue
             at = brought
         elif not in_move(i.at):
             continue
-        event = _event(i, pack, files, charges)
         brought = (event.charge_id,) if event.charge_id else _ledger_charges(i, charges)
         played.append(
             (
@@ -701,6 +754,7 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
     )
     until = last.moved_to if last else now
     stopped = next((i for i in items if i.at == until), None) if until == now else None
+    move_reason, highlight_reason = _unavailable(conn, grant, items, now, user_id)
     return TimelineView(
         just_happened=tuple(just),
         now=TimelineNow(
@@ -718,7 +772,35 @@ def view(p: Platform, conn: Conn, grant: Grant, summary: GrantSummary) -> Timeli
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
         on_run_through=prerun.is_on_run_through(conn, grant),
+        move_unavailable_reason=move_reason,
+        next_highlight_unavailable_reason=highlight_reason,
     )
+
+
+NOTHING_LEFT = "Nothing is left to play."
+NO_HIGHLIGHT_LEFT = "No highlight is left to play."
+
+
+def _unavailable(
+    conn: Conn, grant: Grant, items: Sequence[TimelineItem], now: datetime, user_id: str | None
+) -> tuple[str | None, str | None]:
+    """Ruling 72: why the move controls can't move the clock now, in plain words, as `move`
+    would refuse them; None for a control that can. Returns the reasons for the move
+    controls and for Next highlight."""
+    walking = sample_store.walk_target(conn, grant.id)
+    start = max(now, walking) if walking is not None else now
+    move: str | None = None
+    if not any(i.at > start for i in items):
+        move = NOTHING_LEFT
+    elif user_id is not None:
+        try:
+            check_read_live_limit(conn, user_id, grant)
+        except AnotherSampleWorking as busy:
+            move = busy.reason()
+    highlight = move
+    if not any(i.at > start and i.event is not None and i.event.highlight for i in items):
+        highlight = NO_HIGHLIGHT_LEFT
+    return move, highlight
 
 
 def _decisions(conn: Conn, last: Any, records: Sequence[Record]) -> list[Record]:

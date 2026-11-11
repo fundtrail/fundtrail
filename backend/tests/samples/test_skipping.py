@@ -194,7 +194,8 @@ def _skip_through(api: Api, sample: str) -> str:
     grant_id = _open(api, "small_live" if sample == SMALL else "larger_live")
     _records_agent(api, pack, grant_id)
     end = max(i.at for i in player.items_for(sample)) + timedelta(days=1)
-    _skip(api, grant_id, end)
+    # The do-everything play: no user is present, so the script's sign-off is made too.
+    player.move(api.platform, api.user_id, _grant(api, grant_id), end, skip=True, sign_off=True)
     run_worker_until_idle(str(api.platform.pool.conninfo))
     assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] == _iso(end)
     return grant_id
@@ -281,7 +282,9 @@ def test_a_scripted_sign_off_waits_for_every_run(
     signed_pack = replace(pack, actions=(*pack.actions, sign))
     monkeypatch.setattr(player, "pack_for", lambda _sample: signed_pack)
     grant_id = _open(api)  # the letter's run is queued
-    _skip(api, grant_id, sign.at + timedelta(minutes=1))
+    # Only where no user is present (the do-everything play, a prerun).
+    to = sign.at + timedelta(minutes=1)
+    player.move(api.platform, api.user_id, _grant(api, grant_id), to, skip=True, sign_off=True)
     [waiting] = [s for s in _scripted(api, grant_id) if s["state"] == "pending"]
     assert waiting["step"] == len(signed_pack.actions) - 1
     run_worker_until_idle(str(api.platform.pool.conninfo))
@@ -640,3 +643,213 @@ def test_a_check_finding_nothing_pending_starts_the_idle_count_again(
     monkeypatch.setattr(skipping, "advance", lambda *_args: skipping.Walked())
     skipping.check_walks(api.platform)
     assert idle() == 0
+
+
+# Next highlight (ruling 77).
+
+
+def _highlight_pack(monkeypatch: pytest.MonkeyPatch) -> tuple[SamplePack, str]:
+    """The small sample with its receipt delivery marked as the receipt highlight's own
+    step, and a scripted sign-off before it: built here, not in data/. Returns the pack
+    and the receipt highlight's label."""
+    pack = player.pack_for(SMALL)
+    receipt = next(e for e in pack.events if e.deliver_by_user)
+    assert receipt.highlight is not None
+    sign = UserAction(
+        at=receipt.at - timedelta(days=1), action="sign_off", note="Signed by the script."
+    )
+    actions = [
+        replace(a, highlight=receipt.highlight) if a.action == "deliver_file" else a
+        for a in pack.actions
+    ]
+    marked = replace(pack, actions=tuple(sorted([*actions, sign], key=lambda a: a.at)))
+    monkeypatch.setattr(player, "pack_for", lambda _sample: marked)
+    return marked, receipt.highlight
+
+
+def _states(api: Api, pack: SamplePack, grant_id: str) -> dict[str, str]:
+    return {pack.actions[s["step"]].action: s["state"] for s in _scripted(api, grant_id)}
+
+
+def _next_highlight(api: Api, grant_id: str) -> Any:
+    return _post(api, f"/grants/{grant_id}/timeline", {"next_highlight": True})
+
+
+def test_next_highlight_leaves_its_own_step_and_never_signs_off(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)  # stands on the award letter, the first highlight
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(receipt.at)
+    assert timeline["now"]["stopped_on"]["highlight"] == label
+    # The unmarked step before it is made; its own step and the sign-off wait for the user.
+    # (The fixture's sign-off comes before the receipt.)
+    assert _states(api, pack, grant_id) == {
+        "confirm_terms": "done",
+        "sign_off": "held",
+        "deliver_file": "held",
+    }
+    assert [d["event"]["name"] for d in timeline["now"]["deliveries"]] == [receipt.name]
+    assert _walk(api, grant_id) == (None, None)
+
+
+def test_the_user_making_a_held_step_first_is_never_made_again(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    uploaded = api.client.post(
+        f"/grants/{grant_id}/evidence",
+        files={"file": ("receipt.jpg", pack.file_bytes(receipt.name), "image/jpeg")},
+        headers=api.headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    _skip(api, grant_id, None)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, pack, grant_id)["deliver_file"] == "left"  # the user brought it
+    with transaction(api.platform.pool) as conn:
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+    assert [f.id for f in files if f.sha256 == pack.sha256(receipt.name)] == [uploaded.json()["id"]]
+
+
+def test_next_highlight_stops_on_a_ledger_lines_posting(api: Api) -> None:
+    """A highlight on a ledger line: Next highlight stops where the line posts."""
+    pack = player.pack_for(LARGER)
+    items = player.items_for(LARGER)
+    line = next(i for i in items if i.line_id and i.event and i.event.highlight)
+    before = max(i.at for i in items if i.at < line.at and i.event and i.event.highlight)
+    grant_id = _open(api, "larger_live")
+    moved = _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(before)})
+    assert moved.status_code == 200, moved.text
+    _next_highlight(api, grant_id)
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["now"] == _iso(line.at)
+    assert timeline["now"]["stopped_on"]["name"] == line.name
+    assert line.event is not None
+    assert timeline["now"]["stopped_on"]["highlight"] == line.event.highlight
+    assert line.name in pack.ledger_line_ids()
+
+
+def test_next_highlight_with_none_left_is_refused(api: Api) -> None:
+    grant_id = _open(api)
+    last = max(i.at for i in player.items_for(SMALL) if i.event and i.event.highlight)
+    _post(api, f"/grants/{grant_id}/timeline", {"to": _iso(last)})
+    refused = _next_highlight(api, grant_id)
+    assert refused.status_code == 409 and "No highlight" in refused.json()["detail"]
+
+
+def test_a_later_skip_makes_the_held_delivery_with_its_run_and_lists_it(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The receipt Next highlight held is brought in by the next skipping move, at its
+    clock, with its agent run; it shows under that move, tagged, once; the sign-off still
+    waits for the user."""
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    _skip(api, grant_id, None)  # Next event, skipping the human steps
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    states = _states(api, pack, grant_id)
+    assert states == {"confirm_terms": "done", "deliver_file": "done", "sign_off": "held"}
+    with transaction(api.platform.pool) as conn:
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+        runs = store.list_runs(conn, grant_id)
+    [brought] = [f for f in files if f.sha256 == pack.sha256(receipt.name)]
+    assert brought.arrived_at == receipt.at  # the clock the later move started from
+    assert [r.status.value for r in runs if r.trigger.id == brought.id] == ["done"]
+    timeline = _get(api, f"/grants/{grant_id}/timeline")
+    assert timeline["now"]["deliveries"] == []
+    shown = [p for p in timeline["just_happened"] if p["event"]["name"] == receipt.name]
+    assert len(shown) == 1 and shown[0]["delivered_by_sample_accountant"] is True
+    assert _walk(api, grant_id) == (None, None)
+
+
+def test_a_stopped_walk_with_held_steps_skips_again(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Next highlight holds the receipt, its walk stops before it gets there, and a later
+    skipping move passes the held step's time: no step is queued twice."""
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)  # the letter's run is queued
+    _next_highlight(api, grant_id)  # waits at the confirmation for the letter's run
+    with transaction(api.platform.pool) as conn:
+        conn.execute("delete from procrastinate_jobs where lock = %s", (grant_lock(grant_id),))
+    skipping.check_walks(api.platform)
+    skipping.check_walks(api.platform)
+    assert _walk(api, grant_id)[0] is None
+    assert _states(api, pack, grant_id)["deliver_file"] == "held"
+    again = _skip(api, grant_id, receipt.at + timedelta(hours=1))
+    assert again["now"]["now"] == _iso(receipt.at + timedelta(hours=1))
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    states = _states(api, pack, grant_id)
+    assert states["deliver_file"] == "done" and states["sign_off"] == "held"
+
+
+@pytest.mark.parametrize("how", ["next_highlight", "next_event", "go_to_the_end"])
+def test_no_move_a_user_makes_ever_signs_off(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch, how: str
+) -> None:
+    """Skipping on a grant a user opened never makes the scripted sign-off: it waits for
+    the user, whichever move passes it."""
+    pack, _label = _highlight_pack(monkeypatch)
+    sign = next(a for a in pack.actions if a.action == "sign_off")
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    if how == "next_highlight":
+        _next_highlight(api, grant_id)
+    elif how == "next_event":
+        _skip(api, grant_id, sign.at - timedelta(minutes=1))
+        _skip(api, grant_id, None)
+    else:
+        _skip(api, grant_id, max(i.at for i in player.items_for(SMALL)) + timedelta(days=1))
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _get(api, f"/grants/{grant_id}/timeline")["now"]["now"] > _iso(sign.at)
+    assert _states(api, pack, grant_id)["sign_off"] == "held"
+    with transaction(api.platform.pool) as conn:
+        kinds = {r.kind.value for r in store.list_records(conn, grant_id)}
+    assert "sign_off" not in kinds
+
+
+def test_the_do_everything_play_signs_off_after_everything_before_it(
+    api: Api, real_checks: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Where no user is present, a sign-off an earlier move held is made after the steps
+    taken up with it and every run: here after the held receipt and its run."""
+    pack, label = _highlight_pack(monkeypatch)
+    receipt = next(e for e in pack.events if e.highlight == label)
+    grant_id = _open(api)
+    _records_agent(api, pack, grant_id)
+    _next_highlight(api, grant_id)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    end = receipt.at + timedelta(hours=1)
+    player.move(api.platform, api.user_id, _grant(api, grant_id), end, skip=True, sign_off=True)
+    run_worker_until_idle(str(api.platform.pool.conninfo))
+    assert _states(api, pack, grant_id) == {
+        "confirm_terms": "done",
+        "deliver_file": "done",
+        "sign_off": "done",
+    }
+    with transaction(api.platform.pool) as conn:
+        records = store.list_records(conn, grant_id)
+        files = store.list_files(conn, grant_id, store.END_OF_TIME)
+        runs = store.list_runs(conn, grant_id)
+    [signed] = [r for r in records if r.kind.value == "sign_off"]
+    [brought] = [f for f in files if f.sha256 == pack.sha256(receipt.name)]
+    assert signed.stored_seq is not None and brought.stored_seq is not None
+    assert brought.stored_seq < signed.stored_seq  # the receipt came in first
+    [receipt_run] = [r for r in runs if r.trigger.id == brought.id]
+    assert receipt_run.status.value == "done"
+    assert receipt_run.finished_at is not None
