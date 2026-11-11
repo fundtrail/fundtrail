@@ -1015,6 +1015,39 @@ def tool_definitions() -> list[dict[str, Any]]:
     ]
 
 
+# The fields the accountant reads as the agent's own words (#275).
+PROSE_FIELDS = ("reasoning", "reason", "question", "text", "needed", "label")
+_SHORTEST_ID = 6  # shorter IDs (none in practice) could match ordinary words
+
+
+def ids_in_prose(ctx: RunContext, args: BaseModel) -> str | None:
+    """A problem when a field the accountant reads names a record, file or charge by its ID.
+
+    An ID means nothing to the accountant ("I've filed a correction (rec-afbc6f36)"). Only the
+    IDs this run knows are matched, so a ledger line number such as L-1958-0004, which the
+    accountant does know, passes.
+    """
+    known = {r.id for r in ctx.records}
+    known |= {f.id for f in ctx.inputs.files} | {c.id for c in ctx.inputs.charges}
+    known = {i for i in known if len(i) >= _SHORTEST_ID}
+    found: list[str] = []
+    for field in PROSE_FIELDS:
+        value = getattr(args, field, None)
+        if not isinstance(value, str):
+            continue
+        named = sorted(i for i in known if i in value)
+        if named:
+            found.append(f"{field} ({', '.join(named)})")
+    if not found:
+        return None
+    return (
+        "The accountant reads " + "; ".join(found) + ", where an ID means nothing to them. Name "
+        'each record or file by what it is, such as "the invoice from Example Lab Supply Co.", '
+        '"the award letter" or "my earlier link to this charge". IDs go only in the fields that '
+        "take them, such as record_id, rests_on and quotes"
+    )
+
+
 def run_tool(ctx: RunContext, name: str, raw_input: Any) -> tuple[Any, bool]:
     """Run one tool call. Returns the tool result's content and whether it's an error."""
     entry = TOOLS.get(name)
@@ -1028,6 +1061,9 @@ def run_tool(ctx: RunContext, name: str, raw_input: Any) -> tuple[Any, bool]:
             f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in error.errors()
         )
         return f"The input doesn't fit the tool: {details}", True
+    problem = ids_in_prose(ctx, args)
+    if problem is not None:
+        return ctx.note_problems(name, [problem]), True
     try:
         return handler(ctx, args)
     except WriteProblem as error:
