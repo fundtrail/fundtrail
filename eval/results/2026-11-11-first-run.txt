@@ -1,0 +1,101 @@
+Eval run 2026-11-11T01:40:33+00:00: model claude-opus-5-5, cap $10.00, calls through http://127.0.0.1:8788
+
+## credit-memo-spaced-dash
+  buckets       right   5   missing   0   wrong   0
+  links         right   3   missing   0   wrong   0
+  budget_lines  right   2   missing   0   wrong   0
+  answers       right   2   missing   0   wrong   2
+  records       right  11   missing   0   wrong   1
+  false clears 0, the agent's false clears 0, unsure where the key has an answer 0, values not found in their file 0
+  calls 41, tokens in 110 out 18926 cache read 1252225 cache write 108783, estimated $1.1733, 192s
+  wrong answers: unusual_term about award_letter.txt on L-8101: supports
+  wrong answers: unusual_term about award_letter.txt on L-8102: supports
+  wrong records: other_term from award_letter.txt: dated=2026-01-06, label=governing conditions: nsf gc-1 effective october 1, 2024, plus the terms of this notice, statement=this award is subject to the nsf grant general conditions (gc-1) effective
+
+## effort-report-six-months
+  buckets       right  12   missing   0   wrong   0
+  links         right  12   missing   0   wrong   0
+  budget_lines  right   6   missing   0   wrong   0
+  answers       right   6   missing   0   wrong   6
+  records       right  13   missing   0   wrong   8
+  false clears 0, the agent's false clears 0, unsure where the key has an answer 0, values not found in their file 0
+  calls 59, tokens in 152 out 38337 cache read 1945863 cache write 156085, estimated $1.9369, 350s
+  wrong answers: unusual_term about award_letter.txt on L-4101: supports
+  wrong answers: unusual_term about award_letter.txt on L-4102: supports
+  wrong answers: unusual_term about award_letter.txt on L-4103: supports
+  wrong answers: unusual_term about award_letter.txt on L-4104: supports
+  wrong answers: unusual_term about award_letter.txt on L-4105: supports
+  wrong answers: unusual_term about award_letter.txt on L-4106: supports
+  wrong records: other_term from award_letter.txt: dated=2025-08-20, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective
+  wrong records: note from appointment_letter.txt: label=postdoc monthly salary (sam mockford), period.end=2026-12-31, period.start=2026-01-01, statement=monthly salary: $8,000.00
+  wrong records: note from appointment_letter.txt: label=postdoc cost-share split: department fund exd-1180, period.end=2026-12-31, period.start=2026-01-01, statement=department fund exd-1180: 50 percent of salary, $4,000.00 per month
+  wrong records: note from appointment_letter.txt: label=postdoc work on award (sam mockford), statement=the analysis of the stream sediment cores
+  wrong records: note from appointment_letter.txt: label=effort certification schedule, statement=effort on sponsored awards is certified twice a year, for january to june
+  wrong records: note from appointment_letter.txt: label=appointment accepted by sam mockford, statement=accepted: sam mockford, november 18, 2025
+  wrong records: approval from appointment_letter.txt: approved_on=2025-11-14, approver_email=taylor.example@university.example, approver_name=taylor example, covers=streams: 50 percent of salary, $4,000.00 per month
+  wrong records: approval from effort_report.txt: approved_on=2026-08-14, approver_email=taylor.example@university.example, approver_name=certified by: taylor example, principal investigator, covers=i certify that the distribution of effort above is a reasonable estimate of
+
+## guest-speaker-stipend
+  buckets       right   2   missing   0   wrong   0
+  links         right   1   missing   1   wrong   0
+  budget_lines  right   0   missing   0   wrong   1
+  answers       right   1   missing   1   wrong   2
+  records       right  13   missing   0   wrong   7
+  false clears 0, the agent's false clears 0, unsure where the key has an answer 1, values not found in their file 0
+  calls 25, tokens in 74 out 18055 cache read 805760 cache write 45100, estimated $0.7480, 161s
+  missing links: link honorarium_letter.eml -> L-7101
+  wrong budget_lines: budget line 'Stipends' for L-7101
+  missing answers: allowable on L-7101: supports
+  wrong answers: unusual_term about award_letter.txt on L-7101: supports
+  wrong answers: allowable on L-7101: unsure
+  wrong records: other_term from award_letter.txt: dated=2025-10-06, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective
+  wrong records: note from award_letter.txt: label=project scope, statement=the project runs a two-day workshop each spring
+  wrong records: note from honorarium_letter.eml: label=only invited speaker, statement=you are our only invited speaker this year.
+  wrong records: note from honorarium_letter.eml: label=honorarium receipt to be signed, statement=we will ask you to sign a receipt when you receive it.
+  wrong records: note from honorarium_letter.eml: label=keynote speaker honorarium, period.end=2026-04-24, period.start=2026-04-24, statement=as our guest speaker, you will receive an honorarium of $500.00
+  wrong records: note from honorarium_letter.eml: label=workshop attendees are roster participants, statement=are the early-career participants listed on the workshop roster.
+  wrong records: note from honorarium_letter.eml: label=award funding the workshop, statement=funded by award syn-2510664.
+  unsure: allowable on L-7101: unsure (key: supports)
+
+## laptop-on-participant-stipends
+  buckets       right   3   missing   0   wrong   0
+  links         right   2   missing   0   wrong   0
+  budget_lines  right   2   missing   0   wrong   0
+  answers       right   2   missing   0   wrong   3
+  records       right  12   missing   0   wrong   1
+  false clears 0, the agent's false clears 0, unsure where the key has an answer 0, values not found in their file 0
+  calls 27, tokens in 80 out 18186 cache read 846973 cache write 50301, estimated $0.7849, 167s
+  wrong answers: unusual_term about award_letter.txt on L-6101: supports
+  wrong answers: unusual_term about award_letter.txt on L-6102: supports
+  wrong answers: flag on L-6102: unsure
+  wrong records: other_term from award_letter.txt: dated=2025-07-15, label=governing conditions, statement=this award is subject to the nsf grant general conditions (gc-1) effective
+
+## trip-airfare-and-per-diem
+  buckets       right   1   missing   0   wrong   1
+  links         right   2   missing   0   wrong   1
+  budget_lines  right   1   missing   0   wrong   0
+  answers       right   1   missing   0   wrong   1
+  records       right  11   missing   1   wrong   8
+  false clears 0, the agent's false clears 0, unsure where the key has an answer 0, values not found in their file 0
+  calls 44, tokens in 108 out 23837 cache read 1495262 cache write 75721, estimated $1.1548, 242s
+  wrong buckets: L-5201 at 2026-06-24T12:00:00Z: needs_human (key: evidence_complete)
+  wrong links: link per_diem_rates.txt -> L-5201 for 50000
+  wrong answers: unusual_term about award_letter.txt on L-5201: supports
+  missing records: note from expense_report.txt: 
+  wrong records: other_term from award_letter.txt: dated=2026-01-12, label=governing conditions: nsf gc-1 effective october 1, 2024, statement=this award is subject to the nsf grant general conditions (gc-1) effective
+  wrong records: bill from expense_report.txt: dated=2026-06-15, description=sediment sampling at example creek field station for award, document_number=er-26-0412, items[0].amount=180000, items[0].description=airfare, example air, confirmation exq7rt, paid by traveler, items[1].amount=50000, items[1].description=field site per diem, 5 days at $100.00 per day, total=230000, vendor=jordan placeholder, professor, earth sciences
+  wrong records: note from per_diem_rates.txt: label=per diem day count rule, statement=the per diem is paid for each day of the trip, including the days of
+  wrong records: note from per_diem_rates.txt: label=per diem approved sites include example creek field station, statement=approved field sites for this rate include example creek field station.
+  wrong records: note from per_diem_rates.txt: label=per diem covers lodging, meals and incidentals, statement=the per diem covers lodging, meals
+  wrong records: note from per_diem_rates.txt: label=airfare reimbursed separately against receipts, statement=airfare, rental vehicles and registration fees are
+  wrong records: note from per_diem_rates.txt: label=earth sciences field site per diem rate, statement=field site per diem: $100.00 per day
+  wrong records: note from per_diem_rates.txt: label=per diem policy effective date, statement=july 1, 2025
+
+## All cases
+  buckets       right  23   missing   0   wrong   1
+  links         right  20   missing   1   wrong   1
+  budget_lines  right  11   missing   0   wrong   1
+  answers       right  12   missing   1   wrong  14
+  records       right  60   missing   1   wrong  25
+  false clears 0, the agent's false clears 0
+  calls 196, tokens in 524 out 117341 cache read 6346083 cache write 435990, estimated $5.7981 of the $10.00 cap
