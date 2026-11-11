@@ -406,6 +406,24 @@ def _load(
     recheck_grant(conn, p.checks, grant, until, Trigger(kind=TriggerKind.CLOCK))
 
 
+def _leaves_at(conn: Conn, grant_id: str, pack: SamplePack, now: datetime) -> datetime | None:
+    """On a grant on a prerun's run-through: the earliest time a move without skipping
+    would pass a scripted step nobody has made (`_undone`), taking the grant off; a step
+    held earlier counts at its own time, already passed. None when no such step is left.
+    The panel asks before such a move."""
+    rows = {s.step: s for s in sample_store.grant_scripted(conn, grant_id)}
+    due = [
+        a.at
+        for n, a in enumerate(pack.actions)
+        if a.action != "sign_off"
+        and (
+            (rows.get(n) is None and a.at > now)
+            or (rows.get(n) is not None and rows[n].state == "held")
+        )
+    ]
+    return min(due, default=None)
+
+
 def _undone(conn: Conn, grant_id: str, pack: SamplePack, start: datetime, until: datetime) -> bool:
     """Whether a move from `start` to `until` passes a scripted step (but the sign-off,
     always the user's) that nobody has made: one in the move, or one held earlier."""
@@ -875,6 +893,7 @@ def view(
             None,
         )
     move_reason, highlight_reason = _unavailable(p, conn, grant, items, now, user_id)
+    on_run_through = prerun.is_on_run_through(conn, grant)
     return TimelineView(
         just_happened=tuple(just),
         now=TimelineNow(
@@ -891,8 +910,9 @@ def view(
         ),
         finished=finished(items, now),
         catching_up=grant_catching_up(conn, grant.id),
-        on_run_through=prerun.is_on_run_through(conn, grant),
+        on_run_through=on_run_through,
         expected_prerun=prerun.opened_from_expected(conn, grant),
+        leaves_run_through_at=_leaves_at(conn, grant.id, pack, now) if on_run_through else None,
         move_unavailable_reason=move_reason,
         next_highlight_unavailable_reason=highlight_reason,
     )

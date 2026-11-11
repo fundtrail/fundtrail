@@ -875,6 +875,8 @@ export interface TimelineView {
   on_run_through?: boolean | null;
   /** A grant opened from a prerun: true when its prerun is an expected one, not the agent's output. Null on a sample read live. */
   expected_prerun?: boolean | null;
+  /** On a grant on a prerun's run-through: a move without skipping to this time or later takes it off the run-through. */
+  leaves_run_through_at?: IsoDatetime | null;
   /** Why the timeline can't move now, worded by the server; null when it can. */
   move_unavailable_reason?: string | null;
   /** Why Next highlight can't move now; null when it can. */

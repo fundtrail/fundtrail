@@ -12,11 +12,16 @@
 // and a box the second look didn't confirm), and a .docx (several highlighted
 // ranges, confirmed by the accountant). They hold no links, so no other screen
 // has to agree with them.
+//
+// One more synthetic file, a forwarded copy of the sequencing statement, carries
+// the agent's duplicate mark, waiting (duplicate.ts). Its card shows the mark
+// in the state this client's writes have left it.
 
 import type { ApiClient } from "../client";
 import type { Bill, Citation, EvidenceCard, EvidenceFile, FactView, FileLink, FtRecord, Id, Link, Note, PageBox, RecordState } from "../types";
 import { SAMPLE_DOCUMENTS } from "./documents";
-import { atNow, FAKE_NOW, fakeId, foundValues, sampleCharge, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
+import { DUPLICATE_COPY_FILE, DUPLICATE_MARK, duplicateFake, type DuplicateFake } from "./duplicate";
+import { atNow, FAKE_NOW, fakeId, foundValues, sampleCharge, sampleFile, served, SAMPLE_GRANT_ID, WORKSPACE_ID } from "./sample";
 
 /** The records read from a file: every record with a citation into it that isn't a link, judgment or confirmation. */
 function readFrom(fileId: Id): FtRecord[] {
@@ -50,10 +55,18 @@ function dataUrl(text: string, mediaType: string): string {
   return `data:${mediaType};charset=utf-8;base64,${btoa(binary)}`;
 }
 
-export function evidenceFake(): Pick<ApiClient, "listEvidence" | "uploadEvidence" | "getFileLink"> {
+/** The cards with the duplicate mark in its state: waiting or counting shows it, rejected doesn't (contracts.md section 5). */
+function withMark(cards: EvidenceCard[], duplicate: DuplicateFake): EvidenceCard[] {
+  const state = duplicate.state();
+  return cards.map((c) =>
+    c.file.id !== DUPLICATE_COPY_FILE.id ? c : { ...c, duplicate: state === "waiting" || state === "counts" ? { mark: DUPLICATE_MARK, state } : null },
+  );
+}
+
+export function evidenceFake(duplicate: DuplicateFake = duplicateFake()): Pick<ApiClient, "listEvidence" | "uploadEvidence" | "getFileLink"> {
   const cards = sampleEvidence();
   return {
-    listEvidence: (grantId) => served(grantId === SAMPLE_GRANT_ID ? cards : undefined),
+    listEvidence: (grantId) => served(grantId === SAMPLE_GRANT_ID ? withMark(cards, duplicate) : undefined),
     uploadEvidence: (grantId, _file, fileName) => {
       const id = fakeId("file");
       const file: EvidenceFile = {
@@ -370,6 +383,13 @@ const EXTRA_CARDS: EvidenceCard[] = [
     duplicate: null,
     files: {},
   },
+  {
+    file: DUPLICATE_COPY_FILE,
+    facts: [],
+    status: null,
+    duplicate: { mark: DUPLICATE_MARK, state: "waiting" },
+    files: { [sampleFile("file-sequencing-statement").id]: sampleFile("file-sequencing-statement") },
+  },
 ];
 
 /** The originals of the synthetic files, as data: URLs. The .docx is served as its text. */
@@ -377,4 +397,6 @@ const EXTRA_ORIGINALS: Record<Id, string> = {
   [PDF_ID]: `data:application/pdf;base64,${btoa(syntheticPdf(PDF_PAGES))}`,
   [PHOTO_ID]: dataUrl(RECEIPT_SVG, "image/svg+xml"),
   [DOCX_ID]: dataUrl(DOCX_TEXT, "text/plain"),
+  // The forwarded copy reads the same as the statement it copies.
+  [DUPLICATE_COPY_FILE.id]: dataUrl(SAMPLE_DOCUMENTS["sequencing_statement.eml"], DUPLICATE_COPY_FILE.media_type),
 };

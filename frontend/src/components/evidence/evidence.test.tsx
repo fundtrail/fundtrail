@@ -280,7 +280,8 @@ describe("the file list's tags", () => {
       files: { [original.id]: original },
     };
     expect(fileTags(copy).map((t) => t.text)).toContain("Copy of award_letter.txt · Waiting for the accountant");
-    render(<EvidenceCardView grantId={GRANT} card={copy} />);
+    // While the mark waits the card offers Confirm and Reject, which write through the API.
+    render(withApi({}, <EvidenceCardView grantId={GRANT} card={copy} />));
     expect(screen.getByText("Copy of award_letter.txt · Waiting for the accountant")).toBeInTheDocument();
     // Once the copy counts, both say only what it is.
     const counted = { ...copy, duplicate: { ...copy.duplicate!, state: "counts" as const } };
