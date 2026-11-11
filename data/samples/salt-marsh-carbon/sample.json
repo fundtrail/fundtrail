@@ -2,21 +2,21 @@
   "sample": "salt-marsh-carbon",
   "award_number": "SYN-2401835",
   "starts_at": "2024-01-18T17:00:00Z",
-  "last_event_at": "2027-03-07T20:20:00Z",
-  "ledger_lines": 65,
-  "files": 45,
+  "last_event_at": "2027-03-12T17:00:00Z",
+  "ledger_lines": 33,
+  "files": 37,
   "options": [
     {
       "choice": "larger_live",
-      "name": "Placeholder: a grant that reaches closeout, read live",
-      "description": "Placeholder until the docs give the words. A three-year grant that reaches closeout. Its timeline starts on the grant's first day.",
-      "placeholder": true
+      "name": "Larger sample, read live from the start",
+      "description": "One grant of about 30 charges, from its award letter to sign-off. The agent reads each arrival as the clock reaches it, so moving the clock waits for its work.",
+      "placeholder": false
     },
     {
       "choice": "larger_prerun",
-      "name": "Placeholder: a grant that reaches closeout, already read",
-      "description": "Placeholder until the docs give the words. The same grant, already read by the agent. How this works isn't settled yet.",
-      "placeholder": true
+      "name": "Larger sample, prerun",
+      "description": "The same grant, with the agent's work done ahead of time, so you don't wait for it.",
+      "placeholder": false
     }
   ]
 }

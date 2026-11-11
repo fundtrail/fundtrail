@@ -6,7 +6,7 @@ import { AppShell, Loadable } from "@/components/AppShell";
 import { ChargeDetailView, type ChargeLinks } from "@/components/charge/ChargeDetailView";
 import { grantName } from "@/components/GrantList";
 import { useThreadActions } from "@/components/thread/useThreadActions";
-import { useCharge, useChargeThread, useGrant } from "@/lib/api";
+import { useCharge, useChargeThread, useGrant, usePings } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
 /**
@@ -16,6 +16,8 @@ import { routes } from "@/lib/routes";
  */
 export function ChargeScreen() {
   const { grantId, chargeId } = useParams<{ grantId: string; chargeId: string }>();
+  // Refetches when the backend pings this grant's channel, such as the agent replying in a thread.
+  usePings(`grant:${grantId}`);
   const grant = useGrant(grantId);
   const detail = useCharge(chargeId);
   // The thread has its own route too. The page shows that one, so a message

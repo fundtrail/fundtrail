@@ -21,7 +21,13 @@ from app.db.pool import transaction
 from app.db.ports import AgentInput, AgentResult
 from app.db.recheck import recheck_grant
 from tests.api.conftest import Api
-from tests.db.platform_fixtures import FakeAgent, FakeChecks, run_worker_until_idle, sample_into_db
+from tests.db.platform_fixtures import (
+    FakeAgent,
+    FakeChecks,
+    FakeStorage,
+    run_worker_until_idle,
+    sample_into_db,
+)
 
 APRIL_10 = datetime(2026, 4, 10, 17, tzinfo=UTC)  # after the extension is confirmed
 APRIL_9 = datetime(2026, 4, 9, 17, tzinfo=UTC)  # the extension waits to be confirmed
@@ -729,12 +735,14 @@ class _BenefitChecks(FakeChecks):
                     }
                 )
             elif st.charge_id == self.benefit_id:
+                # As the real checks give it: Missing evidence, unflagged, under the
+                # checklist's Benefit rate item.
                 reasons = [
                     Reason(
-                        check="benefits",
+                        check="checklist",
                         problem=WAITS_ON_SALARY,
                         text="Waits on its salary line.",
-                        bucket=Bucket.NEEDS_HUMAN,
+                        bucket=Bucket.MISSING_EVIDENCE,
                     )
                 ]
                 if self.also_missing:
@@ -749,8 +757,8 @@ class _BenefitChecks(FakeChecks):
                 st = ChargeStatus.model_validate(
                     st.model_dump()
                     | {
-                        "bucket": Bucket.NEEDS_HUMAN,
-                        "flagged": True,
+                        "bucket": Bucket.MISSING_EVIDENCE,
+                        "flagged": self.also_missing,
                         "reasons": tuple(r.model_dump() for r in reasons),
                         "checklist": (
                             ChecklistEntry(
@@ -792,3 +800,34 @@ def test_a_benefit_with_another_problem_keeps_its_own_row(api: Api) -> None:
     ids = [r["charge"]["id"] for r in rows]
     assert checks.benefit_id in ids and checks.salary_id in ids
     assert all(r["waiting_charge_ids"] == [] for r in rows)
+
+
+def test_an_earlier_signed_report_stays_on_file_and_is_checked(api: Api) -> None:
+    """Decision 0022: signing again leaves the earlier signed report on file, unchanged and
+    fetchable through its own sign-off; a stored report that doesn't match its checksum
+    isn't served."""
+    sample = _sample(api)
+    path = f"/grants/{sample.grant.id}/records"
+    with transaction(api.platform.pool) as conn:
+        conn.execute(
+            "update public.agent_runs set status = 'done' where grant_id = %s", (sample.grant.id,)
+        )
+
+    def sign(note: str) -> Any:
+        response = api.client.post(
+            path, json={"data": {"kind": "sign_off", "note": note}}, headers=api.headers
+        )
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    first = sign("First.")
+    first_pdf = api.client.get(f"/records/{first['id']}/report", headers=api.headers).content
+    second = sign("Again.")
+    assert _get(api, f"/grants/{sample.grant.id}")["sign_off"]["sign_off"]["id"] == second["id"]
+    again = api.client.get(f"/records/{first['id']}/report", headers=api.headers)
+    assert again.status_code == 200 and again.content == first_pdf
+    storage = api.platform.storage
+    assert isinstance(storage, FakeStorage)
+    storage.objects[first["data"]["report_path"]] = (b"%PDF changed", "application/pdf")
+    tampered = api.client.get(f"/records/{first['id']}/report", headers=api.headers)
+    assert tampered.status_code == 409

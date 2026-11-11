@@ -1,7 +1,7 @@
 UNIVERSITY OF EXAMPLE
 TRAVEL EXPENSE REPORT
 
-Report number: ER-24-6805
+Report number: ER-24-3949
 Traveler: Harper Fixture, Principal Investigator
 Email: harper.fixture@university.example
 Award charged: SYN-2401835
@@ -14,7 +14,8 @@ Return: December 13, 2024
 Expenses claimed
   Airfare, Example Air, confirmation EXK2PD                      $434.00
   Lodging, Example Summit Hotel, 4 nights                        $756.00
-  Total reimbursement                                          $1,190.00
+  Taxi, airport to hotel, Example Cab Co.                         $52.00
+  Total reimbursement                                          $1,242.00
 
 Meals are not claimed on this report.
 
