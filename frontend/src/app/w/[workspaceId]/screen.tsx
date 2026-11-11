@@ -14,7 +14,7 @@ import styles from "./workspace.module.css";
  * A workspace with no grants yet: what to do first, on the page itself. The
  * line says only what the Add a grant page says.
  */
-export function NoGrants({ workspaceId }: { workspaceId: string }) {
+function NoGrants({ workspaceId }: { workspaceId: string }) {
   return (
     <section className={`ft-panel ${styles.empty}`} aria-labelledby="no-grants">
       <TrailStart className={styles.emptyMark} classes={styles} />
