@@ -1,6 +1,6 @@
 # 0022. The evidence report is frozen at sign-off
 
-**Date:** 2026-11-10 · **Status:** Provisional: not yet reviewed by Alex. Amended by [0028](0028-one-clock-per-grant.md) (dates on the report come from the grant's clock), [0029](0029-workspace-members-and-one-access-check.md) (nothing assumes a workspace has one person, and the preparer is whoever signs off) and [0027](0027-sample-grants.md) (a reset is starting one sample grant over, not resetting a workspace).
+**Date:** 2026-11-10 · **Status:** accepted, except as noted here. Reviewed by Alex on 2026-11-10 and kept as written: sign-off is allowed with problems still open when the accountant writes a note, a signed report stays as signed and a later change shows without reopening it, and nothing blocks sign-off except the agent still working on the grant. The report's layout is accepted too. Still the builder's choice: how the PDF is made. Not decided: withdrawing a sign-off. Amended by [0028](0028-one-clock-per-grant.md) (dates on the report come from the grant's clock), [0029](0029-workspace-members-and-one-access-check.md) (nothing assumes a workspace has one person, and the preparer is whoever signs off) and [0027](0027-sample-grants.md) (a reset is starting one sample grant over, not resetting a workspace).
 
 ## Context
 

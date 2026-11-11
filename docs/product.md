@@ -77,6 +77,7 @@ Five checks are about a charge. One, the budget, is about the grant and never ad
 - **Approvals.** FundTrail carries NSF's standing list of what needs its approval, the same for every NSF grant, and each award letter adds what's specific to that grant. The list is in [domain.md](domain.md#approvals). When the agent recognizes something on it, "NSF approval" goes on the charge's checklist, and a missing one is flagged right away. An approval that came by email stays in Needs a human, since whether it counts outside Research.gov isn't confirmed.
 - **The budget.** This check runs on the grant, not on charges. NSF lets the university move money between budget lines, so an overspent line isn't a problem. The grant page shows it as a note, for example "Materials and Supplies: $42,000 of $40,000". Spending over the award's limit is a problem on the grant itself. The limit is the "Total Amount Obligated to Date" on the latest confirmed notice, and spending is the sum of the charges on the grant's ledger. Moving money out of Participant Support stays with the approvals check.
 - **Reversals and cost transfers.** Check 6 has no reason of its own. The line it corrects and a written justification are the reversal's two default checklist items, and the checklist check reports them, filled or missing.
+- **Benefit charges.** A benefit line has no bill. The rate agreement is a document on the grant: the agent reads its rates as terms, one for each employee group and fiscal year, and the accountant confirms them once. The ledger account tells the rate group. Code recalculates, month by month and group by group: the confirmed rate for the fiscal year the salary falls in, times that month's salary of that group on the grant. A match fills the benefit charge's "Benefit rate" item, citing the rate term and the salary lines. A mismatch is Needs a human, showing what was expected against what was charged. A benefit charge isn't Evidence complete until its salary lines are. First versions: a confirmed rate stays in force until a later confirmed one replaces it, and a benefit charge waiting on its salary shows Missing evidence, with the reason that it waits on its salary lines ([0030](decisions/0030-benefit-charges.md)).
 
 The NSF rules behind these are in [domain.md](domain.md#what-code-checks-and-what-goes-to-the-agent).
 
@@ -87,7 +88,7 @@ Some rules go to the agent instead of code. They live in the agent's rulebook: o
 - **Kinds of cost.** Every rule of the form "this kind of cost isn't allowed, or only under a condition" is the agent's: airfare above the least expensive unrestricted class, international flights on airlines that aren't U.S. carriers, meals and hotels for staff who aren't travelling, publication fees for unrelated work, costs that aren't allowed such as alcohol, consultants who are employees, office staff salaries charged directly, and long-term visas. The agent answers the Allowable question with the passage that shows it. A documented exception on file, such as a medical reason for a higher fare, turns the answer to supports. The agent catches only what a document shows, so the checklist has to ask for the document: through the default where every charge in the group needs it, and through the agent's own item otherwise. A flight's itinerary is the agent's item, added when the bill doesn't show the airline and fare class.
 - **Purchases close to the end date.** NSF names no number of days, so code has no day count. When equipment, a computing device or a restock of supplies is bought with little time left to use it, the agent flags the charge, which sends it to Needs a human. It's a flag and not contradicts, because NSF's wording is "typically should not" and only the professor knows whether the item was used. The accountant accepts it with a note or moves it off the grant. Small supplies used right away aren't flagged. Example: a $3,800 laptop bought 11 days before the end date is flagged, and $180 of pipette tips with experiments still running isn't.
 - **Participant support paid to project staff.** The agent compares who was paid with the people named on the grant, because names are written differently from page to page. A match is contradicts, citing the line on the participant list and the line in the award letter, so the charge is in Possible conflict. Someone not named on the grant is supports. The agent knows only the people the documents name, so a participant who is a university employee but appears in no document on the grant passes. Speakers and trainers generally aren't participants either, so the agent flags a payment to one unless their main purpose at the event is to learn as a participant.
-- **Fringe benefits on stipends.** This rests on one audit finding and that university's own rate agreement, not a written rule. So when a rate term on the grant names salaries and wages as the base, the agent flags a fringe charge on a stipend for the accountant, and never answers contradicts.
+- **Fringe benefits on stipends.** This rests on one audit finding and that university's own rate agreement, not a written rule. So when a rate term on the grant names salaries and wages as the base, the agent flags a fringe charge on a stipend for the accountant, and never answers contradicts. The agent also flags other benefit problems code's recalculation can't see, such as a rate from the wrong year ([0030](decisions/0030-benefit-charges.md)).
 - **A late extension notice.** The university can extend a grant once on its own by telling NSF at least 10 days before the end date, but not merely to spend the remaining balance, and not when the balance is zero. When a notice was filed later than that and no NSF approval is on file, the agent flags the notice, and the accountant sees the flag when confirming the new end date. The agent also flags a notice that extends merely to spend the balance or extends an award with a zero balance.
 
 The university's own policies come in only through the default checklists for now, such as Berkeley's rule that lodging needs a receipt at any amount.
@@ -112,6 +113,7 @@ Every charge has a checklist of the evidence it should have. **Bill** is our wor
 |---|---|
 | A $2,300 trip | The agent adds "airfare receipt, $1,800" and "per diem, 5 days at $100 a day". Code checks 5 times $100 is $500, and that $1,800 plus $500 is $2,300 |
 | A $6,000 salary line for January | Defaults: appointment letter, effort report for January. The report for January to June is certified after June ends and fills all six months at once |
+| A $2,640 Staff benefit line for January, beside that salary | Default: benefit rate. The confirmed Staff rate for the fiscal year is 44.0%, and code checks 44.0% of $6,000 is $2,640. The item is filled, and the charge clears once its salary line does |
 | A $1,500 charge posted as Participant Support Stipends, with an invoice for a laptop | The default asks for a participant list. The agent adds "invoice" and suggests removing the default. That suggestion waits, which is how the accountant sees the misfiled laptop |
 | A $500 stipend paid to one guest speaker from Participant Support | The agent suggests swapping "participant list" for "honorarium letter", which waits for the accountant. Speakers generally aren't participants, so the agent flags the charge, its budget line disagrees with the ledger's account, and a missing "NSF approval" goes on the checklist. The charge stays in Needs a human |
 
@@ -125,6 +127,7 @@ The problem list is what the accountant works from. It holds charges, and record
 - A charge in Missing evidence goes on the list once an item has been missing for 60 days past the date it was expected, which for most items is the charge's posting date, the day the ledger recorded it. When a grant is added partway through its life, old charges with no evidence are flagged right away, because they really are late. It also goes on the list 90 days before the grant's end date, when Berkeley sends its first Notice of Expiration, whichever comes first. Bills often arrive weeks after a charge posts, so a charge isn't a problem on day one.
 - Inside that 90-day window every missing item is listed, even one that isn't due yet, as a reminder to chase it before the grant ends. Each one shows when it's expected, so a reminder doesn't read as a late item.
 - A missing approval is on the list right away.
+- A benefit charge waiting on its salary lines is shown with its salary line's row, not as a row of its own (a first version, [0030](decisions/0030-benefit-charges.md)).
 - The 60 days is our own choice. No federal rule sets it. It's the same for every grant, and there's no settings page for now.
 
 **Records.** Some problems aren't about one charge.
@@ -250,17 +253,27 @@ The demo data comes as sample grants ([0027](decisions/0027-sample-grants.md)).
   - Skipping the human steps is offered on "next event" and "go to a date". The sample accountant then makes the decisions the sample's expected results assume, and anything off that script is left for the user.
   - The prerun saves the whole expected run-through, made with the real agent. A saved result is loaded at once only while every decision so far is the sample accountant's scripted one. After the user's own decision, the agent works live from there.
   - The small sample is read live only. One larger read-live sample works at a time. While one of a user's larger read-live samples has agent runs queued or running from a move of its clock, moving the clock of another is refused, with a line naming the one that's still working. Opening a sample or starting one over is never refused.
-  - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, going to a date, and starting over. It marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
+  - A timeline panel on a sample grant's page shows what just happened, what the clock has stopped on now, and what's coming up, with controls for the next event, the next highlight, going to a date, and starting over. Next highlight moves to the next highlight with the human steps skipped. The panel marks results loaded from the prerun and shows which decisions the sample accountant made. Start over resets that one sample grant.
+  - The small sample holds highlights 1 to 3 below, on a tiny grant.
+  - The larger sample has a twelfth highlight: a bill whose amount doesn't match its charge.
 
-Everything below is an example. What goes in each sample, the grants, people, amounts, situations and the timeline's events, gets decided later by the product owner. All of it is synthetic.
+**What goes in the samples** ([0027](decisions/0027-sample-grants.md)). The samples show the app's features, above all hard cases handled well. A sample has many events, but only a few are highlights, chosen so that together they show every part of the app without repeating. The larger sample is one grant of about 30 charges, running its whole life, from the award letter to sign-off. Most charges are ordinary and clear on their own. Benefit lines sit beside salary lines and clear with them, and aren't a highlight. The grants' people, amounts and dates aren't decided yet. All of it is synthetic.
 
-| Example situation | What FundTrail does |
-|---|---|
-| A professor's conference fee is charged to participant support with no approval. Later the professor forwards their own "approved" email | **Possible conflict**, and it stays there: wrong approver, wrong channel |
-| A charge is for work done after the grant's end date. Later an extension notice, signed before the old end date, turns up in Drive | **Possible conflict**, then **Evidence complete** once the accountant confirms the new end date, citing it |
-| One purchase is shared with a second grant and split across both ledgers. A sample is one grant, so this needs two samples or shows one side, which is left to what goes in each sample | The invoice arrives on both grants. On each grant, the agent links it to that grant's charge for its part, from the invoice's itemized lines, or from an email giving the basis, for example "56 of 96 samples", which it also links. **Evidence complete** on both. If nothing gives the basis, **Needs a human** until the accountant enters it |
-| A bill arrives before its ledger line posts | It waits unlinked, then links when the line arrives |
-| The small sample, read live: a new grant with an award letter, a ledger file, emails, invoices and a receipt photo on its timeline | Open it, confirm its terms, deliver the ledger and the evidence or let the clock deliver them, and watch the statuses fill in |
+| # | Highlight in the larger sample | What FundTrail does |
+|---|---|---|
+| 1 | The award letter arrives | The agent proposes the terms, each tied to its passage, and they're confirmed |
+| 2 | An invoice arrives by email before its ledger line exists | It waits, then links when the line posts |
+| 3 | A receipt photo | It's the user's to deliver, by upload, email or Drive |
+| 4 | An invoice shared with another award | An email gives this grant's share, and code checks the arithmetic. The agent's suggestion about the rest waits for the accountant |
+| 5 | The professor's own conference fee on participant support, with her own "approved" email | **Possible conflict**, and it stays there |
+| 6 | A charge dated after the end date. An extension dated before the old end date turns up in Drive | **Possible conflict**, then the charge clears once the extension is confirmed, with no new agent work |
+| 7 | A vendor's email from an unknown address | Held until it's let in. It holds a cost that isn't allowed, and a correcting ledger line later moves the charge off the grant |
+| 8 | Spending goes over on a budget line and on the award's total | The accountant accepts it with a note. A later notice that adds money raises the limit |
+| 9 | Closeout | The closeout review, sign-off with one item open and a note, and the evidence report |
+| 10 | The same invoice arrives twice, in different files | Caught as a likely duplicate |
+| 11 | One effort report | Clears several salary lines at once |
+
+No scheduled event shows snoozes and late flags, a note covering future charges, fixing a term the agent misread, or a cost before the start date.
 
 ## Scope
 
@@ -307,19 +320,18 @@ Everything below is an example. What goes in each sample, the grants, people, am
 
 | Item | Who settles it |
 |---|---|
-| What goes in each sample: the grants, people, amounts, situations and the timeline's events, including a situation only the agent's judgment catches | product |
+| The sample grants' people, amounts and dates. What the samples show is decided ([0027](decisions/0027-sample-grants.md)). | product |
+| The samples' first versions: the twelfth highlight, the next highlight control, and the small sample holding highlights 1 to 3 ([0027](decisions/0027-sample-grants.md)) | product |
+| The first versions for benefit charges: a confirmed rate in force until a later one replaces it, and how a benefit charge waiting on its salary shows ([0030](decisions/0030-benefit-charges.md)) | product |
 | How to demo: how the sample grants and their timelines get used in the pitch | product |
-| The evidence report's name, its layout, and the sign-off flow. The preparer is whoever signs off ([0029](decisions/0029-workspace-members-and-one-access-check.md)). How the reviewer is shown is open. | product |
+| The evidence report's name, and withdrawing a sign-off. Its layout and the rest of the sign-off are decided ([0022](decisions/0022-evidence-report-and-sign-off.md)). The preparer is whoever signs off ([0029](decisions/0029-workspace-members-and-one-access-check.md)). | product |
 | Whether checks and reasons use the university's cost criteria as labels, for example Berkeley's | product |
 | How drafted explanations are written: by code from the records, or by the agent with citations | product, if the feature is built |
 | The timeline panel on a sample grant and its controls. A first version is built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
 | Skipping the human steps, how the prerun is made and when its saved results are loaded, what starting a sample grant over clears, and the limit on larger samples read live. First versions are built to judge running ([0027](decisions/0027-sample-grants.md)). | product |
 | The screens for confirming terms, the problem list, the checklist and the thread. The layout ideas above are a starting point. | product |
 | How a problem on the grant itself and a note on the grant are shown | product, with the screens |
-| How reversals and cost transfers show in buckets and at closeout, beyond their default checklist. Berkeley's 120-day limit on cost transfers is discussed with it. | product |
 | Whether a Program Officer's email, outside Research.gov, counts as approval. Until it's settled, such an approval stays in Needs a human. | product |
-| Whether a later change reopens a sign-off | product |
-| A cost shared by two grants while each grant is isolated: each grant's copy of the invoice shows the other grant's part as money never charged at closeout. How to show that without a false alarm. | product |
 | Whether the agent's corrections to its own facts, such as a misread receipt total, wait for the accountant like its link fixes do. The contracts make every correction the agent writes wait, except a new answer to its own question, which [0010](decisions/0010-agent-suggests-accountant-decides.md) narrows. | product |
 | How the evidence report shows the agent's answers next to code's reasons | product |
 | How the optional chat relates to review threads | product, if chat is built |
