@@ -13,7 +13,67 @@ These have to be true first. Each is open on GitHub tonight.
 - **The prerun isn't built.** The choice is marked unavailable, so the recording uses "the larger sample, read live". The agent reads every arrival for real, so each jump waits on the model, and playing the whole sample costs model spend. **Ask Alex before playing it in full.**
 - **Benefit lines** (highlight 11) show their recalculation only after PR 219 and PR 223.
 
-How to record: one clip per beat, cutting out the waits while the agent works. Say so in the description ("waits for the agent are cut"), so nobody thinks it's faked. Use a clean browser window at 1440 by 900, light theme.
+How to record and edit: see [Recording and editing](#recording-and-editing) below.
+
+## Recording and editing
+
+Record the screen first, then the voice. Claude then cuts the video together with ffmpeg.
+
+### 1. The screen
+
+- **Setup:** use macOS screen recording (Cmd+Shift+5, "Record Selected Portion") on the browser window.
+  - Window size 1440 by 900, light theme, browser zoom at 100%.
+  - Bookmarks bar hidden, notifications off (turn on a Focus).
+- **One clip per beat,** named as in the table below. Start two seconds before the first click and stop two seconds after the result shows.
+- **Don't stop for the agent's waits.** They get cut in the edit.
+- **Move the mouse slowly,** and rest it on what the narration names, such as the highlighted passage or the bucket.
+- **A mistake** means re-recording that one clip, saved as `-take2`.
+- **Save the clips** in `~/Desktop/fundtrail-video/screen/`. Keep video out of the repo.
+
+### 2. The voice
+
+- **Record it after the screen clips,** so you narrate what actually happened.
+- **One file per beat,** with the same number as its clip, such as `01-open.m4a`. QuickTime's "New Audio Recording" or Voice Memos both work.
+- **Use a quiet room,** sitting the same distance from the microphone for every file.
+- **Leave a second of silence** at the start and the end of each file.
+- **Read the "Say" lines.** Change the wording wherever the screen turned out differently. Redo any line you stumble on.
+- **Save the files** in `~/Desktop/fundtrail-video/voice/`.
+- **Optional:** a webcam clip for the open and the close, which goes in a corner of the screen.
+
+### 3. The edit (Claude, with ffmpeg)
+
+- **Trimming:** each clip is cut to its action, and the agent's waits are sped up or cut.
+- **Timing:** each clip is fitted to its voice file; the voice sets the length.
+- **Titles:** a short title card names each highlight. Captions too, if wanted.
+- **Audio:** even levels throughout.
+- **Output:** one 1080p MP4 under three minutes.
+- **Checking:** still frames from every cut are checked, then you watch it once from start to finish before uploading.
+
+### 4. The upload
+
+- **Where:** unlisted YouTube, Loom or Google Drive, set so anyone with the link can view it.
+- **Check the link** by opening it in a private browser window.
+- **Description:** "All data is synthetic. Agent processing time is shortened in editing."
+
+### The clips
+
+| # | File | Beat |
+|---|---|---|
+| 01 | `01-open` | Open |
+| 02 | `02-terms` | Highlight 1: Terms tied to their passages |
+| 03 | `03-receipt-photo` | Highlight 3: Receipt photo you deliver |
+| 04 | `04-invoice-first` | Highlight 2: Invoice before its line |
+| 05 | `05-shared-invoice` | Highlight 4: Shared invoice, 56 of 96 |
+| 06 | `06-own-approval` | Highlight 5: Own fee, own approval |
+| 07 | `07-bill-under` | Highlight 12: Bill under its charge |
+| 08 | `08-duplicate` | Highlight 10: Same invoice twice |
+| 09 | `09-held-mail` | Highlight 7: Held vendor email |
+| 10 | `10-salary-lines` | Highlight 11: One report, six salary lines |
+| 11 | `11-moved-off` | Highlight 7, continued: Moved off the grant |
+| 12 | `12-over-budget` | Highlight 8: Over budget, then more money |
+| 13 | `13-extension` | Highlight 6: Extension found in Drive |
+| 14 | `14-closeout` | Highlight 9: Closeout |
+| 15 | `15-close` | Close |
 
 ## Beats
 
