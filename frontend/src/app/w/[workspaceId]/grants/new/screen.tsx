@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { Loadable } from "@/components/Loadable";
 import { AddGrantForm } from "@/components/setup/AddGrantForm";
@@ -19,15 +20,19 @@ export function NewGrantScreen() {
   const refresh = useRefresh();
   const workspace = useWorkspaces().data?.find((w) => w.id === workspaceId);
   const samples = useSamples();
+  // The side the accountant used last carries the page's one main button.
+  const [used, setUsed] = useState<"own" | "sample" | null>(null);
 
   return (
     <AppShell workspaceId={workspaceId} crumbs={[workspace?.name ?? "Workspace", "Add a grant"]}>
       <h1 className="ft-title">Add a grant</h1>
       <div className="ft-cards">
-        <AddGrantForm workspaceId={workspaceId} />
+        <AddGrantForm workspaceId={workspaceId} main={used === "own"} onUse={() => setUsed("own")} />
         <Loadable result={samples}>
           {(options) => (
             <SampleCard
+              main={used === "sample"}
+              onUse={() => setUsed("sample")}
               options={options}
               openSample={(body) => api.createSample(workspaceId, body)}
               onOpened={(grantId) => {

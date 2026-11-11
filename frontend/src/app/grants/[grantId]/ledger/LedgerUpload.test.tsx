@@ -50,6 +50,17 @@ describe("LedgerUpload", () => {
     ]);
   });
 
+  it("marks each count with a neutral mark, and none beside a zero", async () => {
+    setup({ added: 3, already_present: 0, rejected: [] });
+    const file = new File(["line_id,amount\n"], "ledger.csv", { type: "text/csv" });
+    fireEvent.change(screen.getByLabelText("Ledger file"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    const result = await screen.findByRole("status");
+    expect(within(result).getByText("3 lines added")).toHaveClass("is-added");
+    expect(within(result).getByText("0 lines already on file, skipped")).not.toHaveClass("is-other");
+    expect(within(result).getByText("0 rows rejected")).not.toHaveClass("is-other");
+  });
+
   it("has nothing to send until a file is chosen", () => {
     setup({ added: 0, already_present: 0, rejected: [] });
     expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled();
