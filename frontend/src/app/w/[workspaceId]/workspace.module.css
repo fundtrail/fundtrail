@@ -85,4 +85,10 @@
   .empty {
     padding: var(--space-6) var(--space-4);
   }
+  /* Touch targets: Add a grant, in the header or the empty state, at least 44px tall. */
+  .head :global(.ft-btn),
+  .empty :global(.ft-btn) {
+    min-height: 44px;
+    padding-inline: var(--space-4);
+  }
 }

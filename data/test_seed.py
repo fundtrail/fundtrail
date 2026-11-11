@@ -7,7 +7,9 @@
   decision 0023's rule. The user actions are the script the key assumes.
 - Every value a key expects is written in its file. A sample's typeset PDF is
   read back with pdfium: every row of its text has to be on the page, in order.
-  An image is read from the strings the generator drew on it.
+  An image is read from the strings the generator drew on it. A scan or a photo
+  made from a typeset page is read from that page's text: a scanned PDF has no
+  text layer, so its words' boxes are checked in place of a read-back.
 - Every passage the stand-in agent's records cite into a PDF is found there by
   the app's own quote finder, with its value, as often as the text has it.
 - The synthetic-data rule (CLAUDE.md): award numbers start with SYN-, email
@@ -188,21 +190,34 @@ DATE_FIELDS = ev.DATE_FIELDS | {"effective_from", "effective_to"}
 # "Benefit rate" item from the confirmed rate and its salary lines, with no link.
 BENEFIT_ACCOUNTS = {"53060", "53070", "53080", "53085", "53086"}
 APPROVAL_SCOPES = {"every_charge", "moved_out"}
-# The images depend on the machine's fonts, so the generator's bytes can't be
-# compared. Their hashes catch an image swapped or edited by hand. After
-# redrawing them on purpose (build.py --photos), update these.
+# The pictures (photos and scans, the scanned PDFs among them) depend on the machine's
+# fonts, so the generator's bytes can't be compared. Their hashes catch a picture
+# swapped or edited by hand. After redrawing them on purpose (build.py --photos),
+# update these.
 PHOTO_SHA256 = {
     "demo/coastal-microbial-genomics/taxi_receipt_ocean_sciences_2026.jpg": (
         "3210e49710071f2bfb82d3bf6a528c731ecc62a6f55baf2d6fac80c98217f310"
     ),
     "samples/nitrate-sensors/hardware_receipt.jpg": (
-        "d67b26c0e1cb75da64238e339fc30369dd98c9c148f8c88fa59320f77448fc7e"
+        "32c3a51ac7b4459f410a40f94fc0333c306b8bb743927a5bb34fbe5709e244b1"
     ),
     "samples/salt-marsh-carbon/taxi_receipt_egu_2024.jpg": (
-        "7fa74e0162d7523d0545ab9d5d37d56d02360798d7769710396d66e7b3165886"
+        "50533f521a574c6bdcbefd7ee2151d7caf1cc309e30c76a644ff32c4b20279d5"
+    ),
+    "samples/salt-marsh-carbon/hotel_folio_egu-2024.jpg": (
+        "3befcd4798ace6763e8a5a5812529d1c4bd7fef5ad4a7b02362bffffbe7a5f68"
+    ),
+    "samples/salt-marsh-carbon/invoice_INV-12655.pdf": (
+        "19679ce302a56812bae9c864c4b873799a7339d119aa30e4d70cbcea75b965a9"
+    ),
+    "samples/salt-marsh-carbon/invoice_EFG-56443.pdf": (
+        "8f82981119360df0720583ce9418361cc8d7de11b4d2fcfb5f6bff51cf254d5e"
+    ),
+    "samples/salt-marsh-carbon/appointment_letter_castellano.pdf": (
+        "e33a01e3ca8ce759b6658283fb9eb37b76bcff1a89deaa3356ccd90cef1ea5cb"
     ),
     "samples/salt-marsh-carbon/scan_invoice_ESS-55120.jpg": (
-        "1ef97f648cde2b6ec0dbec4b4596bb72ff2217d7ce7dd52cc125a4be4f2fff47"
+        "7a97e6f417a98387746d6c5387fc8233a7c2ea547ce519b1e9a14bab4e566e8e"
     ),
 }
 # The highlights each sample marks in its timeline (the sample content brief).
@@ -299,6 +314,11 @@ def folders() -> list[Path]:
     return [p for root in (SAMPLES, DEMO) for p in sorted(root.iterdir()) if p.is_dir()]
 
 
+def is_picture(doc) -> bool:
+    """Whether a file is a picture of paper: a photo or a scan, a scanned PDF included."""
+    return Path(doc.name).suffix in PHOTO_SUFFIXES or doc.words is not None
+
+
 def texts(files: Path, grant) -> dict[str, str]:
     """What a reader sees in each evidence file, read back from disk.
 
@@ -311,7 +331,7 @@ def texts(files: Path, grant) -> dict[str, str]:
             continue
         data = p.read_bytes()
         doc = docs.get(p.name)
-        if p.suffix == ".pdf" and doc is not None and doc.pages is not None:
+        if doc is not None and (doc.pages is not None or doc.words is not None):
             out[p.name] = doc.text
         elif p.suffix == ".pdf":
             out[p.name] = pdf_text(data)
@@ -340,14 +360,15 @@ def check_generated(key_dir: Path, files: Path, grant, problems: list[str]) -> N
     on_disk = {p.name for p in files.iterdir() if p.is_file() and p.name not in META_FILES}
     for name in sorted(on_disk - set(expected)):
         problems.append(f"{name}: on disk but the generator doesn't make it")
+    pictures = {d.name for d in grant.docs if is_picture(d)}
     for name, data in expected.items():
         path = files / name
         if not path.is_file():
             problems.append(f"{name}: the generator makes it but it isn't on disk")
-        elif Path(name).suffix in PHOTO_SUFFIXES:
+        elif name in pictures:
             rel = path.relative_to(DATA).as_posix()
             if hashlib.sha256(path.read_bytes()).hexdigest() != PHOTO_SHA256.get(rel):
-                problems.append(f"{rel}: isn't the photo the test knows (PHOTO_SHA256)")
+                problems.append(f"{rel}: isn't the picture the test knows (PHOTO_SHA256)")
         elif path.read_bytes() != data:
             problems.append(f"{name}: differs from the generator's output; run build.py")
     made_files = [
@@ -996,6 +1017,8 @@ def check_folder(key_dir: Path, grant) -> list[str]:
     for d in grant.docs:
         if not d.name.endswith(".pdf") or d.name not in text:
             continue
+        if d.words is not None:
+            continue  # a scan: no text layer to read back (check_pictures)
         if d.pages is None:
             if text[d.name] != d.text.rstrip("\n"):
                 problems.append(f"{d.name}: its PDF text doesn't read back as written")
@@ -1017,7 +1040,36 @@ def check_folder(key_dir: Path, grant) -> list[str]:
     if key_dir.parent == SAMPLES:
         check_sample_names(text | drawn, problems)
         check_marked(grant, drawn, problems)
+        check_pictures(files, grant, problems)
     return [f"{key_dir.name}: {p}" for p in problems]
+
+
+def check_pictures(files: Path, grant, problems: list[str]) -> None:
+    """A picture of paper: a receipt's photo, or a scan or a photo of a typeset page.
+
+    - A scanned PDF is one page with no text layer, so the app sends it as an image.
+    - It has the words of every row of its text, each with a box that lies inside the
+      picture and isn't empty.
+    """
+    typeset = typeset_module()
+    for d in grant.docs:
+        if d.words is None:
+            continue
+        if d.name.endswith(".pdf"):
+            pages = typeset.page_texts((files / d.name).read_bytes())
+            if len(pages) != 1 or pages[0].strip():
+                problems.append(f"{d.name}: a scan is one page with no text layer")
+        rows = d.text.split("\n")
+        if len(rows) != len(d.words):
+            problems.append(f"{d.name}: its word boxes don't line up with its text's rows")
+            continue
+        for n, (row, words) in enumerate(zip(rows, d.words, strict=True)):
+            if [w for w, _ in words or []] != row.split():
+                problems.append(f"{d.name}: row {n}'s words aren't the text's: {row.strip()!r}")
+            for word, (left, top, width, height) in words or []:
+                inside = 0 <= left and 0 <= top and left + width <= 1 and top + height <= 1
+                if not inside or width <= 0 or height <= 0:
+                    problems.append(f"{d.name}: the box of {word!r} isn't on the picture")
 
 
 def check_sample_names(text: dict[str, str], problems: list[str]) -> None:
@@ -1665,7 +1717,8 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
             ref = r["data"].get(target) if target == "record_id" else r.get(target)
             if ref is not None and (ref not in by_id or by_id[ref]["written_at"] > r["written_at"]):
                 problems.append(f"{where}: {rid} points to {ref}, not written before it")
-        for c in citations(r["data"]):
+        for value in cited_values(r["data"]):
+            c = value["citation"]
             name = c["file_id"].removeprefix("file-")
             if name not in docs:
                 problems.append(f"{where}: {rid} cites {name}, which isn't a file of the sample")
@@ -1687,7 +1740,6 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                 if pages not in at:
                     problems.append(f"{where}: {rid}'s passage isn't a row of {name} there")
             elif loc["type"] == "image_box":
-                box = (loc["left"], loc["top"], loc["width"], loc["height"])
                 if not (
                     0 <= loc["left"]
                     and loc["left"] + loc["width"] <= 1
@@ -1695,8 +1747,32 @@ def check_agent_records(folder: Path, grant, problems: list[str]) -> None:
                     and loc["top"] + loc["height"] <= 1
                 ):
                     problems.append(f"{where}: {rid}'s box isn't inside {name}")
-                elif box not in (docs[name].boxes or []):
-                    problems.append(f"{where}: {rid}'s box isn't a string drawn on {name}")
+                else:
+                    # The box holds words of one row of the picture, and where the
+                    # citation is a value's, exactly the value's text: a second look at
+                    # the boxed area has to read the value and nothing more.
+                    left, top = loc["left"], loc["top"]
+                    right, bottom = left + loc["width"], top + loc["height"]
+                    held = [
+                        [
+                            w
+                            for w, b in row
+                            if b[0] >= left - 1e-6
+                            and b[1] >= top - 1e-6
+                            and b[0] + b[2] <= right + 1e-3
+                            and b[1] + b[3] <= bottom + 1e-3
+                        ]
+                        for row in docs[name].words or []
+                        if row
+                    ]
+                    words = " ".join(max(held, key=len, default=[]))
+                    if loc["page"] != 1 or not words:
+                        problems.append(f"{where}: {rid}'s box holds no word of {name}")
+                    elif "text" in value and words != " ".join(value["text"].split()):
+                        problems.append(
+                            f"{where}: {rid}'s box on {name} holds {words!r}, "
+                            f"not the value {value['text']!r}"
+                        )
             else:
                 problems.append(f"{where}: {rid} has a {loc['type']} citation")
 

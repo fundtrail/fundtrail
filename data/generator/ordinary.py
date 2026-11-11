@@ -13,6 +13,7 @@ import random
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+import images
 import typeset
 from model import Doc, Grant, Line, Ordinary, at, business_day
 from names import LEGACY, Person, Vendor
@@ -74,10 +75,17 @@ def put(
     """Adds a document whose content is `text`, in the form its name gives.
 
     A `.pdf` on a sample is typeset (typeset.render), in the `look` of whoever
-    issued it. On the unused seed grants it's the typewriter PDF they were built
-    with. Any other name is the text itself. `text` stays the document's text, the
-    one the stand-in agent cites from.
+    issued it. A name in `g.pictures` is that typeset page as paper: scanned, or
+    photographed with a phone. On the unused seed grants a `.pdf` is the typewriter
+    PDF they were built with. Any other name is the text itself. `text` stays the
+    document's text, the one the stand-in agent cites from.
     """
+    if name in g.pictures:
+        page, _ = typeset.render(name.rsplit(".", 1)[0] + ".pdf", text, look)
+        picture = images.picture(name, page, text, g.pictures[name], arrives)
+        doc = g.doc(name, picture.data, arrives, source, text=text, **fields)
+        doc.words = picture.words
+        return doc
     if not name.endswith(".pdf"):
         return g.doc(name, text, arrives, source, **fields)
     if not g.typeset:
@@ -666,6 +674,8 @@ def trip(
     # Hotel folio.
     folio_no = f"F{rng.randint(100000, 999999)}"
     folio_name = f"hotel_folio_{t.slug}.pdf"
+    if f"hotel_folio_{t.slug}.jpg" in g.pictures:
+        folio_name = f"hotel_folio_{t.slug}.jpg"  # a phone photo of the printed folio
     nights = [
         f"  {long_date(t.depart + timedelta(days=i)):<22}{label:<28}{money(cents):>8}"
         for i in range(t.nights)

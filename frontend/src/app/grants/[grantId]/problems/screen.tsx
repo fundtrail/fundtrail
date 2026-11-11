@@ -37,7 +37,9 @@ function useNarrow(): boolean {
  * The problem list: every row the server sent, in its order, beside the one
  * picked. The pick is the `item` search param, so reload and back keep it;
  * with none, or one that's no longer on the list, the first row is shown, and
- * a filter that hides the picked row shows its first row instead. On a narrow
+ * a filter that hides the picked row shows its first row instead. A problem on
+ * the grant itself has no page of its own, so on a narrow screen it opens
+ * above the list. On a narrow
  * screen the list is the page: a row opens its own page, and a link with
  * `item` goes straight to that item's page.
  */
@@ -78,7 +80,9 @@ export function ProblemsScreen() {
 
   function select(key: string): boolean {
     // Too narrow to show the item beside the list: the row's link opens its own page.
-    if (isNarrow()) return false;
+    // A problem on the grant itself has no page of its own, so it opens here, above the list.
+    const row = rows[keys.indexOf(key)];
+    if (isNarrow() && !(row && row.kind === "grant")) return false;
     const query = new URLSearchParams(search.toString());
     query.set("item", key);
     router.push(`${pathname}?${query.toString()}`, { scroll: false });
@@ -120,9 +124,9 @@ export function ProblemsScreen() {
                   />
                 </section>
                 {/* Only a screen wide enough to show the item loads it. */}
-                {!narrow && selected && (
-                  <section className={styles.detail} aria-label="The selected item">
-                    <SelectedProblem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} />
+                {selected && (!narrow || (asked === selected && selectedRow?.kind === "grant")) && (
+                  <section className={`${styles.detail}${narrow ? ` ${styles.detailFirst}` : ""}`} aria-label="The selected item">
+                    <SelectedProblem key={selected} grantId={grantId} itemKey={selected} row={selectedRow} focusHeading={narrow} />
                   </section>
                 )}
               </div>
