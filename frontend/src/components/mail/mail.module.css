@@ -88,13 +88,16 @@
   padding: 0;
   list-style: none;
 }
+/* Icon, name and note sit on the name's first line, so a wrapped name keeps
+   them at its top. One 16px line plus 3px padding and the border is 24px,
+   so a one-line chip is still centred. */
 .chip {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   min-height: 24px;
   max-width: 100%;
-  padding: 2px var(--space-2);
+  padding: 3px var(--space-2);
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
   background: var(--paper-sunken);
@@ -120,6 +123,8 @@
 }
 .fileGlyph {
   flex: none;
+  /* The 12px glyph centred on the first 16px line. */
+  margin-top: 2px;
   color: var(--ink-muted);
 }
 
