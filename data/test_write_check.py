@@ -7,6 +7,10 @@ sample's records in file order and runs every one through the contract's
 and files that have arrived by the record's time and the records written before
 it, as an agent run writing it would.
 
+A real save also matches each citation against its file. For a PDF that's the
+quote finder, so `write_check_problems` ends with test_seed's check that the
+finder finds every passage the records cite into a PDF, with its value.
+
 It needs the backend's dependencies, so run it from backend/:
 
     cd backend && uv run python ../data/test_write_check.py
@@ -114,6 +118,7 @@ def write_check_problems(folder: Path, grant) -> list[str]:
         )
         problems += [f"{folder.name}: {record.id}: {p}" for p in found]
         written.append(record)
+    test_seed.check_pdf_citations(folder, grant, problems)
     return problems
 
 

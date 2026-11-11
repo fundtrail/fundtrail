@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { AgentProgressLine } from "@/components/AgentProgress";
 import { AppShell } from "@/components/AppShell";
 import { Loadable } from "@/components/Loadable";
 import { BudgetFigures } from "@/components/BudgetFigures";
@@ -74,6 +75,8 @@ function Head({ summary, start }: { summary: GrantSummary; start: IsoDate | null
             )}
           </span>
         </p>
+        {/* Ruling 71: the agent's progress while it reads, or its last run's summary. */}
+        <AgentProgressLine summary={summary} />
       </div>
       <Link className="ft-btn" href={routes.closeout(grant.id)}>
         Evidence report
